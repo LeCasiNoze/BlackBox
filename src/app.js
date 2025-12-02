@@ -4,6 +4,10 @@ const adminRoutes = require("./routes/admin");
 const cardRoutes = require("./routes/card");
 const authRoutes = require("./routes/auth");
 
+const { db } = require("./db");
+const { ensureDemoClient } = require("./db/clients");
+ensureDemoClient();
+
 const app = express();
 
 // Middlewares globaux
