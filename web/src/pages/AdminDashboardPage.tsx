@@ -1310,16 +1310,16 @@ export function AdminDashboardPage() {
 
         {/* Modal profil client (création / édition) */}
         {profileModalOpen && profileDraft && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-3">
-            <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-950/95 px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,0.9)]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-3">
+            <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-black/95 px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,1)]">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-50">
+                  <p className="text-sm font-semibold text-white">
                     {profileMode === "new"
                       ? "Nouveau client"
                       : "Modifier le profil"}
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-neutral-400">
                     Nom, contact, véhicule, formule…
                   </p>
                 </div>
@@ -1337,7 +1337,7 @@ export function AdminDashboardPage() {
               </div>
 
               {profileMode === "new" && (
-                <div className="mb-2 text-[11px] text-slate-500">
+                <div className="mb-2 text-[11px] text-white0">
                   Le code carte sera généré automatiquement (BBX-00X) et ne
                   pourra pas être modifié.
                 </div>
@@ -1347,11 +1347,11 @@ export function AdminDashboardPage() {
                 {/* Identité */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Prénom
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.firstName}
                       onChange={(e) =>
                         updateProfileDraft("firstName", e.target.value)
@@ -1359,11 +1359,11 @@ export function AdminDashboardPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Nom
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.lastName}
                       onChange={(e) =>
                         updateProfileDraft("lastName", e.target.value)
@@ -1373,11 +1373,11 @@ export function AdminDashboardPage() {
                 </div>
 
                 <label className="space-y-1">
-                  <span className="text-slate-400 text-[11px]">
+                  <span className="text-neutral-400 text-[11px]">
                     Compagnie (optionnel)
                   </span>
                   <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     value={profileDraft.company}
                     onChange={(e) =>
                       updateProfileDraft("company", e.target.value)
@@ -1388,11 +1388,11 @@ export function AdminDashboardPage() {
                 {/* Contact */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Téléphone
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.phone}
                       onChange={(e) =>
                         updateProfileDraft("phone", e.target.value)
@@ -1400,11 +1400,11 @@ export function AdminDashboardPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Email
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.email}
                       onChange={(e) =>
                         updateProfileDraft("email", e.target.value)
@@ -1415,11 +1415,11 @@ export function AdminDashboardPage() {
 
                 {/* Adresse */}
                 <label className="space-y-1">
-                  <span className="text-slate-400 text-[11px]">
+                  <span className="text-neutral-400 text-[11px]">
                     Adresse
                   </span>
                   <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     value={profileDraft.addressLine1}
                     onChange={(e) =>
                       updateProfileDraft("addressLine1", e.target.value)
@@ -1427,11 +1427,11 @@ export function AdminDashboardPage() {
                   />
                 </label>
                 <label className="space-y-1">
-                  <span className="text-slate-400 text-[11px]">
+                  <span className="text-neutral-400 text-[11px]">
                     Complément
                   </span>
                   <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     value={profileDraft.addressLine2}
                     onChange={(e) =>
                       updateProfileDraft("addressLine2", e.target.value)
@@ -1440,11 +1440,11 @@ export function AdminDashboardPage() {
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Code postal
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.postalCode}
                       onChange={(e) =>
                         updateProfileDraft("postalCode", e.target.value)
@@ -1452,11 +1452,11 @@ export function AdminDashboardPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Ville
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.city}
                       onChange={(e) =>
                         updateProfileDraft("city", e.target.value)
@@ -1468,11 +1468,11 @@ export function AdminDashboardPage() {
                 {/* Véhicule */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Véhicule
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.vehicleModel}
                       onChange={(e) =>
                         updateProfileDraft("vehicleModel", e.target.value)
@@ -1480,11 +1480,11 @@ export function AdminDashboardPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Plaque
                     </span>
                     <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.vehiclePlate}
                       onChange={(e) =>
                         updateProfileDraft("vehiclePlate", e.target.value)
@@ -1495,11 +1495,11 @@ export function AdminDashboardPage() {
 
                 {/* Formule (optionnel) */}
                 <label className="space-y-1">
-                  <span className="text-slate-400 text-[11px]">
+                  <span className="text-neutral-400 text-[11px]">
                     Nom de la formule
                   </span>
                   <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     value={profileDraft.formulaName}
                     onChange={(e) =>
                       updateProfileDraft("formulaName", e.target.value)
@@ -1508,13 +1508,13 @@ export function AdminDashboardPage() {
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Max nettoyages
                     </span>
                     <input
                       type="number"
                       min={0}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.formulaTotal}
                       onChange={(e) =>
                         updateProfileDraft("formulaTotal", e.target.value)
@@ -1522,13 +1522,13 @@ export function AdminDashboardPage() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-slate-400 text-[11px]">
+                    <span className="text-neutral-400 text-[11px]">
                       Restants
                     </span>
                     <input
                       type="number"
                       min={0}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                       value={profileDraft.formulaRemaining}
                       onChange={(e) =>
                         updateProfileDraft(
@@ -1542,12 +1542,12 @@ export function AdminDashboardPage() {
 
                 {/* Notes */}
                 <label className="space-y-1">
-                  <span className="text-slate-400 text-[11px]">
+                  <span className="text-neutral-400 text-[11px]">
                     Notes internes
                   </span>
                   <textarea
                     rows={3}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 placeholder:text-white0 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     value={profileDraft.notes}
                     onChange={(e) =>
                       updateProfileDraft("notes", e.target.value)
@@ -1585,7 +1585,7 @@ export function AdminDashboardPage() {
         {/* Toast */}
         {toast && (
           <div className="fixed bottom-4 inset-x-0 flex justify-center z-40">
-            <div className="max-w-xs rounded-full bg-slate-950/95 border border-slate-700 px-3.5 py-2 text-[12px] text-slate-100 shadow-lg">
+            <div className="max-w-xs rounded-full bg-slate-950/95 border border-slate-700 px-3.5 py-2 text-[12px] text-neutral-200 shadow-lg">
               {toast}
             </div>
           </div>

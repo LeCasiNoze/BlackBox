@@ -3,7 +3,7 @@ import * as React from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Star, CalendarDays } from "lucide-react";
 
 type DayStatus = "free" | "mine" | "busy";
 
@@ -48,6 +48,46 @@ type ApiResponse = {
 
 type ModalMode = "book" | "manage" | "past";
 
+// ──────────────────────────────────────
+// Types pour la section "Vos rendez-vous"
+// ──────────────────────────────────────
+
+type ClientAppointmentStatus = "requested" | "confirmed" | "done" | "cancelled";
+
+type ClientAppointment = {
+  id: number;
+  date: string; // YYYY-MM-DD
+  time: string | null; // "HH:MM"
+  status: ClientAppointmentStatus;
+  adminNote: string | null;
+  userRating: number | null;
+  userReview: string | null;
+  vehicleModel: string | null;
+  vehiclePlate: string | null;
+  hasPhotos: boolean;
+};
+
+type ListClientAppointmentsResponse = {
+  ok: boolean;
+  appointments: ClientAppointment[];
+};
+
+type AppointmentPhoto = {
+  id: number;
+  url: string;
+  label: string | null;
+};
+
+type AppointmentPhotosResponse = {
+  ok: boolean;
+  photos: AppointmentPhoto[];
+};
+
+type SaveReviewResponse = {
+  ok: boolean;
+  appointment?: ClientAppointment;
+};
+
 function useQuery() {
   const { search } = useLocation();
   return React.useMemo(() => new URLSearchParams(search), [search]);
@@ -90,6 +130,62 @@ function splitTime(t: string): { h: string; m: string } {
   return { h: h ?? "10", m: m ?? "00" };
 }
 
+function formatDateFR(dateStr: string) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatTimeHHMM(time: string | null) {
+  if (!time) return "—";
+  return time.slice(0, 5);
+}
+
+function appointmentDateTime(a: ClientAppointment): Date {
+  const time = a.time ?? "00:00";
+  return new Date(`${a.date}T${time}:00`);
+}
+
+function appointmentIsPast(a: ClientAppointment): boolean {
+  const dt = appointmentDateTime(a);
+  return dt.getTime() < Date.now();
+}
+
+function appointmentStatusLabel(status: ClientAppointmentStatus) {
+  switch (status) {
+    case "requested":
+      return "En attente";
+    case "confirmed":
+      return "Confirmé";
+    case "done":
+      return "Effectué";
+    case "cancelled":
+      return "Annulé";
+    default:
+      return status;
+  }
+}
+
+function appointmentStatusClasses(status: ClientAppointmentStatus) {
+  switch (status) {
+    case "requested":
+      return "bg-amber-500/10 text-amber-300 border border-amber-500/40";
+    case "confirmed":
+      return "bg-sky-500/10 text-sky-300 border border-sky-500/40";
+    case "done":
+      return "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40";
+    case "cancelled":
+      return "bg-rose-500/10 text-rose-300 border border-rose-500/40 line-through";
+    default:
+      return "";
+  }
+}
+
 export function ClientCardPage() {
   const params = useParams<{ slug?: string }>();
   const navigate = useNavigate();
@@ -109,7 +205,7 @@ export function ClientCardPage() {
     {}
   );
 
-  // Modale
+  // Modale calendrier (book / manage / past)
   const [modalDay, setModalDay] = React.useState<ApiDay | null>(null);
   const [modalMode, setModalMode] = React.useState<ModalMode>("book");
   const [selectedTime, setSelectedTime] = React.useState<string>(defaultTime());
@@ -118,6 +214,28 @@ export function ClientCardPage() {
   const [toast, setToast] = React.useState<string | null>(null);
 
   const monthParam = query.get("m");
+
+  // ──────────────────────────────────────
+  // État "Vos rendez-vous"
+  // ──────────────────────────────────────
+  const [appointments, setAppointments] = React.useState<ClientAppointment[]>(
+    []
+  );
+  const [appointmentsLoading, setAppointmentsLoading] = React.useState(true);
+
+  const [selectedAppointment, setSelectedAppointment] =
+    React.useState<ClientAppointment | null>(null);
+  const [appointmentPhotos, setAppointmentPhotos] = React.useState<
+    AppointmentPhoto[]
+  >([]);
+  const [appointmentPhotosLoading, setAppointmentPhotosLoading] =
+    React.useState(false);
+  const [reviewRating, setReviewRating] = React.useState(0);
+  const [reviewText, setReviewText] = React.useState("");
+  const [savingReview, setSavingReview] = React.useState(false);
+  const [appointmentModalOpen, setAppointmentModalOpen] = React.useState(false);
+
+  const carouselRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -156,6 +274,38 @@ export function ClientCardPage() {
 
   const client = data?.client;
   const month = data?.month;
+
+  // Chargement de la liste des rendez-vous pour le carrousel
+  React.useEffect(() => {
+    if (!client) return;
+    let active = true;
+
+    async function loadAppointments() {
+      try {
+        setAppointmentsLoading(true);
+        const res = await fetch(
+          `/api/client/${encodeURIComponent(slug)}/appointments`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as ListClientAppointmentsResponse;
+        if (!active) return;
+        if (!json.ok) throw new Error("API appointments not ok");
+        setAppointments(json.appointments || []);
+      } catch (err) {
+        if (active) {
+          console.error("Impossible de charger les rendez-vous client.");
+          setAppointments([]);
+        }
+      } finally {
+        if (active) setAppointmentsLoading(false);
+      }
+    }
+
+    void loadAppointments();
+    return () => {
+      active = false;
+    };
+  }, [slug, client?.id, reloadToken]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -246,7 +396,7 @@ export function ClientCardPage() {
     } finally {
       setBusyAction(false);
       setModalDay(null);
-      // si on veut re-synchroniser strictement avec la DB :
+      // re-sync stricte avec DB
       setReloadToken((x) => x + 1);
     }
   }
@@ -310,31 +460,28 @@ export function ClientCardPage() {
     }
   }
 
-    async function updateTime(date: string, newTime: string) {
+  async function updateTime(date: string, newTime: string) {
     if (!data) return;
 
     setBusyAction(true);
 
-    // Mise à jour instantanée côté UI
     setLocalTimes((prev) => ({
-        ...prev,
-        [date]: newTime,
+      ...prev,
+      [date]: newTime,
     }));
 
     try {
-        // Le backend détecte que c'est un rendez-vous déjà existant pour ce client
-        // et passe en mode "updateAppointmentTimeForClient" (pas de crédit consommé).
-        await fetch(`/api/client/${encodeURIComponent(slug)}/book`, {
+      await fetch(`/api/client/${encodeURIComponent(slug)}/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date, time: newTime }),
-        }).catch(() => null);
+      }).catch(() => null);
     } finally {
-        setBusyAction(false);
-        setModalDay(null);
-        setReloadToken((x) => x + 1);
+      setBusyAction(false);
+      setModalDay(null);
+      setReloadToken((x) => x + 1);
     }
-    }
+  }
 
   function goMonth(delta: number) {
     if (!month) return;
@@ -342,12 +489,165 @@ export function ClientCardPage() {
     navigate(`/card/${encodeURIComponent(slug)}?m=${nextIso}`);
   }
 
+  // ──────────────────────────────────────
+  // Gestion du carrousel "Vos rendez-vous"
+  // ──────────────────────────────────────
+
+  const sortedAppointments = React.useMemo(() => {
+    const copy = [...appointments];
+    copy.sort(
+      (a, b) => appointmentDateTime(a).getTime() - appointmentDateTime(b).getTime()
+    );
+    return copy;
+  }, [appointments]);
+
+  const upcomingIndex = React.useMemo(() => {
+    if (sortedAppointments.length === 0) return -1;
+    const now = new Date();
+    const idx = sortedAppointments.findIndex((a) => {
+      if (a.status === "cancelled") return false;
+      return appointmentDateTime(a).getTime() >= now.getTime();
+    });
+    if (idx === -1) {
+      // Tous passés → on centre sur le dernier
+      return sortedAppointments.length - 1;
+    }
+    return idx;
+  }, [sortedAppointments]);
+
+  React.useEffect(() => {
+    if (!carouselRef.current) return;
+    if (sortedAppointments.length === 0) return;
+    if (upcomingIndex < 0) return;
+
+    const container = carouselRef.current;
+    const items = container.querySelectorAll<HTMLElement>(
+      "[data-appointment-index]"
+    );
+    if (!items.length) return;
+
+    const target = Array.from(items).find(
+      (el) => Number(el.dataset.appointmentIndex) === upcomingIndex
+    );
+    if (target) {
+      target.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }
+  }, [sortedAppointments, upcomingIndex]);
+
+  async function loadAppointmentPhotos(appointmentId: number) {
+    setAppointmentPhotosLoading(true);
+    try {
+      const res = await fetch(
+        `/api/client/${encodeURIComponent(
+          slug
+        )}/appointments/${appointmentId}/photos`
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as AppointmentPhotosResponse;
+      if (!json.ok) throw new Error("Photos API not ok");
+      setAppointmentPhotos(json.photos || []);
+    } catch (err) {
+      console.error("Impossible de charger les photos du rendez-vous.");
+      setAppointmentPhotos([]);
+    } finally {
+      setAppointmentPhotosLoading(false);
+    }
+  }
+
+  function openAppointmentModal(apt: ClientAppointment) {
+    setSelectedAppointment(apt);
+    setAppointmentPhotos([]);
+    setReviewRating(apt.userRating ?? 0);
+    setReviewText(apt.userReview ?? "");
+    setAppointmentModalOpen(true);
+
+    if (apt.hasPhotos) {
+      void loadAppointmentPhotos(apt.id);
+    }
+  }
+
+  function closeAppointmentModal() {
+    setAppointmentModalOpen(false);
+    setSelectedAppointment(null);
+    setAppointmentPhotos([]);
+    setAppointmentPhotosLoading(false);
+    setReviewRating(0);
+    setReviewText("");
+    setSavingReview(false);
+  }
+
+  async function saveReview() {
+    if (!selectedAppointment) return;
+    if (reviewRating <= 0 || reviewRating > 5) {
+      showToast("Merci de choisir une note entre 1 et 5 étoiles.");
+      return;
+    }
+
+    setSavingReview(true);
+    try {
+      const res = await fetch(
+        `/api/client/${encodeURIComponent(
+          slug
+        )}/appointments/${selectedAppointment.id}/review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rating: reviewRating,
+            review: reviewText.trim() === "" ? null : reviewText.trim(),
+          }),
+        }
+      );
+      const json = (await res.json().catch(() => null)) as
+        | SaveReviewResponse
+        | null;
+
+      if (!res.ok || !json || json.ok === false) {
+        showToast("Erreur lors de l'enregistrement de votre avis.");
+        return;
+      }
+
+      const updated = json.appointment;
+      if (updated) {
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === updated.id ? updated : a))
+        );
+        setSelectedAppointment(updated);
+      } else {
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a.id === selectedAppointment.id
+              ? {
+                  ...a,
+                  userRating: reviewRating,
+                  userReview:
+                    reviewText.trim() === "" ? null : reviewText.trim(),
+                }
+              : a
+          )
+        );
+      }
+
+      showToast("Merci pour votre avis !");
+    } catch (err) {
+      showToast("Erreur réseau lors de l'enregistrement de votre avis.");
+    } finally {
+      setSavingReview(false);
+    }
+  }
+
+  // ──────────────────────────────────────
+
   if (loading && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50">
-        <div className="flex items-center gap-3">
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <div className="flex items-center gap-3 text-sm text-neutral-200">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Chargement de votre espace…</span>
+          <span>Chargement de votre espace…</span>
         </div>
       </div>
     );
@@ -355,10 +655,10 @@ export function ClientCardPage() {
 
   if (error || !client || !month) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
         <div className="max-w-xs text-center space-y-2">
           <p className="text-sm font-medium">Une erreur est survenue.</p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-neutral-400">
             {error ?? "Client introuvable."}
           </p>
         </div>
@@ -372,97 +672,123 @@ export function ClientCardPage() {
       ? `${client.formulaRemaining} / ${client.formulaTotal}`
       : `${client.formulaRemaining}`;
 
-  // Modale en bas de l’écran
   const { h: timeHour, m: timeMinute } = splitTime(selectedTime);
   const currentModalDay = modalDay;
 
+  const totalAppointments = sortedAppointments.length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-black text-slate-50 flex justify-center px-3 py-4">
-      <main className="w-full max-w-md space-y-3">
+    <div className="min-h-screen bg-black text-white flex justify-center px-3 py-6">
+      <main className="w-full max-w-3xl space-y-4">
         {/* Header */}
-        <Card>
-          <div className="p-4 space-y-3">
-            <div className="inline-flex items-center rounded-full border border-slate-700/70 bg-slate-900/70 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">
-              BlackBox NFC
+        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)]">
+          <div className="p-5 space-y-3">
+            <div className="inline-flex items-center rounded-full border border-white/15 bg-black/80 px-3 py-1 text-[11px] font-medium tracking-[0.22em] text-neutral-300 uppercase">
+              BlackBox · NFC Client
             </div>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">
+              <h1 className="text-xl font-semibold leading-tight tracking-tight text-white">
                 Bonjour {displayName},
               </h1>
-              <p className="text-xs text-slate-400 mt-1">
-                Bienvenue dans votre espace privé de suivi detailing.
+              <p className="text-[13px] text-neutral-400 mt-1">
+                Vous pouvez suivre vos rendez-vous, vos nettoyages restants et
+                consulter l&apos;historique de vos prestations.
               </p>
             </div>
           </div>
         </Card>
 
-        {/* Infos client */}
-        <Card>
-          <div className="p-4 grid grid-cols-1 gap-3 text-sm">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                Client
+        {/* Infos client & formule */}
+        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-[12px]">
+            <div className="rounded-2xl border border-white/10 bg-black/70 p-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
+                <span className="text-[12px] font-semibold text-white">
+                  Client
+                </span>
               </div>
-              <div>{client.fullName ?? displayName}</div>
+              <div className="text-[14px] font-semibold text-white">
+                {client.fullName ?? displayName}
+              </div>
+              <div className="text-[12px] text-neutral-300">
+                Code carte :{" "}
+                <span className="text-neutral-100">
+                  {client.cardCode ?? client.slug}
+                </span>
+              </div>
+              {client.phone && (
+                <div className="text-[12px] text-neutral-300">
+                  Téléphone : <span className="text-neutral-100">{client.phone}</span>
+                </div>
+              )}
+              {client.email && (
+                <div className="text-[12px] text-neutral-300">
+                  Email : <span className="text-neutral-100">{client.email}</span>
+                </div>
+              )}
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                Carte / code
-              </div>
-              <div>{client.cardCode ?? client.slug}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                Véhicule
-              </div>
-              <div>
-                {client.vehicleModel ?? "—"}
-                {client.vehiclePlate ? ` · ${client.vehiclePlate}` : ""}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
-                Formule
-              </div>
-              <div>{client.formulaName ?? "—"}</div>
-            </div>
-          </div>
-        </Card>
 
-        {/* Crédits */}
-        <Card>
-          <div className="p-4 space-y-1">
-            <p className="text-base font-semibold">
-              Nettoyages restants :{" "}
-              <span
-                className={
-                  client.formulaRemaining > 0
-                    ? "text-emerald-400"
-                    : "text-red-400"
-                }
-              >
-                {remainingLabel}
-              </span>
-            </p>
-            <p className="text-xs text-slate-400">
-              Chaque rendez-vous validé déduira 1 nettoyage de votre forfait.
-            </p>
+            <div className="rounded-2xl border border-white/10 bg-black/70 p-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
+                <span className="text-[12px] font-semibold text-white">
+                  Véhicule & formule
+                </span>
+              </div>
+              <div className="text-[13px] text-white">
+                {client.vehicleModel ?? "Véhicule non renseigné"}
+                {client.vehiclePlate
+                  ? ` · ${client.vehiclePlate}`
+                  : client.vehicleModel
+                  ? ""
+                  : ""}
+              </div>
+              <div className="text-[12px] text-neutral-300">
+                Formule :{" "}
+                <span className="text-neutral-100">
+                  {client.formulaName ?? "Aucune formule active"}
+                </span>
+              </div>
+              <div className="text-[12px] text-neutral-300">
+                Nettoyages restants :{" "}
+                <span
+                  className={
+                    client.formulaRemaining > 0
+                      ? "text-emerald-300"
+                      : "text-rose-300"
+                  }
+                >
+                  {remainingLabel}
+                </span>
+              </div>
+              {client.addressLine1 && (
+                <div className="text-[11px] text-neutral-400 pt-1">
+                  Adresse : {client.addressLine1}
+                  {client.postalCode || client.city ? ", " : ""}
+                  {client.postalCode} {client.city}
+                </div>
+              )}
+            </div>
           </div>
         </Card>
 
         {/* Agenda */}
-        <Card>
+        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
           <div className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-medium">Agenda</p>
-                <p className="text-xs text-slate-400">{month.label}</p>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-black border border-white/10">
+                  <CalendarDays className="h-4 w-4 text-neutral-200" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Agenda</p>
+                  <p className="text-[11px] text-neutral-400">{month.label}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-7 w-7 rounded-full border-slate-700/70"
+                  className="h-7 w-7 rounded-full border-white/20 bg-black/80 hover:bg-white hover:text-black"
                   onClick={() => goMonth(-1)}
                 >
                   ‹
@@ -470,7 +796,7 @@ export function ClientCardPage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-7 w-7 rounded-full border-slate-700/70"
+                  className="h-7 w-7 rounded-full border-white/20 bg-black/80 hover:bg-white hover:text-black"
                   onClick={() => goMonth(1)}
                 >
                   ›
@@ -478,9 +804,9 @@ export function ClientCardPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 text-[10px] text-slate-400">
+            <div className="flex flex-wrap gap-3 text-[10px] text-neutral-400">
               <div className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-slate-900 border border-slate-600" />
+                <span className="h-2 w-2 rounded-full bg-black border border-white/25" />
                 <span>Disponible</span>
               </div>
               <div className="flex items-center gap-1">
@@ -492,7 +818,7 @@ export function ClientCardPage() {
                 <span>Rendez-vous passé</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-red-500" />
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
                 <span>Indisponible</span>
               </div>
             </div>
@@ -504,17 +830,17 @@ export function ClientCardPage() {
                 const past = isPastDay(d.date);
 
                 const base =
-                  "w-full aspect-square rounded-xl border flex flex-col items-center justify-center text-xs transition focus-visible:outline-none";
+                  "w-full aspect-square rounded-xl border flex flex-col items-center justify-center text-[11px] transition focus-visible:outline-none";
 
                 if (free) {
                   return (
                     <button
                       key={d.date}
-                      className={`${base} border-slate-700 bg-slate-950 hover:border-emerald-400 hover:bg-emerald-500/10`}
+                      className={`${base} border-white/15 bg-black hover:border-emerald-400 hover:bg-emerald-500/10`}
                       disabled={busyAction}
                       onClick={() => openDayModal(d)}
                     >
-                      <span className="font-medium">{d.day}</span>
+                      <span className="font-medium text-white">{d.day}</span>
                     </button>
                   );
                 }
@@ -528,7 +854,7 @@ export function ClientCardPage() {
                       disabled={busyAction}
                       onClick={() => openDayModal(d)}
                     >
-                      <span className="font-medium">{d.day}</span>
+                      <span className="font-medium text-white">{d.day}</span>
                       <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-400" />
                     </button>
                   );
@@ -543,7 +869,7 @@ export function ClientCardPage() {
                       disabled={busyAction}
                       onClick={() => openDayModal(d)}
                     >
-                      <span className="font-medium">{d.day}</span>
+                      <span className="font-medium text-white">{d.day}</span>
                       <span className="mt-0.5 h-1 w-1 rounded-full bg-sky-400" />
                     </button>
                   );
@@ -553,16 +879,16 @@ export function ClientCardPage() {
                 return (
                   <div
                     key={d.date}
-                    className={`${base} border-red-500/80 bg-red-500/10 text-slate-300`}
+                    className={`${base} border-rose-500/80 bg-rose-500/10 text-neutral-100`}
                   >
                     <span className="font-medium">{d.day}</span>
-                    <span className="mt-0.5 h-1 w-1 rounded-full bg-red-500" />
+                    <span className="mt-0.5 h-1 w-1 rounded-full bg-rose-500" />
                   </div>
                 );
               })}
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
+            <p className="text-[11px] text-neutral-400 leading-relaxed">
               Touchez un jour disponible pour demander un rendez-vous. Vos
               rendez-vous à venir sont en vert. Une fois la date passée, ils
               apparaîtront en bleu. Les jours déjà pris par d&apos;autres
@@ -570,23 +896,164 @@ export function ClientCardPage() {
             </p>
           </div>
         </Card>
+
+        {/* Vos rendez-vous (carrousel) */}
+        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-black border border-white/10">
+                  <CalendarDays className="h-4 w-4 text-neutral-200" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Vos rendez-vous
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Historique de vos nettoyages, passés et à venir.
+                  </p>
+                </div>
+              </div>
+              <span className="text-[11px] text-neutral-400">
+                {totalAppointments} rendez-vous
+              </span>
+            </div>
+
+            {appointmentsLoading && (
+              <div className="flex justify-center py-4">
+                <div className="flex items-center gap-2 text-[12px] text-neutral-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Chargement de vos rendez-vous…</span>
+                </div>
+              </div>
+            )}
+
+            {!appointmentsLoading && totalAppointments === 0 && (
+              <p className="text-[12px] text-neutral-500">
+                Aucun rendez-vous enregistré pour le moment. Lorsque vous
+                aurez effectué des prestations, elles apparaîtront ici.
+              </p>
+            )}
+
+            {!appointmentsLoading && totalAppointments > 0 && (
+              <div
+                ref={carouselRef}
+                className="flex gap-3 overflow-x-auto pb-2 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-neutral-700/80 scrollbar-track-transparent"
+              >
+                {sortedAppointments.map((a, index) => {
+                  const isPast = appointmentIsPast(a);
+                  const isNext = index === upcomingIndex;
+                  const rating = a.userRating ?? 0;
+
+                  let cardStyle =
+                    "min-w-[220px] snap-center rounded-2xl border px-3 py-2.5 text-[12px] text-left transition-colors";
+                  if (a.status === "cancelled") {
+                    cardStyle +=
+                      " border-rose-500/70 bg-rose-500/10 text-rose-100";
+                  } else if (isPast) {
+                    cardStyle +=
+                      " border-sky-500/70 bg-sky-500/10 text-neutral-100";
+                  } else {
+                    cardStyle +=
+                      " border-emerald-500/70 bg-emerald-500/10 text-neutral-100";
+                  }
+
+                  if (isNext) {
+                    cardStyle += " ring-1 ring-white/70";
+                  }
+
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      data-appointment-index={index}
+                      className={cardStyle}
+                      onClick={() => openAppointmentModal(a)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="font-medium text-white">
+                            {formatDateFR(a.date)}{" "}
+                            {a.time && (
+                              <span className="text-neutral-200">
+                                · {formatTimeHHMM(a.time)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-neutral-200">
+                            {a.vehicleModel
+                              ? a.vehicleModel +
+                                (a.vehiclePlate ? ` · ${a.vehiclePlate}` : "")
+                              : "Détail véhicule non renseigné"}
+                          </div>
+                        </div>
+                        <div
+                          className={
+                            "px-2 py-0.5 rounded-full text-[10px] " +
+                            appointmentStatusClasses(a.status)
+                          }
+                        >
+                          {appointmentStatusLabel(a.status)}
+                        </div>
+                      </div>
+
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-200">
+                        {rating > 0 ? (
+                          <>
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={
+                                  "h-3.5 w-3.5 " +
+                                  (i < rating
+                                    ? "text-amber-300 fill-amber-300"
+                                    : "text-neutral-500")
+                                }
+                              />
+                            ))}
+                            <span className="ml-1">({rating}/5)</span>
+                          </>
+                        ) : (
+                          <span className="italic text-neutral-300">
+                            Pas encore d&apos;avis
+                          </span>
+                        )}
+                      </div>
+
+                      {a.hasPhotos && (
+                        <div className="mt-1 text-[10px] text-neutral-200">
+                          📸 Photos disponibles
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {!appointmentsLoading && totalAppointments > 0 && (
+              <p className="text-[11px] text-neutral-400">
+                Faites glisser horizontalement pour parcourir vos rendez-vous.
+                Le prochain rendez-vous à venir est centré automatiquement.
+              </p>
+            )}
+          </div>
+        </Card>
       </main>
 
-      {/* Modale de bas de page */}
-    {currentModalDay && (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div className="w-full max-w-sm bg-slate-950 border border-slate-800 rounded-3xl p-4 space-y-4 shadow-2xl">
-        {/* plus besoin de la barre de drag en haut */}
-        {/* ... laisse exactement le contenu book/manage/past que tu as déjà ... */}
-        {modalMode === "book" && (
+      {/* Modale calendrier (book / manage / past) */}
+      {currentModalDay && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm px-3">
+          <div className="w-full max-w-sm bg-neutral-950 border border-white/10 rounded-3xl p-4 space-y-4 shadow-[0_24px_80px_rgba(0,0,0,1)] text-[13px] text-neutral-100">
+            {modalMode === "book" && (
               <>
                 <div>
                   <p className="text-sm font-medium mb-1">
                     Demander un rendez-vous
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[12px] text-neutral-400">
                     Jour sélectionné :{" "}
-                    <span className="font-medium">
+                    <span className="font-medium text-neutral-100">
                       {currentModalDay.day}/{month.monthIndex + 1}/
                       {month.year}
                     </span>
@@ -594,7 +1061,7 @@ export function ClientCardPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[12px] text-neutral-400">
                     Choisissez une heure entre{" "}
                     <span className="font-medium">8h00</span> et{" "}
                     <span className="font-medium">16h30</span> (créneaux de 30
@@ -602,11 +1069,11 @@ export function ClientCardPage() {
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
-                      <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                      <label className="block text-[10px] uppercase tracking-[0.16em] text-neutral-500 mb-1">
                         Heure
                       </label>
                       <select
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-white/20 bg-black px-3 py-2 text-[13px] text-neutral-100"
                         value={timeHour}
                         onChange={(e) =>
                           setSelectedTime(`${e.target.value}:${timeMinute}`)
@@ -620,11 +1087,11 @@ export function ClientCardPage() {
                       </select>
                     </div>
                     <div className="w-24">
-                      <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                      <label className="block text-[10px] uppercase tracking-[0.16em] text-neutral-500 mb-1">
                         Minutes
                       </label>
                       <select
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-white/20 bg-black px-3 py-2 text-[13px] text-neutral-100"
                         value={timeMinute}
                         onChange={(e) =>
                           setSelectedTime(`${timeHour}:${e.target.value}`)
@@ -643,14 +1110,14 @@ export function ClientCardPage() {
                 <div className="flex gap-2 pt-2">
                   <Button
                     variant="outline"
-                    className="flex-1 rounded-xl"
+                    className="flex-1 rounded-xl border-white/30 bg-black hover:bg-white hover:text-black"
                     disabled={busyAction}
                     onClick={() => setModalDay(null)}
                   >
                     Annuler
                   </Button>
                   <Button
-                    className="flex-1 rounded-xl"
+                    className="flex-1 rounded-xl bg-white text-black hover:bg-neutral-200"
                     disabled={busyAction}
                     onClick={() => book(currentModalDay.date, selectedTime)}
                   >
@@ -663,34 +1130,36 @@ export function ClientCardPage() {
             {modalMode === "manage" && (
               <>
                 <div>
-                  <p className="text-sm font-medium mb-1">
-                    Votre rendez-vous
-                  </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-sm font-medium mb-1">Votre rendez-vous</p>
+                  <p className="text-[12px] text-neutral-400">
                     Rendez-vous prévu le{" "}
-                    <span className="font-medium">
+                    <span className="font-medium text-neutral-100">
                       {currentModalDay.day}/{month.monthIndex + 1}/
                       {month.year}
                     </span>{" "}
                     à{" "}
-                    <span className="font-medium">
-                      {selectedTime ?? localTimes[currentModalDay.date] ?? "—"}
+                    <span className="font-medium text-neutral-100">
+                      {selectedTime ??
+                        localTimes[currentModalDay.date] ??
+                        "—"}
                     </span>
+                    .
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                    <p className="text-xs text-slate-400">
-                    Vous pouvez modifier l&apos;heure de ce rendez-vous librement. 
-                    L&apos;annulation complète n&apos;est possible que jusqu&apos;à la veille à minuit.
-                    </p>
+                  <p className="text-[12px] text-neutral-400">
+                    Vous pouvez modifier l&apos;heure de ce rendez-vous
+                    librement. L&apos;annulation complète n&apos;est possible
+                    que jusqu&apos;à la veille à minuit.
+                  </p>
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
-                      <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                      <label className="block text-[10px] uppercase tracking-[0.16em] text-neutral-500 mb-1">
                         Nouvelle heure
                       </label>
                       <select
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-white/20 bg-black px-3 py-2 text-[13px] text-neutral-100"
                         value={timeHour}
                         onChange={(e) =>
                           setSelectedTime(`${e.target.value}:${timeMinute}`)
@@ -704,11 +1173,11 @@ export function ClientCardPage() {
                       </select>
                     </div>
                     <div className="w-24">
-                      <label className="block text-[10px] uppercase tracking-[0.16em] text-slate-500 mb-1">
+                      <label className="block text-[10px] uppercase tracking-[0.16em] text-neutral-500 mb-1">
                         Minutes
                       </label>
                       <select
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-white/20 bg-black px-3 py-2 text-[13px] text-neutral-100"
                         value={timeMinute}
                         onChange={(e) =>
                           setSelectedTime(`${timeHour}:${e.target.value}`)
@@ -726,7 +1195,7 @@ export function ClientCardPage() {
 
                 <div className="flex flex-col gap-2 pt-2">
                   <Button
-                    className="rounded-xl"
+                    className="rounded-xl bg-white text-black hover:bg-neutral-200"
                     disabled={busyAction}
                     onClick={() =>
                       updateTime(currentModalDay.date, selectedTime)
@@ -736,7 +1205,7 @@ export function ClientCardPage() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="rounded-xl text-red-400 border-red-500/70 hover:bg-red-500/10"
+                    className="rounded-xl border-rose-500/70 text-rose-300 hover:bg-rose-500/10"
                     disabled={busyAction}
                     onClick={() => cancel(currentModalDay.date)}
                   >
@@ -744,7 +1213,7 @@ export function ClientCardPage() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="rounded-xl"
+                    className="rounded-xl border-white/30 bg-black hover:bg-white hover:text-black"
                     disabled={busyAction}
                     onClick={() => setModalDay(null)}
                   >
@@ -760,28 +1229,31 @@ export function ClientCardPage() {
                   <p className="text-sm font-medium mb-1">
                     Rendez-vous effectué
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[12px] text-neutral-400">
                     Rendez-vous du{" "}
-                    <span className="font-medium">
+                    <span className="font-medium text-neutral-100">
                       {currentModalDay.day}/{month.monthIndex + 1}/
                       {month.year}
                     </span>{" "}
                     à{" "}
-                    <span className="font-medium">
+                    <span className="font-medium text-neutral-100">
                       {localTimes[currentModalDay.date] ?? "—"}
                     </span>
                     .
                   </p>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Ici on affichera le compte-rendu, les photos avant / après et
-                  votre avis sur la prestation. Pour l&apos;instant, aucun
-                  contenu n&apos;a encore été enregistré pour ce jour.
+                <p className="text-[12px] text-neutral-400">
+                  Retrouvez le détail complet, les photos et la possibilité de
+                  laisser un avis dans la section{" "}
+                  <span className="font-medium text-neutral-100">
+                    &quot;Vos rendez-vous&quot;
+                  </span>{" "}
+                  plus bas.
                 </p>
                 <div className="flex justify-end pt-2">
                   <Button
                     variant="outline"
-                    className="rounded-xl"
+                    className="rounded-xl border-white/30 bg-black hover:bg-white hover:text-black"
                     onClick={() => setModalDay(null)}
                   >
                     Fermer
@@ -793,10 +1265,219 @@ export function ClientCardPage() {
         </div>
       )}
 
+      {/* Modale détail rendez-vous (carrousel) */}
+      {appointmentModalOpen && selectedAppointment && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm px-3">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-neutral-950/98 p-4 space-y-4 shadow-[0_24px_80px_rgba(0,0,0,1)] text-[13px] text-neutral-100">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Détail du rendez-vous
+                </p>
+                <p className="text-[12px] text-neutral-400 mt-0.5">
+                  {formatDateFR(selectedAppointment.date)}{" "}
+                  {selectedAppointment.time && (
+                    <>
+                      ·{" "}
+                      <span className="text-neutral-100">
+                        {formatTimeHHMM(selectedAppointment.time)}
+                      </span>
+                    </>
+                  )}
+                </p>
+                <p className="text-[11px] text-neutral-400">
+                  {selectedAppointment.vehicleModel
+                    ? selectedAppointment.vehicleModel +
+                      (selectedAppointment.vehiclePlate
+                        ? ` · ${selectedAppointment.vehiclePlate}`
+                        : "")
+                    : "Véhicule non renseigné"}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <div
+                  className={
+                    "px-2 py-0.5 rounded-full text-[10px] " +
+                    appointmentStatusClasses(selectedAppointment.status)
+                  }
+                >
+                  {appointmentStatusLabel(selectedAppointment.status)}
+                </div>
+                <Button
+                  variant="outline"
+                  className="h-7 px-3 text-[11px] rounded-full border-white/30 bg-black hover:bg-white hover:text-black"
+                  onClick={closeAppointmentModal}
+                >
+                  Fermer
+                </Button>
+              </div>
+            </div>
+
+            {/* Compte-rendu admin */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-semibold text-white">
+                Compte-rendu du centre
+              </div>
+              <div className="text-[12px] text-neutral-300">
+                {selectedAppointment.adminNote
+                  ? selectedAppointment.adminNote
+                  : "Aucun compte-rendu spécifique n'a encore été enregistré pour ce rendez-vous."}
+              </div>
+            </div>
+
+            {/* Photos */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-semibold text-white">
+                Photos du véhicule
+              </div>
+              {appointmentPhotosLoading && (
+                <div className="flex items-center gap-2 text-[12px] text-neutral-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Chargement des photos…</span>
+                </div>
+              )}
+              {!appointmentPhotosLoading &&
+                appointmentPhotos.length === 0 &&
+                !selectedAppointment.hasPhotos && (
+                  <p className="text-[12px] text-neutral-400">
+                    Aucune photo n&apos;a été enregistrée pour ce rendez-vous.
+                  </p>
+                )}
+              {!appointmentPhotosLoading &&
+                appointmentPhotos.length === 0 &&
+                selectedAppointment.hasPhotos && (
+                  <p className="text-[12px] text-neutral-400">
+                    Les photos ne sont pas disponibles pour le moment.
+                  </p>
+                )}
+              {!appointmentPhotosLoading &&
+                appointmentPhotos.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    {appointmentPhotos.map((p) => (
+                      <a
+                        key={p.id}
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-xl overflow-hidden border border-white/10 bg-black"
+                        title={p.label ?? undefined}
+                      >
+                        <img
+                          src={p.url}
+                          alt={p.label ?? "Photo rendez-vous"}
+                          className="w-full h-20 object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+            </div>
+
+            {/* Avis client */}
+            {(() => {
+              const isPast = appointmentIsPast(selectedAppointment);
+              const canRate =
+                isPast && selectedAppointment.status === "done";
+
+              if (!canRate) {
+                return (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-white">
+                      Votre avis
+                    </div>
+                    <p className="text-[12px] text-neutral-400">
+                      Vous pourrez laisser une note dès que ce rendez-vous
+                      aura été réalisé et marqué comme{" "}
+                      <span className="font-medium text-emerald-300">
+                        effectué
+                      </span>{" "}
+                      par le centre.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-white">
+                      Votre avis sur ce nettoyage
+                    </span>
+                    {selectedAppointment.userRating && (
+                      <span className="text-[11px] text-neutral-400">
+                        Note actuelle :{" "}
+                        <span className="text-amber-300">
+                          {selectedAppointment.userRating}/5
+                        </span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const value = i + 1;
+                      const active = reviewRating >= value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          className="p-0.5"
+                          onClick={() => setReviewRating(value)}
+                        >
+                          <Star
+                            className={
+                              "h-4 w-4 transition-colors " +
+                              (active
+                                ? "text-amber-300 fill-amber-300"
+                                : "text-neutral-600")
+                            }
+                          />
+                        </button>
+                      );
+                    })}
+                    <span className="ml-1 text-[11px] text-neutral-300">
+                      {reviewRating > 0
+                        ? `${reviewRating}/5`
+                        : "Cliquez pour noter"}
+                    </span>
+                  </div>
+
+                  <textarea
+                    rows={3}
+                    className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
+                    placeholder="Ajoutez un commentaire sur la prestation (optionnel)…"
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value)}
+                  />
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      className="h-8 px-3 text-[12px] rounded-full border-white/30 bg-black hover:bg-white hover:text-black"
+                      disabled={savingReview}
+                      onClick={closeAppointmentModal}
+                    >
+                      Fermer
+                    </Button>
+                    <Button
+                      className="h-8 px-3 text-[12px] rounded-full bg-white text-black hover:bg-neutral-200"
+                      disabled={savingReview}
+                      onClick={saveReview}
+                    >
+                      {savingReview ? "Enregistrement…" : "Enregistrer mon avis"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Petit toast en bas */}
       {toast && (
-        <div className="fixed bottom-4 inset-x-0 flex justify-center z-40">
-          <div className="max-w-xs rounded-full bg-slate-900/95 border border-slate-700 px-3 py-2 text-xs text-slate-100 shadow-lg">
+        <div className="fixed bottom-4 inset-x-0 flex justify-center z-50">
+          <div className="max-w-xs rounded-full bg-neutral-950/95 border border-white/15 px-3.5 py-2 text-[12px] text-neutral-200 shadow-lg">
             {toast}
           </div>
         </div>

@@ -9,12 +9,12 @@ export interface ButtonProps
 }
 
 const base =
-  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-slate-950";
+  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-black";
 
 const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  default: "bg-sky-500 text-white hover:bg-sky-400",
+  default: "bg-white text-black hover:bg-neutral-200",
   outline:
-    "border border-slate-700 bg-slate-950 text-slate-100 hover:bg-slate-900",
+    "border border-white/25 bg-black text-neutral-100 hover:bg-white hover:text-black",
 };
 
 const sizes: Record<NonNullable<ButtonProps["size"]>, string> = {
