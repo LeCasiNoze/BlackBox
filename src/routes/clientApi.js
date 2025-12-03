@@ -1,4 +1,4 @@
-// src/routes/clientApi.js
+// src/routes/client.js
 const express = require("express");
 const router = express.Router();
 
@@ -14,14 +14,19 @@ const {
   cancelAppointmentForClientOnDate,
   getAppointmentByDate,
   updateAppointmentTimeForClient,
+  getAppointmentsForClient,
+  getAppointmentById,             // ⬅️
+  updateAppointmentUserReview,    // ⬅️
 } = require("../db/appointments");
 
+
+// Helpers month / date
 function parseMonthParam(m) {
   if (!m || typeof m !== "string") return null;
   const mMatch = m.match(/^(\d{4})-(\d{2})$/);
   if (!mMatch) return null;
   const year = Number(mMatch[1]);
-  const monthIndex = Number(mMatch[2]) - 1; // 0–11
+  const monthIndex = Number(mMatch[2]) - 1;
   if (Number.isNaN(year) || Number.isNaN(monthIndex)) return null;
   return { year, monthIndex };
 }
@@ -33,6 +38,9 @@ function formatDateLocal(d) {
   return `${y}-${m}-${day}`;
 }
 
+// ---------------------------------------------------------------------------
+// 🔵 buildMonthPayload — version corrigée avec statut DONE
+// ---------------------------------------------------------------------------
 function buildMonthPayload(client, monthParam) {
   const baseDate = monthParam
     ? new Date(monthParam.year, monthParam.monthIndex, 1)
@@ -51,23 +59,45 @@ function buildMonthPayload(client, monthParam) {
 
   const appointments = getAppointmentsForMonth(year, monthIndex);
   const byDate = Object.create(null);
+
   for (const a of appointments) {
     byDate[a.date] = a;
   }
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const days = [];
-    for (let d = new Date(firstDay); d < nextMonth; d.setDate(d.getDate() + 1)) {
+
+  for (let d = new Date(firstDay); d < nextMonth; d.setDate(d.getDate() + 1)) {
     const dateStr = formatDateLocal(d);
     const ap = byDate[dateStr];
-    let status = "free"; // free | mine | busy
+
+    let status = "free";
 
     if (ap) {
-      const isMine = ap.client_id === client.id && ap.status !== "cancelled";
-      const isActive =
-        ap.status === "requested" || ap.status === "confirmed" || ap.status === "done";
+      const isMine = ap.client_id === client.id;
+      const isPast = d < today;
 
-      if (isMine && isActive) status = "mine";
-      else if (isActive) status = "busy";
+      // 1. Si DONE → toujours bleu (global)
+      if (ap.status === "done") {
+        status = "done";
+      }
+      // 2. Si jour passé → bleu
+      else if (isPast) {
+        status = "done";
+      }
+      // 3. RDV futur du client → vert
+      else if (
+        isMine &&
+        (ap.status === "requested" || ap.status === "confirmed")
+      ) {
+        status = "mine";
+      }
+      // 4. RDV futur d’un autre client → rouge
+      else if (ap.status === "requested" || ap.status === "confirmed") {
+        status = "busy";
+      }
     }
 
     days.push({
@@ -82,7 +112,9 @@ function buildMonthPayload(client, monthParam) {
   return { year, monthIndex, label, iso, days };
 }
 
-// GET /api/client/:idOrSlug?m=YYYY-MM
+// ---------------------------------------------------------------------------
+// GET /api/client/:idOrSlug
+// ---------------------------------------------------------------------------
 router.get("/:idOrSlug", (req, res) => {
   const idOrSlug = req.params.idOrSlug;
   const client = getClientBySlugOrCardCode(idOrSlug);
@@ -120,7 +152,155 @@ router.get("/:idOrSlug", (req, res) => {
   res.json(payload);
 });
 
-// POST /api/client/:idOrSlug/book { date: "YYYY-MM-DD", time: "HH:MM" }
+// ---------------------------------------------------------------------------
+// ✅ NEW — GET /api/client/:idOrSlug/appointments
+// Liste tous les rendez-vous de ce client (passés + futurs)
+// ---------------------------------------------------------------------------
+router.get("/:idOrSlug/appointments", (req, res) => {
+  const idOrSlug = req.params.idOrSlug;
+  const client = getClientBySlugOrCardCode(idOrSlug);
+
+  if (!client) {
+    return res
+      .status(404)
+      .json({ ok: false, error: "client_not_found" });
+  }
+
+  try {
+    const rows = getAppointmentsForClient(client.id);
+
+    const appointments = rows.map((ap) => ({
+      id: ap.id,
+      date: ap.date,              // "YYYY-MM-DD"
+      time: ap.time,              // "HH:MM" ou null
+      status: ap.status,          // "requested" | "confirmed" | "done" | "cancelled"
+      adminNote: ap.admin_note || null,
+      userRating: ap.user_rating ?? null,
+      userReview: ap.user_review ?? null,
+      // un véhicule par client → on reprend les infos du client
+      vehicleModel: client.vehicle_model,
+      vehiclePlate: client.vehicle_plate,
+      // Pour l'instant on ne branche pas encore le système de photos
+      hasPhotos: false,
+    }));
+
+    res.json({ ok: true, appointments });
+  } catch (e) {
+    console.error("Error get client appointments", e);
+    res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/client/:idOrSlug/appointments/:appointmentId/review
+// Enregistre la note (1–5) + commentaire du client
+// ---------------------------------------------------------------------------
+router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
+  const idOrSlug = req.params.idOrSlug;
+  const client = getClientBySlugOrCardCode(idOrSlug);
+  if (!client) {
+    return res.status(404).json({ ok: false, error: "client_not_found" });
+  }
+
+  const appointmentId = Number(req.params.appointmentId) || 0;
+  if (!appointmentId) {
+    return res.status(400).json({ ok: false, error: "invalid_appointment_id" });
+  }
+
+  const { rating, review } = req.body || {};
+  const numericRating = Number(rating);
+
+  if (!numericRating || numericRating < 1 || numericRating > 5) {
+    return res.status(400).json({ ok: false, error: "invalid_rating" });
+  }
+
+  const ap = getAppointmentById(appointmentId);
+  if (!ap || ap.client_id !== client.id) {
+    return res
+      .status(404)
+      .json({ ok: false, error: "appointment_not_found" });
+  }
+
+  // On impose que le RDV soit "done", comme sur le front
+  if (ap.status !== "done") {
+    return res
+      .status(400)
+      .json({ ok: false, error: "appointment_not_done" });
+  }
+
+  const changes = updateAppointmentUserReview(
+    appointmentId,
+    numericRating,
+    typeof review === "string" && review.trim() !== ""
+      ? review.trim()
+      : null
+  );
+
+  if (!changes) {
+    return res
+      .status(500)
+      .json({ ok: false, error: "cannot_update_review" });
+  }
+
+  const updated = getAppointmentById(appointmentId);
+
+  const appointment = {
+    id: updated.id,
+    date: updated.date,
+    time: updated.time,
+    status: updated.status,
+    adminNote: updated.admin_note || null,
+    userRating: updated.user_rating ?? null,
+    userReview: updated.user_review ?? null,
+    vehicleModel: client.vehicle_model,
+    vehiclePlate: client.vehicle_plate,
+    hasPhotos: false, // on branchera plus tard
+  };
+
+  return res.json({ ok: true, appointment });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/client/appointments/:date
+// Permet à n'importe qui de consulter le compte-rendu d'un jour "done"
+// ---------------------------------------------------------------------------
+router.get("/appointments/:date", (req, res) => {
+  const date = req.params.date;
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ ok: false, error: "invalid_date" });
+  }
+
+  const ap = getAppointmentByDate(date);
+  if (!ap || ap.status !== "done") {
+    return res.status(404).json({ ok: false, error: "appointment_not_found_or_not_done" });
+  }
+
+  // On récupère le client pour afficher véhicule, nom, etc.
+  const client = require("../db/clients").getClientById
+    ? require("../db/clients").getClientById(ap.client_id)
+    : null;
+
+  res.json({
+    ok: true,
+    appointment: {
+      id: ap.id,
+      date: ap.date,
+      time: ap.time,
+      status: ap.status,
+      adminNote: ap.admin_note || null,
+      userRating: ap.user_rating ?? null,
+      userReview: ap.user_review ?? null,
+      vehicleModel: client?.vehicle_model || null,
+      vehiclePlate: client?.vehicle_plate || null,
+      clientName: client?.full_name || "Client",
+      hasPhotos: false, // on branchera plus tard
+    },
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/client/:slug/book
+// ---------------------------------------------------------------------------
 router.post("/:idOrSlug/book", (req, res) => {
   const idOrSlug = req.params.idOrSlug;
   const client = getClientBySlugOrCardCode(idOrSlug);
@@ -130,20 +310,18 @@ router.post("/:idOrSlug/book", (req, res) => {
 
   const { date, time } = req.body || {};
   if (!date) {
-    return res.status(400).json({ ok: false, error: "missing_date" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "missing_date" });
   }
 
-  // On regarde s'il y a déjà un rendez-vous ce jour-là
   const existing = getAppointmentByDate(date);
   const isMineActive =
     existing &&
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
 
-  // ─────────────────────────────────────────────
-  // 1) Cas "modification d'horaire" (même client, même jour)
-  //    → pas de décrémentation de crédits, on bouge juste l'heure.
-  // ─────────────────────────────────────────────
+  // Case modification of time
   if (isMineActive) {
     try {
       const changed = updateAppointmentTimeForClient(
@@ -152,58 +330,51 @@ router.post("/:idOrSlug/book", (req, res) => {
         time || existing.time || null,
         null
       );
-
       if (!changed) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "cannot_update_appointment" });
+        return res.status(400).json({
+          ok: false,
+          error: "cannot_update_appointment",
+        });
       }
-
       return res.json({ ok: true, updated: true });
     } catch (e) {
-      console.warn("[API BOOK] error (update time):", e.message);
       return res.status(500).json({ ok: false, error: "server_error" });
     }
   }
 
-  // ─────────────────────────────────────────────
-  // 2) Cas "nouveau rendez-vous" (date libre pour ce client)
-  //    → on consomme 1 crédit et on crée l'entrée.
-  // ─────────────────────────────────────────────
-
-  // Check rapide avec la valeur actuelle
+  // New appointment
   if (client.formula_remaining <= 0) {
-    return res.status(400).json({ ok: false, error: "no_credits_left" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "no_credits_left" });
   }
 
   try {
-    // 1) Décrémenter les crédits (verrou "soft")
     const changed = decrementFormulaRemaining(client.id);
     if (!changed) {
-      return res.status(400).json({ ok: false, error: "no_credits_left" });
+      return res
+        .status(400)
+        .json({ ok: false, error: "no_credits_left" });
     }
 
     try {
-      // 2) INSERT : si quelqu'un avait déjà pris ce jour (autre client),
-      //    on aura une erreur UNIQUE(date) → on rollback le crédit.
       createRequestedAppointment(client.id, date, time || null, null);
     } catch (e) {
-      // Conflit (date déjà occupée) → on rend le crédit
       incrementFormulaRemaining(client.id);
-      console.warn("[API BOOK] error (insert, rollback):", e.message);
       return res
         .status(409)
-        .json({ ok: false, error: "slot_taken", detail: e.message });
+        .json({ ok: false, error: "slot_taken" });
     }
 
     return res.json({ ok: true, created: true });
   } catch (e) {
-    console.warn("[API BOOK] error:", e.message);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// POST /api/client/:idOrSlug/cancel { date: "YYYY-MM-DD" }
+// ---------------------------------------------------------------------------
+// POST /api/client/:slug/cancel
+// ---------------------------------------------------------------------------
 router.post("/:idOrSlug/cancel", (req, res) => {
   const idOrSlug = req.params.idOrSlug;
   const client = getClientBySlugOrCardCode(idOrSlug);
@@ -213,35 +384,34 @@ router.post("/:idOrSlug/cancel", (req, res) => {
 
   const { date } = req.body || {};
   if (!date) {
-    return res.status(400).json({ ok: false, error: "missing_date" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "missing_date" });
   }
 
-  // 1) On récupère le rendez-vous pour cette date
   const ap = getAppointmentByDate(date);
   if (
     !ap ||
     ap.client_id !== client.id ||
     !["requested", "confirmed"].includes(ap.status)
   ) {
-    return res
-      .status(404)
-      .json({ ok: false, error: "appointment_not_found_or_not_cancellable" });
+    return res.status(404).json({
+      ok: false,
+      error: "appointment_not_found_or_not_cancellable",
+    });
   }
 
-  // 2) Vérif règle des 24h (la veille à minuit)
   const dayStart = new Date(ap.date + "T00:00:00");
-  const limit = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000); // veille 00:00
+  const limit = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
   const now = new Date();
 
   if (now >= limit) {
-    // Trop tard pour annuler
-    return res.status(400).json({ ok: false, error: "too_late_to_cancel" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "too_late_to_cancel" });
   }
 
-  // 3) On annule le rendez-vous
   cancelAppointmentForClientOnDate(client.id, date);
-
-  // 4) On recrédite 1 nettoyage (sans dépasser le total)
   incrementFormulaRemaining(client.id);
 
   return res.json({ ok: true });

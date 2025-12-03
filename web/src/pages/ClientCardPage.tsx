@@ -3,9 +3,9 @@ import * as React from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Loader2, Star, CalendarDays } from "lucide-react";
+import { Loader2, Star, CalendarDays, Phone } from "lucide-react";
 
-type DayStatus = "free" | "mine" | "busy";
+type DayStatus = "free" | "mine" | "busy" | "done";
 
 type ApiDay = {
   date: string; // "YYYY-MM-DD"
@@ -312,10 +312,41 @@ export function ClientCardPage() {
     window.setTimeout(() => setToast(null), 2500);
   }
 
-  function openDayModal(day: ApiDay) {
-    if (!client) return;
-    const past = isPastDay(day.date);
+function openDayModal(day: ApiDay) {
+  if (!client) return;
+  const past = isPastDay(day.date);
 
+  // 🔵 Jour "done" → toujours cliquable (public)
+  if (day.status === "done") {
+    // On cherche un RDV du client pour ce jour
+    const apt = appointments.find(
+      (a) => a.date === day.date && a.status !== "cancelled"
+    );
+
+    if (apt) {
+      openAppointmentModal(apt);
+      return;
+    }
+
+    // ➜ Pas dans la liste du client => on va chercher le rendez-vous public
+    fetch(`/api/client/appointments/${day.date}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.ok && json.appointment) {
+          openAppointmentModal(json.appointment);
+        } else {
+          setModalDay(day);
+          setModalMode("past");
+        }
+      })
+      .catch(() => {
+        setModalDay(day);
+        setModalMode("past");
+      });
+    return;
+  }
+
+    // ⚫ Jour libre → réservation
     if (day.status === "free") {
       if (client.formulaRemaining <= 0) {
         showToast("Vous n'avez plus de nettoyages restants.");
@@ -332,6 +363,7 @@ export function ClientCardPage() {
       return;
     }
 
+    // 🟢 Jour "mine"
     if (day.status === "mine") {
       setModalDay(day);
       const existing = localTimes[day.date] ?? defaultTime();
@@ -341,8 +373,20 @@ export function ClientCardPage() {
       return;
     }
 
+    // 🔴 Jour "busy"
     if (day.status === "busy") {
-      showToast("Ce jour est déjà réservé.");
+      // ➜ Futur : juste message
+      if (!past) {
+        showToast("Ce jour est déjà réservé.");
+        return;
+      }
+
+      // ➜ Passé : petite modale "past"
+      setModalDay(day);
+      const existing = localTimes[day.date] ?? defaultTime();
+      setSelectedTime(existing);
+      setModalMode("past");
+      return;
     }
   }
 
@@ -495,8 +539,10 @@ export function ClientCardPage() {
 
   const sortedAppointments = React.useMemo(() => {
     const copy = [...appointments];
+    // Plus récent (date/heure la plus grande) en premier
     copy.sort(
-      (a, b) => appointmentDateTime(a).getTime() - appointmentDateTime(b).getTime()
+      (a, b) =>
+        appointmentDateTime(b).getTime() - appointmentDateTime(a).getTime()
     );
     return copy;
   }, [appointments]);
@@ -640,6 +686,15 @@ export function ClientCardPage() {
     }
   }
 
+  function isDoneOwnedByClient(day: ApiDay): boolean {
+    // On considère qu'un jour "done" appartient au client
+    // s'il a AU MOINS un rendez-vous ce jour-là (hors annulé)
+    const apt = appointments.find(
+      (a) => a.date === day.date && a.status !== "cancelled"
+    );
+    return Boolean(apt);
+  }
+
   // ──────────────────────────────────────
 
   if (loading && !data) {
@@ -678,8 +733,20 @@ export function ClientCardPage() {
   const totalAppointments = sortedAppointments.length;
 
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center px-3 py-6">
-      <main className="w-full max-w-3xl space-y-4">
+    <div
+  className="min-h-screen relative overflow-hidden text-white flex justify-center px-3 py-6"
+>
+  {/* Gradient premium fixe */}
+  <div className="absolute inset-0 bg-gradient-to-b from-black via-neutral-950 to-black" />
+
+  {/* Lumière animée */}
+  <div className="absolute -top-1/3 left-0 w-[200%] h-[200%] opacity-[0.12] animate-luxLight
+    bg-gradient-to-r from-transparent via-white/30 to-transparent blur-3xl" />
+
+  {/* Texture premium */}
+  <div className="absolute inset-0 opacity-[0.05] bg-[url('/textures/noise.png')] pointer-events-none" />
+
+      <main className="relative w-full max-w-3xl space-y-4">
         {/* Header */}
         <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)]">
           <div className="p-5 space-y-3">
@@ -771,6 +838,30 @@ export function ClientCardPage() {
           </div>
         </Card>
 
+        {/* Contact */}
+        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.8)]">
+          <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-white">
+                Contacter Bryan Cars Detailing
+              </p>
+              <p className="text-[12px] text-neutral-400">
+                Une question, besoin de modifier un rendez-vous ou de conseils
+                d&apos;entretien ? Appelez directement le centre.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="tel:0603125186"
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[12px] font-medium bg-white text-black hover:bg-neutral-200 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                <span>Appeler le centre</span>
+              </a>
+            </div>
+          </div>
+        </Card>
+
         {/* Agenda */}
         <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
           <div className="p-4 space-y-3">
@@ -823,70 +914,99 @@ export function ClientCardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-1.5 mt-1">
-              {month.days.map((d) => {
-                const mine = d.status === "mine";
-                const free = d.status === "free";
-                const past = isPastDay(d.date);
+<div className="grid grid-cols-7 gap-1.5 mt-1">
+  {month.days.map((d) => {
+    const mine = d.status === "mine";
+    const free = d.status === "free";
+    const busy = d.status === "busy";
+    const past = isPastDay(d.date);
 
-                const base =
-                  "w-full aspect-square rounded-xl border flex flex-col items-center justify-center text-[11px] transition focus-visible:outline-none";
+    const base =
+      "w-full aspect-square rounded-xl border flex flex-col items-center justify-center text-[11px] transition focus-visible:outline-none";
 
-                if (free) {
-                  return (
-                    <button
-                      key={d.date}
-                      className={`${base} border-white/15 bg-black hover:border-emerald-400 hover:bg-emerald-500/10`}
-                      disabled={busyAction}
-                      onClick={() => openDayModal(d)}
-                    >
-                      <span className="font-medium text-white">{d.day}</span>
-                    </button>
-                  );
-                }
+      // 🔵 DONE → bleu (TOUJOURS cliquable)
+      if (d.status === "done") {
+        return (
+          <button
+            key={d.date}
+            className={`${base} border-sky-500 bg-sky-500/15`}
+            disabled={busyAction}
+            onClick={() => openDayModal(d)}
+          >
+            <span className="font-medium text-white">{d.day}</span>
+            <span className="mt-0.5 h-1 w-1 rounded-full bg-sky-400" />
+          </button>
+        );
+      }
 
-                if (mine && !past) {
-                  // Rendez-vous futur → vert
-                  return (
-                    <button
-                      key={d.date}
-                      className={`${base} border-emerald-500 bg-emerald-500/15`}
-                      disabled={busyAction}
-                      onClick={() => openDayModal(d)}
-                    >
-                      <span className="font-medium text-white">{d.day}</span>
-                      <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-400" />
-                    </button>
-                  );
-                }
+    // ⚫ Jour libre → noir cliquable
+    if (free) {
+      return (
+        <button
+          key={d.date}
+          className={`${base} border-white/15 bg-black hover:border-emerald-400 hover:bg-emerald-500/10`}
+          disabled={busyAction}
+          onClick={() => openDayModal(d)}
+        >
+          <span className="font-medium text-white">{d.day}</span>
+        </button>
+      );
+    }
 
-                if (mine && past) {
-                  // Rendez-vous passé → bleu
-                  return (
-                    <button
-                      key={d.date}
-                      className={`${base} border-sky-500 bg-sky-500/15`}
-                      disabled={busyAction}
-                      onClick={() => openDayModal(d)}
-                    >
-                      <span className="font-medium text-white">{d.day}</span>
-                      <span className="mt-0.5 h-1 w-1 rounded-full bg-sky-400" />
-                    </button>
-                  );
-                }
+    // 🔵 RDV passé (mine ou busy)
+    if (past && (mine || busy)) {
+      return (
+        <button
+          key={d.date}
+          className={`${base} border-sky-500 bg-sky-500/15`}
+          disabled={busyAction}
+          onClick={() => openDayModal(d)}
+        >
+          <span className="font-medium text-white">{d.day}</span>
+          <span className="mt-0.5 h-1 w-1 rounded-full bg-sky-400" />
+        </button>
+      );
+    }
 
-                // busy (autre client)
-                return (
-                  <div
-                    key={d.date}
-                    className={`${base} border-rose-500/80 bg-rose-500/10 text-neutral-100`}
-                  >
-                    <span className="font-medium">{d.day}</span>
-                    <span className="mt-0.5 h-1 w-1 rounded-full bg-rose-500" />
-                  </div>
-                );
-              })}
-            </div>
+    // 🟢 RDV futur du client
+    if (mine && !past) {
+      return (
+        <button
+          key={d.date}
+          className={`${base} border-emerald-500 bg-emerald-500/15`}
+          disabled={busyAction}
+          onClick={() => openDayModal(d)}
+        >
+          <span className="font-medium text-white">{d.day}</span>
+          <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-400" />
+        </button>
+      );
+    }
+
+    // 🔴 RDV futur d’un autre client → NON cliquable
+    if (busy && !past) {
+      return (
+        <div
+          key={d.date}
+          className={`${base} border-rose-500/80 bg-rose-500/10 text-neutral-100`}
+        >
+          <span className="font-medium">{d.day}</span>
+          <span className="mt-0.5 h-1 w-1 rounded-full bg-rose-500" />
+        </div>
+      );
+    }
+
+    // Autre / fallback
+    return (
+      <div
+        key={d.date}
+        className={`${base} border-white/10 bg-black/50 text-neutral-100`}
+      >
+        <span className="font-medium">{d.day}</span>
+      </div>
+    );
+  })}
+</div>
 
             <p className="text-[11px] text-neutral-400 leading-relaxed">
               Touchez un jour disponible pour demander un rendez-vous. Vos
@@ -897,7 +1017,7 @@ export function ClientCardPage() {
           </div>
         </Card>
 
-        {/* Vos rendez-vous (carrousel) */}
+        {/* Vos rendez-vous (liste verticale) */}
         <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
           <div className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -936,17 +1056,13 @@ export function ClientCardPage() {
             )}
 
             {!appointmentsLoading && totalAppointments > 0 && (
-              <div
-                ref={carouselRef}
-                className="flex gap-3 overflow-x-auto pb-2 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-neutral-700/80 scrollbar-track-transparent"
-              >
-                {sortedAppointments.map((a, index) => {
+              <div className="space-y-2 pt-1">
+                {sortedAppointments.map((a) => {
                   const isPast = appointmentIsPast(a);
-                  const isNext = index === upcomingIndex;
                   const rating = a.userRating ?? 0;
 
                   let cardStyle =
-                    "min-w-[220px] snap-center rounded-2xl border px-3 py-2.5 text-[12px] text-left transition-colors";
+                    "w-full rounded-2xl border px-3 py-2.5 text-[12px] text-left transition-colors flex items-stretch gap-3";
                   if (a.status === "cancelled") {
                     cardStyle +=
                       " border-rose-500/70 bg-rose-500/10 text-rose-100";
@@ -958,35 +1074,49 @@ export function ClientCardPage() {
                       " border-emerald-500/70 bg-emerald-500/10 text-neutral-100";
                   }
 
-                  if (isNext) {
-                    cardStyle += " ring-1 ring-white/70";
-                  }
-
                   return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      data-appointment-index={index}
-                      className={cardStyle}
-                      onClick={() => openAppointmentModal(a)}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <div className="font-medium text-white">
-                            {formatDateFR(a.date)}{" "}
-                            {a.time && (
-                              <span className="text-neutral-200">
-                                · {formatTimeHHMM(a.time)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-neutral-200">
-                            {a.vehicleModel
-                              ? a.vehicleModel +
-                                (a.vehiclePlate ? ` · ${a.vehiclePlate}` : "")
-                              : "Détail véhicule non renseigné"}
-                          </div>
+                    <div key={a.id} className={cardStyle}>
+                      <div className="flex-1 space-y-0.5">
+                        <div className="font-medium text-white">
+                          {formatDateFR(a.date)}{" "}
+                          {a.time && (
+                            <span className="text-neutral-200">
+                              · {formatTimeHHMM(a.time)}
+                            </span>
+                          )}
                         </div>
+                        <div className="text-[11px] text-neutral-200">
+                          {a.vehicleModel
+                            ? a.vehicleModel +
+                              (a.vehiclePlate ? ` · ${a.vehiclePlate}` : "")
+                            : "Détail véhicule non renseigné"}
+                        </div>
+
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-200">
+                          {rating > 0 ? (
+                            <>
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={
+                                    "h-3.5 w-3.5 " +
+                                    (i < rating
+                                      ? "text-amber-300 fill-amber-300"
+                                      : "text-neutral-500")
+                                  }
+                                />
+                              ))}
+                              <span className="ml-1">({rating}/5)</span>
+                            </>
+                          ) : (
+                            <span className="italic text-neutral-300">
+                              Pas encore d&apos;avis
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end justify-between gap-1">
                         <div
                           className={
                             "px-2 py-0.5 rounded-full text-[10px] " +
@@ -995,37 +1125,15 @@ export function ClientCardPage() {
                         >
                           {appointmentStatusLabel(a.status)}
                         </div>
+                        <Button
+                          type="button"
+                          className="h-7 px-3 text-[11px] rounded-full bg-white text-black hover:bg-neutral-200"
+                          onClick={() => openAppointmentModal(a)}
+                        >
+                          Consulter
+                        </Button>
                       </div>
-
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-200">
-                        {rating > 0 ? (
-                          <>
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={
-                                  "h-3.5 w-3.5 " +
-                                  (i < rating
-                                    ? "text-amber-300 fill-amber-300"
-                                    : "text-neutral-500")
-                                }
-                              />
-                            ))}
-                            <span className="ml-1">({rating}/5)</span>
-                          </>
-                        ) : (
-                          <span className="italic text-neutral-300">
-                            Pas encore d&apos;avis
-                          </span>
-                        )}
-                      </div>
-
-                      {a.hasPhotos && (
-                        <div className="mt-1 text-[10px] text-neutral-200">
-                          📸 Photos disponibles
-                        </div>
-                      )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1033,8 +1141,8 @@ export function ClientCardPage() {
 
             {!appointmentsLoading && totalAppointments > 0 && (
               <p className="text-[11px] text-neutral-400">
-                Faites glisser horizontalement pour parcourir vos rendez-vous.
-                Le prochain rendez-vous à venir est centré automatiquement.
+                Les rendez-vous les plus récents apparaissent en haut de la
+                liste.
               </p>
             )}
           </div>
@@ -1336,67 +1444,94 @@ export function ClientCardPage() {
                   <span>Chargement des photos…</span>
                 </div>
               )}
-              {!appointmentPhotosLoading &&
-                appointmentPhotos.length === 0 &&
-                !selectedAppointment.hasPhotos && (
-                  <p className="text-[12px] text-neutral-400">
-                    Aucune photo n&apos;a été enregistrée pour ce rendez-vous.
-                  </p>
-                )}
-              {!appointmentPhotosLoading &&
-                appointmentPhotos.length === 0 &&
-                selectedAppointment.hasPhotos && (
-                  <p className="text-[12px] text-neutral-400">
-                    Les photos ne sont pas disponibles pour le moment.
-                  </p>
-                )}
-              {!appointmentPhotosLoading &&
-                appointmentPhotos.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    {appointmentPhotos.map((p) => (
-                      <a
-                        key={p.id}
-                        href={p.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block rounded-xl overflow-hidden border border-white/10 bg-black"
-                        title={p.label ?? undefined}
-                      >
-                        <img
-                          src={p.url}
-                          alt={p.label ?? "Photo rendez-vous"}
-                          className="w-full h-20 object-cover"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                )}
+
+              {!appointmentPhotosLoading && appointmentPhotos.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {appointmentPhotos.map((p) => (
+                    <a
+                      key={p.id}
+                      href={p.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-xl overflow-hidden border border-white/10 bg-black"
+                      title={p.label ?? undefined}
+                    >
+                      <img
+                        src={p.url}
+                        alt={p.label ?? "Photo rendez-vous"}
+                        className="w-full h-20 object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {/* Pas de photos en base → cadres vides pour visualiser */}
+              {!appointmentPhotosLoading && appointmentPhotos.length === 0 && (
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-20 rounded-xl border border-dashed border-white/15 bg-black/40 flex items-center justify-center text-[10px] text-neutral-500"
+                    >
+                      Photo à venir
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Avis client */}
             {(() => {
-              const isPast = appointmentIsPast(selectedAppointment);
-              const canRate =
-                isPast && selectedAppointment.status === "done";
+              const isOwner =
+                selectedAppointment &&
+                client &&
+                selectedAppointment.vehicleModel === client.vehicleModel &&
+                selectedAppointment.vehiclePlate === client.vehiclePlate;
+
+              const canRate = isOwner && selectedAppointment.status === "done";
+              const hasReview = !!selectedAppointment.userRating;
 
               if (!canRate) {
                 return (
                   <div className="space-y-1.5">
                     <div className="text-[11px] font-semibold text-white">
-                      Votre avis
+                      Avis du client
                     </div>
-                    <p className="text-[12px] text-neutral-400">
-                      Vous pourrez laisser une note dès que ce rendez-vous
-                      aura été réalisé et marqué comme{" "}
-                      <span className="font-medium text-emerald-300">
-                        effectué
-                      </span>{" "}
-                      par le centre.
-                    </p>
+                    {hasReview ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={
+                                "h-3.5 w-3.5 " +
+                                (i < (selectedAppointment.userRating || 0)
+                                  ? "text-amber-300 fill-amber-300"
+                                  : "text-neutral-600")
+                              }
+                            />
+                          ))}
+                          <span className="ml-1 text-neutral-300 text-[12px]">
+                            ({selectedAppointment.userRating}/5)
+                          </span>
+                        </div>
+                        {selectedAppointment.userReview && (
+                          <p className="text-[12px] text-neutral-300 italic">
+                            “{selectedAppointment.userReview}”
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-neutral-400 italic">
+                        Aucun avis client enregistré pour ce rendez-vous.
+                      </p>
+                    )}
                   </div>
                 );
               }
 
+              // 🔽 tout le bloc existant avec les étoiles + textarea
               return (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -1436,9 +1571,7 @@ export function ClientCardPage() {
                       );
                     })}
                     <span className="ml-1 text-[11px] text-neutral-300">
-                      {reviewRating > 0
-                        ? `${reviewRating}/5`
-                        : "Cliquez pour noter"}
+                      {reviewRating > 0 ? `${reviewRating}/5` : "Cliquez pour noter"}
                     </span>
                   </div>
 
@@ -1470,6 +1603,7 @@ export function ClientCardPage() {
                 </div>
               );
             })()}
+
           </div>
         </div>
       )}

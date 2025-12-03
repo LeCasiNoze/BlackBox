@@ -139,6 +139,24 @@ function getAllAppointmentsWithClient(limit) {
   `);
   return stmt.all(limit);
 }
+// Met à jour la note et l'avis client
+function updateAppointmentUserReview(id, rating, review) {
+  const now = nowUnix();
+  const stmt = db.prepare(`
+    UPDATE appointments
+    SET user_rating = ?,
+        user_review = ?,
+        updated_at = ?
+    WHERE id = ?
+  `);
+  const info = stmt.run(
+    rating != null ? rating : null,
+    review || null,
+    now,
+    id
+  );
+  return info.changes; // 0 = rien, 1 = ok
+}
 
 // Change le statut d'un rendez-vous (requested / confirmed / done / cancelled)
 function updateAppointmentStatus(id, newStatus) {
@@ -176,4 +194,6 @@ module.exports = {
   getAllAppointmentsWithClient,
   updateAppointmentStatus,
   updateAppointmentAdminNote,
+  updateAppointmentUserReview,   // ⬅️
 };
+
