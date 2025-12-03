@@ -29,6 +29,39 @@ function nowUnix() {
   return Math.floor(Date.now() / 1000);
 }
 
+// ───────────────────────────────────────────
+// Migration simple : s'assure que "time" existe
+// ───────────────────────────────────────────
+
+function ensureAppointmentsTimeColumn() {
+  // Si la table n'existe pas encore, on la crée avec "time" directement
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      date TEXT NOT NULL UNIQUE,
+      time TEXT,
+      status TEXT NOT NULL,
+      client_note TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
+  // On vérifie si la colonne "time" existe déjà
+  const cols = db.prepare(`PRAGMA table_info(appointments)`).all();
+  const hasTime = cols.some((c) => c.name === "time");
+
+  // Si elle n'existe pas → ALTER TABLE
+  if (!hasTime) {
+    db.exec(`ALTER TABLE appointments ADD COLUMN time TEXT;`);
+    console.log("[DB] Colonne appointments.time ajoutée");
+  }
+}
+
+// Appel au démarrage
+ensureAppointmentsTimeColumn();
+
 module.exports = {
   db,
   nowUnix,

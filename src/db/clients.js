@@ -14,11 +14,49 @@ function getClientBySlugOrCardCode(slugOrCode) {
   return row || null;
 }
 
+// Décrémente formula_remaining de 1 si > 0
+function decrementFormulaRemaining(clientId) {
+  const stmt = db.prepare(`
+    UPDATE clients
+    SET formula_remaining = CASE
+      WHEN formula_remaining > 0 THEN formula_remaining - 1
+      ELSE formula_remaining
+    END
+    WHERE id = ?
+  `);
+  const info = stmt.run(clientId);
+  return info.changes; // 1 = décrémenté, 0 = déjà à 0
+}
+
+// Incrémente formula_remaining de 1 sans dépasser formula_total
+function incrementFormulaRemaining(clientId) {
+  const stmt = db.prepare(`
+    UPDATE clients
+    SET formula_remaining = CASE
+      WHEN formula_remaining < formula_total THEN formula_remaining + 1
+      ELSE formula_remaining
+    END
+    WHERE id = ?
+  `);
+  const info = stmt.run(clientId);
+  return info.changes;
+}
+
 // Pour plus tard : récupérer par ID
 function getClientById(id) {
   const stmt = db.prepare(`SELECT * FROM clients WHERE id = ? LIMIT 1`);
   const row = stmt.get(id);
   return row || null;
+}
+
+// Liste tous les clients (pour l'admin)
+function listClients() {
+  const stmt = db.prepare(`
+    SELECT *
+    FROM clients
+    ORDER BY created_at DESC
+  `);
+  return stmt.all();
 }
 
 // Petit seed d'un client de démo si aucun client en base
@@ -100,4 +138,7 @@ module.exports = {
   getClientBySlugOrCardCode,
   getClientById,
   ensureDemoClient,
+  decrementFormulaRemaining,
+  incrementFormulaRemaining,
+  listClients,
 };

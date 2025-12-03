@@ -3,6 +3,8 @@ const express = require("express");
 const adminRoutes = require("./routes/admin");
 const cardRoutes = require("./routes/card");
 const authRoutes = require("./routes/auth");
+const clientApiRoutes = require("./routes/clientApi");
+const adminApiRoutes = require("./routes/adminApi"); // ⬅ nouvelle API admin
 
 const { db } = require("./db");
 const { ensureDemoClient } = require("./db/clients");
@@ -82,6 +84,8 @@ app.get("/", (req, res) => {
 // Montage des sous-routes
 app.use("/admin", adminRoutes);
 app.use("/card", cardRoutes);
-app.use("/", authRoutes); // /login, etc.
+app.use("/api/client", clientApiRoutes); // API JSON client
+app.use("/api/admin", adminApiRoutes);   // API JSON admin
+app.use("/", authRoutes);
 
 module.exports = app;

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS clients (
 
   email             TEXT,
   phone             TEXT,
+  company           TEXT,                          -- nom de la société le cas échéant
 
   address_line1     TEXT,
   address_line2     TEXT,
