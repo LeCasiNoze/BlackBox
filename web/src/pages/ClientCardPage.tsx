@@ -686,15 +686,6 @@ function openDayModal(day: ApiDay) {
     }
   }
 
-  function isDoneOwnedByClient(day: ApiDay): boolean {
-    // On considère qu'un jour "done" appartient au client
-    // s'il a AU MOINS un rendez-vous ce jour-là (hors annulé)
-    const apt = appointments.find(
-      (a) => a.date === day.date && a.status !== "cancelled"
-    );
-    return Boolean(apt);
-  }
-
   // ──────────────────────────────────────
 
   if (loading && !data) {
