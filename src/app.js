@@ -93,13 +93,15 @@ const distDir = path.join(__dirname, "../web/dist");
 app.use(express.static(distDir));
 
 // Toute route /admin... renvoie index.html de React
-app.get("/admin*", (req, res) => {
+app.get(/^\/admin(\/.*)?$/, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
+
 // 🔥 NOUVEAU : toute route /card... renvoie aussi React
-app.get("/card*", (req, res) => {
+app.get(/^\/card(\/.*)?$/, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
+
 
 module.exports = app;
