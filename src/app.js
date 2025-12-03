@@ -1,10 +1,11 @@
 // src/app.js
 const express = require("express");
+const path = require("path");              // 👈 ajouter ça
+
 const adminRoutes = require("./routes/admin");
 const cardRoutes = require("./routes/card");
 const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
-const adminApiRoutes = require("./routes/adminApi"); // ⬅ nouvelle API admin
 
 const { db } = require("./db");
 const { ensureDemoClient } = require("./db/clients");
@@ -12,9 +13,15 @@ ensureDemoClient();
 
 const app = express();
 
-// Middlewares globaux
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// 👇 Dossier du front React buildé
+const webDistPath = path.join(__dirname, "web", "dist");
+
+// fichiers statiques (JS, CSS, images…)
+app.use("/assets", express.static(path.join(webDistPath, "assets")));
+app.use("/favicon.ico", express.static(path.join(webDistPath, "favicon.ico")));
 
 // Page d’accueil (debug / lien rapide)
 app.get("/", (req, res) => {
@@ -81,11 +88,22 @@ app.get("/", (req, res) => {
   `);
 });
 
-// Montage des sous-routes
-app.use("/admin", adminRoutes);
+// Montage des sous-routes (API & autres pages)
 app.use("/card", cardRoutes);
-app.use("/api/client", clientApiRoutes); // API JSON client
-app.use("/api/admin", adminApiRoutes);   // API JSON admin
+app.use("/api/client", clientApiRoutes);
+app.use("/api/admin", adminApiRoutes);
 app.use("/", authRoutes);
 
+// === FRONT ADMIN (React / Vite, buildé dans web/dist) ===
+const adminDistDir = path.join(__dirname, "../web/dist");
+
+// Fichiers statiques (assets JS/CSS de Vite)
+app.use(express.static(adminDistDir));
+
+// Toute route /admin... renvoie index.html de React
+app.get("/admin*", (req, res) => {
+  res.sendFile(path.join(adminDistDir, "index.html"));
+});
+
 module.exports = app;
+

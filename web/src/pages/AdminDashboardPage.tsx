@@ -1227,86 +1227,86 @@ export function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Rendez-vous globaux sur toute la largeur */}
-        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
-        <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-white">
-                Tous les rendez-vous (ordre chronologique)
-            </p>
-            <span className="text-[11px] text-neutral-400">
-                {sortedGlobalAppointments.length} affichés
-            </span>
-            </div>
-
-            {globalApptsLoading && (
-            <div className="flex justify-center py-6">
-                <div className="flex items-center gap-2 text-[12px] text-neutral-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Chargement des rendez-vous…</span>
+            {/* Rendez-vous globaux sur toute la largeur */}
+            <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
+            <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-white">
+                    Tous les rendez-vous (ordre chronologique)
+                </p>
+                <span className="text-[11px] text-neutral-400">
+                    {sortedGlobalAppointments.length} affichés
+                </span>
                 </div>
-            </div>
-            )}
 
-            {!globalApptsLoading && sortedGlobalAppointments.length === 0 && (
-            <p className="text-[12px] text-neutral-500">
-                Aucun rendez-vous enregistré pour le moment.
-            </p>
-            )}
+                {globalApptsLoading && (
+                <div className="flex justify-center py-6">
+                    <div className="flex items-center gap-2 text-[12px] text-neutral-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Chargement des rendez-vous…</span>
+                    </div>
+                </div>
+                )}
 
-            {!globalApptsLoading && sortedGlobalAppointments.length > 0 && (
-            <div className="space-y-1 max-h-[260px] overflow-y-auto pr-1 text-[12px]">
-                {sortedGlobalAppointments.map((a) => (
-                <div
-                    key={a.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/70 px-3 py-2"
-                >
-                    <div className="space-y-0.5">
-                    <div className="font-medium text-white">
-                        {formatDate(a.date)}{" "}
-                        {a.time && (
-                        <span className="text-neutral-400">
-                            · {formatTime(a.time)}
-                        </span>
-                        )}
-                    </div>
-                    <div className="text-[11px] text-neutral-400">
-                        {a.clientName ?? "Client ?"}{" "}
-                        {a.vehicleModel && (
-                        <>
-                            · {a.vehicleModel}
-                            {a.vehiclePlate ? ` (${a.vehiclePlate})` : ""}
-                        </>
-                        )}
-                    </div>
-                    </div>
+                {!globalApptsLoading && sortedGlobalAppointments.length === 0 && (
+                <p className="text-[12px] text-neutral-500">
+                    Aucun rendez-vous enregistré pour le moment.
+                </p>
+                )}
 
-                    <div className="flex items-center gap-2">
+                {!globalApptsLoading && sortedGlobalAppointments.length > 0 && (
+                <div className="space-y-1 max-h-[260px] overflow-y-auto pr-1 text-[12px]">
+                    {sortedGlobalAppointments.map((a) => (
                     <div
-                        className={
-                        "px-2 py-0.5 rounded-full text-[10px] " +
-                        statusClasses(a.status)
-                        }
+                        key={a.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/70 px-3 py-2"
                     >
-                        {statusLabel(a.status)}
+                        <div className="space-y-0.5">
+                        <div className="font-medium text-white">
+                            {formatDate(a.date)}{" "}
+                            {a.time && (
+                            <span className="text-neutral-400">
+                                · {formatTime(a.time)}
+                            </span>
+                            )}
+                        </div>
+                        <div className="text-[11px] text-neutral-400">
+                            {a.clientName ?? "Client ?"}{" "}
+                            {a.vehicleModel && (
+                            <>
+                                · {a.vehicleModel}
+                                {a.vehiclePlate ? ` (${a.vehiclePlate})` : ""}
+                            </>
+                            )}
+                        </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                        <div
+                            className={
+                            "px-2 py-0.5 rounded-full text-[10px] " +
+                            statusClasses(a.status)
+                            }
+                        >
+                            {statusLabel(a.status)}
+                        </div>
+                        <Button
+                            variant="outline"
+                            className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
+                            onClick={() => {
+                            setSelectedClientId(a.clientId);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                        >
+                            Voir client
+                        </Button>
+                        </div>
                     </div>
-                    <Button
-                        variant="outline"
-                        className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                        onClick={() => {
-                        setSelectedClientId(a.clientId);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                    >
-                        Voir client
-                    </Button>
-                    </div>
+                    ))}
                 </div>
-                ))}
+                )}
             </div>
-            )}
-        </div>
-        </Card>
+            </Card>
 
         {/* Modal profil client (création / édition) */}
         {profileModalOpen && profileDraft && (
