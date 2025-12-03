@@ -732,10 +732,55 @@ function openDayModal(day: ApiDay) {
 
   const totalAppointments = sortedAppointments.length;
 
+  const hasFuture = appointments.some(a =>
+  a.status !== "cancelled" &&
+  appointmentDateTime(a).getTime() > Date.now()
+  );
+
+  const hasCredits = client.formulaRemaining > 0;
+
+  let ambientColor = "transparent";
+
+  // RDV à venir
+  if (hasFuture) ambientColor = "rgba(0,255,150,0.05)";
+
+  // Tous passés → bleu doux
+  else ambientColor = "rgba(80,150,255,0.05)";
+
+  // Plus de crédits → rouge léger
+  if (!hasCredits) ambientColor = "rgba(255,80,80,0.07)";
+
   return (
     <div
   className="min-h-screen relative overflow-hidden text-white flex justify-center px-3 py-6"
 >
+  {/* Reflet vertical premium */}
+  <div className="absolute inset-0 pointer-events-none animate-verticalShine opacity-[0.10]">
+    <div className="absolute left-1/2 top-[-200%] w-[40%] h-[400%] 
+      bg-gradient-to-b from-transparent via-white/20 to-transparent 
+      blur-3xl -translate-x-1/2" 
+    />
+  </div>
+
+  {/* Couleur ambiante dynamique */}
+  <div
+    className="absolute inset-0 pointer-events-none"
+    style={{ backgroundColor: ambientColor }}
+  />
+
+  {/* Texture carbone forgé (désactivée par défaut) */}
+  {/* <div className="absolute inset-0 bg-[url('/textures/carbon.png')] opacity-[0.02] mix-blend-overlay" /> */}
+
+  {/* Vignette luxe */}
+  <div className="absolute inset-0 pointer-events-none 
+    bg-[radial-gradient(circle_at_center,transparent_0%,transparent_45%,black_100%)] opacity-30"
+  />
+
+  {/* Halo dynamique autour des cartes */}
+  <div className="absolute inset-0 pointer-events-none opacity-[0.12] blur-3xl animate-luxHalo
+    bg-gradient-to-b from-white/5 via-transparent to-white/5"
+  />
+
   {/* Gradient premium fixe */}
   <div className="absolute inset-0 bg-gradient-to-b from-black via-neutral-950 to-black" />
 
@@ -750,9 +795,10 @@ function openDayModal(day: ApiDay) {
         {/* Header */}
         <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)]">
           <div className="p-5 space-y-3">
-            <div className="inline-flex items-center rounded-full border border-white/15 bg-black/80 px-3 py-1 text-[11px] font-medium tracking-[0.22em] text-neutral-300 uppercase">
+            <div className="inline-flex items-center rounded-full border border-white/15 bg-black/80 px-3 py-1 text-[11px] font-medium tracking-[0.22em] text-neutral-300 uppercase relative overflow-hidden shineBadge">
               BlackBox · NFC Client
             </div>
+
             <div>
               <h1 className="text-xl font-semibold leading-tight tracking-tight text-white">
                 Bonjour {displayName},
@@ -839,7 +885,7 @@ function openDayModal(day: ApiDay) {
         </Card>
 
         {/* Contact */}
-        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.8)]">
+        <Card className="card-shine rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.8)]">
           <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-white">
@@ -863,7 +909,7 @@ function openDayModal(day: ApiDay) {
         </Card>
 
         {/* Agenda */}
-        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
+        <Card className="card-shine rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
           <div className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">

@@ -10,4 +10,56 @@ body {
   @apply bg-neutral-950 text-white antialiased;
 }
 
+.shineBadge::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255,255,255,0.3) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  animation: badgeShine 4s ease-in-out infinite;
+}
 
+@keyframes badgeShine {
+  0% { left: -120%; }
+  30% { left: 120%; }
+  100% { left: 120%; }
+}
+/* Flair premium verre / shine */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-shine::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255,255,255,0.06) 45%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.06) 55%,
+    transparent 100%
+  );
+  transform: rotate(0deg);
+  animation: shineMove 14s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shineMove {
+  0%   { transform: translateX(-60%) translateY(-40%); }
+  50%  { transform: translateX(10%)  translateY(20%); }
+  100% { transform: translateX(-60%) translateY(-40%); }
+}
