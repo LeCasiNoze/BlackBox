@@ -500,7 +500,6 @@ export function ClientCardPage() {
             <div className="grid grid-cols-7 gap-1.5 mt-1">
               {month.days.map((d) => {
                 const mine = d.status === "mine";
-                const busy = d.status === "busy";
                 const free = d.status === "free";
                 const past = isPastDay(d.date);
 
