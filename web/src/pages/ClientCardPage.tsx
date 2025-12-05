@@ -223,6 +223,9 @@ export function ClientCardPage() {
 
   const monthParam = query.get("m");
 
+  const [photoLightboxUrl, setPhotoLightboxUrl] = React.useState<string | null>(null);
+  const photosCarouselRef = React.useRef<HTMLDivElement | null>(null);
+
   // ──────────────────────────────────────
   // État "Vos rendez-vous"
   // ──────────────────────────────────────
@@ -624,6 +627,13 @@ export function ClientCardPage() {
     }
   }
 
+  function scrollPhotos(delta: number) {
+    const container = photosCarouselRef.current;
+    if (!container) return;
+    const width = container.clientWidth || 200;
+    container.scrollBy({ left: delta * width * 0.8, behavior: "smooth" });
+  }
+
   function closeAppointmentModal() {
     setAppointmentModalOpen(false);
     setSelectedAppointment(null);
@@ -808,74 +818,80 @@ export function ClientCardPage() {
         {/* Infos client & formule */}
         <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
           <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-[12px]">
-            <div className="rounded-2xl border border-white/10 bg-black/70 p-3 space-y-1.5">
-              <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
-                <span className="text-[12px] font-semibold text-white">
-                  Client
-                </span>
-              </div>
-              <div className="text-[14px] font-semibold text-white">
-                {client.fullName ?? displayName}
-              </div>
-              <div className="text-[12px] text-neutral-300">
-                Code carte :{" "}
-                <span className="text-neutral-100">
-                  {client.cardCode ?? client.slug}
-                </span>
-              </div>
-              {client.phone && (
-                <div className="text-[12px] text-neutral-300">
-                  Téléphone :{" "}
-                  <span className="text-neutral-100">{client.phone}</span>
+            {/* Bloc CLIENT avec bordure or + lumière */}
+            <div className="gold-frame rounded-2xl">
+              <div className="gold-frame-inner rounded-[1rem] bg-black/80 p-3 space-y-1.5 border border-white/5">
+                <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
+                  <span className="text-[12px] font-semibold text-white">
+                    Client
+                  </span>
                 </div>
-              )}
-              {client.email && (
-                <div className="text-[12px] text-neutral-300">
-                  Email :{" "}
-                  <span className="text-neutral-100">{client.email}</span>
+                <div className="text-[14px] font-semibold text-white">
+                  {client.fullName ?? displayName}
                 </div>
-              )}
+                <div className="text-[12px] text-neutral-300">
+                  Code carte :{" "}
+                  <span className="text-neutral-100">
+                    {client.cardCode ?? client.slug}
+                  </span>
+                </div>
+                {client.phone && (
+                  <div className="text-[12px] text-neutral-300">
+                    Téléphone :{" "}
+                    <span className="text-neutral-100">{client.phone}</span>
+                  </div>
+                )}
+                {client.email && (
+                  <div className="text-[12px] text-neutral-300">
+                    Email :{" "}
+                    <span className="text-neutral-100">{client.email}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/70 p-3 space-y-1.5">
-              <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
-                <span className="text-[12px] font-semibold text-white">
-                  Véhicule & formule
-                </span>
-              </div>
-              <div className="text-[13px] text-white">
-                {client.vehicleModel ?? "Véhicule non renseigné"}
-                {client.vehiclePlate
-                  ? ` · ${client.vehiclePlate}`
-                  : client.vehicleModel
-                  ? ""
-                  : ""}
-              </div>
-              <div className="text-[12px] text-neutral-300">
-                Formule :{" "}
-                <span className="text-neutral-100">
-                  {client.formulaName ?? "Aucune formule active"}
-                </span>
-              </div>
-              <div className="text-[12px] text-neutral-300">
-                Nettoyages restants :{" "}
-                <span
-                  className={
-                    client.formulaRemaining > 0
-                      ? "text-emerald-300"
-                      : "text-rose-300"
-                  }
-                >
-                  {remainingLabel}
-                </span>
-              </div>
-              {client.addressLine1 && (
-                <div className="text-[11px] text-neutral-400 pt-1">
-                  Adresse : {client.addressLine1}
-                  {client.postalCode || client.city ? ", " : ""}
-                  {client.postalCode} {client.city}
+            {/* Bloc VEHICULE & FORMULE avec bordure or + lumière */}
+            <div className="gold-frame rounded-2xl">
+              <div className="gold-frame-inner rounded-[1rem] bg-black/80 p-3 space-y-1.5 border border-white/5">
+                <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
+                  <span className="text-[12px] font-semibold text-white">
+                    Véhicule & formule
+                  </span>
                 </div>
-              )}
+                <div className="text-[13px] text-white">
+                  {client.vehicleModel ?? "Véhicule non renseigné"}
+                  {client.vehiclePlate
+                    ? ` · ${client.vehiclePlate}`
+                    : client.vehicleModel
+                    ? ""
+                    : ""}
+                </div>
+                <div className="text-[12px] text-neutral-300">
+                  Formule :{" "}
+                  <span className="text-neutral-100">
+                    {client.formulaName ?? "Aucune formule active"}
+                  </span>
+                </div>
+                <div className="text-[12px] text-neutral-300">
+                  Nettoyages restants :{" "}
+                  <span
+                    className={
+                      client.formulaRemaining > 0
+                        ? "text-emerald-300"
+                        : "text-rose-300"
+                    }
+                  >
+                    {remainingLabel}
+                  </span>
+                </div>
+                {client.addressLine1 && (
+                  <div className="text-[11px] text-neutral-400 pt-1">
+                    Adresse : {client.addressLine1}
+                    {client.postalCode || client.city ? ", " : ""}
+                    {client.postalCode} {client.city}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </Card>
@@ -1520,6 +1536,7 @@ export function ClientCardPage() {
               <div className="text-[11px] font-semibold text-white">
                 Photos du véhicule
               </div>
+
               {appointmentPhotosLoading && (
                 <div className="flex items-center gap-2 text-[12px] text-neutral-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1528,27 +1545,72 @@ export function ClientCardPage() {
               )}
 
               {!appointmentPhotosLoading && appointmentPhotos.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  {appointmentPhotos.map((p) => (
-                    <a
-                      key={p.id}
-                      href={p.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block rounded-xl overflow-hidden border border-white/10 bg-black"
-                      title={p.label ?? undefined}
-                    >
-                      <img
-                        src={p.url}
-                        alt={p.label ?? "Photo rendez-vous"}
-                        className="w-full h-20 object-cover"
-                      />
-                    </a>
-                  ))}
-                </div>
+                <>
+                  {appointmentPhotos.length <= 3 ? (
+                    // 0–3 photos : grille
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      {appointmentPhotos.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPhotoLightboxUrl(p.url)}
+                          className="block rounded-xl overflow-hidden border border-white/10 bg-black focus:outline-none focus:ring-2 focus:ring-white/60"
+                          title={p.label ?? undefined}
+                        >
+                          <img
+                            src={p.url}
+                            alt={p.label ?? "Photo rendez-vous"}
+                            className="w-full h-20 object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    // >3 photos : carrousel horizontal + flèches
+                    <div className="relative pt-1">
+                      <div
+                        ref={photosCarouselRef}
+                        className="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x snap-mandatory"
+                      >
+                        {appointmentPhotos.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setPhotoLightboxUrl(p.url)}
+                            className="min-w-[110px] max-w-[140px] snap-start rounded-xl overflow-hidden border border-white/10 bg-black focus:outline-none focus:ring-2 focus:ring-white/60"
+                            title={p.label ?? undefined}
+                          >
+                            <img
+                              src={p.url}
+                              alt={p.label ?? "Photo rendez-vous"}
+                              className="w-full h-24 object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* flèches (desktop surtout) */}
+                      <div className="pointer-events-none absolute inset-y-0 flex items-center justify-between px-1">
+                        <button
+                          type="button"
+                          className="pointer-events-auto h-7 w-7 rounded-full bg-black/70 border border-white/30 text-[14px] flex items-center justify-center hover:bg-white hover:text-black transition-colors"
+                          onClick={() => scrollPhotos(-1)}
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type="button"
+                          className="pointer-events-auto h-7 w-7 rounded-full bg-black/70 border border-white/30 text-[14px] flex items-center justify-center hover:bg-white hover:text-black transition-colors"
+                          onClick={() => scrollPhotos(1)}
+                        >
+                          ›
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Pas de photos en base → cadres vides pour visualiser */}
               {!appointmentPhotosLoading && appointmentPhotos.length === 0 && (
                 <div className="grid grid-cols-3 gap-2 pt-1">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -1689,6 +1751,26 @@ export function ClientCardPage() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox photo plein écran */}
+      {photoLightboxUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-3">
+          <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col items-center">
+            <button
+              type="button"
+              className="absolute top-2 right-2 h-8 px-3 rounded-full bg-black/80 border border-white/40 text-[12px] text-white hover:bg-white hover:text-black"
+              onClick={() => setPhotoLightboxUrl(null)}
+            >
+              Fermer
+            </button>
+            <img
+              src={photoLightboxUrl}
+              alt="Photo rendez-vous"
+              className="max-w-full max-h-[90vh] object-contain rounded-2xl border border-white/20 bg-black"
+            />
           </div>
         </div>
       )}

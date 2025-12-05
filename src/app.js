@@ -22,6 +22,10 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
 // Page d’accueil (debug / lien rapide)
 app.get("/", (req, res) => {
   res.send(`

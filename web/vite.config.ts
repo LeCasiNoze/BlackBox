@@ -7,7 +7,12 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        target: "http://localhost:3000", // ton backend
+        changeOrigin: true,
+      },
+      // 👇 AJOUT : proxy pour les images
+      "/uploads": {
+        target: "http://localhost:3000", // même backend
         changeOrigin: true,
       },
     },

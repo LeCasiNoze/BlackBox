@@ -139,6 +139,7 @@ function getAllAppointmentsWithClient(limit) {
   `);
   return stmt.all(limit);
 }
+
 // Met à jour la note et l'avis client
 function updateAppointmentUserReview(id, rating, review) {
   const now = nowUnix();
@@ -182,6 +183,60 @@ function updateAppointmentAdminNote(id, adminNote) {
   return info.changes;
 }
 
+// ─────────────────────────────────────────────
+// PHOTOS DE RENDEZ-VOUS
+// ─────────────────────────────────────────────
+
+function getAppointmentPhotos(appointmentId) {
+  return db
+    .prepare(
+      `
+      SELECT id, appointment_id, url, is_cover, caption, created_at
+      FROM appointment_photos
+      WHERE appointment_id = ?
+      ORDER BY is_cover DESC, created_at ASC, id ASC
+    `
+    )
+    .all(appointmentId);
+}
+
+function insertAppointmentPhoto(appointmentId, url, caption = null, isCover = 0) {
+  const now = nowUnix();
+  const info = db
+    .prepare(
+      `
+      INSERT INTO appointment_photos (appointment_id, url, is_cover, caption, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `
+    )
+    .run(appointmentId, url, isCover ? 1 : 0, caption || null, now);
+
+  return db
+    .prepare(
+      `
+      SELECT id, appointment_id, url, is_cover, caption, created_at
+      FROM appointment_photos
+      WHERE id = ?
+    `
+    )
+    .get(info.lastInsertRowid);
+}
+
+function hasAppointmentPhotos(appointmentId) {
+  const row = db
+    .prepare(
+      `
+      SELECT 1 AS has_photos
+      FROM appointment_photos
+      WHERE appointment_id = ?
+      LIMIT 1
+    `
+    )
+    .get(appointmentId);
+
+  return !!row;
+}
+
 module.exports = {
   formatDateLocal,
   getAppointmentsForMonth,
@@ -194,6 +249,10 @@ module.exports = {
   getAllAppointmentsWithClient,
   updateAppointmentStatus,
   updateAppointmentAdminNote,
-  updateAppointmentUserReview,   // ⬅️
-};
+  updateAppointmentUserReview,
 
+  // photos
+  getAppointmentPhotos,
+  insertAppointmentPhoto,
+  hasAppointmentPhotos,
+};

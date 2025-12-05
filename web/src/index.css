@@ -63,3 +63,50 @@ body {
   50%  { transform: translateX(10%)  translateY(20%); }
   100% { transform: translateX(-60%) translateY(-40%); }
 }
+/* Cadre or premium pour les blocs client + véhicule */
+.gold-frame {
+  position: relative;
+  overflow: hidden;
+  padding: 1px;              /* épaisseur de la bordure */
+  border-radius: 1rem;       /* même radius que le bloc */
+  background: linear-gradient(
+    120deg,
+    rgba(253, 224, 71, 0.95),   /* or clair */
+    rgba(245, 158, 11, 0.95),   /* or chaud */
+    rgba(253, 224, 71, 0.95)
+  );
+}
+
+/* Lumière qui tourne le long de la bordure */
+.gold-frame::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(253, 224, 71, 0),
+    rgba(253, 224, 71, 0.95),
+    rgba(245, 158, 11, 0),
+    rgba(253, 224, 71, 0.95),
+    rgba(253, 224, 71, 0)
+  );
+  animation: gold-orbit 6s linear infinite;
+  opacity: 0.8;
+}
+
+/* Contenu interne, posé au-dessus de l'effet */
+.gold-frame-inner {
+  position: relative;
+  z-index: 1;
+  background: radial-gradient(circle at 0% 0%, #020617, #000000);
+}
+
+/* Animation de la lumière */
+@keyframes gold-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

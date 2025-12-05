@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
 
   date        TEXT NOT NULL,  -- format ISO "YYYY-MM-DD"
+  time        TEXT,           -- ex: "14:30" (optionnel pour l’instant)
 
   status      TEXT NOT NULL DEFAULT 'requested'
               CHECK (status IN ('requested', 'confirmed', 'done', 'cancelled')),

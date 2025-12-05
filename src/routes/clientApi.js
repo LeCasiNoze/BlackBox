@@ -1,4 +1,4 @@
-// src/routes/client.js
+// src/routes/clientApi.js
 const express = require("express");
 const router = express.Router();
 
@@ -15,8 +15,10 @@ const {
   getAppointmentByDate,
   updateAppointmentTimeForClient,
   getAppointmentsForClient,
-  getAppointmentById,             // ⬅️
-  updateAppointmentUserReview,    // ⬅️
+  getAppointmentById,
+  updateAppointmentUserReview,
+  getAppointmentPhotos,
+  hasAppointmentPhotos,
 } = require("../db/appointments");
 
 const { sendAdminNotification } = require("../email");
@@ -80,23 +82,16 @@ function buildMonthPayload(client, monthParam) {
       const isMine = ap.client_id === client.id;
       const isPast = d < today;
 
-      // 1. Si DONE → toujours bleu (global)
       if (ap.status === "done") {
         status = "done";
-      }
-      // 2. Si jour passé → bleu
-      else if (isPast) {
+      } else if (isPast) {
         status = "done";
-      }
-      // 3. RDV futur du client → vert
-      else if (
+      } else if (
         isMine &&
         (ap.status === "requested" || ap.status === "confirmed")
       ) {
         status = "mine";
-      }
-      // 4. RDV futur d’un autre client → rouge
-      else if (ap.status === "requested" || ap.status === "confirmed") {
+      } else if (ap.status === "requested" || ap.status === "confirmed") {
         status = "busy";
       }
     }
@@ -154,17 +149,45 @@ router.get("/:idOrSlug", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// ✅ NEW — GET /api/client/:idOrSlug/appointments
-// Liste tous les rendez-vous de ce client (passés + futurs)
+// GET /api/client/:idOrSlug/appointments/:appointmentId/photos
+// -> charge simplement les photos du rendez-vous (on ne check pas le client)
+// ---------------------------------------------------------------------------
+router.get("/:idOrSlug/appointments/:appointmentId/photos", (req, res) => {
+  const appointmentId = Number(req.params.appointmentId) || 0;
+
+  if (!appointmentId) {
+    return res
+      .status(400)
+      .json({ ok: false, error: "invalid_appointment_id" });
+  }
+
+  try {
+    const rows = getAppointmentPhotos(appointmentId);
+
+    const photos = rows.map((p) => ({
+      id: p.id,
+      url: p.url,          // ex: "/uploads/appointments/xxxx.jpg"
+      label: p.caption || null,
+    }));
+
+    return res.json({ ok: true, photos });
+  } catch (err) {
+    console.error("[API] Erreur getAppointmentPhotos client:", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: "server_error_loading_photos" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/client/:idOrSlug/appointments
 // ---------------------------------------------------------------------------
 router.get("/:idOrSlug/appointments", (req, res) => {
   const idOrSlug = req.params.idOrSlug;
   const client = getClientBySlugOrCardCode(idOrSlug);
 
   if (!client) {
-    return res
-      .status(404)
-      .json({ ok: false, error: "client_not_found" });
+    return res.status(404).json({ ok: false, error: "client_not_found" });
   }
 
   try {
@@ -172,17 +195,15 @@ router.get("/:idOrSlug/appointments", (req, res) => {
 
     const appointments = rows.map((ap) => ({
       id: ap.id,
-      date: ap.date,              // "YYYY-MM-DD"
-      time: ap.time,              // "HH:MM" ou null
-      status: ap.status,          // "requested" | "confirmed" | "done" | "cancelled"
+      date: ap.date,
+      time: ap.time,
+      status: ap.status,
       adminNote: ap.admin_note || null,
       userRating: ap.user_rating ?? null,
       userReview: ap.user_review ?? null,
-      // un véhicule par client → on reprend les infos du client
       vehicleModel: client.vehicle_model,
       vehiclePlate: client.vehicle_plate,
-      // Pour l'instant on ne branche pas encore le système de photos
-      hasPhotos: false,
+      hasPhotos: hasAppointmentPhotos(ap.id),
     }));
 
     res.json({ ok: true, appointments });
@@ -194,7 +215,6 @@ router.get("/:idOrSlug/appointments", (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/client/:idOrSlug/appointments/:appointmentId/review
-// Enregistre la note (1–5) + commentaire du client
 // ---------------------------------------------------------------------------
 router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
   const idOrSlug = req.params.idOrSlug;
@@ -205,7 +225,9 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
 
   const appointmentId = Number(req.params.appointmentId) || 0;
   if (!appointmentId) {
-    return res.status(400).json({ ok: false, error: "invalid_appointment_id" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "invalid_appointment_id" });
   }
 
   const { rating, review } = req.body || {};
@@ -222,7 +244,6 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
       .json({ ok: false, error: "appointment_not_found" });
   }
 
-  // On impose que le RDV soit "done", comme sur le front
   if (ap.status !== "done") {
     return res
       .status(400)
@@ -255,7 +276,7 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
     userReview: updated.user_review ?? null,
     vehicleModel: client.vehicle_model,
     vehiclePlate: client.vehicle_plate,
-    hasPhotos: false, // on branchera plus tard
+    hasPhotos: hasAppointmentPhotos(updated.id),
   };
 
   return res.json({ ok: true, appointment });
@@ -263,7 +284,6 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /api/client/appointments/:date
-// Permet à n'importe qui de consulter le compte-rendu d'un jour "done"
 // ---------------------------------------------------------------------------
 router.get("/appointments/:date", (req, res) => {
   const date = req.params.date;
@@ -273,13 +293,17 @@ router.get("/appointments/:date", (req, res) => {
 
   const ap = getAppointmentByDate(date);
   if (!ap || ap.status !== "done") {
-    return res.status(404).json({ ok: false, error: "appointment_not_found_or_not_done" });
+    return res.status(404).json({
+      ok: false,
+      error: "appointment_not_found_or_not_done",
+    });
   }
 
-  // On récupère le client pour afficher véhicule, nom, etc.
   const client = require("../db/clients").getClientById
     ? require("../db/clients").getClientById(ap.client_id)
     : null;
+
+  const hasPhotos = hasAppointmentPhotos(ap.id);
 
   res.json({
     ok: true,
@@ -294,13 +318,13 @@ router.get("/appointments/:date", (req, res) => {
       vehicleModel: client?.vehicle_model || null,
       vehiclePlate: client?.vehicle_plate || null,
       clientName: client?.full_name || "Client",
-      hasPhotos: false, // on branchera plus tard
+      hasPhotos,
     },
   });
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/client/:slug/book
+// POST /api/client/:idOrSlug/book
 // ---------------------------------------------------------------------------
 router.post("/:idOrSlug/book", async (req, res) => {
   const idOrSlug = req.params.idOrSlug;
@@ -320,7 +344,6 @@ router.post("/:idOrSlug/book", async (req, res) => {
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
 
-  // 🔁 Cas modification d'heure d'un RDV déjà à moi
   if (isMineActive) {
     try {
       const newTime = time || existing.time || null;
@@ -338,7 +361,6 @@ router.post("/:idOrSlug/book", async (req, res) => {
         });
       }
 
-      // 📧 Notif admin — modification
       try {
         await sendAdminNotification({
           type: "update",
@@ -356,7 +378,6 @@ router.post("/:idOrSlug/book", async (req, res) => {
     }
   }
 
-  // ✨ Nouveau rendez-vous
   if (client.formula_remaining <= 0) {
     return res
       .status(400)
@@ -382,7 +403,6 @@ router.post("/:idOrSlug/book", async (req, res) => {
         .json({ ok: false, error: "slot_taken" });
     }
 
-    // 📧 Notif admin — nouveau RDV
     if (created) {
       try {
         await sendAdminNotification({
@@ -403,7 +423,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/client/:slug/cancel
+// POST /api/client/:idOrSlug/cancel
 // ---------------------------------------------------------------------------
 router.post("/:idOrSlug/cancel", async (req, res) => {
   const idOrSlug = req.params.idOrSlug;
@@ -444,7 +464,6 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
   cancelAppointmentForClientOnDate(client.id, date);
   incrementFormulaRemaining(client.id);
 
-  // 📧 Notif admin — annulation
   try {
     await sendAdminNotification({
       type: "cancel",
@@ -458,6 +477,5 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
 
   return res.json({ ok: true });
 });
-
 
 module.exports = router;

@@ -1,6 +1,9 @@
 // src/routes/adminApi.js
 const express = require("express");
 const router = express.Router();
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 
 const { db, nowUnix } = require("../db");
 
@@ -16,7 +19,26 @@ const {
   updateAppointmentStatus,
   updateAppointmentAdminNote,
   cancelAppointmentForClientOnDate,
+  getAppointmentPhotos,       // 👈 NEW
+  insertAppointmentPhoto,     // 👈 NEW
 } = require("../db/appointments");
+
+// Dossier de stockage des photos de rendez-vous
+const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "appointments");
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".jpg";
+    const base = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, base + ext.toLowerCase());
+  },
+});
+
+const upload = multer({ storage });
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -93,6 +115,16 @@ function mapAppointmentRow(row) {
     clientName: row.full_name || row.client_full_name || null,
     vehicleModel: row.vehicle_model || null,
     vehiclePlate: row.vehicle_plate || null,
+  };
+}
+
+function mapPhotoRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    url: row.url,
+    caption: row.caption || null,
+    isCover: !!row.is_cover,
   };
 }
 
@@ -594,6 +626,111 @@ router.post("/appointments/:id/admin-note", (req, res) => {
   } catch (err) {
     console.error("[adminApi] POST /appointments/:id/admin-note error:", err);
     res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// POST /api/admin/appointments/:id/photos/upload
+// FormData: file, caption?
+router.post(
+  "/appointments/:id/photos/upload",
+  upload.single("file"),
+  (req, res) => {
+    const id = Number(req.params.id || 0);
+    if (!id) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: "no_file" });
+    }
+
+    try {
+      const appt = getAppointmentById(id);
+      if (!appt) {
+        return res
+          .status(404)
+          .json({ ok: false, error: "appointment_not_found" });
+      }
+
+      const caption =
+        typeof req.body.caption === "string" && req.body.caption.trim() !== ""
+          ? req.body.caption.trim()
+          : null;
+
+      // URL publique de la photo
+      const url = `/uploads/appointments/${req.file.filename}`;
+
+      const row = insertAppointmentPhoto(id, url, caption, 0);
+
+      return res.json({ ok: true, photo: mapPhotoRow(row) });
+    } catch (err) {
+      console.error(
+        "[adminApi] POST /appointments/:id/photos/upload error:",
+        err
+      );
+      return res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// GET /api/admin/appointments/:id/photos
+router.get("/appointments/:id/photos", (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+
+  try {
+    const appt = getAppointmentById(id);
+    if (!appt) {
+      return res
+        .status(404)
+        .json({ ok: false, error: "appointment_not_found" });
+    }
+
+    const rows = getAppointmentPhotos(id);
+    const photos = rows.map(mapPhotoRow);
+    return res.json({ ok: true, photos });
+  } catch (err) {
+    console.error("[adminApi] GET /appointments/:id/photos error:", err);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// POST /api/admin/appointments/:id/photos
+// body: { url: string, caption?: string }
+router.post("/appointments/:id/photos", (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+
+  const { url, caption } = req.body || {};
+  if (!url || typeof url !== "string" || !url.trim()) {
+    return res.status(400).json({ ok: false, error: "invalid_url" });
+  }
+
+  try {
+    const appt = getAppointmentById(id);
+    if (!appt) {
+      return res
+        .status(404)
+        .json({ ok: false, error: "appointment_not_found" });
+    }
+
+    const row = insertAppointmentPhoto(
+      id,
+      url.trim(),
+      typeof caption === "string" && caption.trim() !== ""
+        ? caption.trim()
+        : null,
+      0
+    );
+
+    return res.json({ ok: true, photo: mapPhotoRow(row) });
+  } catch (err) {
+    console.error("[adminApi] POST /appointments/:id/photos error:", err);
+    return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
