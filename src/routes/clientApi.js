@@ -19,6 +19,7 @@ const {
   updateAppointmentUserReview,    // ⬅️
 } = require("../db/appointments");
 
+const { sendAdminNotification } = require("../email");
 
 // Helpers month / date
 function parseMonthParam(m) {
@@ -301,7 +302,7 @@ router.get("/appointments/:date", (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/client/:slug/book
 // ---------------------------------------------------------------------------
-router.post("/:idOrSlug/book", (req, res) => {
+router.post("/:idOrSlug/book", async (req, res) => {
   const idOrSlug = req.params.idOrSlug;
   const client = getClientBySlugOrCardCode(idOrSlug);
   if (!client) {
@@ -310,9 +311,7 @@ router.post("/:idOrSlug/book", (req, res) => {
 
   const { date, time } = req.body || {};
   if (!date) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "missing_date" });
+    return res.status(400).json({ ok: false, error: "missing_date" });
   }
 
   const existing = getAppointmentByDate(date);
@@ -321,13 +320,15 @@ router.post("/:idOrSlug/book", (req, res) => {
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
 
-  // Case modification of time
+  // 🔁 Cas modification d'heure d'un RDV déjà à moi
   if (isMineActive) {
     try {
+      const newTime = time || existing.time || null;
+
       const changed = updateAppointmentTimeForClient(
         client.id,
         date,
-        time || existing.time || null,
+        newTime,
         null
       );
       if (!changed) {
@@ -336,13 +337,26 @@ router.post("/:idOrSlug/book", (req, res) => {
           error: "cannot_update_appointment",
         });
       }
+
+      // 📧 Notif admin — modification
+      try {
+        await sendAdminNotification({
+          type: "update",
+          client,
+          date,
+          time: newTime,
+        });
+      } catch (err) {
+        console.error("[MAIL] Erreur notif update:", err);
+      }
+
       return res.json({ ok: true, updated: true });
     } catch (e) {
       return res.status(500).json({ ok: false, error: "server_error" });
     }
   }
 
-  // New appointment
+  // ✨ Nouveau rendez-vous
   if (client.formula_remaining <= 0) {
     return res
       .status(400)
@@ -357,13 +371,29 @@ router.post("/:idOrSlug/book", (req, res) => {
         .json({ ok: false, error: "no_credits_left" });
     }
 
+    let created = false;
     try {
       createRequestedAppointment(client.id, date, time || null, null);
+      created = true;
     } catch (e) {
       incrementFormulaRemaining(client.id);
       return res
         .status(409)
         .json({ ok: false, error: "slot_taken" });
+    }
+
+    // 📧 Notif admin — nouveau RDV
+    if (created) {
+      try {
+        await sendAdminNotification({
+          type: "book",
+          client,
+          date,
+          time: time || null,
+        });
+      } catch (err) {
+        console.error("[MAIL] Erreur notif book:", err);
+      }
     }
 
     return res.json({ ok: true, created: true });
@@ -375,7 +405,7 @@ router.post("/:idOrSlug/book", (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/client/:slug/cancel
 // ---------------------------------------------------------------------------
-router.post("/:idOrSlug/cancel", (req, res) => {
+router.post("/:idOrSlug/cancel", async (req, res) => {
   const idOrSlug = req.params.idOrSlug;
   const client = getClientBySlugOrCardCode(idOrSlug);
   if (!client) {
@@ -414,7 +444,20 @@ router.post("/:idOrSlug/cancel", (req, res) => {
   cancelAppointmentForClientOnDate(client.id, date);
   incrementFormulaRemaining(client.id);
 
+  // 📧 Notif admin — annulation
+  try {
+    await sendAdminNotification({
+      type: "cancel",
+      client,
+      date,
+      time: ap.time || null,
+    });
+  } catch (err) {
+    console.error("[MAIL] Erreur notif cancel:", err);
+  }
+
   return res.json({ ok: true });
 });
+
 
 module.exports = router;

@@ -1,6 +1,12 @@
 // src/app.js
-const express = require("express");
 const path = require("path");
+
+// charge .env situé dans le même dossier que app.js (src/.env)
+require("dotenv").config({
+  path: path.join(__dirname, ".env"),
+});
+
+const express = require("express");
 
 const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");

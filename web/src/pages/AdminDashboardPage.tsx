@@ -145,6 +145,21 @@ export function AdminDashboardPage() {
     {}
   );
 
+  // Deep-link & UI rendez-vous
+  const appointmentsSectionRef = React.useRef<HTMLDivElement | null>(null);
+  const [expandedAppointmentId, setExpandedAppointmentId] =
+    React.useState<number | null>(null);
+
+  // Deep-link depuis l’URL (?clientId=..&date=..)
+  const [deepLink, setDeepLink] = React.useState<{
+    appointmentId: number | null;
+    date: string | null;
+  }>({ appointmentId: null, date: null });
+
+  // Pour surligner brièvement le RDV ciblé
+  const [highlightAppointmentId, setHighlightAppointmentId] =
+    React.useState<number | null>(null);
+
   // Modal création / édition de profil
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [profileMode, setProfileMode] = React.useState<"edit" | "new">("edit");
@@ -177,6 +192,32 @@ export function AdminDashboardPage() {
     number | null
   >(null);
 
+  // Lecture des paramètres d'URL : ?clientId=...&date=... (&appointmentId=... plus tard si besoin)
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    const clientIdParam = params.get("clientId");
+    const dateParam = params.get("date");
+    const apptIdParam = params.get("appointmentId");
+
+    // On pré-sélectionne le client si présent dans l'URL
+    if (clientIdParam) {
+      const idNum = Number(clientIdParam);
+      if (!Number.isNaN(idNum)) {
+        setSelectedClientId(idNum);
+      }
+    }
+
+    const apptIdNum = apptIdParam ? Number(apptIdParam) : NaN;
+
+    setDeepLink({
+      appointmentId: !Number.isNaN(apptIdNum) ? apptIdNum : null,
+      date: dateParam || null,
+    });
+  }, []);
+
   // Quand on change de client sélectionné → on ferme les menus de formule
   React.useEffect(() => {
     setFormulaMenuOpen(false);
@@ -199,7 +240,9 @@ export function AdminDashboardPage() {
         if (!active) return;
 
         setClients(json.clients);
-        if (json.clients.length > 0 && !selectedClientId) {
+
+        // Si aucun client sélectionné (et pas de deep-link), on prend le 1er
+        if (json.clients.length > 0 && selectedClientId == null) {
           setSelectedClientId(json.clients[0].id);
         }
       } catch (err) {
@@ -213,7 +256,7 @@ export function AdminDashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [selectedClientId]);
 
   // Load global appointments
   React.useEffect(() => {
@@ -629,6 +672,47 @@ export function AdminDashboardPage() {
 
   const selectedClientData = selectedClient?.client ?? null;
   const selectedAppointments = selectedClient?.appointments ?? [];
+
+    // Quand les rendez-vous du client sélectionné sont dispo + deep-link présent → scroll et ouverture
+  React.useEffect(() => {
+    if (!appointmentsSectionRef.current) return;
+    if (!selectedAppointments.length) return;
+    if (!deepLink.appointmentId && !deepLink.date) return;
+
+    let target: AdminAppointment | undefined;
+
+    if (deepLink.appointmentId) {
+      target = selectedAppointments.find(
+        (a) => a.id === deepLink.appointmentId
+      );
+    }
+
+    if (!target && deepLink.date) {
+      target = selectedAppointments.find((a) => a.date === deepLink.date);
+    }
+
+    if (!target) return;
+
+    setExpandedAppointmentId(target.id);
+    setHighlightAppointmentId(target.id);
+
+    appointmentsSectionRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+
+    // On consomme le deep-link pour éviter de rescroller à chaque render
+    setDeepLink({ appointmentId: null, date: null });
+  }, [selectedAppointments, deepLink]);
+
+  // Le surlignage disparaît après quelques secondes
+  React.useEffect(() => {
+    if (!highlightAppointmentId) return;
+    const timer = window.setTimeout(() => {
+      setHighlightAppointmentId(null);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [highlightAppointmentId]);
 
   // Rendez-vous globaux triés chronologiquement (date + heure)
   const sortedGlobalAppointments = React.useMemo(() => {
@@ -1056,7 +1140,7 @@ export function AdminDashboardPage() {
 
             {/* Rendez-vous du client sélectionné */}
             <Card className="min-h-[220px] relative z-10 rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
-            <div className="p-4 space-y-3">
+            <div ref={appointmentsSectionRef} className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-white">
                     Rendez-vous du client sélectionné
@@ -1079,148 +1163,193 @@ export function AdminDashboardPage() {
                 )}
 
                 {selectedClientData && selectedAppointments.length > 0 && (
-                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                    {selectedAppointments.map((a) => (
-                    <div
-                        key={a.id}
-                        className="rounded-2xl border border-white/10 bg-black/70 px-3 py-2.5 text-[12px] space-y-2"
-                    >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                            <div className="font-medium text-white">
-                            {formatDate(a.date)}{" "}
-                            {a.time && (
-                                <span className="text-neutral-400">
-                                · {formatTime(a.time)}
-                                </span>
-                            )}
-                            </div>
-                            {a.clientNote && (
-                            <div className="text-[11px] text-neutral-400">
-                                Note client : {a.clientNote}
-                            </div>
-                            )}
-                        </div>
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {selectedAppointments.map((a) => {
+                      const isExpanded = expandedAppointmentId === a.id;
+                      const isHighlighted = highlightAppointmentId === a.id;
 
-                        <div className="flex flex-col items-end gap-1">
-                            <div
-                            className={
-                                "px-2 py-0.5 rounded-full text-[10px] " +
-                                statusClasses(a.status)
+                      return (
+                        <div
+                          key={a.id}
+                          className={[
+                            "rounded-2xl border px-3 py-2 text-[12px] bg-black/70 transition-colors",
+                            isExpanded
+                              ? "border-white/40"
+                              : "border-white/10",
+                            isHighlighted
+                              ? "ring-2 ring-sky-500/70 border-sky-500/70"
+                              : "",
+                          ].join(" ")}
+                        >
+                          {/* Barre principale cliquable */}
+                          <div
+                            className="flex flex-wrap items-center justify-between gap-2 cursor-pointer"
+                            onClick={() =>
+                              setExpandedAppointmentId((prev) =>
+                                prev === a.id ? null : a.id
+                              )
                             }
-                            >
-                            {statusLabel(a.status)}
+                          >
+                            <div className="space-y-0.5">
+                              <div className="font-medium text-white">
+                                {formatDate(a.date)}{" "}
+                                {a.time && (
+                                  <span className="text-neutral-400">
+                                    · {formatTime(a.time)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-neutral-400">
+                                {selectedClientData.fullName ??
+                                  selectedClientData.slug ??
+                                  "Client"}
+                              </div>
                             </div>
-                            <div className="flex flex-wrap gap-1.5 justify-end">
-                            {a.status === "requested" && (
-                                <>
-                                <Button
+
+                            {/* Statut + boutons (clics qui ne replient pas) */}
+                            <div
+                              className="flex flex-col items-end gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div
+                                className={
+                                  "px-2 py-0.5 rounded-full text-[10px] " +
+                                  statusClasses(a.status)
+                                }
+                              >
+                                {statusLabel(a.status)}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 justify-end">
+                                {a.status === "requested" && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
+                                      disabled={busyAction}
+                                      onClick={() =>
+                                        changeStatus(a.id, "confirmed")
+                                      }
+                                    >
+                                      Confirmer
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className="h-7 px-2 text-[11px] rounded-full border-rose-500/70 text-rose-300 hover:bg-rose-500/15"
+                                      disabled={busyAction}
+                                      onClick={() =>
+                                        changeStatus(a.id, "cancelled")
+                                      }
+                                    >
+                                      Annuler
+                                    </Button>
+                                  </>
+                                )}
+
+                                {a.status === "confirmed" && (
+                                  <>
+                                    <Button
+                                      className="h-7 px-2 text-[11px] rounded-full bg-white text-black hover:bg-neutral-200"
+                                      disabled={busyAction}
+                                      onClick={() =>
+                                        changeStatus(a.id, "done")
+                                      }
+                                    >
+                                      Marquer effectué
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className="h-7 px-2 text-[11px] rounded-full border-rose-500/70 text-rose-300 hover:bg-rose-500/15"
+                                      disabled={busyAction}
+                                      onClick={() =>
+                                        changeStatus(a.id, "cancelled")
+                                      }
+                                    >
+                                      Annuler
+                                    </Button>
+                                  </>
+                                )}
+
+                                {a.status === "done" && (
+                                  <Button
                                     variant="outline"
                                     className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
                                     disabled={busyAction}
-                                    onClick={() => changeStatus(a.id, "confirmed")}
-                                >
-                                    Confirmer
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    className="h-7 px-2 text-[11px] rounded-full border-rose-500/70 text-rose-300 hover:bg-rose-500/15"
-                                    disabled={busyAction}
-                                    onClick={() => changeStatus(a.id, "cancelled")}
-                                >
-                                    Annuler
-                                </Button>
-                                </>
-                            )}
-
-                            {a.status === "confirmed" && (
-                                <>
-                                <Button
-                                    className="h-7 px-2 text-[11px] rounded-full bg-white text-black hover:bg-neutral-200"
-                                    disabled={busyAction}
-                                    onClick={() => changeStatus(a.id, "done")}
-                                >
-                                    Marquer effectué
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    className="h-7 px-2 text-[11px] rounded-full border-rose-500/70 text-rose-300 hover:bg-rose-500/15"
-                                    disabled={busyAction}
-                                    onClick={() => changeStatus(a.id, "cancelled")}
-                                >
-                                    Annuler
-                                </Button>
-                                </>
-                            )}
-
-                            {a.status === "done" && (
-                                <Button
-                                variant="outline"
-                                className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                                disabled={busyAction}
-                                onClick={() => changeStatus(a.id, "confirmed")}
-                                >
-                                Repasser en confirmé
-                                </Button>
-                            )}
+                                    onClick={() =>
+                                      changeStatus(a.id, "confirmed")
+                                    }
+                                  >
+                                    Repasser en confirmé
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                        </div>
-                        </div>
+                          </div>
 
-                        {/* Note admin */}
-                        <div className="space-y-1">
-                        <div className="text-[11px] font-semibold text-white">
-                            Compte-rendu / note interne
-                        </div>
-                        <textarea
-                            rows={2}
-                            className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
-                            placeholder="Ex : lavage complet extérieur + protection céramique, client très satisfait…"
-                            value={noteDrafts[a.id] ?? a.adminNote ?? ""}
-                            onChange={(e) =>
-                            setNoteDrafts((prev) => ({
-                                ...prev,
-                                [a.id]: e.target.value,
-                            }))
-                            }
-                        />
-                        <div className="flex justify-end">
-                            <Button
-                            variant="outline"
-                            className="h-7 px-3 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                            disabled={busyAction}
-                            onClick={() => saveAdminNote(a.id)}
+                          {/* Partie déroulante : note + photos */}
+                          {isExpanded && (
+                            <div
+                              className="mt-2 pt-2 border-t border-white/10 space-y-2"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                            Enregistrer
-                            </Button>
-                        </div>
-                        </div>
+                              {/* Note admin */}
+                              <div className="space-y-1">
+                                <div className="text-[11px] font-semibold text-white">
+                                  Compte-rendu / note interne
+                                </div>
+                                <textarea
+                                  rows={2}
+                                  className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
+                                  placeholder="Ex : lavage complet extérieur + protection céramique, client très satisfait…"
+                                  value={
+                                    noteDrafts[a.id] ?? a.adminNote ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    setNoteDrafts((prev) => ({
+                                      ...prev,
+                                      [a.id]: e.target.value,
+                                    }))
+                                  }
+                                />
+                                <div className="flex justify-end">
+                                  <Button
+                                    variant="outline"
+                                    className="h-7 px-3 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
+                                    disabled={busyAction}
+                                    onClick={() => saveAdminNote(a.id)}
+                                  >
+                                    Enregistrer
+                                  </Button>
+                                </div>
+                              </div>
 
-                        {/* Bloc photos (structure pour plus tard) */}
-                        <div className="border-t border-white/10 pt-2 mt-1 space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5">
-                            <ImageIcon className="h-3.5 w-3.5 text-neutral-300" />
-                            <span className="text-[11px] font-semibold text-white">
-                                Photos du véhicule
-                            </span>
+                              {/* Bloc photos (placeholder) */}
+                              <div className="border-t border-white/10 pt-2 mt-1 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <ImageIcon className="h-3.5 w-3.5 text-neutral-300" />
+                                    <span className="text-[11px] font-semibold text-white">
+                                      Photos du véhicule
+                                    </span>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    className="h-7 px-2 text-[11px] rounded-full border-white/20 text-neutral-300 bg-black/60"
+                                    disabled
+                                  >
+                                    Ajouter une photo (bientôt)
+                                  </Button>
+                                </div>
+                                <p className="text-[11px] text-neutral-500">
+                                  Le module d&apos;upload et de consultation
+                                  des photos sera ajouté ici.
+                                </p>
+                              </div>
                             </div>
-                            <Button
-                            variant="outline"
-                            className="h-7 px-2 text-[11px] rounded-full border-white/20 text-neutral-300 bg-black/60"
-                            disabled
-                            >
-                            Ajouter une photo (bientôt)
-                            </Button>
+                          )}
                         </div>
-                        <p className="text-[11px] text-neutral-500">
-                            Le module d&apos;upload et de consultation des photos sera ajouté
-                            ici.
-                        </p>
-                        </div>
-                    </div>
-                    ))}
-                </div>
+                      );
+                    })}
+                  </div>
                 )}
             </div>
             </Card>

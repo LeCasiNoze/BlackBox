@@ -186,6 +186,14 @@ function appointmentStatusClasses(status: ClientAppointmentStatus) {
   }
 }
 
+// 🔠 Libellé de jour : LU, MA, ME, JE, VE, SA, D
+function weekdayLabel(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const d = date.getDay(); // 0 = dimanche
+  const MAP = ["D", "LU", "MA", "ME", "JE", "VE", "SA"];
+  return MAP[d] ?? "";
+}
+
 export function ClientCardPage() {
   const params = useParams<{ slug?: string }>();
   const navigate = useNavigate();
@@ -312,39 +320,39 @@ export function ClientCardPage() {
     window.setTimeout(() => setToast(null), 2500);
   }
 
-function openDayModal(day: ApiDay) {
-  if (!client) return;
-  const past = isPastDay(day.date);
+  function openDayModal(day: ApiDay) {
+    if (!client) return;
+    const past = isPastDay(day.date);
 
-  // 🔵 Jour "done" → toujours cliquable (public)
-  if (day.status === "done") {
-    // On cherche un RDV du client pour ce jour
-    const apt = appointments.find(
-      (a) => a.date === day.date && a.status !== "cancelled"
-    );
+    // 🔵 Jour "done" → toujours cliquable (public)
+    if (day.status === "done") {
+      // On cherche un RDV du client pour ce jour
+      const apt = appointments.find(
+        (a) => a.date === day.date && a.status !== "cancelled"
+      );
 
-    if (apt) {
-      openAppointmentModal(apt);
-      return;
-    }
+      if (apt) {
+        openAppointmentModal(apt);
+        return;
+      }
 
-    // ➜ Pas dans la liste du client => on va chercher le rendez-vous public
-    fetch(`/api/client/appointments/${day.date}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (json?.ok && json.appointment) {
-          openAppointmentModal(json.appointment);
-        } else {
+      // ➜ Pas dans la liste du client => on va chercher le rendez-vous public
+      fetch(`/api/client/appointments/${day.date}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json?.ok && json.appointment) {
+            openAppointmentModal(json.appointment);
+          } else {
+            setModalDay(day);
+            setModalMode("past");
+          }
+        })
+        .catch(() => {
           setModalDay(day);
           setModalMode("past");
-        }
-      })
-      .catch(() => {
-        setModalDay(day);
-        setModalMode("past");
-      });
-    return;
-  }
+        });
+      return;
+    }
 
     // ⚫ Jour libre → réservation
     if (day.status === "free") {
@@ -723,9 +731,10 @@ function openDayModal(day: ApiDay) {
 
   const totalAppointments = sortedAppointments.length;
 
-  const hasFuture = appointments.some(a =>
-  a.status !== "cancelled" &&
-  appointmentDateTime(a).getTime() > Date.now()
+  const hasFuture = appointments.some(
+    (a) =>
+      a.status !== "cancelled" &&
+      appointmentDateTime(a).getTime() > Date.now()
   );
 
   const hasCredits = client.formulaRemaining > 0;
@@ -742,45 +751,39 @@ function openDayModal(day: ApiDay) {
   if (!hasCredits) ambientColor = "rgba(255,80,80,0.07)";
 
   return (
-    <div
-  className="min-h-screen relative overflow-hidden text-white flex justify-center px-3 py-6"
->
-  {/* Reflet vertical premium */}
-  <div className="absolute inset-0 pointer-events-none animate-verticalShine opacity-[0.10]">
-    <div className="absolute left-1/2 top-[-200%] w-[40%] h-[400%] 
+    <div className="min-h-screen relative overflow-hidden text-white flex justify-center px-3 py-6">
+      {/* Reflet vertical premium */}
+      <div className="absolute inset-0 pointer-events-none animate-verticalShine opacity-[0.10]">
+        <div
+          className="absolute left-1/2 top-[-200%] w-[40%] h-[400%] 
       bg-gradient-to-b from-transparent via-white/20 to-transparent 
-      blur-3xl -translate-x-1/2" 
-    />
-  </div>
+      blur-3xl -translate-x-1/2"
+        />
+      </div>
 
-  {/* Couleur ambiante dynamique */}
-  <div
-    className="absolute inset-0 pointer-events-none"
-    style={{ backgroundColor: ambientColor }}
-  />
+      {/* Couleur ambiante dynamique */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundColor: ambientColor }}
+      />
 
-  {/* Texture carbone forgé (désactivée par défaut) */}
-  {/* <div className="absolute inset-0 bg-[url('/textures/carbon.png')] opacity-[0.02] mix-blend-overlay" /> */}
-
-  {/* Vignette luxe */}
-  <div className="absolute inset-0 pointer-events-none 
+      {/* Vignette luxe */}
+      <div
+        className="absolute inset-0 pointer-events-none 
     bg-[radial-gradient(circle_at_center,transparent_0%,transparent_45%,black_100%)] opacity-30"
-  />
+      />
 
-  {/* Halo dynamique autour des cartes */}
-  <div className="absolute inset-0 pointer-events-none opacity-[0.12] blur-3xl animate-luxHalo
-    bg-gradient-to-b from-white/5 via-transparent to-white/5"
-  />
+      {/* Halo dynamique autour des cartes */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.12] blur-3xl animate-luxHalo bg-gradient-to-b from-white/5 via-transparent to-white/5" />
 
-  {/* Gradient premium fixe */}
-  <div className="absolute inset-0 bg-gradient-to-b from-black via-neutral-950 to-black" />
+      {/* Gradient premium fixe */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-neutral-950 to-black" />
 
-  {/* Lumière animée */}
-  <div className="absolute -top-1/3 left-0 w-[200%] h-[200%] opacity-[0.12] animate-luxLight
-    bg-gradient-to-r from-transparent via-white/30 to-transparent blur-3xl" />
+      {/* Lumière animée */}
+      <div className="absolute -top-1/3 left-0 w-[200%] h-[200%] opacity-[0.12] animate-luxLight bg-gradient-to-r from-transparent via-white/30 to-transparent blur-3xl" />
 
-  {/* Texture premium */}
-  <div className="absolute inset-0 opacity-[0.05] bg-[url('/textures/noise.png')] pointer-events-none" />
+      {/* Texture premium */}
+      <div className="absolute inset-0 opacity-[0.05] bg-[url('/textures/noise.png')] pointer-events-none" />
 
       <main className="relative w-full max-w-3xl space-y-4">
         {/* Header */}
@@ -822,12 +825,14 @@ function openDayModal(day: ApiDay) {
               </div>
               {client.phone && (
                 <div className="text-[12px] text-neutral-300">
-                  Téléphone : <span className="text-neutral-100">{client.phone}</span>
+                  Téléphone :{" "}
+                  <span className="text-neutral-100">{client.phone}</span>
                 </div>
               )}
               {client.email && (
                 <div className="text-[12px] text-neutral-300">
-                  Email : <span className="text-neutral-100">{client.email}</span>
+                  Email :{" "}
+                  <span className="text-neutral-100">{client.email}</span>
                 </div>
               )}
             </div>
@@ -902,16 +907,24 @@ function openDayModal(day: ApiDay) {
         {/* Agenda */}
         <Card className="card-shine rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
           <div className="p-4 space-y-3">
+            {/* Header agenda avec mois centré entre les flèches */}
             <div className="flex items-center justify-between gap-2">
+              {/* Colonne gauche */}
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-black border border-white/10">
                   <CalendarDays className="h-4 w-4 text-neutral-200" />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">Agenda</p>
-                  <p className="text-[11px] text-neutral-400">{month.label}</p>
-                </div>
+                <p className="text-sm font-semibold text-white">Agenda</p>
               </div>
+
+              {/* Centre : mois */}
+              <div className="flex-1 text-center">
+                <p className="text-base font-semibold text-white">
+                  {month.label}
+                </p>
+              </div>
+
+              {/* Flèches */}
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -951,99 +964,129 @@ function openDayModal(day: ApiDay) {
               </div>
             </div>
 
-<div className="grid grid-cols-7 gap-1.5 mt-1">
-  {month.days.map((d) => {
-    const mine = d.status === "mine";
-    const free = d.status === "free";
-    const busy = d.status === "busy";
-    const past = isPastDay(d.date);
+            <div className="grid grid-cols-7 gap-1.5 mt-1">
+              {month.days.map((d) => {
+                const mine = d.status === "mine";
+                const free = d.status === "free";
+                const busy = d.status === "busy";
+                const past = isPastDay(d.date);
 
-    const base =
-      "w-full aspect-square rounded-xl border flex flex-col items-center justify-center text-[11px] transition focus-visible:outline-none";
+                const base =
+                  "w-full aspect-square rounded-xl border flex items-center justify-center text-[11px] transition focus-visible:outline-none";
 
-      // 🔵 DONE → bleu (TOUJOURS cliquable)
-      if (d.status === "done") {
-        return (
-          <button
-            key={d.date}
-            className={`${base} border-sky-500 bg-sky-500/15`}
-            disabled={busyAction}
-            onClick={() => openDayModal(d)}
-          >
-            <span className="font-medium text-white">{d.day}</span>
-            <span className="mt-0.5 h-1 w-1 rounded-full bg-sky-400" />
-          </button>
-        );
-      }
+                // 🔵 DONE → bleu (TOUJOURS cliquable)
+                if (d.status === "done") {
+                  return (
+                    <button
+                      key={d.date}
+                      className={`${base} border-sky-500 bg-sky-500/15`}
+                      disabled={busyAction}
+                      onClick={() => openDayModal(d)}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-1 leading-none">
+                        <span className="text-2xl font-semibold text-white">{d.day}</span>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-300">
+                          {weekdayLabel(d.date)}
+                        </span>
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-400" />
+                      </div>
+                    </button>
+                  );
+                }
 
-    // ⚫ Jour libre → noir cliquable
-    if (free) {
-      return (
-        <button
-          key={d.date}
-          className={`${base} border-white/15 bg-black hover:border-emerald-400 hover:bg-emerald-500/10`}
-          disabled={busyAction}
-          onClick={() => openDayModal(d)}
-        >
-          <span className="font-medium text-white">{d.day}</span>
-        </button>
-      );
-    }
+                // ⚫ Jour libre → noir cliquable
+                if (free) {
+                  return (
+                    <button
+                      key={d.date}
+                      className={`${base} border-white/15 bg-black hover:border-emerald-400 hover:bg-emerald-500/10`}
+                      disabled={busyAction}
+                      onClick={() => openDayModal(d)}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-1 leading-none">
+                        <span className="text-2xl font-semibold text-white">{d.day}</span>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-400">
+                          {weekdayLabel(d.date)}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                }
 
-    // 🔵 RDV passé (mine ou busy)
-    if (past && (mine || busy)) {
-      return (
-        <button
-          key={d.date}
-          className={`${base} border-sky-500 bg-sky-500/15`}
-          disabled={busyAction}
-          onClick={() => openDayModal(d)}
-        >
-          <span className="font-medium text-white">{d.day}</span>
-          <span className="mt-0.5 h-1 w-1 rounded-full bg-sky-400" />
-        </button>
-      );
-    }
+                // 🔵 RDV passé (mine ou busy)
+                if (past && (mine || busy)) {
+                  return (
+                    <button
+                      key={d.date}
+                      className={`${base} border-sky-500 bg-sky-500/15`}
+                      disabled={busyAction}
+                      onClick={() => openDayModal(d)}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-1 leading-none">
+                        <span className="text-2xl font-semibold text-white">{d.day}</span>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-300">
+                          {weekdayLabel(d.date)}
+                        </span>
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-sky-400" />
+                      </div>
+                    </button>
+                  );
+                }
 
-    // 🟢 RDV futur du client
-    if (mine && !past) {
-      return (
-        <button
-          key={d.date}
-          className={`${base} border-emerald-500 bg-emerald-500/15`}
-          disabled={busyAction}
-          onClick={() => openDayModal(d)}
-        >
-          <span className="font-medium text-white">{d.day}</span>
-          <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-400" />
-        </button>
-      );
-    }
+                // 🟢 RDV futur du client
+                if (mine && !past) {
+                  return (
+                    <button
+                      key={d.date}
+                      className={`${base} border-emerald-500 bg-emerald-500/15`}
+                      disabled={busyAction}
+                      onClick={() => openDayModal(d)}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-1 leading-none">
+                        <span className="text-2xl font-semibold text-white">{d.day}</span>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-300">
+                          {weekdayLabel(d.date)}
+                        </span>
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      </div>
+                    </button>
+                  );
+                }
 
-    // 🔴 RDV futur d’un autre client → NON cliquable
-    if (busy && !past) {
-      return (
-        <div
-          key={d.date}
-          className={`${base} border-rose-500/80 bg-rose-500/10 text-neutral-100`}
-        >
-          <span className="font-medium">{d.day}</span>
-          <span className="mt-0.5 h-1 w-1 rounded-full bg-rose-500" />
-        </div>
-      );
-    }
+                // 🔴 RDV futur d’un autre client → NON cliquable
+                if (busy && !past) {
+                  return (
+                    <div
+                      key={d.date}
+                      className={`${base} border-rose-500/80 bg-rose-500/10 text-neutral-100`}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-1 leading-none">
+                        <span className="text-2xl font-semibold">{d.day}</span>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-300">
+                          {weekdayLabel(d.date)}
+                        </span>
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-rose-500" />
+                      </div>
+                    </div>
+                  );
+                }
 
-    // Autre / fallback
-    return (
-      <div
-        key={d.date}
-        className={`${base} border-white/10 bg-black/50 text-neutral-100`}
-      >
-        <span className="font-medium">{d.day}</span>
-      </div>
-    );
-  })}
-</div>
+                // Autre / fallback
+                return (
+                  <div
+                    key={d.date}
+                    className={`${base} border-white/10 bg-black/50 text-neutral-100`}
+                  >
+                    <div className="flex flex-col items-center justify-center gap-1 leading-none">
+                      <span className="text-2xl font-semibold">{d.day}</span>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-400">
+                        {weekdayLabel(d.date)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             <p className="text-[11px] text-neutral-400 leading-relaxed">
               Touchez un jour disponible pour demander un rendez-vous. Vos
@@ -1087,8 +1130,8 @@ function openDayModal(day: ApiDay) {
 
             {!appointmentsLoading && totalAppointments === 0 && (
               <p className="text-[12px] text-neutral-500">
-                Aucun rendez-vous enregistré pour le moment. Lorsque vous
-                aurez effectué des prestations, elles apparaîtront ici.
+                Aucun rendez-vous enregistré pour le moment. Lorsque vous aurez
+                effectué des prestations, elles apparaîtront ici.
               </p>
             )}
 
@@ -1275,7 +1318,9 @@ function openDayModal(day: ApiDay) {
             {modalMode === "manage" && (
               <>
                 <div>
-                  <p className="text-sm font-medium mb-1">Votre rendez-vous</p>
+                  <p className="text-sm font-medium mb-1">
+                    Votre rendez-vous
+                  </p>
                   <p className="text-[12px] text-neutral-400">
                     Rendez-vous prévu le{" "}
                     <span className="font-medium text-neutral-100">
@@ -1568,7 +1613,7 @@ function openDayModal(day: ApiDay) {
                 );
               }
 
-              // 🔽 tout le bloc existant avec les étoiles + textarea
+              // Bloc avis éditable
               return (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -1608,7 +1653,9 @@ function openDayModal(day: ApiDay) {
                       );
                     })}
                     <span className="ml-1 text-[11px] text-neutral-300">
-                      {reviewRating > 0 ? `${reviewRating}/5` : "Cliquez pour noter"}
+                      {reviewRating > 0
+                        ? `${reviewRating}/5`
+                        : "Cliquez pour noter"}
                     </span>
                   </div>
 
@@ -1634,13 +1681,14 @@ function openDayModal(day: ApiDay) {
                       disabled={savingReview}
                       onClick={saveReview}
                     >
-                      {savingReview ? "Enregistrement…" : "Enregistrer mon avis"}
+                      {savingReview
+                        ? "Enregistrement…"
+                        : "Enregistrer mon avis"}
                     </Button>
                   </div>
                 </div>
               );
             })()}
-
           </div>
         </div>
       )}
