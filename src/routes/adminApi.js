@@ -482,6 +482,35 @@ router.post("/clients/:id/formula", (req, res) => {
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
+// --------------------------------------------------
+// TEST EMAIL (Brevo) : /api/admin/test-email
+// --------------------------------------------------
+const { sendAdminNotification } = require("../email");
+
+router.get("/test-email", async (req, res) => {
+  try {
+    await sendAdminNotification({
+      type: "test",
+      client: {
+        id: 999,
+        first_name: "Test",
+        last_name: "Email",
+        email: "test@example.com",
+        phone: "+33 600000000",
+        vehicle_model: "TestCar",
+        vehicle_plate: "TEST-001",
+        card_code: "TEST-CARD",
+      },
+      date: "2025-12-19",
+      time: "14:00",
+    });
+
+    res.json({ ok: true, message: "Email envoyé via Brevo !" });
+  } catch (err) {
+    console.error("[MAIL TEST] Error:", err);
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
 
 // POST /api/admin/appointments/:id/status  { status }
 router.post("/appointments/:id/status", (req, res) => {
