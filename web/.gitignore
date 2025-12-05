@@ -28,3 +28,6 @@ npm-debug.log*
 .env
 /web/node_modules
 /dist
+# secrets
+src/.env
+.env

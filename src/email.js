@@ -20,9 +20,9 @@ if (!SMTP_USER || !SMTP_PASS) {
 }
 
 const transporter = nodemailer.createTransport({
-  host: SMTP_HOST || "smtp.gmail.com",
-  port: Number(SMTP_PORT) || 465,
-  secure: SMTP_SECURE !== "false", // par défaut true
+  host: SMTP_HOST || "smtp-relay.brevo.com",
+  port: Number(SMTP_PORT) || 587,
+  secure: SMTP_SECURE === "true", // Brevo => false pour le port 587
   auth: {
     user: SMTP_USER,
     pass: SMTP_PASS,
