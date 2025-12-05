@@ -29,6 +29,10 @@ function formatDateFr(dateStr) {
   });
 }
 
+console.log("[MAIL DEBUG] FROM =", MAIL_FROM_EMAIL);
+console.log("[MAIL DEBUG] TO   =", MAIL_ADMIN_TO);
+console.log("[MAIL DEBUG] HAS_KEY =", !!BREVO_API_KEY);
+
 // --------------------------------------------------
 // Send email through Brevo API
 // --------------------------------------------------
