@@ -59,8 +59,42 @@ function ensureAppointmentsTimeColumn() {
   }
 }
 
+// ───────────────────────────────────────────
+// Migration extra : admin_note, user_rating, user_review, etc.
+// ───────────────────────────────────────────
+
+function ensureAppointmentsExtraColumns() {
+  try {
+    const cols = db.prepare(`PRAGMA table_info('appointments')`).all();
+    const colNames = cols.map((c) => c.name);
+
+    const addColumnIfMissing = (name, ddl) => {
+      if (!colNames.includes(name)) {
+        console.log(
+          `[DB] Ajout de la colonne manquante appointments.${name}`
+        );
+        db.exec(`ALTER TABLE appointments ADD COLUMN ${ddl};`);
+      }
+    };
+
+    // Déjà utilisée dans le code admin / client
+    addColumnIfMissing("admin_note", "admin_note TEXT");
+    addColumnIfMissing("user_rating", "user_rating INTEGER");
+    addColumnIfMissing("user_review", "user_review TEXT");
+
+    // Pour plus tard (choix domicile / atelier) on pourra activer :
+    // addColumnIfMissing(
+    //   "location_mode",
+    //   "location_mode TEXT CHECK(location_mode IN ('atelier','domicile')) DEFAULT 'atelier'"
+    // );
+  } catch (e) {
+    console.error("[DB] Erreur ensureAppointmentsExtraColumns:", e);
+  }
+}
+
 // Appel au démarrage
 ensureAppointmentsTimeColumn();
+ensureAppointmentsExtraColumns();
 
 module.exports = {
   db,

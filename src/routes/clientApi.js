@@ -406,19 +406,19 @@ router.post("/:idOrSlug/book", async (req, res) => {
 
     let created = false;
     try {
-      createRequestedAppointment(
-        client.id,
-        date,
-        time || null,
-        null,
-        loc // 👈 on enregistre atelier / domicile
-      );
+      createRequestedAppointment(client.id, date, time || null, null);
       created = true;
     } catch (e) {
+      console.error("[BOOK] createRequestedAppointment error:", e);
       incrementFormulaRemaining(client.id);
-      return res
-        .status(409)
-        .json({ ok: false, error: "slot_taken" });
+
+      // Si c'est un conflit de créneau (contrainte UNIQUE), on garde le 409,
+      // sinon on renvoie un 500 pour voir qu'il y a un bug de schéma.
+      if (e && e.code === "SQLITE_CONSTRAINT") {
+        return res.status(409).json({ ok: false, error: "slot_taken" });
+      }
+
+      return res.status(500).json({ ok: false, error: "db_error" });
     }
 
     if (created) {
