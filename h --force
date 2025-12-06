@@ -1,0 +1,30 @@
+[33m4b977ed[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Stop tracking src/.env
+[33mfd8edef[m remove .env file from repo and add to .gitignore
+[33mf1e04f0[m finito
+[33m8b1c997[m[33m ([m[1;31morigin/main[m[33m)[m finito
+[33m8b728ae[m image
+[33m956b259[m image
+[33mae0cbe9[m image
+[33m2158d55[m image
+[33ma89dedf[m image
+[33mbca02ff[m Mail
+[33mbec239e[m Mail
+[33m166865e[m Mail
+[33mc1545dd[m logo
+[33m0f9c7b7[m fond animé
+[33m85c13fb[m fond animé
+[33m63f04d1[m Avis + UX
+[33m85cd2e1[m fix: ux
+[33m4c88361[m fix: express react routes regex for render
+[33m2e32404[m fix: router React pour /card + nettoyage app.js
+[33mc760936[m Fix
+[33mae2826c[m Fix TS6133 busy unused
+[33m2fd19ce[m Force rebuild better-sqlite3 on Render
+[33m0a89f04[m Remove node_modules from repo
+[33m9378967[m Pin Node 20.x for Render / better-sqlite3
+[33m9db4fdd[m Refonte UI admin BlackBox (dark full black)
+[33mec97870[m Début améliorations grahpique et branchement db
+[33mf7ea9ad[m Refactor structure (routes + data modules)
+[33m7f995ab[m UI dark + admin panel + user booking
+[33m64f037a[m First NFC structure: admin + card pages
+[33mcdcc6e4[m Initial BlackBox backend
