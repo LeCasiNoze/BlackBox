@@ -98,6 +98,7 @@ function createRequestedAppointment(clientId, dateStr, time, clientNote, locatio
 }
 
 
+
 /**
  * Met à jour uniquement l'heure (et éventuellement la note client)
  * pour un rendez-vous EXISTANT de ce client à cette date.

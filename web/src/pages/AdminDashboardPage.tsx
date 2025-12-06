@@ -789,7 +789,17 @@ async function saveAppointmentDetails(appointmentId: number) {
 
   const selectedClientData = selectedClient?.client ?? null;
   const selectedAppointments = selectedClient?.appointments ?? [];
-
+  // 👉 RDV du client sélectionné, triés du plus récent au plus ancien
+  const sortedSelectedAppointments = React.useMemo(() => {
+    const copy = [...selectedAppointments];
+    copy.sort((a, b) => {
+      const aKey = `${a.date ?? ""}T${a.time ?? "00:00"}`;
+      const bKey = `${b.date ?? ""}T${b.time ?? "00:00"}`;
+      // on inverse pour avoir le plus récent en premier
+      return bKey.localeCompare(aKey);
+    });
+    return copy;
+  }, [selectedAppointments]);
     // Quand les rendez-vous du client sélectionné sont dispo + deep-link présent → scroll et ouverture
   React.useEffect(() => {
     if (!appointmentsSectionRef.current) return;
@@ -837,10 +847,12 @@ async function saveAppointmentDetails(appointmentId: number) {
     copy.sort((a, b) => {
       const aKey = `${a.date ?? ""}T${a.time ?? "00:00"}`;
       const bKey = `${b.date ?? ""}T${b.time ?? "00:00"}`;
-      return aKey.localeCompare(bKey);
+      // 👉 plus récent en premier
+      return bKey.localeCompare(aKey);
     });
     return copy;
   }, [globalAppointments]);
+
 
   return (
     <div className="min-h-screen bg-black text-white flex justify-center px-3 py-6">
@@ -1278,10 +1290,10 @@ async function saveAppointmentDetails(appointmentId: number) {
                     Aucun rendez-vous pour ce client pour le moment.
                 </p>
                 )}
-
+                
                 {selectedClientData && selectedAppointments.length > 0 && (
                   <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                    {selectedAppointments.map((a) => {
+                    {sortedSelectedAppointments.map((a) => {
                       const isExpanded = expandedAppointmentId === a.id;
                       const isHighlighted = highlightAppointmentId === a.id;
 

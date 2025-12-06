@@ -340,6 +340,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
     return res.status(400).json({ ok: false, error: "missing_date" });
   }
 
+  // Normalisation du lieu
   const rawLocation =
     typeof location === "string" ? location.toLowerCase() : "";
   const loc =
@@ -347,7 +348,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
       ? "domicile"
       : rawLocation === "atelier"
       ? "atelier"
-      : null; // 👈 fallback si rien / invalide
+      : null;
 
   const existing = getAppointmentByDate(date);
   const isMineActive =
@@ -355,6 +356,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
 
+  // 🔁 Cas où le client a déjà un RDV actif ce jour-là → on modifie l'heure
   if (isMineActive) {
     try {
       const newTime = time || existing.time || null;
@@ -363,7 +365,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
         client.id,
         date,
         newTime,
-        null
+        null // on ne touche pas à client_note ici
       );
       if (!changed) {
         return res.status(400).json({
@@ -378,7 +380,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
           client,
           date,
           time: newTime,
-          location: existing.location || null, // 👈
+          location: existing.location || null,
         });
       } catch (err) {
         console.error("[MAIL] Erreur notif update:", err);
@@ -390,6 +392,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
     }
   }
 
+  // 🧮 Nouveau RDV : on consomme un crédit et on crée
   if (client.formula_remaining <= 0) {
     return res
       .status(400)
@@ -406,14 +409,13 @@ router.post("/:idOrSlug/book", async (req, res) => {
 
     let created = false;
     try {
-      createRequestedAppointment(client.id, date, time || null, null);
+      // 👉 ICI on passe bien location
+      createRequestedAppointment(client.id, date, time || null, null, loc);
       created = true;
     } catch (e) {
       console.error("[BOOK] createRequestedAppointment error:", e);
       incrementFormulaRemaining(client.id);
 
-      // Si c'est un conflit de créneau (contrainte UNIQUE), on garde le 409,
-      // sinon on renvoie un 500 pour voir qu'il y a un bug de schéma.
       if (e && e.code === "SQLITE_CONSTRAINT") {
         return res.status(409).json({ ok: false, error: "slot_taken" });
       }
@@ -424,14 +426,14 @@ router.post("/:idOrSlug/book", async (req, res) => {
     if (created) {
       try {
         await sendAdminNotification({
-          type: "cancel",
+          type: "book",
           client,
           date,
-          time: ap.time || null,
-          location: ap.location || null, // 👈
+          time: time || null,
+          location: loc,
         });
       } catch (err) {
-        console.error("[MAIL] Erreur notif cancel:", err);
+        console.error("[MAIL] Erreur notif book:", err);
       }
     }
 
@@ -489,6 +491,7 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
       client,
       date,
       time: ap.time || null,
+      location: ap.location || null,   // 👈 on ajoute le lieu
     });
   } catch (err) {
     console.error("[MAIL] Erreur notif cancel:", err);
