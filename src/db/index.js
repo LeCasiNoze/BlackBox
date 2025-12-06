@@ -77,20 +77,21 @@ function ensureAppointmentsExtraColumns() {
       }
     };
 
-    // Déjà utilisée dans le code admin / client
+    // Déjà utilisées
     addColumnIfMissing("admin_note", "admin_note TEXT");
     addColumnIfMissing("user_rating", "user_rating INTEGER");
     addColumnIfMissing("user_review", "user_review TEXT");
 
-    // Pour plus tard (choix domicile / atelier) on pourra activer :
-    // addColumnIfMissing(
-    //   "location_mode",
-    //   "location_mode TEXT CHECK(location_mode IN ('atelier','domicile')) DEFAULT 'atelier'"
-    // );
+    // 🆕 Colonne pour le lieu du rendez-vous (atelier / domicile)
+    addColumnIfMissing(
+      "location",
+      "location TEXT CHECK(location IN ('atelier','domicile')) DEFAULT 'atelier'"
+    );
   } catch (e) {
     console.error("[DB] Erreur ensureAppointmentsExtraColumns:", e);
   }
 }
+
 
 // Appel au démarrage
 ensureAppointmentsTimeColumn();
