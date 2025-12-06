@@ -207,9 +207,7 @@ export function AdminDashboardPage() {
   // Photos de rendez-vous (admin)
   const [currentPhotos, setCurrentPhotos] = React.useState<AdminAppointmentPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = React.useState(false);
-  const [photoFormUrl, setPhotoFormUrl] = React.useState("");
   const [photoFormCaption, setPhotoFormCaption] = React.useState("");
-  const [photoSaving, setPhotoSaving] = React.useState(false);
 
   // Modal création / édition de profil
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
@@ -429,11 +427,18 @@ export function AdminDashboardPage() {
     }
   }
 
-  async function saveAdminNote(appointmentId: number) {
-    const note = noteDrafts[appointmentId] ?? "";
+async function saveAppointmentDetails(appointmentId: number) {
+  const note = noteDrafts[appointmentId] ?? "";
+  const hasFile = !!photoFile;
+  const captionTrim = photoFormCaption.trim();
 
-    setBusyAction(true);
+  let noteOk = false;
+  let photoOk = !hasFile; // si pas de fichier, on considère la partie photo comme "ok"
 
+  setBusyAction(true);
+
+  try {
+    // 1) Enregistrer la note
     try {
       const res = await fetch(
         `/api/admin/appointments/${appointmentId}/admin-note`,
@@ -447,9 +452,8 @@ export function AdminDashboardPage() {
       if (!res.ok || !json.ok) {
         showToast("Erreur lors de l'enregistrement de la note.");
       } else {
-        showToast("Note enregistrée.");
+        noteOk = true;
         const updated: AdminAppointment | undefined = json.appointment;
-
         if (updated) {
           setSelectedClient((prev) => {
             if (!prev) return prev;
@@ -468,10 +472,54 @@ export function AdminDashboardPage() {
       }
     } catch {
       showToast("Erreur réseau lors de l'enregistrement de la note.");
-    } finally {
-      setBusyAction(false);
     }
+
+    // 2) Uploader la photo si un fichier a été choisi
+    if (hasFile) {
+      try {
+        const formData = new FormData();
+        formData.append("file", photoFile as File);
+        formData.append("caption", captionTrim);
+
+        const resPhoto = await fetch(
+          `/api/admin/appointments/${appointmentId}/photos/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+        const jsonPhoto =
+          (await resPhoto.json()) as AdminAppointmentPhotoCreateResponse;
+
+        if (!resPhoto.ok || !jsonPhoto.ok || !jsonPhoto.photo) {
+          showToast(
+            "Note enregistrée, mais erreur lors de l'ajout de la photo."
+          );
+        } else {
+          photoOk = true;
+          const photo = jsonPhoto.photo as AdminAppointmentPhoto;
+          setCurrentPhotos((prev) => [...prev, photo]);
+
+          setPhotoFile(null);
+          setPhotoFormCaption("");
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        }
+      } catch {
+        showToast(
+          "Note enregistrée, mais erreur réseau lors de l'ajout de la photo."
+        );
+      }
+    }
+
+    if (noteOk && photoOk) {
+      showToast("Rendez-vous mis à jour.");
+    }
+  } finally {
+    setBusyAction(false);
   }
+}
 
   // Actions admin — formule
 
@@ -492,74 +540,6 @@ export function AdminDashboardPage() {
       setPhotosLoading(false);
     }
   }
-
-async function addAppointmentPhoto(appointmentId: number) {
-  const hasFile = !!photoFile;
-  const urlTrim = photoFormUrl.trim();
-  const captionTrim = photoFormCaption.trim();
-
-  if (!hasFile && !urlTrim) {
-    showToast("Choisis un fichier ou indique une URL de photo.");
-    return;
-  }
-
-  setPhotoSaving(true);
-  try {
-    let res: Response;
-    let json: AdminAppointmentPhotoCreateResponse;
-
-    if (hasFile) {
-      // --- MODE FICHIER ---
-      const formData = new FormData();
-      formData.append("file", photoFile as File);
-      formData.append("caption", captionTrim);
-
-      res = await fetch(
-        `/api/admin/appointments/${appointmentId}/photos/upload`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-    } else {
-      // --- MODE URL (comme avant) ---
-      res = await fetch(
-        `/api/admin/appointments/${appointmentId}/photos`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: urlTrim,
-            caption: captionTrim === "" ? null : captionTrim,
-          }),
-        }
-      );
-    }
-
-    json = (await res.json()) as AdminAppointmentPhotoCreateResponse;
-
-    if (!res.ok || !json.ok || !json.photo) {
-      showToast("Erreur lors de l'ajout de la photo.");
-      return;
-    }
-
-    const photo = json.photo as AdminAppointmentPhoto;
-    setCurrentPhotos((prev) => [...prev, photo]);
-
-    setPhotoFormUrl("");
-    setPhotoFormCaption("");
-    setPhotoFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    showToast("Photo ajoutée.");
-  } catch (err) {
-    console.error("addAppointmentPhoto error:", err);
-    showToast("Erreur réseau lors de l'ajout de la photo.");
-  } finally {
-    setPhotoSaving(false);
-  }
-}
 
   async function updateFormula(mode: "reset" | "empty" | "custom") {
     const client = selectedClient?.client;
@@ -1329,7 +1309,6 @@ async function addAppointmentPhoto(appointmentId: number) {
                                   void loadAppointmentPhotosAdmin(next);
                                 } else {
                                   setCurrentPhotos([]);
-                                  setPhotoFormUrl("");
                                   setPhotoFormCaption("");
                                 }
                                 return next;
@@ -1472,7 +1451,7 @@ async function addAppointmentPhoto(appointmentId: number) {
                                     variant="outline"
                                     className="h-7 px-3 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
                                     disabled={busyAction}
-                                    onClick={() => saveAdminNote(a.id)}
+                                    onClick={() => saveAppointmentDetails(a.id)}
                                   >
                                     Enregistrer
                                   </Button>
@@ -1490,69 +1469,43 @@ async function addAppointmentPhoto(appointmentId: number) {
                                   </div>
                                 </div>
 
-                                  {/* Formulaire ajout fichier + URL */}
-                                  <div className="space-y-2">
-                                    {/* Fichier (PC / téléphone) */}
-                                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-                                      <div className="flex-1 space-y-1">
-                                        <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                                          Fichier (ordinateur / téléphone)
-                                        </span>
-                                        <input
-                                          ref={fileInputRef}
-                                          type="file"
-                                          accept="image/*"
-                                          className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white
-                                                    file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px]
-                                                    file:font-medium file:bg-white file:text-black"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0] ?? null;
-                                            setPhotoFile(file);
-                                          }}
-                                        />
-                                        <p className="text-[10px] text-neutral-500">
-                                          Sur téléphone, cela ouvre la galerie (et souvent l'appareil photo).
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    {/* URL + légende + bouton */}
-                                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-                                      <div className="flex-1 space-y-1">
-                                        <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                                          ou URL de la photo
-                                        </span>
-                                        <input
-                                          className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
-                                          placeholder="https://…"
-                                          value={photoFormUrl}
-                                          onChange={(e) => setPhotoFormUrl(e.target.value)}
-                                        />
-                                      </div>
-                                      <div className="flex-1 space-y-1">
-                                        <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                                          Légende (optionnel)
-                                        </span>
-                                        <input
-                                          className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
-                                          placeholder="Ex : Avant / Après, détail jantes…"
-                                          value={photoFormCaption}
-                                          onChange={(e) => setPhotoFormCaption(e.target.value)}
-                                        />
-                                      </div>
-                                      <div className="sm:w-auto pt-1 sm:pt-0">
-                                        <Button
-                                          className="h-8 px-3 text-[11px] rounded-full bg-white text-black hover:bg-neutral-200"
-                                          disabled={
-                                            busyAction || photoSaving || (!photoFile && !photoFormUrl.trim())
-                                          }
-                                          onClick={() => addAppointmentPhoto(a.id)}
-                                        >
-                                          {photoSaving ? "Ajout…" : "Ajouter"}
-                                        </Button>
-                                      </div>
-                                    </div>
+                              {/* Formulaire ajout fichier + légende */}
+                              <div className="space-y-2">
+                                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
+                                  <div className="flex-1 space-y-1">
+                                    <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                                      Fichier (ordinateur / téléphone)
+                                    </span>
+                                    <input
+                                      ref={fileInputRef}
+                                      type="file"
+                                      accept="image/*"
+                                      className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white
+                                                file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px]
+                                                file:font-medium file:bg-white file:text-black"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0] ?? null;
+                                        setPhotoFile(file);
+                                      }}
+                                    />
+                                    <p className="text-[10px] text-neutral-500">
+                                      Sur téléphone, cela ouvre la galerie (et souvent l'appareil photo).
+                                    </p>
                                   </div>
+                                  <div className="flex-1 space-y-1">
+                                    <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                                      Légende (optionnel)
+                                    </span>
+                                    <input
+                                      className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
+                                      placeholder="Ex : Avant / Après, détail jantes…"
+                                      value={photoFormCaption}
+                                      onChange={(e) => setPhotoFormCaption(e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
 
                                 {/* Liste des photos */}
                                 <div className="space-y-1.5">

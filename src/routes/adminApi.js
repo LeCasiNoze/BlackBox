@@ -115,8 +115,10 @@ function mapAppointmentRow(row) {
     clientName: row.full_name || row.client_full_name || null,
     vehicleModel: row.vehicle_model || null,
     vehiclePlate: row.vehicle_plate || null,
+    location: row.location || null, // 👈 on expose bien le lieu
   };
 }
+
 
 function mapPhotoRow(row) {
   if (!row) return null;
