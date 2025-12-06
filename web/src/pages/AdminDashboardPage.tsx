@@ -51,7 +51,9 @@ type AdminAppointment = {
   clientName: string | null;
   vehicleModel: string | null;
   vehiclePlate: string | null;
+  location: "atelier" | "domicile" | null; // 👈 AJOUT
 };
+
 
 type AdminAppointmentPhoto = {
   id: number;
@@ -129,6 +131,28 @@ function statusClasses(status: AdminAppointmentStatus) {
       return "bg-rose-500/10 text-rose-300 border border-rose-500/40 line-through";
     default:
       return "";
+  }
+}
+
+function locationLabel(location: string | null | undefined) {
+  switch (location) {
+    case "atelier":
+      return "Atelier";
+    case "domicile":
+      return "À domicile";
+    default:
+      return "Lieu non précisé";
+  }
+}
+
+function locationClasses(location: string | null | undefined) {
+  switch (location) {
+    case "atelier":
+      return "bg-sky-500/10 text-sky-300 border border-sky-500/40";
+    case "domicile":
+      return "bg-amber-500/10 text-amber-300 border border-amber-500/40";
+    default:
+      return "bg-neutral-700/30 text-neutral-200 border border-neutral-500/40";
   }
 }
 
@@ -1313,21 +1337,31 @@ async function addAppointmentPhoto(appointmentId: number) {
                             }
                           >
 
-                            <div className="space-y-0.5">
-                              <div className="font-medium text-white">
-                                {formatDate(a.date)}{" "}
-                                {a.time && (
-                                  <span className="text-neutral-400">
-                                    · {formatTime(a.time)}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-neutral-400">
-                                {selectedClientData.fullName ??
-                                  selectedClientData.slug ??
-                                  "Client"}
-                              </div>
+                          <div className="space-y-0.5">
+                            <div className="font-medium text-white">
+                              {formatDate(a.date)}{" "}
+                              {a.time && (
+                                <span className="text-neutral-400">
+                                  · {formatTime(a.time)}
+                                </span>
+                              )}
                             </div>
+                            <div className="text-[11px] text-neutral-400">
+                              {selectedClientData.fullName ??
+                                selectedClientData.slug ??
+                                "Client"}
+                            </div>
+                            <div className="mt-0.5">
+                              <span
+                                className={
+                                  "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] " +
+                                  locationClasses(a.location)
+                                }
+                              >
+                                {locationLabel(a.location)}
+                              </span>
+                            </div>
+                          </div>
 
                             {/* Statut + boutons (clics qui ne replient pas) */}
                             <div
@@ -1599,25 +1633,35 @@ async function addAppointmentPhoto(appointmentId: number) {
                         key={a.id}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/70 px-3 py-2"
                     >
-                        <div className="space-y-0.5">
+                      <div className="space-y-0.5">
                         <div className="font-medium text-white">
-                            {formatDate(a.date)}{" "}
-                            {a.time && (
+                          {formatDate(a.date)}{" "}
+                          {a.time && (
                             <span className="text-neutral-400">
-                                · {formatTime(a.time)}
+                              · {formatTime(a.time)}
                             </span>
-                            )}
+                          )}
                         </div>
                         <div className="text-[11px] text-neutral-400">
-                            {a.clientName ?? "Client ?"}{" "}
-                            {a.vehicleModel && (
+                          {a.clientName ?? "Client ?"}{" "}
+                          {a.vehicleModel && (
                             <>
-                                · {a.vehicleModel}
-                                {a.vehiclePlate ? ` (${a.vehiclePlate})` : ""}
+                              · {a.vehicleModel}
+                              {a.vehiclePlate ? ` (${a.vehiclePlate})` : ""}
                             </>
-                            )}
+                          )}
                         </div>
+                        <div className="mt-0.5">
+                          <span
+                            className={
+                              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] " +
+                              locationClasses(a.location)
+                            }
+                          >
+                            {locationLabel(a.location)}
+                          </span>
                         </div>
+                      </div>
 
                         <div className="flex items-center gap-2">
                         <div

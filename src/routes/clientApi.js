@@ -204,6 +204,7 @@ router.get("/:idOrSlug/appointments", (req, res) => {
       vehicleModel: client.vehicle_model,
       vehiclePlate: client.vehicle_plate,
       hasPhotos: hasAppointmentPhotos(ap.id),
+      location: ap.location || null,          // 👈 AJOUT
     }));
 
     res.json({ ok: true, appointments });
@@ -318,6 +319,7 @@ router.get("/appointments/:date", (req, res) => {
       vehicleModel: client?.vehicle_model || null,
       vehiclePlate: client?.vehicle_plate || null,
       clientName: client?.full_name || "Client",
+      location: ap.location || null,   // 👈 AJOUT
       hasPhotos,
     },
   });
@@ -333,10 +335,19 @@ router.post("/:idOrSlug/book", async (req, res) => {
     return res.status(404).json({ ok: false, error: "client_not_found" });
   }
 
-  const { date, time } = req.body || {};
+  const { date, time, location } = req.body || {};
   if (!date) {
     return res.status(400).json({ ok: false, error: "missing_date" });
   }
+
+  const rawLocation =
+    typeof location === "string" ? location.toLowerCase() : "";
+  const loc =
+    rawLocation === "domicile"
+      ? "domicile"
+      : rawLocation === "atelier"
+      ? "atelier"
+      : null; // 👈 fallback si rien / invalide
 
   const existing = getAppointmentByDate(date);
   const isMineActive =
@@ -367,6 +378,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
           client,
           date,
           time: newTime,
+          location: existing.location || null, // 👈
         });
       } catch (err) {
         console.error("[MAIL] Erreur notif update:", err);
@@ -394,7 +406,13 @@ router.post("/:idOrSlug/book", async (req, res) => {
 
     let created = false;
     try {
-      createRequestedAppointment(client.id, date, time || null, null);
+      createRequestedAppointment(
+        client.id,
+        date,
+        time || null,
+        null,
+        loc // 👈 on enregistre atelier / domicile
+      );
       created = true;
     } catch (e) {
       incrementFormulaRemaining(client.id);
@@ -406,13 +424,14 @@ router.post("/:idOrSlug/book", async (req, res) => {
     if (created) {
       try {
         await sendAdminNotification({
-          type: "book",
+          type: "cancel",
           client,
           date,
-          time: time || null,
+          time: ap.time || null,
+          location: ap.location || null, // 👈
         });
       } catch (err) {
-        console.error("[MAIL] Erreur notif book:", err);
+        console.error("[MAIL] Erreur notif cancel:", err);
       }
     }
 

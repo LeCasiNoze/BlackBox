@@ -69,23 +69,34 @@ function getAppointmentById(id) {
  * @param {string} dateStr YYYY-MM-DD
  * @param {string|null} time HH:MM ou null
  * @param {string|null} clientNote
+ * @param {"atelier"|"domicile"|null} location
  */
-function createRequestedAppointment(clientId, dateStr, time, clientNote) {
+function createRequestedAppointment(clientId, dateStr, time, clientNote, location) {
   const now = nowUnix();
+
+  const loc =
+    location === "domicile"
+      ? "domicile"
+      : location === "atelier"
+      ? "atelier"
+      : null;
+
   const stmt = db.prepare(`
-    INSERT INTO appointments (client_id, date, time, status, client_note, created_at, updated_at)
-    VALUES (?, ?, ?, 'requested', ?, ?, ?)
+    INSERT INTO appointments (client_id, date, time, status, client_note, location, created_at, updated_at)
+    VALUES (?, ?, ?, 'requested', ?, ?, ?, ?)
   `);
   const info = stmt.run(
     clientId,
     dateStr,
     time || null,
     clientNote || null,
+    loc,
     now,
     now
   );
   return info.lastInsertRowid;
 }
+
 
 /**
  * Met à jour uniquement l'heure (et éventuellement la note client)

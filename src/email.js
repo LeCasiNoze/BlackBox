@@ -75,7 +75,7 @@ async function sendBrevoEmail({ subject, html, text }) {
 // --------------------------------------------------
 // Notification admin
 // --------------------------------------------------
-async function sendAdminNotification({ type, client, date, time }) {
+async function sendAdminNotification({ type, client, date, time, location }) {
   const formattedDate = formatDateFr(date);
   const safeTime = time || "heure non renseignée";
 
@@ -93,11 +93,21 @@ async function sendAdminNotification({ type, client, date, time }) {
       ? `${client.vehicleModel || ""}${client.vehiclePlate ? ` · ${client.vehiclePlate}` : ""}`
       : "Véhicule non renseigné";
 
-  const action = type === "book"
-    ? "NOUVEAU rendez-vous réservé"
-    : type === "cancel"
-    ? "Rendez-vous annulé"
-    : "Rendez-vous modifié";
+  const locRaw =
+    typeof location === "string" ? location.toLowerCase() : "";
+  const locationLabel =
+    locRaw === "domicile"
+      ? "À domicile"
+      : locRaw === "atelier"
+      ? "À l'atelier"
+      : "Non précisé";
+
+  const action =
+    type === "book"
+      ? "NOUVEAU rendez-vous réservé"
+      : type === "cancel"
+      ? "Rendez-vous annulé"
+      : "Rendez-vous modifié";
 
   const subject = `[BlackBox] ${action} — ${formattedDate} ${safeTime}`;
 
@@ -110,6 +120,7 @@ Email : ${client.email || "—"}
 
 Date : ${formattedDate}
 Heure : ${safeTime}
+Lieu : ${locationLabel}
 Véhicule : ${vehicle}
 
 Admin : ${adminUrl}
@@ -123,6 +134,7 @@ Admin : ${adminUrl}
 
   <p><strong>Date :</strong> ${formattedDate}</p>
   <p><strong>Heure :</strong> ${safeTime}</p>
+  <p><strong>Lieu :</strong> ${locationLabel}</p>
   <p><strong>Véhicule :</strong> ${vehicle}</p>
 
   <p style="margin-top:10px;">
@@ -134,5 +146,6 @@ Admin : ${adminUrl}
 
   await sendBrevoEmail({ subject, html, text });
 }
+
 
 module.exports = { sendAdminNotification };

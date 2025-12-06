@@ -4,6 +4,8 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Loader2, Star, CalendarDays, Phone } from "lucide-react";
+const SUMUP_TOPUP_URL =
+  import.meta.env.VITE_SUMUP_TOPUP_URL || "https://www.sumupbookings.com/bryan-cars"; // à renseigner dans ton .env Vite
 
 type DayStatus = "free" | "mine" | "busy" | "done";
 
@@ -51,6 +53,7 @@ type ModalMode = "book" | "manage" | "past";
 // ──────────────────────────────────────
 // Types pour la section "Vos rendez-vous"
 // ──────────────────────────────────────
+type AppointmentLocation = "atelier" | "domicile";
 
 type ClientAppointmentStatus = "requested" | "confirmed" | "done" | "cancelled";
 
@@ -65,7 +68,9 @@ type ClientAppointment = {
   vehicleModel: string | null;
   vehiclePlate: string | null;
   hasPhotos: boolean;
+  location: AppointmentLocation | null; // 👈 AJOUT
 };
+
 
 type ListClientAppointmentsResponse = {
   ok: boolean;
@@ -118,7 +123,7 @@ function canChangeDay(dateStr: string): boolean {
   return now < limit;
 }
 
-const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16];
+const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 const MINUTES = ["00", "30"];
 
 function defaultTime() {
@@ -225,6 +230,8 @@ export function ClientCardPage() {
 
   const [photoLightboxUrl, setPhotoLightboxUrl] = React.useState<string | null>(null);
   const photosCarouselRef = React.useRef<HTMLDivElement | null>(null);
+  const [appointmentLocation, setAppointmentLocation] =
+    React.useState<AppointmentLocation>("atelier");
 
   // ──────────────────────────────────────
   // État "Vos rendez-vous"
@@ -327,6 +334,16 @@ export function ClientCardPage() {
     if (!client) return;
     const past = isPastDay(day.date);
 
+    const existingAppointment = appointments.find(
+      (a) => a.date === day.date && a.status !== "cancelled"
+    );
+
+    if (existingAppointment && existingAppointment.location) {
+      setAppointmentLocation(existingAppointment.location);
+    } else {
+      setAppointmentLocation("atelier");
+    }
+
     // 🔵 Jour "done" → toujours cliquable (public)
     if (day.status === "done") {
       // On cherche un RDV du client pour ce jour
@@ -410,6 +427,8 @@ export function ClientCardPage() {
 
     setBusyAction(true);
 
+    const location = appointmentLocation; // 👈 on prend le lieu choisi
+
     // Update instantané côté UI
     setData((prev) => {
       if (!prev) return prev;
@@ -446,7 +465,7 @@ export function ClientCardPage() {
       await fetch(`/api/client/${encodeURIComponent(slug)}/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time }),
+        body: JSON.stringify({ date, time, location }), // 👈 on envoie location
       }).catch(() => null);
     } finally {
       setBusyAction(false);
@@ -816,11 +835,11 @@ export function ClientCardPage() {
         </Card>
 
         {/* Infos client & formule */}
-        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
-          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-[12px]">
-            {/* Bloc CLIENT avec bordure or + lumière */}
-            <div className="gold-frame rounded-2xl">
-              <div className="gold-frame-inner rounded-[1rem] bg-black/80 p-3 space-y-1.5 border border-white/5">
+        <Card className="gold-frame rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
+          <div className="gold-frame-inner rounded-[1.6rem] bg-black/80 p-4 text-[12px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Bloc CLIENT */}
+              <div className="rounded-2xl border border-white/10 bg-black/80 p-3 space-y-1.5">
                 <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
                   <span className="text-[12px] font-semibold text-white">
                     Client
@@ -848,11 +867,9 @@ export function ClientCardPage() {
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Bloc VEHICULE & FORMULE avec bordure or + lumière */}
-            <div className="gold-frame rounded-2xl">
-              <div className="gold-frame-inner rounded-[1rem] bg-black/80 p-3 space-y-1.5 border border-white/5">
+              {/* Bloc VEHICULE & FORMULE */}
+              <div className="rounded-2xl border border-white/10 bg-black/80 p-3 space-y-1.5">
                 <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
                   <span className="text-[12px] font-semibold text-white">
                     Véhicule & formule
@@ -872,7 +889,9 @@ export function ClientCardPage() {
                     {client.formulaName ?? "Aucune formule active"}
                   </span>
                 </div>
-                <div className="text-[12px] text-neutral-300">
+
+                {/* Nettoyages restants + bouton Recharger */}
+                <div className="text-[12px] text-neutral-300 pt-0.5">
                   Nettoyages restants :{" "}
                   <span
                     className={
@@ -883,7 +902,18 @@ export function ClientCardPage() {
                   >
                     {remainingLabel}
                   </span>
+                  {SUMUP_TOPUP_URL && (
+                    <a
+                      href={SUMUP_TOPUP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 ml-2 align-middle h-6 px-2.5 rounded-full border border-white/30 bg-black/80 text-[11px] text-neutral-100 hover:bg-white hover:text-black hover:border-white transition-colors"
+                    >
+                      <span className="font-medium">Recharger</span>
+                    </a>
+                  )}
                 </div>
+
                 {client.addressLine1 && (
                   <div className="text-[11px] text-neutral-400 pt-1">
                     Adresse : {client.addressLine1}
@@ -892,30 +922,6 @@ export function ClientCardPage() {
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Contact */}
-        <Card className="card-shine rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.8)]">
-          <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-white">
-                Contacter Bryan Cars Detailing
-              </p>
-              <p className="text-[12px] text-neutral-400">
-                Une question, besoin de modifier un rendez-vous ou de conseils
-                d&apos;entretien ? Appelez directement le centre.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href="tel:0603125186"
-                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[12px] font-medium bg-white text-black hover:bg-neutral-200 transition-colors"
-              >
-                <Phone className="h-3.5 w-3.5" />
-                <span>Appeler le centre</span>
-              </a>
             </div>
           </div>
         </Card>
@@ -1243,6 +1249,30 @@ export function ClientCardPage() {
             )}
           </div>
         </Card>
+        
+        {/* Contact */}
+        <Card className="card-shine rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.8)]">
+          <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-white">
+                Contacter Bryan Cars Detailing
+              </p>
+              <p className="text-[12px] text-neutral-400">
+                Une question, besoin de modifier un rendez-vous ou de conseils
+                d&apos;entretien ? Appelez directement le centre.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="tel:0603125186"
+                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[12px] font-medium bg-white text-black hover:bg-neutral-200 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                <span>Appeler le centre</span>
+              </a>
+            </div>
+          </div>
+        </Card>
       </main>
 
       {/* Modale calendrier (book / manage / past) */}
@@ -1267,8 +1297,8 @@ export function ClientCardPage() {
                 <div className="space-y-2">
                   <p className="text-[12px] text-neutral-400">
                     Choisissez une heure entre{" "}
-                    <span className="font-medium">8h00</span> et{" "}
-                    <span className="font-medium">16h30</span> (créneaux de 30
+                    <span className="font-medium">9h00</span> et{" "}
+                    <span className="font-medium">20h00</span> (créneaux de 30
                     minutes).
                   </p>
                   <div className="flex items-center gap-3">
@@ -1309,6 +1339,41 @@ export function ClientCardPage() {
                       </select>
                     </div>
                   </div>
+                </div>
+                <div className="space-y-2 pt-1">
+                  <p className="text-[12px] text-neutral-400">
+                    Où souhaitez-vous effectuer ce nettoyage ?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentLocation("atelier")}
+                      className={
+                        "rounded-xl border px-3 py-2 text-[12px] transition " +
+                        (appointmentLocation === "atelier"
+                          ? "border-white bg-white text-black"
+                          : "border-white/20 bg-black text-neutral-100 hover:border-white/50")
+                      }
+                    >
+                      À l&apos;atelier
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentLocation("domicile")}
+                      className={
+                        "rounded-xl border px-3 py-2 text-[12px] transition " +
+                        (appointmentLocation === "domicile"
+                          ? "border-white bg-white text-black"
+                          : "border-white/20 bg-black text-neutral-100 hover:border-white/50")
+                      }
+                    >
+                      À domicile
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-neutral-500">
+                    Le lieu exact et les conditions de déplacement seront
+                    confirmés avec le centre.
+                  </p>
                 </div>
 
                 <div className="flex gap-2 pt-2">
@@ -1499,6 +1564,15 @@ export function ClientCardPage() {
                         : "")
                     : "Véhicule non renseigné"}
                 </p>
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  Lieu :{" "}
+                  {selectedAppointment.location === "domicile"
+                    ? "Nettoyage à domicile"
+                    : selectedAppointment.location === "atelier"
+                    ? "Au centre de detailing"
+                    : "Lieu non précisé"}
+                </p>
+
               </div>
               <div className="flex flex-col items-end gap-1">
                 <div
