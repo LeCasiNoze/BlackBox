@@ -2,15 +2,10 @@
   "name": "blackbox",
   "version": "1.0.0",
   "main": "index.js",
-<<<<<<< HEAD
   "engines": {
     "node": "20.x"
   },
   "scripts": {
-    "postinstall": "npm rebuild better-sqlite3 --build-from-source",
-=======
-  "scripts": {
->>>>>>> cdcc6e4 (Initial BlackBox backend)
     "start": "node index.js"
   },
   "keywords": [],
@@ -18,15 +13,11 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-<<<<<<< HEAD
     "@getbrevo/brevo": "^3.0.1",
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.11"
-=======
-    "express": "^5.2.1"
->>>>>>> cdcc6e4 (Initial BlackBox backend)
   }
 }
