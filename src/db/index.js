@@ -3,13 +3,28 @@ const Database = require("better-sqlite3");
 const fs = require("fs");
 const path = require("path");
 
-// Dossier où sera stocké le fichier .db
-const DATA_DIR = path.join(__dirname, "..", "..", "data");
-const DB_PATH = path.join(DATA_DIR, "blackbox.db");
+// ───────────────────────────────────────────
+// Choix du chemin de la base de données
+// ───────────────────────────────────────────
 
-// On s'assure que le dossier data/ existe
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Render définit automatiquement process.env.RENDER
+const IS_RENDER = !!process.env.RENDER;
+
+// En local : on garde le dossier /data dans le projet
+const LOCAL_DATA_DIR = path.join(__dirname, "..", "..", "data");
+const LOCAL_DB_PATH = path.join(LOCAL_DATA_DIR, "blackbox.db");
+
+// Priorité à la variable d'env DB_FILE (configurable sur Render)
+// Sinon : Render -> /data/blackbox.db (disque persistant)
+//         Local  -> ./data/blackbox.db (comme avant)
+const DB_PATH =
+  process.env.DB_FILE ||
+  (IS_RENDER ? "/data/blackbox.db" : LOCAL_DB_PATH);
+
+// On s'assure que le dossier qui contient la DB existe
+const DB_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DB_DIR)) {
+  fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
 // On ouvre / crée la base
@@ -60,7 +75,7 @@ function ensureAppointmentsTimeColumn() {
 }
 
 // ───────────────────────────────────────────
-// Migration extra : admin_note, user_rating, user_review, etc.
+// Migration extra : admin_note, user_rating, user_review, location
 // ───────────────────────────────────────────
 
 function ensureAppointmentsExtraColumns() {
@@ -77,7 +92,7 @@ function ensureAppointmentsExtraColumns() {
       }
     };
 
-    // Déjà utilisées
+    // Colonnes facultatives
     addColumnIfMissing("admin_note", "admin_note TEXT");
     addColumnIfMissing("user_rating", "user_rating INTEGER");
     addColumnIfMissing("user_review", "user_review TEXT");
@@ -91,7 +106,6 @@ function ensureAppointmentsExtraColumns() {
     console.error("[DB] Erreur ensureAppointmentsExtraColumns:", e);
   }
 }
-
 
 // Appel au démarrage
 ensureAppointmentsTimeColumn();
