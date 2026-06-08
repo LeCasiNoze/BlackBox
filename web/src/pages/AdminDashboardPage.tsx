@@ -1,16 +1,43 @@
-// web/src/pages/AdminDashboardPage.tsx
 import * as React from "react";
-import { Card } from "../components/ui/card";
-import { Button } from "../components/ui/button";
 import {
+  ArrowLeft,
+  CalendarClock,
+  Camera,
+  CarFront,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
   Loader2,
-  CalendarDays,
-  Users,
-  Phone,
   Mail,
-  MoreVertical,
-  Image as ImageIcon,
+  PencilLine,
+  Phone,
+  Plus,
+  Save,
+  Search,
+  Sparkles,
+  Users,
+  XCircle,
 } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+
+import {
+  appointmentDateTime,
+  appointmentStatusClasses,
+  appointmentStatusLabel,
+  clampNumber,
+  cn,
+  formatDateFR,
+  formatTimeHHMM,
+  locationClasses,
+  locationLabel,
+  normalizeAppointmentSlot,
+  normalizePhoneForTel,
+  slotLabel,
+  slotWindowLabel,
+  type AppointmentLocation,
+  type AppointmentSlot,
+  type AppointmentStatus,
+} from "../lib/portal";
 
 type AdminClient = {
   id: number;
@@ -21,7 +48,7 @@ type AdminClient = {
   fullName: string | null;
   email: string | null;
   phone: string | null;
-  company: string | null; // 👈 AJOUT
+  company: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
   postalCode: string | null;
@@ -36,14 +63,13 @@ type AdminClient = {
   updatedAt: number;
 };
 
-type AdminAppointmentStatus = "requested" | "confirmed" | "done" | "cancelled";
-
 type AdminAppointment = {
   id: number;
   clientId: number;
-  date: string; // YYYY-MM-DD
+  date: string;
+  slot: AppointmentSlot | null;
   time: string | null;
-  status: AdminAppointmentStatus;
+  status: AppointmentStatus;
   clientNote: string | null;
   adminNote: string | null;
   createdAt: number;
@@ -51,9 +77,8 @@ type AdminAppointment = {
   clientName: string | null;
   vehicleModel: string | null;
   vehiclePlate: string | null;
-  location: "atelier" | "domicile" | null; // 👈 AJOUT
+  location: AppointmentLocation | null;
 };
-
 
 type AdminAppointmentPhoto = {
   id: number;
@@ -69,7 +94,7 @@ type AdminAppointmentPhotosResponse = {
 
 type AdminAppointmentPhotoCreateResponse = {
   ok: boolean;
-  photo: AdminAppointmentPhoto | null;  // 👈 au lieu de "photo?: ..."
+  photo: AdminAppointmentPhoto | null;
 };
 
 type ClientDetailResponse = {
@@ -88,456 +113,643 @@ type ListAppointmentsResponse = {
   appointments: AdminAppointment[];
 };
 
-function formatDate(dateStr: string) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr + "T00:00:00");
-  if (Number.isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+type ProfileDraft = {
+  firstName: string;
+  lastName: string;
+  company: string;
+  email: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string;
+  postalCode: string;
+  city: string;
+  vehicleModel: string;
+  vehiclePlate: string;
+  formulaName: string;
+  formulaTotal: string;
+  formulaRemaining: string;
+  notes: string;
+};
+
+type AppointmentFilterKey = "all" | AppointmentStatus | "client";
+
+const APPOINTMENT_FILTERS: Array<{
+  key: AppointmentFilterKey;
+  label: string;
+}> = [
+  { key: "all", label: "Tout" },
+  { key: "requested", label: "En attente" },
+  { key: "confirmed", label: "Confirmes" },
+  { key: "done", label: "Effectues" },
+  { key: "cancelled", label: "Annules" },
+  { key: "client", label: "Client actif" },
+];
+
+function defaultProfileDraft(): ProfileDraft {
+  return {
+    firstName: "",
+    lastName: "",
+    company: "",
+    email: "",
+    phone: "",
+    addressLine1: "",
+    addressLine2: "",
+    postalCode: "",
+    city: "",
+    vehicleModel: "",
+    vehiclePlate: "",
+    formulaName: "",
+    formulaTotal: "",
+    formulaRemaining: "",
+    notes: "",
+  };
+}
+
+function profileDraftFromClient(client: AdminClient): ProfileDraft {
+  return {
+    firstName: client.firstName ?? "",
+    lastName: client.lastName ?? "",
+    company: client.company ?? "",
+    email: client.email ?? "",
+    phone: client.phone ?? "",
+    addressLine1: client.addressLine1 ?? "",
+    addressLine2: client.addressLine2 ?? "",
+    postalCode: client.postalCode ?? "",
+    city: client.city ?? "",
+    vehicleModel: client.vehicleModel ?? "",
+    vehiclePlate: client.vehiclePlate ?? "",
+    formulaName: client.formulaName ?? "",
+    formulaTotal: String(client.formulaTotal ?? 0),
+    formulaRemaining: String(client.formulaRemaining ?? 0),
+    notes: client.notes ?? "",
+  };
+}
+
+function fullClientName(client: AdminClient | null) {
+  if (!client) return "Client non selectionne";
+  return (
+    client.fullName ||
+    `${client.firstName || ""} ${client.lastName || ""}`.trim() ||
+    "Client"
+  );
+}
+
+function previewText(value: string | null, fallback: string) {
+  if (!value) return fallback;
+  return value.length > 140 ? `${value.slice(0, 140)}...` : value;
+}
+
+function sortAppointments(
+  appointments: AdminAppointment[],
+  direction: "asc" | "desc" = "desc",
+) {
+  const next = [...appointments];
+  next.sort((left, right) => {
+    const diff =
+      appointmentDateTime(left).getTime() - appointmentDateTime(right).getTime();
+    return direction === "asc" ? diff : -diff;
   });
+  return next;
 }
 
-function formatTime(time: string | null) {
-  if (!time) return "—";
-  return time.slice(0, 5);
+function appointmentSearchText(appointment: AdminAppointment) {
+  return [
+    appointment.clientName,
+    appointment.vehicleModel,
+    appointment.vehiclePlate,
+    appointment.date,
+    appointment.slot ? slotLabel(normalizeAppointmentSlot(appointment.slot, appointment.time)) : null,
+    appointment.time,
+    appointment.location,
+    appointment.adminNote,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 }
 
-function statusLabel(status: AdminAppointmentStatus) {
+function appointmentSlot(appointment: AdminAppointment) {
+  return normalizeAppointmentSlot(appointment.slot, appointment.time);
+}
+
+function appointmentPrimaryAction(status: AppointmentStatus) {
   switch (status) {
     case "requested":
-      return "En attente";
+      return "Confirmer le creneau";
     case "confirmed":
-      return "Confirmé";
+      return "Marquer comme effectue";
     case "done":
-      return "Effectué";
+      return "Prestation terminee";
     case "cancelled":
-      return "Annulé";
+      return "Rendez-vous annule";
     default:
-      return status;
+      return "Mettre a jour";
   }
 }
 
-function statusClasses(status: AdminAppointmentStatus) {
-  switch (status) {
-    case "requested":
-      return "bg-amber-500/10 text-amber-300 border border-amber-500/40";
-    case "confirmed":
-      return "bg-sky-500/10 text-sky-300 border border-sky-500/40";
-    case "done":
-      return "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40";
-    case "cancelled":
-      return "bg-rose-500/10 text-rose-300 border border-rose-500/40 line-through";
-    default:
-      return "";
-  }
-}
+function groupAppointmentsByDate(appointments: AdminAppointment[]) {
+  const groups = new Map<string, AdminAppointment[]>();
 
-function locationLabel(location: string | null | undefined) {
-  switch (location) {
-    case "atelier":
-      return "Atelier";
-    case "domicile":
-      return "À domicile";
-    default:
-      return "Lieu non précisé";
-  }
-}
+  appointments.forEach((appointment) => {
+    const current = groups.get(appointment.date);
+    if (current) {
+      current.push(appointment);
+    } else {
+      groups.set(appointment.date, [appointment]);
+    }
+  });
 
-function locationClasses(location: string | null | undefined) {
-  switch (location) {
-    case "atelier":
-      return "bg-sky-500/10 text-sky-300 border border-sky-500/40";
-    case "domicile":
-      return "bg-amber-500/10 text-amber-300 border border-amber-500/40";
-    default:
-      return "bg-neutral-700/30 text-neutral-200 border border-neutral-500/40";
-  }
-}
-
-function normalizePhoneForTel(phone: string) {
-  return phone.replace(/\s+/g, "");
+  return Array.from(groups.entries()).map(([date, items]) => ({
+    date,
+    items: sortAppointments(items, "asc"),
+  }));
 }
 
 export function AdminDashboardPage() {
+  const location = useLocation();
   const [clients, setClients] = React.useState<AdminClient[]>([]);
   const [clientsLoading, setClientsLoading] = React.useState(true);
   const [clientsError, setClientsError] = React.useState<string | null>(null);
 
-  const [selectedClientId, setSelectedClientId] = React.useState<number | null>(
-    null
-  );
+  const [selectedClientId, setSelectedClientId] = React.useState<number | null>(null);
   const [selectedClient, setSelectedClient] =
     React.useState<ClientDetailResponse | null>(null);
   const [clientLoading, setClientLoading] = React.useState(false);
 
-  const [globalAppointments, setGlobalAppointments] = React.useState<
-    AdminAppointment[]
-  >([]);
-  const [globalApptsLoading, setGlobalApptsLoading] = React.useState(true);
+  const [globalAppointments, setGlobalAppointments] = React.useState<AdminAppointment[]>(
+    [],
+  );
+  const [globalAppointmentsLoading, setGlobalAppointmentsLoading] = React.useState(true);
 
   const [busyAction, setBusyAction] = React.useState(false);
   const [busyFormula, setBusyFormula] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = React.useState(0);
 
   const [filterClientQuery, setFilterClientQuery] = React.useState("");
-  const [noteDrafts, setNoteDrafts] = React.useState<Record<number, string>>(
-    {}
-  );
+  const deferredClientQuery = React.useDeferredValue(filterClientQuery);
 
-  // Deep-link & UI rendez-vous
-  const appointmentsSectionRef = React.useRef<HTMLDivElement | null>(null);
-  const [expandedAppointmentId, setExpandedAppointmentId] =
+  const [appointmentQuery, setAppointmentQuery] = React.useState("");
+  const deferredAppointmentQuery = React.useDeferredValue(appointmentQuery);
+  const [appointmentFilter, setAppointmentFilter] =
+    React.useState<AppointmentFilterKey>("all");
+
+  const [selectedAppointmentId, setSelectedAppointmentId] =
+    React.useState<number | null>(null);
+  const [highlightAppointmentId, setHighlightAppointmentId] =
+    React.useState<number | null>(null);
+  const [noteDrafts, setNoteDrafts] = React.useState<Record<number, string>>({});
+
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoFormCaption, setPhotoFormCaption] = React.useState("");
+  const [currentPhotos, setCurrentPhotos] = React.useState<AdminAppointmentPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const appointmentWorkspaceRef = React.useRef<HTMLElement | null>(null);
+
+  const [profileModalOpen, setProfileModalOpen] = React.useState(false);
+  const [profileMode, setProfileMode] = React.useState<"edit" | "new">("edit");
+  const [profileSubmitting, setProfileSubmitting] = React.useState(false);
+  const [profileDraft, setProfileDraft] = React.useState<ProfileDraft | null>(null);
+
+  const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
+  const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
+    null,
+  );
+  const [formulaDraftRemaining, setFormulaDraftRemaining] =
     React.useState<number | null>(null);
 
-  // Deep-link depuis l’URL (?clientId=..&date=..)
   const [deepLink, setDeepLink] = React.useState<{
     appointmentId: number | null;
     date: string | null;
   }>({ appointmentId: null, date: null });
 
-  // Pour surligner brièvement le RDV ciblé
-  const [highlightAppointmentId, setHighlightAppointmentId] =
-    React.useState<number | null>(null);
+  const [isNavigatingSelection, startSelectingClient] = React.useTransition();
 
-  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-
-  // Photos de rendez-vous (admin)
-  const [currentPhotos, setCurrentPhotos] = React.useState<AdminAppointmentPhoto[]>([]);
-  const [photosLoading, setPhotosLoading] = React.useState(false);
-  const [photoFormCaption, setPhotoFormCaption] = React.useState("");
-
-  // Modal création / édition de profil
-  const [profileModalOpen, setProfileModalOpen] = React.useState(false);
-  const [profileMode, setProfileMode] = React.useState<"edit" | "new">("edit");
-  const [profileSubmitting, setProfileSubmitting] = React.useState(false);
-  const [profileDraft, setProfileDraft] = React.useState<{
-    firstName: string;
-    lastName: string;
-    company: string;
-    email: string;
-    phone: string;
-    addressLine1: string;
-    addressLine2: string;
-    postalCode: string;
-    city: string;
-    vehicleModel: string;
-    vehiclePlate: string;
-    formulaName: string;
-    formulaTotal: string;
-    formulaRemaining: string;
-    notes: string;
-  } | null>(null);
-
-  // Menu / édition formule
-  const [formulaMenuOpen, setFormulaMenuOpen] = React.useState(false);
-  const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
-  const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
-    null
-  );
-  const [formulaDraftRemaining, setFormulaDraftRemaining] = React.useState<
-    number | null
-  >(null);
-
-  // Lecture des paramètres d'URL : ?clientId=...&date=... (&appointmentId=... plus tard si besoin)
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-
+    const params = new URLSearchParams(location.search);
     const clientIdParam = params.get("clientId");
     const dateParam = params.get("date");
-    const apptIdParam = params.get("appointmentId");
+    const appointmentIdParam = params.get("appointmentId");
 
-    // On pré-sélectionne le client si présent dans l'URL
     if (clientIdParam) {
-      const idNum = Number(clientIdParam);
-      if (!Number.isNaN(idNum)) {
-        setSelectedClientId(idNum);
+      const numericId = Number(clientIdParam);
+      if (!Number.isNaN(numericId)) {
+        setSelectedClientId(numericId);
       }
     }
 
-    const apptIdNum = apptIdParam ? Number(apptIdParam) : NaN;
-
     setDeepLink({
-      appointmentId: !Number.isNaN(apptIdNum) ? apptIdNum : null,
+      appointmentId: appointmentIdParam ? Number(appointmentIdParam) || null : null,
       date: dateParam || null,
     });
-  }, []);
+  }, [location.search]);
 
-  // Quand on change de client sélectionné → on ferme les menus de formule
-  React.useEffect(() => {
-    setFormulaMenuOpen(false);
-    setFormulaEditOpen(false);
-  }, [selectedClientId]);
-
-  // Load clients
   React.useEffect(() => {
     let active = true;
 
-    async function load() {
+    async function loadClients() {
       try {
         setClientsLoading(true);
         setClientsError(null);
 
-        const res = await fetch("/api/admin/clients");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as ListClientsResponse;
-        if (!json.ok) throw new Error("API not ok");
+        const response = await fetch("/api/admin/clients");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const json = (await response.json()) as ListClientsResponse;
+        if (!json.ok) throw new Error("invalid_payload");
         if (!active) return;
 
-        setClients(json.clients);
+        setClients(json.clients ?? []);
 
-        // Si aucun client sélectionné (et pas de deep-link), on prend le 1er
-        if (json.clients.length > 0 && selectedClientId == null) {
+        if ((json.clients?.length ?? 0) > 0 && selectedClientId == null) {
           setSelectedClientId(json.clients[0].id);
         }
-      } catch (err) {
-        if (active) setClientsError("Impossible de charger les clients.");
+      } catch (error) {
+        if (active) {
+          setClientsError("Impossible de charger la liste client.");
+        }
       } finally {
-        if (active) setClientsLoading(false);
+        if (active) {
+          setClientsLoading(false);
+        }
       }
     }
 
-    void load();
+    void loadClients();
+
     return () => {
       active = false;
     };
-  }, [selectedClientId]);
+  }, [refreshToken, selectedClientId]);
 
-  // Load global appointments
   React.useEffect(() => {
     let active = true;
 
-    async function load() {
+    async function loadAppointments() {
       try {
-        setGlobalApptsLoading(true);
-        const res = await fetch("/api/admin/appointments?limit=300");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as ListAppointmentsResponse;
-        if (!json.ok) throw new Error("API not ok");
+        setGlobalAppointmentsLoading(true);
+
+        const response = await fetch("/api/admin/appointments?limit=300");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const json = (await response.json()) as ListAppointmentsResponse;
+        if (!json.ok) throw new Error("invalid_payload");
         if (!active) return;
-        setGlobalAppointments(json.appointments);
-      } catch (err) {
-        if (active)
-          console.error("Impossible de charger les rendez-vous globaux.");
+
+        setGlobalAppointments(json.appointments ?? []);
+      } catch (error) {
+        if (active) {
+          setGlobalAppointments([]);
+        }
       } finally {
-        if (active) setGlobalApptsLoading(false);
+        if (active) {
+          setGlobalAppointmentsLoading(false);
+        }
       }
     }
 
-    void load();
+    void loadAppointments();
+
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshToken]);
 
-  // Load selected client detail
   React.useEffect(() => {
     if (!selectedClientId) return;
 
     let active = true;
 
-    async function load() {
+    async function loadClientDetail() {
       try {
         setClientLoading(true);
-        const res = await fetch(`/api/admin/clients/${selectedClientId}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as ClientDetailResponse & {
-          ok: boolean;
-        };
-        if (!json.ok) throw new Error("API not ok");
-        if (!active) return;
-        setSelectedClient(json);
 
-        // init drafts for notes
-        setNoteDrafts((prev) => {
-          const next = { ...prev };
-          json.appointments.forEach((a) => {
-            if (next[a.id] === undefined) {
-              next[a.id] = a.adminNote ?? "";
+        const response = await fetch(`/api/admin/clients/${selectedClientId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const json = (await response.json()) as ClientDetailResponse;
+        if (!json.ok) throw new Error("invalid_payload");
+        if (!active) return;
+
+        setSelectedClient(json);
+        setNoteDrafts((current) => {
+          const next = { ...current };
+          json.appointments.forEach((appointment) => {
+            if (next[appointment.id] === undefined) {
+              next[appointment.id] = appointment.adminNote ?? "";
             }
           });
           return next;
         });
-      } catch (err) {
-        if (active)
-          console.error("Impossible de charger les détails du client.");
+      } catch (error) {
+        if (active) {
+          setSelectedClient(null);
+        }
       } finally {
-        if (active) setClientLoading(false);
+        if (active) {
+          setClientLoading(false);
+        }
       }
     }
 
-    void load();
+    void loadClientDetail();
+
     return () => {
       active = false;
     };
+  }, [refreshToken, selectedClientId]);
+
+  React.useEffect(() => {
+    if (!selectedClientId) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("clientId", String(selectedClientId));
+    window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
   }, [selectedClientId]);
 
-  function showToast(msg: string) {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 2500);
+  const selectedAppointment = React.useMemo(() => {
+    if (!selectedAppointmentId) return null;
+
+    const fromSelectedClient =
+      selectedClient?.appointments.find(
+        (appointment) => appointment.id === selectedAppointmentId,
+      ) ?? null;
+    if (fromSelectedClient) return fromSelectedClient;
+
+    return (
+      globalAppointments.find((appointment) => appointment.id === selectedAppointmentId) ??
+      null
+    );
+  }, [globalAppointments, selectedAppointmentId, selectedClient]);
+
+  React.useEffect(() => {
+    const sortedGlobalAsc = sortAppointments(globalAppointments, "asc");
+    const firstRequested =
+      sortedGlobalAsc.find((appointment) => appointment.status === "requested") ?? null;
+    const fallback = firstRequested ?? sortedGlobalAsc[0] ?? null;
+
+    if (selectedAppointmentId == null && fallback) {
+      setSelectedAppointmentId(fallback.id);
+      if (selectedClientId == null) {
+        setSelectedClientId(fallback.clientId);
+      }
+    }
+  }, [globalAppointments, selectedAppointmentId, selectedClientId]);
+
+  React.useEffect(() => {
+    if (!selectedClient?.appointments?.length) return;
+    if (!deepLink.appointmentId && !deepLink.date) return;
+
+    const match =
+      selectedClient.appointments.find((appointment) => {
+        if (deepLink.appointmentId && appointment.id === deepLink.appointmentId) {
+          return true;
+        }
+        if (deepLink.date && appointment.date === deepLink.date) {
+          return true;
+        }
+        return false;
+      }) ?? null;
+
+    if (!match) return;
+
+    setSelectedAppointmentId(match.id);
+    setHighlightAppointmentId(match.id);
+  }, [deepLink, selectedClient]);
+
+  React.useEffect(() => {
+    if (!selectedAppointmentId) {
+      setCurrentPhotos([]);
+      return;
+    }
+
+    void loadAppointmentPhotosAdmin(selectedAppointmentId);
+    setPhotoFile(null);
+    setPhotoFormCaption("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [selectedAppointmentId]);
+
+  React.useEffect(() => {
+    if (!highlightAppointmentId) return undefined;
+    const timeout = window.setTimeout(() => setHighlightAppointmentId(null), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [highlightAppointmentId]);
+
+  React.useEffect(() => {
+    if (!toast) return undefined;
+    const timeout = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  function showToast(message: string) {
+    setToast(message);
   }
 
-  // Actions admin — RDV
+  function focusAppointment(appointment: AdminAppointment) {
+    setSelectedAppointmentId(appointment.id);
+    setHighlightAppointmentId(appointment.id);
+    startSelectingClient(() => setSelectedClientId(appointment.clientId));
 
-  async function changeStatus(
-    appointmentId: number,
-    status: AdminAppointmentStatus
-  ) {
+    if (typeof window !== "undefined" && window.innerWidth < 1280) {
+      window.setTimeout(() => {
+        appointmentWorkspaceRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+    }
+  }
+
+  function focusClient(client: AdminClient) {
+    const firstClientAppointment =
+      sortAppointments(
+        globalAppointments.filter((appointment) => appointment.clientId === client.id),
+        "asc",
+      )[0] ?? null;
+
+    setSelectedAppointmentId(firstClientAppointment?.id ?? null);
+    startSelectingClient(() => setSelectedClientId(client.id));
+  }
+
+  async function loadAppointmentPhotosAdmin(appointmentId: number) {
+    setPhotosLoading(true);
+
+    try {
+      const response = await fetch(`/api/admin/appointments/${appointmentId}/photos`);
+      const json = (await response.json()) as AdminAppointmentPhotosResponse;
+
+      if (!response.ok || !json.ok) {
+        setCurrentPhotos([]);
+        return;
+      }
+
+      setCurrentPhotos(json.photos ?? []);
+    } catch (error) {
+      setCurrentPhotos([]);
+    } finally {
+      setPhotosLoading(false);
+    }
+  }
+
+  async function changeStatus(appointmentId: number, status: AppointmentStatus) {
     setBusyAction(true);
 
-    // Optimistic update local state
-    setSelectedClient((prev) => {
-      if (!prev) return prev;
+    const previousGlobal = globalAppointments;
+    const previousSelectedClient = selectedClient;
+
+    setGlobalAppointments((current) =>
+      current.map((appointment) =>
+        appointment.id === appointmentId ? { ...appointment, status } : appointment,
+      ),
+    );
+
+    setSelectedClient((current) => {
+      if (!current) return current;
       return {
-        ...prev,
-        appointments: prev.appointments.map((a) =>
-          a.id === appointmentId ? { ...a, status } : a
+        ...current,
+        appointments: current.appointments.map((appointment) =>
+          appointment.id === appointmentId ? { ...appointment, status } : appointment,
         ),
       };
     });
 
-    setGlobalAppointments((prev) =>
-      prev.map((a) => (a.id === appointmentId ? { ...a, status } : a))
-    );
-
     try {
-      const res = await fetch(
-        `/api/admin/appointments/${appointmentId}/status`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        }
+      const response = await fetch(`/api/admin/appointments/${appointmentId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      const json = await response.json();
+      if (!response.ok || !json.ok || !json.appointment) {
+        setGlobalAppointments(previousGlobal);
+        setSelectedClient(previousSelectedClient);
+        showToast("Impossible de mettre a jour ce rendez-vous.");
+        setRefreshToken((value) => value + 1);
+        return;
+      }
+
+      const updated = json.appointment as AdminAppointment;
+
+      setGlobalAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === appointmentId ? updated : appointment,
+        ),
       );
 
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
-        showToast("Erreur lors de la mise à jour du statut.");
-      } else {
-        showToast("Statut mis à jour.");
-      }
-    } catch {
-      showToast("Erreur réseau lors de la mise à jour.");
+      setSelectedClient((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          appointments: current.appointments.map((appointment) =>
+            appointment.id === appointmentId ? updated : appointment,
+          ),
+        };
+      });
+
+      showToast("Statut mis a jour.");
+      setRefreshToken((value) => value + 1);
+    } catch (error) {
+      setGlobalAppointments(previousGlobal);
+      setSelectedClient(previousSelectedClient);
+      showToast("Erreur reseau pendant la mise a jour.");
+      setRefreshToken((value) => value + 1);
     } finally {
       setBusyAction(false);
     }
   }
 
-async function saveAppointmentDetails(appointmentId: number) {
-  const note = noteDrafts[appointmentId] ?? "";
-  const hasFile = !!photoFile;
-  const captionTrim = photoFormCaption.trim();
+  async function saveAppointmentWorkspace(appointmentId: number) {
+    const note = noteDrafts[appointmentId] ?? "";
+    const hasFile = !!photoFile;
+    const captionTrim = photoFormCaption.trim();
 
-  let noteOk = false;
-  let photoOk = !hasFile; // si pas de fichier, on considère la partie photo comme "ok"
+    let noteSaved = false;
+    let photoSaved = !hasFile;
 
-  setBusyAction(true);
+    setBusyAction(true);
 
-  try {
-    // 1) Enregistrer la note
     try {
-      const res = await fetch(
-        `/api/admin/appointments/${appointmentId}/admin-note`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ adminNote: note }),
-        }
-      );
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
-        showToast("Erreur lors de l'enregistrement de la note.");
-      } else {
-        noteOk = true;
-        const updated: AdminAppointment | undefined = json.appointment;
-        if (updated) {
-          setSelectedClient((prev) => {
-            if (!prev) return prev;
+      try {
+        const response = await fetch(
+          `/api/admin/appointments/${appointmentId}/admin-note`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ adminNote: note }),
+          },
+        );
+
+        const json = await response.json();
+        if (!response.ok || !json.ok || !json.appointment) {
+          showToast("La note admin n'a pas ete enregistree.");
+        } else {
+          noteSaved = true;
+          const updated = json.appointment as AdminAppointment;
+
+          setGlobalAppointments((current) =>
+            current.map((appointment) =>
+              appointment.id === appointmentId ? updated : appointment,
+            ),
+          );
+
+          setSelectedClient((current) => {
+            if (!current) return current;
             return {
-              ...prev,
-              appointments: prev.appointments.map((a) =>
-                a.id === appointmentId ? updated : a
+              ...current,
+              appointments: current.appointments.map((appointment) =>
+                appointment.id === appointmentId ? updated : appointment,
               ),
             };
           });
+        }
+      } catch (error) {
+        showToast("Erreur reseau pendant la sauvegarde de la note.");
+      }
 
-          setGlobalAppointments((prev) =>
-            prev.map((a) => (a.id === appointmentId ? updated : a))
+      if (hasFile) {
+        try {
+          const formData = new FormData();
+          formData.append("file", photoFile as File);
+          formData.append("caption", captionTrim);
+
+          const response = await fetch(
+            `/api/admin/appointments/${appointmentId}/photos/upload`,
+            {
+              method: "POST",
+              body: formData,
+            },
           );
+
+          const json =
+            (await response.json()) as AdminAppointmentPhotoCreateResponse;
+
+          if (!response.ok || !json.ok || !json.photo) {
+            showToast("La photo n'a pas pu etre ajoutee.");
+          } else {
+            photoSaved = true;
+            setCurrentPhotos((current) => [
+              ...current,
+              json.photo as AdminAppointmentPhoto,
+            ]);
+            setPhotoFile(null);
+            setPhotoFormCaption("");
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
+          }
+        } catch (error) {
+          showToast("Erreur reseau pendant l'upload photo.");
         }
       }
-    } catch {
-      showToast("Erreur réseau lors de l'enregistrement de la note.");
-    }
 
-    // 2) Uploader la photo si un fichier a été choisi
-    if (hasFile) {
-      try {
-        const formData = new FormData();
-        formData.append("file", photoFile as File);
-        formData.append("caption", captionTrim);
-
-        const resPhoto = await fetch(
-          `/api/admin/appointments/${appointmentId}/photos/upload`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-        const jsonPhoto =
-          (await resPhoto.json()) as AdminAppointmentPhotoCreateResponse;
-
-        if (!resPhoto.ok || !jsonPhoto.ok || !jsonPhoto.photo) {
-          showToast(
-            "Note enregistrée, mais erreur lors de l'ajout de la photo."
-          );
-        } else {
-          photoOk = true;
-          const photo = jsonPhoto.photo as AdminAppointmentPhoto;
-          setCurrentPhotos((prev) => [...prev, photo]);
-
-          setPhotoFile(null);
-          setPhotoFormCaption("");
-          if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-          }
-        }
-      } catch {
-        showToast(
-          "Note enregistrée, mais erreur réseau lors de l'ajout de la photo."
-        );
+      if (noteSaved && photoSaved) {
+        showToast("Panneau rendez-vous mis a jour.");
       }
-    }
-
-    if (noteOk && photoOk) {
-      showToast("Rendez-vous mis à jour.");
-    }
-  } finally {
-    setBusyAction(false);
-  }
-}
-
-  // Actions admin — formule
-
-    async function loadAppointmentPhotosAdmin(appointmentId: number) {
-    setPhotosLoading(true);
-    try {
-      const res = await fetch(`/api/admin/appointments/${appointmentId}/photos`);
-      const json = (await res.json()) as AdminAppointmentPhotosResponse;
-      if (!res.ok || !json.ok) {
-        setCurrentPhotos([]);
-        return;
-      }
-      setCurrentPhotos(json.photos || []);
-    } catch (err) {
-      console.error("loadAppointmentPhotosAdmin error:", err);
-      setCurrentPhotos([]);
     } finally {
-      setPhotosLoading(false);
+      setBusyAction(false);
     }
   }
 
@@ -545,79 +757,69 @@ async function saveAppointmentDetails(appointmentId: number) {
     const client = selectedClient?.client;
     if (!client) return;
 
-    let newTotal = client.formulaTotal;
-    let newRemaining = client.formulaRemaining;
+    let nextTotal = client.formulaTotal;
+    let nextRemaining = client.formulaRemaining;
 
-    if (mode === "custom") {
-      const t =
-        formulaDraftTotal != null ? Math.max(0, Math.floor(formulaDraftTotal)) : client.formulaTotal;
-      const r =
-        formulaDraftRemaining != null
-          ? Math.max(0, Math.floor(formulaDraftRemaining))
-          : client.formulaRemaining;
-
-      newTotal = t;
-      newRemaining = Math.min(r, t);
-    } else if (mode === "reset") {
-      newRemaining = client.formulaTotal;
+    if (mode === "reset") {
+      nextRemaining = client.formulaTotal;
     } else if (mode === "empty") {
-      newRemaining = 0;
+      nextRemaining = 0;
+    } else {
+      nextTotal = clampNumber(Math.floor(formulaDraftTotal ?? client.formulaTotal), 0);
+      nextRemaining = clampNumber(
+        Math.floor(formulaDraftRemaining ?? client.formulaRemaining),
+        0,
+        nextTotal,
+      );
     }
 
     setBusyFormula(true);
-    try {
-      const payload: any = { mode };
-      if (mode === "custom") {
-        payload.total = newTotal;
-        payload.remaining = newRemaining;
-      }
 
-      const res = await fetch(`/api/admin/clients/${client.id}/formula`, {
+    try {
+      const response = await fetch(`/api/admin/clients/${client.id}/formula`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          mode,
+          total: nextTotal,
+          remaining: nextRemaining,
+        }),
       });
 
-      let ok = res.ok;
-      try {
-        const json = await res.json();
-        if (json && json.ok === false) ok = false;
-      } catch {
-        // pas grave, on fait juste confiance au status HTTP
-      }
-
-      if (!ok) {
-        showToast("Erreur lors de la mise à jour de la formule.");
+      const json = await response.json();
+      if (!response.ok || json.ok === false) {
+        showToast("Impossible de mettre a jour la formule.");
         return;
       }
 
-      // Mise à jour optimiste locale
-      setSelectedClient((prev) => {
-        if (!prev) return prev;
-        if (prev.client.id !== client.id) return prev;
+      setSelectedClient((current) => {
+        if (!current) return current;
         return {
-          ...prev,
+          ...current,
           client: {
-            ...prev.client,
-            formulaTotal: newTotal,
-            formulaRemaining: newRemaining,
+            ...current.client,
+            formulaTotal: nextTotal,
+            formulaRemaining: nextRemaining,
           },
         };
       });
 
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === client.id
-            ? { ...c, formulaTotal: newTotal, formulaRemaining: newRemaining }
-            : c
-        )
+      setClients((current) =>
+        current.map((entry) =>
+          entry.id === client.id
+            ? {
+                ...entry,
+                formulaTotal: nextTotal,
+                formulaRemaining: nextRemaining,
+              }
+            : entry,
+        ),
       );
 
-      showToast("Formule mise à jour.");
-      setFormulaMenuOpen(false);
+      showToast("Formule mise a jour.");
       setFormulaEditOpen(false);
-    } catch {
-      showToast("Erreur réseau lors de la mise à jour de la formule.");
+    } catch (error) {
+      showToast("Erreur reseau pendant la mise a jour formule.");
     } finally {
       setBusyFormula(false);
     }
@@ -626,1318 +828,1758 @@ async function saveAppointmentDetails(appointmentId: number) {
   function openFormulaEdit() {
     const client = selectedClient?.client;
     if (!client) return;
+
     setFormulaDraftTotal(client.formulaTotal);
     setFormulaDraftRemaining(client.formulaRemaining);
     setFormulaEditOpen(true);
-    setFormulaMenuOpen(false);
   }
-
-  // ─────────────────────────────────────────────
-  // Actions profil client (modal)
-  // ─────────────────────────────────────────────
 
   function openCreateProfile() {
     setProfileMode("new");
-    setProfileDraft({
-      firstName: "",
-      lastName: "",
-      company: "",
-      email: "",
-      phone: "",
-      addressLine1: "",
-      addressLine2: "",
-      postalCode: "",
-      city: "",
-      vehicleModel: "",
-      vehiclePlate: "",
-      formulaName: "",
-      formulaTotal: "",
-      formulaRemaining: "",
-      notes: "",
-    });
+    setProfileDraft(defaultProfileDraft());
     setProfileModalOpen(true);
   }
 
   function openEditProfile() {
-    const c = selectedClientData;
-    if (!c) return;
+    const client = selectedClient?.client;
+    if (!client) return;
+
     setProfileMode("edit");
-    setProfileDraft({
-      firstName: c.firstName ?? "",
-      lastName: c.lastName ?? "",
-      company: (c as any).company ?? "", // company est maintenant dans AdminClient
-      email: c.email ?? "",
-      phone: c.phone ?? "",
-      addressLine1: c.addressLine1 ?? "",
-      addressLine2: c.addressLine2 ?? "",
-      postalCode: c.postalCode ?? "",
-      city: c.city ?? "",
-      vehicleModel: c.vehicleModel ?? "",
-      vehiclePlate: c.vehiclePlate ?? "",
-      formulaName: c.formulaName ?? "",
-      formulaTotal:
-        c.formulaTotal != null ? String(c.formulaTotal) : "",
-      formulaRemaining:
-        c.formulaRemaining != null ? String(c.formulaRemaining) : "",
-      notes: c.notes ?? "",
-    });
+    setProfileDraft(profileDraftFromClient(client));
     setProfileModalOpen(true);
   }
 
-  function updateProfileDraft(field: keyof NonNullable<typeof profileDraft>, value: string) {
-    setProfileDraft((prev) =>
-      prev ? { ...prev, [field]: value } : prev
-    );
+  function updateProfileDraft(field: keyof ProfileDraft, value: string) {
+    setProfileDraft((current) => (current ? { ...current, [field]: value } : current));
   }
 
   async function submitProfile() {
     if (!profileDraft) return;
 
-    try {
-      setProfileSubmitting(true);
+    setProfileSubmitting(true);
 
-      const body: any = {
-        firstName: profileDraft.firstName || null,
-        lastName: profileDraft.lastName || null,
-        company: profileDraft.company || null,
-        email: profileDraft.email || null,
-        phone: profileDraft.phone || null,
-        addressLine1: profileDraft.addressLine1 || null,
-        addressLine2: profileDraft.addressLine2 || null,
-        postalCode: profileDraft.postalCode || null,
-        city: profileDraft.city || null,
-        vehicleModel: profileDraft.vehicleModel || null,
-        vehiclePlate: profileDraft.vehiclePlate || null,
-        formulaName: profileDraft.formulaName || null,
-        notes: profileDraft.notes || null,
+    try {
+      const payload: Record<string, string | number> = {
+        firstName: profileDraft.firstName,
+        lastName: profileDraft.lastName,
+        company: profileDraft.company,
+        email: profileDraft.email,
+        phone: profileDraft.phone,
+        addressLine1: profileDraft.addressLine1,
+        addressLine2: profileDraft.addressLine2,
+        postalCode: profileDraft.postalCode,
+        city: profileDraft.city,
+        vehicleModel: profileDraft.vehicleModel,
+        vehiclePlate: profileDraft.vehiclePlate,
+        formulaName: profileDraft.formulaName,
+        formulaTotal: Number(profileDraft.formulaTotal || 0),
+        formulaRemaining: Number(profileDraft.formulaRemaining || 0),
+        notes: profileDraft.notes,
       };
 
-      const ft = profileDraft.formulaTotal.trim();
-      const fr = profileDraft.formulaRemaining.trim();
-      if (ft !== "") body.formulaTotal = Number(ft);
-      if (fr !== "") body.formulaRemaining = Number(fr);
+      const creating = profileMode === "new";
+      const url = creating
+        ? "/api/admin/clients"
+        : `/api/admin/clients/${selectedClient?.client.id}/profile`;
 
-      let url: string;
-      if (profileMode === "new") {
-        url = "/api/admin/clients";
-      } else {
-        const c = selectedClientData;
-        if (!c) {
-          showToast("Aucun client sélectionné.");
-          return;
-        }
-        url = `/api/admin/clients/${c.id}/profile`;
-      }
-
-      const res = await fetch(url, {
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
-        showToast("Erreur lors de l'enregistrement du profil.");
+      const json = await response.json();
+      if (!response.ok || !json.ok || !json.client) {
+        showToast("Impossible d'enregistrer la fiche client.");
         return;
       }
 
-      const updated: AdminClient = json.client;
+      const updated = json.client as AdminClient;
 
-      if (profileMode === "new") {
-        // On ajoute le client et on le sélectionne
-        setClients((prev) => [...prev, updated]);
+      if (creating) {
+        setClients((current) => [updated, ...current]);
         setSelectedClientId(updated.id);
-        setSelectedClient({
-          ok: true,
-          client: updated,
-          appointments: [],
-        });
-        showToast("Nouveau client créé.");
+        showToast("Nouveau client cree.");
       } else {
-        // Mise à jour d'un client existant
-        setClients((prev) =>
-          prev.map((c) => (c.id === updated.id ? updated : c))
+        setClients((current) =>
+          current.map((entry) => (entry.id === updated.id ? updated : entry)),
         );
-        setSelectedClient((prev) =>
-          prev ? { ...prev, client: updated } : prev
+        setSelectedClient((current) =>
+          current ? { ...current, client: updated } : current,
         );
-        showToast("Profil mis à jour.");
+        showToast("Profil client enregistre.");
       }
 
       setProfileModalOpen(false);
       setProfileDraft(null);
-    } catch (err) {
-      console.error("submitProfile error:", err);
-      showToast("Erreur réseau lors de l'enregistrement du profil.");
+      setRefreshToken((value) => value + 1);
+    } catch (error) {
+      showToast("Erreur reseau pendant l'enregistrement du profil.");
     } finally {
       setProfileSubmitting(false);
     }
   }
 
-  // Filtre clients côté front
-  const filteredClients = clients.filter((c) => {
-    if (!filterClientQuery.trim()) return true;
-    const q = filterClientQuery.toLowerCase();
-    return (
-      (c.fullName || "").toLowerCase().includes(q) ||
-      (c.vehicleModel || "").toLowerCase().includes(q) ||
-      (c.vehiclePlate || "").toLowerCase().includes(q) ||
-      (c.slug || "").toLowerCase().includes(q) ||
-      (c.cardCode || "").toLowerCase().includes(q)
-    );
-  });
+  const sortedGlobalAsc = React.useMemo(
+    () => sortAppointments(globalAppointments, "asc"),
+    [globalAppointments],
+  );
+
+  const pendingRequests = React.useMemo(
+    () =>
+      sortedGlobalAsc.filter((appointment) => appointment.status === "requested"),
+    [sortedGlobalAsc],
+  );
+
+  const upcomingAppointments = React.useMemo(
+    () =>
+      sortedGlobalAsc.filter((appointment) => {
+        if (appointment.status === "cancelled" || appointment.status === "done") {
+          return false;
+        }
+        return appointmentDateTime(appointment).getTime() >= Date.now();
+      }),
+    [sortedGlobalAsc],
+  );
+
+  const filteredClients = React.useMemo(() => {
+    const query = deferredClientQuery.trim().toLowerCase();
+    if (!query) return clients;
+
+    return clients.filter((client) => {
+      const haystack = [
+        client.fullName,
+        client.firstName,
+        client.lastName,
+        client.vehicleModel,
+        client.vehiclePlate,
+        client.slug,
+        client.cardCode,
+        client.city,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [clients, deferredClientQuery]);
 
   const selectedClientData = selectedClient?.client ?? null;
-  const selectedAppointments = selectedClient?.appointments ?? [];
-  // 👉 RDV du client sélectionné, triés du plus récent au plus ancien
-  const sortedSelectedAppointments = React.useMemo(() => {
-    const copy = [...selectedAppointments];
-    copy.sort((a, b) => {
-      const aKey = `${a.date ?? ""}T${a.time ?? "00:00"}`;
-      const bKey = `${b.date ?? ""}T${b.time ?? "00:00"}`;
-      // on inverse pour avoir le plus récent en premier
-      return bKey.localeCompare(aKey);
+
+  const filteredAgendaAppointments = React.useMemo(() => {
+    const query = deferredAppointmentQuery.trim().toLowerCase();
+
+    return sortedGlobalAsc.filter((appointment) => {
+      if (
+        appointmentFilter === "client" &&
+        selectedClientData &&
+        appointment.clientId !== selectedClientData.id
+      ) {
+        return false;
+      }
+
+      if (
+        appointmentFilter !== "all" &&
+        appointmentFilter !== "client" &&
+        appointment.status !== appointmentFilter
+      ) {
+        return false;
+      }
+
+      if (!query) return true;
+      return appointmentSearchText(appointment).includes(query);
     });
-    return copy;
-  }, [selectedAppointments]);
-    // Quand les rendez-vous du client sélectionné sont dispo + deep-link présent → scroll et ouverture
-  React.useEffect(() => {
-    if (!appointmentsSectionRef.current) return;
-    if (!selectedAppointments.length) return;
-    if (!deepLink.appointmentId && !deepLink.date) return;
+  }, [appointmentFilter, deferredAppointmentQuery, selectedClientData, sortedGlobalAsc]);
 
-    let target: AdminAppointment | undefined;
+  const agendaSections = React.useMemo(
+    () => groupAppointmentsByDate(filteredAgendaAppointments),
+    [filteredAgendaAppointments],
+  );
 
-    if (deepLink.appointmentId) {
-      target = selectedAppointments.find(
-        (a) => a.id === deepLink.appointmentId
-      );
+  const activeClientContext =
+    (selectedAppointment &&
+      (selectedClientData?.id === selectedAppointment.clientId
+        ? selectedClientData
+        : clients.find((client) => client.id === selectedAppointment.clientId) ?? null)) ||
+    selectedClientData;
+
+  const contextualClientAppointments = React.useMemo(() => {
+    if (!activeClientContext) return [];
+
+    if (selectedClient?.client.id === activeClientContext.id) {
+      return sortAppointments(selectedClient.appointments ?? [], "asc");
     }
 
-    if (!target && deepLink.date) {
-      target = selectedAppointments.find((a) => a.date === deepLink.date);
-    }
+    return sortAppointments(
+      globalAppointments.filter(
+        (appointment) => appointment.clientId === activeClientContext.id,
+      ),
+      "asc",
+    );
+  }, [activeClientContext, globalAppointments, selectedClient]);
+  const selectedClientAppointments = React.useMemo(
+    () => sortAppointments(selectedClient?.appointments ?? [], "asc"),
+    [selectedClient],
+  );
 
-    if (!target) return;
+  const totalCreditsRemaining = clients.reduce(
+    (sum, client) => sum + (client.formulaRemaining ?? 0),
+    0,
+  );
+  const clientsLowOnCredits = clients.filter((client) => client.formulaRemaining <= 1).length;
+  const doneThisMonth = globalAppointments.filter(
+    (appointment) =>
+      appointment.status === "done" &&
+      appointment.date.startsWith(new Date().toISOString().slice(0, 7)),
+  ).length;
+  const firstPendingRequest = pendingRequests[0] ?? null;
+  const firstUpcomingAppointment = upcomingAppointments[0] ?? null;
+  const adminSection = location.pathname.startsWith("/admin/appointments")
+    ? "appointments"
+    : location.pathname.startsWith("/admin/clients")
+      ? "clients"
+      : "home";
+  const managedClient = selectedClientData;
+  const sectionTitle =
+    adminSection === "appointments"
+      ? "Rendez-vous"
+      : adminSection === "clients"
+        ? "Clients"
+        : "Hall principal";
+  const sectionSubtitle =
+    adminSection === "appointments"
+      ? "Une page dediee aux demandes, au planning et aux actions de validation."
+      : adminSection === "clients"
+        ? "Une page dediee aux fiches, aux credits et au suivi des clients."
+        : "Choisissez une zone de travail, puis ouvrez uniquement l'ecran dont vous avez besoin.";
 
-    setExpandedAppointmentId(target.id);
-    setHighlightAppointmentId(target.id);
+  function appointmentAdminLink(appointment: AdminAppointment) {
+    return `/admin/appointments?clientId=${appointment.clientId}&appointmentId=${appointment.id}`;
+  }
 
-    appointmentsSectionRef.current.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  function clientAdminLink(client: AdminClient) {
+    return `/admin/clients?clientId=${client.id}`;
+  }
 
-    // On consomme le deep-link pour éviter de rescroller à chaque render
-    setDeepLink({ appointmentId: null, date: null });
-  }, [selectedAppointments, deepLink]);
-
-  // Le surlignage disparaît après quelques secondes
-  React.useEffect(() => {
-    if (!highlightAppointmentId) return;
-    const timer = window.setTimeout(() => {
-      setHighlightAppointmentId(null);
-    }, 3000);
-    return () => window.clearTimeout(timer);
-  }, [highlightAppointmentId]);
-
-  // Rendez-vous globaux triés chronologiquement (date + heure)
-  const sortedGlobalAppointments = React.useMemo(() => {
-    const copy = [...globalAppointments];
-    copy.sort((a, b) => {
-      const aKey = `${a.date ?? ""}T${a.time ?? "00:00"}`;
-      const bKey = `${b.date ?? ""}T${b.time ?? "00:00"}`;
-      // 👉 plus récent en premier
-      return bKey.localeCompare(aKey);
-    });
-    return copy;
-  }, [globalAppointments]);
-
-
-  return (
-    <div className="min-h-screen bg-black text-white flex justify-center px-3 py-6">
-      <main className="w-full max-w-6xl space-y-5">
-        {/* Header */}
-        <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.85)]">
-          <div className="p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-2">
-              <div className="inline-flex items-center rounded-full border border-white/15 bg-black/80 px-3 py-1 text-[11px] font-medium tracking-[0.22em] text-neutral-300 uppercase">
-                BlackBox · Admin
-              </div>
+  function renderHomePage() {
+    return (
+      <>
+        <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <article className="bb-surface p-6">
+            <div className="bb-section-head">
               <div>
-                <h1 className="text-xl font-semibold leading-tight tracking-tight text-white">
-                  Tableau de bord detailing
-                </h1>
-                <p className="text-[13px] text-neutral-400 mt-1">
-                  Suivi des cartes NFC, clients et planning de rendez-vous.
-                </p>
+                <p className="bb-eyebrow">Vue rapide</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Les chiffres utiles du jour
+                </h2>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                className="h-9 px-4 text-[12px] rounded-full border-white/20 bg-black/80 hover:bg-white hover:text-black hover:border-white transition-colors"
-                onClick={openCreateProfile}
-              >
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <article className="bb-metric">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  En attente
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-white">
+                  {pendingRequests.length}
+                </p>
+                <p className="mt-2 text-sm text-white/55">Demandes a traiter</p>
+              </article>
+              <article className="bb-metric">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Prochains passages
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-white">
+                  {upcomingAppointments.length}
+                </p>
+                <p className="mt-2 text-sm text-white/55">Agenda actif</p>
+              </article>
+              <article className="bb-metric">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Credits restants
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-white">
+                  {totalCreditsRemaining}
+                </p>
+                <p className="mt-2 text-sm text-white/55">
+                  {clientsLowOnCredits} client(s) en tension
+                </p>
+              </article>
+              <article className="bb-metric">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Effectues ce mois
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-white">
+                  {doneThisMonth}
+                </p>
+                <p className="mt-2 text-sm text-white/55">Prestations cloturees</p>
+              </article>
+            </div>
+          </article>
+
+          <article className="bb-surface p-6">
+            <div className="bb-section-head">
+              <div>
+                <p className="bb-eyebrow">Raccourcis</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Demarrage rapide
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              {firstPendingRequest && (
+                <Link className="bb-button-brand justify-center" to={appointmentAdminLink(firstPendingRequest)}>
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Ouvrir la prochaine demande
+                </Link>
+              )}
+              {firstUpcomingAppointment && (
+                <Link className="bb-button-ghost justify-center" to={appointmentAdminLink(firstUpcomingAppointment)}>
+                  <Clock3 className="mr-2 h-4 w-4" />
+                  Ouvrir le prochain passage
+                </Link>
+              )}
+              <button className="bb-button-ghost justify-center" onClick={openCreateProfile} type="button">
+                <Plus className="mr-2 h-4 w-4" />
                 Nouveau client
-              </Button>
-              <span className="text-[12px] text-neutral-400">
-                {clients.length} client{clients.length > 1 ? "s" : ""}
-              </span>
+              </button>
             </div>
-          </div>
-        </Card>
+          </article>
+        </section>
 
-
-        {/* Layout principal */}
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,3fr)]">
-        {/* Colonne gauche : liste clients */}
-        <Card className="min-h-[260px] rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
-        <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-black border border-white/10">
-                <Users className="h-4 w-4 text-neutral-200" />
-                </div>
-                <div>
-                <p className="text-sm font-semibold text-white">Clients</p>
-                <p className="text-[11px] text-neutral-400">
-                    Cartes, coordonnées et formules.
+        <section className="grid gap-4 xl:grid-cols-2">
+          <article className="bb-surface p-6">
+            <div className="bb-section-head">
+              <div>
+                <p className="bb-eyebrow">Section</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Rendez-vous
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
+                  Toute la gestion du planning, des demandes en attente et des
+                  validations est isolee sur une page dediee.
                 </p>
-                </div>
-            </div>
-            </div>
-
-            <div>
-            <input
-                className="w-full rounded-2xl border border-white/15 bg-black px-3 py-2 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
-                placeholder="Filtrer par nom, véhicule, plaque, slug, code carte…"
-                value={filterClientQuery}
-                onChange={(e) => setFilterClientQuery(e.target.value)}
-            />
+              </div>
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                {pendingRequests.length} attente
+              </div>
             </div>
 
-            {clientsLoading && (
-            <div className="flex justify-center py-8">
-                <div className="flex items-center gap-2 text-[12px] text-neutral-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Chargement des clients…</span>
-                </div>
+            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+              <p className="text-sm leading-6 text-white/62">
+                Vous y retrouvez uniquement l&apos;inbox des demandes, l&apos;agenda
+                filtre et le panneau d&apos;action. Le reste disparait pour garder
+                un ecran plus lisible, surtout sur mobile.
+              </p>
+              <div className="mt-5">
+                <Link className="bb-button-brand" to="/admin/appointments">
+                  Ouvrir la page rendez-vous
+                </Link>
+              </div>
             </div>
-            )}
+          </article>
 
-            {clientsError && !clientsLoading && (
-            <p className="text-[12px] text-rose-400">{clientsError}</p>
-            )}
-
-            {!clientsLoading && filteredClients.length === 0 && (
-            <p className="text-[12px] text-neutral-500">
-                Aucun client ne correspond à ce filtre.
-            </p>
-            )}
-
-            <div className="space-y-1 max-h-[360px] overflow-y-auto pr-1">
-            {filteredClients.map((c) => {
-                const remainingLabel =
-                c.formulaTotal > 0
-                    ? `${c.formulaRemaining} / ${c.formulaTotal}`
-                    : `${c.formulaRemaining}`;
-                const isSelected = c.id === selectedClientId;
-
-                return (
-                <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelectedClientId(c.id)}
-                    className={[
-                    "w-full text-left rounded-2xl border px-3 py-2.5 text-[12px] transition flex flex-col gap-1",
-                    isSelected
-                        ? "border-white/60 bg-white/10"
-                        : "border-white/10 bg-black/70 hover:border-white/40 hover:bg-black",
-                    ].join(" ")}
-                >
-                    <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium truncate text-white">
-                        {c.fullName ?? "Client sans nom"}
-                    </div>
-                    <div
-                        className={
-                        c.formulaRemaining > 0
-                            ? "text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/50"
-                            : "text-[11px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/50"
-                        }
-                    >
-                        {remainingLabel}
-                    </div>
-                    </div>
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-neutral-400">
-                    <span>
-                        {(c.vehicleModel || "—") +
-                        (c.vehiclePlate ? ` · ${c.vehiclePlate}` : "")}
-                    </span>
-                    <span className="text-neutral-500">
-                        {c.slug}
-                        {c.cardCode ? ` · ${c.cardCode}` : ""}
-                    </span>
-                    </div>
-                </button>
-                );
-            })}
+          <article className="bb-surface p-6">
+            <div className="bb-section-head">
+              <div>
+                <p className="bb-eyebrow">Section</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Clients
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
+                  Les fiches client, les credits, la formule, le contact et
+                  l&apos;historique sont rassembles sur une page dediee.
+                </p>
+              </div>
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                {clients.length} fiche(s)
+              </div>
             </div>
-        </div>
-        </Card>
 
-          {/* Colonne droite : détails client + rendez-vous */}
+            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+              <p className="text-sm leading-6 text-white/62">
+                Cette zone sert a retrouver un client, modifier son profil,
+                ajuster ses credits et ouvrir facilement son historique.
+              </p>
+              <div className="mt-5">
+                <Link className="bb-button-brand" to="/admin/clients">
+                  Ouvrir la gestion client
+                </Link>
+              </div>
+            </div>
+          </article>
+        </section>
+      </>
+    );
+  }
+
+  function renderAppointmentsPage() {
+    const visiblePendingRequests = pendingRequests.slice(0, 4);
+    const remainingPendingRequests = Math.max(
+      pendingRequests.length - visiblePendingRequests.length,
+      0,
+    );
+    return (
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
           <div className="space-y-4">
-            {/* Détails client */}
-            <Card className="min-h-[160px] relative z-20 rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_60px_rgba(0,0,0,0.8)]">
-              <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3 mb-1">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-black border border-white/10">
-                      <CalendarDays className="h-4 w-4 text-neutral-200" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Détails client
-                      </p>
-                      <p className="text-[11px] text-neutral-400">
-                        Identité, contact, carte, véhicule et formule.
-                      </p>
-                    </div>
+            <article className="bb-surface p-6">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="bb-eyebrow">Etape 1</p>
+                    <h2 className="mt-2 text-2xl font-semibold text-white">
+                      Choisir un rendez-vous
+                    </h2>
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
+                      Commencez par ouvrir un dossier. Les demandes en attente sont
+                      affichees en premier, puis la liste complete juste en dessous.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {selectedClientData && (
-                      <Button
-                        variant="outline"
-                        className="h-8 px-3.5 text-[12px] rounded-full border-white/20 bg-black/80 hover:bg-white hover:text-black hover:border-white transition-colors"
-                        onClick={openEditProfile}
-                      >
-                        Modifier le profil
-                      </Button>
-                    )}
-                    {clientLoading && (
-                      <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
-                    )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                        En attente
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {pendingRequests.length}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                        Visibles
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {filteredAgendaAppointments.length}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {!selectedClientData && (
-                  <p className="text-[12px] text-neutral-500">
-                    Sélectionne un client dans la liste pour voir les détails.
-                  </p>
-                )}
-
-                {selectedClientData && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[12px]">
-                    {/* Bloc identité + contact */}
-                    <div className="rounded-2xl border border-white/10 bg-black/60 p-3 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
-                        <span className="text-[12px] font-semibold text-white">
-                          Client
-                        </span>
+                {globalAppointmentsLoading ? (
+                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    Chargement des rendez-vous...
+                  </div>
+                ) : pendingRequests.length > 0 ? (
+                  <div className="rounded-[28px] border border-amber-300/20 bg-[#f7b955]/8 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
+                          Priorite
+                        </p>
+                        <h3 className="mt-2 text-xl font-semibold text-white">
+                          Demandes en attente
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-white/62">
+                          Ouvrez un dossier pour le traiter dans la colonne de droite.
+                        </p>
                       </div>
-
-                      <div className="text-[15px] font-semibold text-white">
-                        {selectedClientData.fullName ?? selectedClientData.slug}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-neutral-200">
-                        <span>{selectedClientData.phone ?? "—"}</span>
-                        {selectedClientData.phone && (
-                          <a
-                            href={`tel:${normalizePhoneForTel(
-                              selectedClientData.phone
-                            )}`}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-black/80 hover:bg-white hover:text-black transition-colors"
-                            title="Appeler"
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-neutral-200">
-                        <span className="truncate">
-                          {selectedClientData.email ?? "—"}
-                        </span>
-                        {selectedClientData.email && (
-                          <a
-                            href={`mailto:${selectedClientData.email}`}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-black/80 hover:bg-white hover:text-black transition-colors"
-                            title="Envoyer un mail"
-                          >
-                            <Mail className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
-
-                      <div className="text-[12px] text-neutral-300">
-                        {selectedClientData.company || "Aucune compagnie"}
+                      <div className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
+                        {pendingRequests.length} a traiter
                       </div>
                     </div>
 
-                    {/* Bloc carte */}
-                    <div className="rounded-2xl border border-white/10 bg-black/60 p-3 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
-                        <span className="text-[12px] font-semibold text-white">
-                          Carte / code
-                        </span>
-                      </div>
-                      <div className="text-[14px] font-medium text-white">
-                        {selectedClientData.cardCode ?? selectedClientData.slug}
-                      </div>
-                      <div className="text-[11px] text-neutral-400 mt-0.5">
-                        Slug :{" "}
-                        <span className="text-neutral-200">
-                          {selectedClientData.slug}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bloc véhicule */}
-                    <div className="rounded-2xl border border-white/10 bg-black/60 p-3 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
-                        <span className="text-[12px] font-semibold text-white">
-                          Véhicule
-                        </span>
-                      </div>
-                      <div className="text-[14px] text-white">
-                        {selectedClientData.vehicleModel ?? "Non renseigné"}
-                        {selectedClientData.vehiclePlate
-                          ? ` · ${selectedClientData.vehiclePlate}`
-                          : ""}
-                      </div>
-                    </div>
-
-                    {/* Bloc formule avec menu */}
-                    <div className="rounded-2xl border border-white/10 bg-black/60 p-3 space-y-1.5 relative">
-                      <div className="flex items-center justify-between gap-2 pb-1 mb-1 border-b border-white/10">
-                        <span className="text-[12px] font-semibold text-white">
-                          Formule
-                        </span>
-                        <button
-                          type="button"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-black/80 hover:bg-white hover:text-black transition-colors"
-                          onClick={() =>
-                            setFormulaMenuOpen((open) => !open)
-                          }
-                          disabled={busyFormula}
-                          title="Options formule"
-                        >
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="space-y-0.5">
-                        <div className="text-[14px] text-white">
-                          {selectedClientData.formulaName ?? "Aucune formule"}
-                        </div>
-                        <div className="text-[12px] text-neutral-300">
-                          Nettoyages restants :{" "}
-                          <span
-                            className={
-                              selectedClientData.formulaRemaining > 0
-                                ? "text-emerald-300"
-                                : "text-rose-300"
-                            }
-                          >
-                            {selectedClientData.formulaTotal > 0
-                              ? `${selectedClientData.formulaRemaining} / ${selectedClientData.formulaTotal}`
-                              : selectedClientData.formulaRemaining}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Menu rapide formule */}
-                      {formulaMenuOpen && !formulaEditOpen && (
-                        <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-white/15 bg-black/95 p-2.5 text-[12px] shadow-2xl z-40">
+                    <div className="mt-5 space-y-3">
+                      {visiblePendingRequests.map((appointment) => {
+                        const active = appointment.id === selectedAppointmentId;
+                        return (
                           <button
+                            className={cn(
+                              "w-full rounded-[24px] border p-4 text-left transition duration-200",
+                              active
+                                ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                                : "border-white/10 bg-black/20 hover:bg-white/[0.05]",
+                            )}
+                            key={appointment.id}
+                            onClick={() => focusAppointment(appointment)}
                             type="button"
-                            className="w-full rounded-xl px-2.5 py-1.5 text-left hover:bg-white/5 text-neutral-100"
-                            disabled={busyFormula}
-                            onClick={() => updateFormula("reset")}
                           >
-                            Remettre au max ({selectedClientData.formulaTotal})
-                          </button>
-                          <button
-                            type="button"
-                            className="mt-1 w-full rounded-xl px-2.5 py-1.5 text-left hover:bg-rose-950/40 text-rose-300"
-                            disabled={busyFormula}
-                            onClick={() => updateFormula("empty")}
-                          >
-                            Vider le forfait (0 restant)
-                          </button>
-                          <button
-                            type="button"
-                            className="mt-1 w-full rounded-xl px-2.5 py-1.5 text-left hover:bg-white/5 text-neutral-100"
-                            disabled={busyFormula}
-                            onClick={openFormulaEdit}
-                          >
-                            Modifier les valeurs…
-                          </button>
-                        </div>
-                      )}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
+                                    {slotLabel(appointmentSlot(appointment))}
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                      locationClasses(appointment.location),
+                                    )}
+                                  >
+                                    {locationLabel(appointment.location)}
+                                  </div>
+                                </div>
 
-                      {/* Formulaire d'édition détaillée */}
-                      {formulaEditOpen && (
-                        <div className="mt-3 rounded-2xl border border-white/15 bg-black/95 p-3 space-y-2.5 text-[12px]">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="font-medium text-white">
-                              Modifier la formule
-                            </p>
-                            <button
-                              type="button"
-                              className="text-neutral-400 hover:text-white text-[11px]"
-                              onClick={() => setFormulaEditOpen(false)}
-                              disabled={busyFormula}
-                            >
-                              Fermer
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <label className="space-y-1">
-                              <span className="text-neutral-300 text-[11px]">
-                                Max nettoyages
-                              </span>
-                              <input
-                                type="number"
-                                min={0}
-                                className="w-full rounded-lg border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white focus:outline-none focus:ring-1 focus:ring-white/60"
-                                value={
-                                  formulaDraftTotal ??
-                                  selectedClientData.formulaTotal
-                                }
-                                onChange={(e) =>
-                                  setFormulaDraftTotal(
-                                    e.target.value === ""
-                                      ? null
-                                      : Number(e.target.value)
-                                  )
-                                }
-                              />
-                            </label>
-                            <label className="space-y-1">
-                              <span className="text-neutral-300 text-[11px]">
-                                Restants
-                              </span>
-                              <input
-                                type="number"
-                                min={0}
-                                className="w-full rounded-lg border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white focus:outline-none focus:ring-1 focus:ring-white/60"
-                                value={
-                                  formulaDraftRemaining ??
-                                  selectedClientData.formulaRemaining
-                                }
-                                onChange={(e) =>
-                                  setFormulaDraftRemaining(
-                                    e.target.value === ""
-                                      ? null
-                                      : Number(e.target.value)
-                                  )
-                                }
-                              />
-                            </label>
-                          </div>
-                          <div className="flex justify-end gap-2 pt-1">
-                            <Button
-                              variant="outline"
-                              className="h-8 px-3 text-[12px] rounded-full border-white/20 bg-black hover:bg-white hover:text-black"
-                              disabled={busyFormula}
-                              onClick={() => setFormulaEditOpen(false)}
-                            >
-                              Annuler
-                            </Button>
-                          </div>
-                          <div className="flex justify-end pt-1">
-                            <Button
-                              className="h-8 px-3 text-[12px] rounded-full bg-white text-black hover:bg-neutral-200"
-                              disabled={busyFormula}
-                              onClick={() => updateFormula("custom")}
-                            >
-                              Enregistrer
-                            </Button>
-                          </div>
-                        </div>
-                      )}
+                                <h4 className="mt-3 text-lg font-semibold text-white">
+                                  {appointment.clientName || "Client"}
+                                </h4>
+                                <p className="mt-1 text-sm text-white/58">
+                                  {formatDateFR(appointment.date)} -{" "}
+                                  {slotWindowLabel(appointmentSlot(appointment))} -{" "}
+                                  {formatTimeHHMM(appointment.time)}
+                                </p>
+                                <p className="mt-2 text-sm text-white/58">
+                                  {appointment.vehicleModel || "Vehicule non renseigne"}
+                                  {appointment.vehiclePlate
+                                    ? ` / ${appointment.vehiclePlate}`
+                                    : ""}
+                                </p>
+                              </div>
+
+                              <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
+                                Ouvrir le dossier
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
+
+                    {remainingPendingRequests > 0 && (
+                      <p className="mt-4 text-sm text-white/55">
+                        {remainingPendingRequests} autre(s) demande(s) restent visibles dans la liste complete ci-dessous.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-[28px] border border-emerald-300/20 bg-emerald-300/10 p-5">
+                    <p className="text-lg font-semibold text-white">
+                      Rien en attente pour le moment
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/65">
+                      La liste ci-dessous contient maintenant uniquement le planning a suivre.
+                    </p>
                   </div>
                 )}
               </div>
-            </Card>
+            </article>
 
-            {/* Rendez-vous du client sélectionné */}
-            <Card className="min-h-[220px] relative z-10 rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
-            <div ref={appointmentsSectionRef} className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-white">
-                    Rendez-vous du client sélectionné
-                </p>
-                <span className="text-[11px] text-neutral-400">
-                    {selectedAppointments.length} rdv
-                </span>
-                </div>
-
-                {!selectedClientData && (
-                <p className="text-[12px] text-neutral-500">
-                    Sélectionne un client pour voir / gérer ses rendez-vous.
-                </p>
-                )}
-
-                {selectedClientData && selectedAppointments.length === 0 && (
-                <p className="text-[12px] text-neutral-500">
-                    Aucun rendez-vous pour ce client pour le moment.
-                </p>
-                )}
-                
-                {selectedClientData && selectedAppointments.length > 0 && (
-                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                    {sortedSelectedAppointments.map((a) => {
-                      const isExpanded = expandedAppointmentId === a.id;
-                      const isHighlighted = highlightAppointmentId === a.id;
-
-                      return (
-                        <div
-                          key={a.id}
-                          className={[
-                            "rounded-2xl border px-3 py-2 text-[12px] bg-black/70 transition-colors",
-                            isExpanded
-                              ? "border-white/40"
-                              : "border-white/10",
-                            isHighlighted
-                              ? "ring-2 ring-sky-500/70 border-sky-500/70"
-                              : "",
-                          ].join(" ")}
-                        >
-                          {/* Barre principale cliquable */}
-                          <div
-                            className="flex flex-wrap items-center justify-between gap-2 cursor-pointer"
-                            onClick={() =>
-                              setExpandedAppointmentId((prev) => {
-                                const next = prev === a.id ? null : a.id;
-                                if (next !== null) {
-                                  // on charge les photos à l'ouverture
-                                  void loadAppointmentPhotosAdmin(next);
-                                } else {
-                                  setCurrentPhotos([]);
-                                  setPhotoFormCaption("");
-                                }
-                                return next;
-                              })
-                            }
-                          >
-
-                          <div className="space-y-0.5">
-                            <div className="font-medium text-white">
-                              {formatDate(a.date)}{" "}
-                              {a.time && (
-                                <span className="text-neutral-400">
-                                  · {formatTime(a.time)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-neutral-400">
-                              {selectedClientData.fullName ??
-                                selectedClientData.slug ??
-                                "Client"}
-                            </div>
-                            <div className="mt-0.5">
-                              <span
-                                className={
-                                  "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] " +
-                                  locationClasses(a.location)
-                                }
-                              >
-                                {locationLabel(a.location)}
-                              </span>
-                            </div>
-                          </div>
-
-                            {/* Statut + boutons (clics qui ne replient pas) */}
-                            <div
-                              className="flex flex-col items-end gap-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div
-                                className={
-                                  "px-2 py-0.5 rounded-full text-[10px] " +
-                                  statusClasses(a.status)
-                                }
-                              >
-                                {statusLabel(a.status)}
-                              </div>
-                              <div className="flex flex-wrap gap-1.5 justify-end">
-                                {a.status === "requested" && (
-                                  <>
-                                    <Button
-                                      variant="outline"
-                                      className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                                      disabled={busyAction}
-                                      onClick={() =>
-                                        changeStatus(a.id, "confirmed")
-                                      }
-                                    >
-                                      Confirmer
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      className="h-7 px-2 text-[11px] rounded-full border-rose-500/70 text-rose-300 hover:bg-rose-500/15"
-                                      disabled={busyAction}
-                                      onClick={() =>
-                                        changeStatus(a.id, "cancelled")
-                                      }
-                                    >
-                                      Annuler
-                                    </Button>
-                                  </>
-                                )}
-
-                                {a.status === "confirmed" && (
-                                  <>
-                                    <Button
-                                      className="h-7 px-2 text-[11px] rounded-full bg-white text-black hover:bg-neutral-200"
-                                      disabled={busyAction}
-                                      onClick={() =>
-                                        changeStatus(a.id, "done")
-                                      }
-                                    >
-                                      Marquer effectué
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      className="h-7 px-2 text-[11px] rounded-full border-rose-500/70 text-rose-300 hover:bg-rose-500/15"
-                                      disabled={busyAction}
-                                      onClick={() =>
-                                        changeStatus(a.id, "cancelled")
-                                      }
-                                    >
-                                      Annuler
-                                    </Button>
-                                  </>
-                                )}
-
-                                {a.status === "done" && (
-                                  <Button
-                                    variant="outline"
-                                    className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                                    disabled={busyAction}
-                                    onClick={() =>
-                                      changeStatus(a.id, "confirmed")
-                                    }
-                                  >
-                                    Repasser en confirmé
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Partie déroulante : note + photos */}
-                          {isExpanded && (
-                            <div
-                              className="mt-2 pt-2 border-t border-white/10 space-y-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {/* Note admin */}
-                              <div className="space-y-1">
-                                <div className="text-[11px] font-semibold text-white">
-                                  Compte-rendu / note interne
-                                </div>
-                                <textarea
-                                  rows={2}
-                                  className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
-                                  placeholder="Ex : lavage complet extérieur + protection céramique, client très satisfait…"
-                                  value={
-                                    noteDrafts[a.id] ?? a.adminNote ?? ""
-                                  }
-                                  onChange={(e) =>
-                                    setNoteDrafts((prev) => ({
-                                      ...prev,
-                                      [a.id]: e.target.value,
-                                    }))
-                                  }
-                                />
-                                <div className="flex justify-end">
-                                  <Button
-                                    variant="outline"
-                                    className="h-7 px-3 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                                    disabled={busyAction}
-                                    onClick={() => saveAppointmentDetails(a.id)}
-                                  >
-                                    Enregistrer
-                                  </Button>
-                                </div>
-                              </div>
-
-                              {/* Bloc photos */}
-                              <div className="border-t border-white/10 pt-2 mt-1 space-y-2">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <ImageIcon className="h-3.5 w-3.5 text-neutral-300" />
-                                    <span className="text-[11px] font-semibold text-white">
-                                      Photos du véhicule
-                                    </span>
-                                  </div>
-                                </div>
-
-                              {/* Formulaire ajout fichier + légende */}
-                              <div className="space-y-2">
-                                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-                                  <div className="flex-1 space-y-1">
-                                    <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                                      Fichier (ordinateur / téléphone)
-                                    </span>
-                                    <input
-                                      ref={fileInputRef}
-                                      type="file"
-                                      accept="image/*"
-                                      className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white
-                                                file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px]
-                                                file:font-medium file:bg-white file:text-black"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0] ?? null;
-                                        setPhotoFile(file);
-                                      }}
-                                    />
-                                    <p className="text-[10px] text-neutral-500">
-                                      Sur téléphone, cela ouvre la galerie (et souvent l'appareil photo).
-                                    </p>
-                                  </div>
-                                  <div className="flex-1 space-y-1">
-                                    <span className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                                      Légende (optionnel)
-                                    </span>
-                                    <input
-                                      className="w-full rounded-xl border border-white/15 bg-black px-2 py-1.5 text-[12px] text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-white/60"
-                                      placeholder="Ex : Avant / Après, détail jantes…"
-                                      value={photoFormCaption}
-                                      onChange={(e) => setPhotoFormCaption(e.target.value)}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-
-                                {/* Liste des photos */}
-                                <div className="space-y-1.5">
-                                  {photosLoading ? (
-                                    <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      <span>Chargement des photos…</span>
-                                    </div>
-                                  ) : currentPhotos.length === 0 ? (
-                                    <p className="text-[11px] text-neutral-500">
-                                      Aucune photo enregistrée pour ce rendez-vous.
-                                    </p>
-                                  ) : (
-                                    <div className="flex gap-2 overflow-x-auto pb-1">
-                                      {currentPhotos.map((p) => (
-                                        <a
-                                          key={p.id}
-                                          href={p.url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="min-w-[96px] max-w-[120px] rounded-xl overflow-hidden border border-white/15 bg-black/60"
-                                          title={p.caption || undefined}
-                                        >
-                                          <img
-                                            src={p.url}
-                                            alt={p.caption || "Photo rendez-vous"}
-                                            className="w-full h-24 object-cover"
-                                          />
-                                        </a>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-            </div>
-            </Card>
-          </div>
-        </div>
-
-            {/* Rendez-vous globaux sur toute la largeur */}
-            <Card className="rounded-3xl border border-white/10 bg-neutral-950/95 shadow-[0_18px_50px_rgba(0,0,0,0.75)]">
-            <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-white">
-                    Tous les rendez-vous (ordre chronologique)
-                </p>
-                <span className="text-[11px] text-neutral-400">
-                    {sortedGlobalAppointments.length} affichés
-                </span>
-                </div>
-
-                {globalApptsLoading && (
-                <div className="flex justify-center py-6">
-                    <div className="flex items-center gap-2 text-[12px] text-neutral-400">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Chargement des rendez-vous…</span>
-                    </div>
-                </div>
-                )}
-
-                {!globalApptsLoading && sortedGlobalAppointments.length === 0 && (
-                <p className="text-[12px] text-neutral-500">
-                    Aucun rendez-vous enregistré pour le moment.
-                </p>
-                )}
-
-                {!globalApptsLoading && sortedGlobalAppointments.length > 0 && (
-                <div className="space-y-1 max-h-[260px] overflow-y-auto pr-1 text-[12px]">
-                    {sortedGlobalAppointments.map((a) => (
-                    <div
-                        key={a.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/70 px-3 py-2"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="font-medium text-white">
-                          {formatDate(a.date)}{" "}
-                          {a.time && (
-                            <span className="text-neutral-400">
-                              · {formatTime(a.time)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-neutral-400">
-                          {a.clientName ?? "Client ?"}{" "}
-                          {a.vehicleModel && (
-                            <>
-                              · {a.vehicleModel}
-                              {a.vehiclePlate ? ` (${a.vehiclePlate})` : ""}
-                            </>
-                          )}
-                        </div>
-                        <div className="mt-0.5">
-                          <span
-                            className={
-                              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] " +
-                              locationClasses(a.location)
-                            }
-                          >
-                            {locationLabel(a.location)}
-                          </span>
-                        </div>
-                      </div>
-
-                        <div className="flex items-center gap-2">
-                        <div
-                            className={
-                            "px-2 py-0.5 rounded-full text-[10px] " +
-                            statusClasses(a.status)
-                            }
-                        >
-                            {statusLabel(a.status)}
-                        </div>
-                        <Button
-                            variant="outline"
-                            className="h-7 px-2 text-[11px] rounded-full border-white/30 bg-black/80 hover:bg-white hover:text-black"
-                            onClick={() => {
-                            setSelectedClientId(a.clientId);
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                        >
-                            Voir client
-                        </Button>
-                        </div>
-                    </div>
-                    ))}
-                </div>
-                )}
-            </div>
-            </Card>
-
-        {/* Modal profil client (création / édition) */}
-        {profileModalOpen && profileDraft && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-3">
-            <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-black/95 px-4 py-3 shadow-[0_24px_80px_rgba(0,0,0,1)]">
-              <div className="flex items-center justify-between gap-2 mb-3">
+            <section className="bb-surface p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-white">
-                    {profileMode === "new"
-                      ? "Nouveau client"
-                      : "Modifier le profil"}
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                    Liste complete
                   </p>
-                  <p className="text-[11px] text-neutral-400">
-                    Nom, contact, véhicule, formule…
+                  <h3 className="mt-2 text-xl font-semibold text-white">
+                    Tous les rendez-vous
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
+                    Recherchez un client ou filtrez un statut pour retrouver rapidement le bon dossier.
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  className="h-7 px-3 text-[11px] rounded-full"
-                  onClick={() => {
-                    setProfileModalOpen(false);
-                    setProfileDraft(null);
-                  }}
-                  disabled={profileSubmitting}
-                >
-                  Fermer
-                </Button>
+                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                  {filteredAgendaAppointments.length} resultat(s)
+                </div>
               </div>
 
-              {profileMode === "new" && (
-                <div className="mb-2 text-[11px] text-white0">
-                  Le code carte sera généré automatiquement (BBX-00X) et ne
-                  pourra pas être modifié.
+              <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                  <input
+                    className="bb-input pl-11"
+                    onChange={(event) => setAppointmentQuery(event.target.value)}
+                    placeholder="Client, vehicule, plaque, note, date..."
+                    value={appointmentQuery}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {APPOINTMENT_FILTERS.map((filter) => (
+                    <button
+                      className={cn(
+                        "rounded-full border px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                        appointmentFilter === filter.key
+                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                          : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
+                      )}
+                      key={filter.key}
+                      onClick={() => setAppointmentFilter(filter.key)}
+                      type="button"
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-5">
+                {globalAppointmentsLoading ? (
+                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    Chargement de l'agenda...
+                  </div>
+                ) : agendaSections.length === 0 ? (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
+                    <p className="text-lg font-semibold text-white">
+                      Aucun rendez-vous sur ce filtre
+                    </p>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
+                      Elargissez le filtre ou la recherche pour retrouver un autre dossier.
+                    </p>
+                  </div>
+                ) : (
+                  agendaSections.map((section) => (
+                    <div key={section.date}>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                            Jour
+                          </p>
+                          <h4 className="mt-1 text-lg font-semibold capitalize text-white">
+                            {formatDateFR(section.date, { weekday: "long" })}
+                          </h4>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                          {section.items.length} rdv
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {section.items.map((appointment) => {
+                          const active = appointment.id === selectedAppointmentId;
+                          const highlighted = appointment.id === highlightAppointmentId;
+
+                          return (
+                            <button
+                              className={cn(
+                                "w-full rounded-[22px] border p-4 text-left transition duration-200",
+                                active
+                                  ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                                  : "border-white/10 bg-black/20 hover:bg-white/[0.05]",
+                                highlighted && "ring-1 ring-[#f7b955]/40",
+                              )}
+                              key={appointment.id}
+                              onClick={() => focusAppointment(appointment)}
+                              type="button"
+                            >
+                              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div
+                                      className={cn(
+                                        "bb-pill",
+                                        appointmentStatusClasses(appointment.status),
+                                      )}
+                                    >
+                                      {appointmentStatusLabel(appointment.status)}
+                                    </div>
+                                    <div
+                                      className={cn(
+                                        "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                        locationClasses(appointment.location),
+                                      )}
+                                    >
+                                      {locationLabel(appointment.location)}
+                                    </div>
+                                    <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
+                                      {slotLabel(appointmentSlot(appointment))}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="text-lg font-semibold text-white">
+                                      {slotWindowLabel(appointmentSlot(appointment))} ·{" "}
+                                      {formatTimeHHMM(appointment.time)} -{" "}
+                                      {appointment.clientName || "Client"}
+                                    </h4>
+                                    <p className="mt-1 text-sm text-white/58">
+                                      {appointment.vehicleModel || "Vehicule"}
+                                      {appointment.vehiclePlate
+                                        ? ` / ${appointment.vehiclePlate}`
+                                        : ""}
+                                    </p>
+                                  </div>
+
+                                  <p className="max-w-2xl text-sm leading-6 text-white/58">
+                                    {previewText(
+                                      appointment.adminNote || appointment.clientNote,
+                                      "Aucune note enregistree sur ce rendez-vous.",
+                                    )}
+                                  </p>
+                                </div>
+
+                                <p className="text-sm leading-6 text-white/55 md:max-w-xs md:text-right">
+                                  {previewText(
+                                    appointment.adminNote || appointment.clientNote,
+                                    "Aucune note sur ce rendez-vous.",
+                                  )}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+
+          <aside className="xl:sticky xl:top-6 xl:self-start">
+            <article className="bb-surface self-start p-6" ref={appointmentWorkspaceRef}>
+              <div className="bb-section-head">
+                <div>
+                  <p className="bb-eyebrow">Etape 2</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                    {selectedAppointment ? "Traiter ce rendez-vous" : "Traiter ce rendez-vous"}
+                  </h2>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-white/62">
+                    Toute l'action se fait ici: changer le statut, garder une note interne et ajouter des photos.
+                  </p>
+                </div>
+                {selectedAppointment && (
+                  <div
+                    className={cn(
+                      "bb-pill",
+                      appointmentStatusClasses(selectedAppointment.status),
+                    )}
+                  >
+                    {appointmentStatusLabel(selectedAppointment.status)}
+                  </div>
+                )}
+              </div>
+
+              {!selectedAppointment ? (
+                <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                  <p className="text-lg font-semibold text-white">Aucun rendez-vous selectionne</p>
+                  <p className="mt-2 text-sm leading-6 text-white/62">
+                    Choisissez une ligne a gauche. La fiche de traitement s'ouvre ici automatiquement.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                          Resume
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold text-white">
+                          {selectedAppointment.clientName || "Client"}
+                        </h3>
+                        <p className="mt-2 text-sm text-white/58">
+                          {formatDateFR(selectedAppointment.date)} - {slotLabel(
+                            appointmentSlot(selectedAppointment),
+                          )}{" "}
+                          {slotWindowLabel(appointmentSlot(selectedAppointment))} ·{" "}
+                          {formatTimeHHMM(selectedAppointment.time)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                          {slotLabel(appointmentSlot(selectedAppointment))}
+                        </div>
+                        <div
+                          className={cn(
+                            "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                            locationClasses(selectedAppointment.location),
+                          )}
+                        >
+                          {locationLabel(selectedAppointment.location)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <button
+                        className="bb-button-brand justify-center"
+                        disabled={busyAction || selectedAppointment.status === "confirmed"}
+                        onClick={() => {
+                          void changeStatus(selectedAppointment.id, "confirmed");
+                        }}
+                        type="button"
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Confirmer
+                      </button>
+                      <button
+                        className="bb-button-danger justify-center"
+                        disabled={busyAction || selectedAppointment.status === "cancelled"}
+                        onClick={() => {
+                          void changeStatus(selectedAppointment.id, "cancelled");
+                        }}
+                        type="button"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Annuler
+                      </button>
+                      <button
+                        className="bb-button-ghost justify-center"
+                        disabled={busyAction || selectedAppointment.status === "requested"}
+                        onClick={() => {
+                          void changeStatus(selectedAppointment.id, "requested");
+                        }}
+                        type="button"
+                      >
+                        <Clock3 className="mr-2 h-4 w-4" />
+                        Repasser en attente
+                      </button>
+                      <button
+                        className="bb-button-ghost justify-center"
+                        disabled={busyAction || selectedAppointment.status === "done"}
+                        onClick={() => {
+                          void changeStatus(selectedAppointment.id, "done");
+                        }}
+                        type="button"
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Marquer effectue
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Infos utiles
+                    </p>
+                    <div className="mt-4 grid gap-3">
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Vehicule
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-white">
+                          {selectedAppointment.vehicleModel || "Vehicule non renseigne"}
+                          {selectedAppointment.vehiclePlate
+                            ? ` / ${selectedAppointment.vehiclePlate}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Message client
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-white/60">
+                          {selectedAppointment.clientNote || "Aucun message client."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Suivi interne
+                    </p>
+                    <textarea
+                      className="bb-textarea mt-4"
+                      onChange={(event) =>
+                        setNoteDrafts((current) => ({
+                          ...current,
+                          [selectedAppointment.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Compte-rendu, preparation, particularites du vehicule..."
+                      value={noteDrafts[selectedAppointment.id] ?? ""}
+                    />
+                    <button
+                      className="bb-button-brand mt-4"
+                      disabled={busyAction}
+                      onClick={() => {
+                        void saveAppointmentWorkspace(selectedAppointment.id);
+                      }}
+                      type="button"
+                    >
+                      <Save className="mr-2 h-4 w-4" />
+                      Enregistrer
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                          Photos
+                        </p>
+                        <p className="mt-2 text-sm text-white/58">
+                          Ajoute tes visuels directement sur le dossier actif.
+                        </p>
+                      </div>
+                      {photosLoading && (
+                        <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid gap-3">
+                      <label className="rounded-[22px] border border-dashed border-white/15 bg-white/[0.03] p-4 text-sm text-white/65">
+                        <div className="flex items-center gap-2">
+                          <Camera className="h-4 w-4 text-[#f7b955]" />
+                          {photoFile ? photoFile.name : "Choisir une photo"}
+                        </div>
+                        <input
+                          className="sr-only"
+                          onChange={(event) => {
+                            setPhotoFile(event.target.files?.[0] ?? null);
+                          }}
+                          ref={fileInputRef}
+                          type="file"
+                        />
+                      </label>
+                      <input
+                        className="bb-input"
+                        onChange={(event) => setPhotoFormCaption(event.target.value)}
+                        placeholder="Legende optionnelle"
+                        value={photoFormCaption}
+                      />
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                      {!photosLoading && currentPhotos.length === 0 && (
+                        <>
+                          {Array.from({ length: 3 }).map((_, index) => (
+                            <div
+                              className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-black/15 text-center text-xs uppercase tracking-[0.16em] text-white/30"
+                              key={index}
+                            >
+                              Aucune photo
+                            </div>
+                          ))}
+                        </>
+                      )}
+
+                      {currentPhotos.map((photo) => (
+                        <a
+                          className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                          href={photo.url}
+                          key={photo.id}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <img
+                            alt={photo.caption || "Photo rendez-vous"}
+                            className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                            src={photo.url}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </article>
+
+            <article className="hidden">
+              <div className="bb-section-head">
+                <div>
+                  <p className="bb-eyebrow">Client contextuel</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                    {activeClientContext
+                      ? fullClientName(activeClientContext)
+                      : "Aucun client"}
+                  </h2>
+                </div>
+                {activeClientContext && (
+                  <Link className="bb-button-ghost" to={clientAdminLink(activeClientContext)}>
+                    Ouvrir la fiche
+                  </Link>
+                )}
+              </div>
+
+              {clientLoading || isNavigatingSelection ? (
+                <div className="mt-6 bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                  Chargement du contexte client...
+                </div>
+              ) : activeClientContext ? (
+                <>
+                  <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                          {activeClientContext.cardCode || "Sans code"}
+                        </div>
+                        <h3 className="mt-4 text-2xl font-semibold text-white">
+                          {fullClientName(activeClientContext)}
+                        </h3>
+                        <p className="mt-2 text-sm text-white/58">
+                          {activeClientContext.vehicleModel || "Vehicule non renseigne"}
+                          {activeClientContext.vehiclePlate
+                            ? ` / ${activeClientContext.vehiclePlate}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Credits
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-white">
+                          {activeClientContext.formulaRemaining}
+                          <span className="ml-1 text-sm text-white/35">
+                            / {activeClientContext.formulaTotal}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 space-y-3 text-sm text-white/65">
+                      <p>{activeClientContext.phone || "Telephone non renseigne"}</p>
+                      <p>{activeClientContext.email || "Email non renseigne"}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Historique rapide
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      {contextualClientAppointments.length === 0 ? (
+                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                          <p className="text-sm text-white/60">
+                            Aucun rendez-vous encore rattache a ce client.
+                          </p>
+                        </div>
+                      ) : (
+                        contextualClientAppointments.map((appointment) => (
+                          <Link
+                            className={cn(
+                              "block w-full rounded-[22px] border p-4 text-left transition duration-200",
+                              appointment.id === selectedAppointmentId
+                                ? "border-[#f7b955]/45 bg-[#f7b955]/10"
+                                : "border-white/10 bg-black/20 hover:bg-white/[0.05]",
+                            )}
+                            key={appointment.id}
+                            to={appointmentAdminLink(appointment)}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">
+                                  {formatDateFR(appointment.date)} - {slotLabel(
+                                    appointmentSlot(appointment),
+                                  )} · {formatTimeHHMM(appointment.time)}
+                                </p>
+                                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/45">
+                                  {appointmentPrimaryAction(appointment.status)}
+                                </p>
+                              </div>
+                              <div
+                                className={cn(
+                                  "bb-pill",
+                                  appointmentStatusClasses(appointment.status),
+                                )}
+                              >
+                                {appointmentStatusLabel(appointment.status)}
+                              </div>
+                            </div>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                  <p className="text-sm leading-6 text-white/62">
+                    Aucun client contextuel disponible sur le panneau pour le moment.
+                  </p>
                 </div>
               )}
+            </article>
+          </aside>
+        </section>
+    );
+  }
 
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1.5 text-[12px] scrollbar-thin scrollbar-thumb-slate-700/70 scrollbar-track-transparent">
-                {/* Identité */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Prénom
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.firstName}
-                      onChange={(e) =>
-                        updateProfileDraft("firstName", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Nom
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.lastName}
-                      onChange={(e) =>
-                        updateProfileDraft("lastName", e.target.value)
-                      }
-                    />
-                  </label>
-                </div>
+  function renderClientsPage() {
+    return (
+      <>
+        <section className="grid gap-3 md:grid-cols-3">
+          <article className="bb-metric">
+            <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+              Fiches visibles
+            </p>
+            <p className="mt-3 text-3xl font-semibold text-white">
+              {filteredClients.length}
+            </p>
+            <p className="mt-2 text-sm text-white/55">Clients filtres</p>
+          </article>
+          <article className="bb-metric">
+            <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+              En tension
+            </p>
+            <p className="mt-3 text-3xl font-semibold text-white">
+              {clientsLowOnCredits}
+            </p>
+            <p className="mt-2 text-sm text-white/55">Credits bas</p>
+          </article>
+          <article className="bb-metric">
+            <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+              Credits cumules
+            </p>
+            <p className="mt-3 text-3xl font-semibold text-white">
+              {totalCreditsRemaining}
+            </p>
+            <p className="mt-2 text-sm text-white/55">Base client</p>
+          </article>
+        </section>
 
-                <label className="space-y-1">
-                  <span className="text-neutral-400 text-[11px]">
-                    Compagnie (optionnel)
-                  </span>
-                  <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    value={profileDraft.company}
-                    onChange={(e) =>
-                      updateProfileDraft("company", e.target.value)
-                    }
-                  />
-                </label>
-
-                {/* Contact */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Téléphone
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.phone}
-                      onChange={(e) =>
-                        updateProfileDraft("phone", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Email
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.email}
-                      onChange={(e) =>
-                        updateProfileDraft("email", e.target.value)
-                      }
-                    />
-                  </label>
-                </div>
-
-                {/* Adresse */}
-                <label className="space-y-1">
-                  <span className="text-neutral-400 text-[11px]">
-                    Adresse
-                  </span>
-                  <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    value={profileDraft.addressLine1}
-                    onChange={(e) =>
-                      updateProfileDraft("addressLine1", e.target.value)
-                    }
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-neutral-400 text-[11px]">
-                    Complément
-                  </span>
-                  <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    value={profileDraft.addressLine2}
-                    onChange={(e) =>
-                      updateProfileDraft("addressLine2", e.target.value)
-                    }
-                  />
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Code postal
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.postalCode}
-                      onChange={(e) =>
-                        updateProfileDraft("postalCode", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Ville
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.city}
-                      onChange={(e) =>
-                        updateProfileDraft("city", e.target.value)
-                      }
-                    />
-                  </label>
-                </div>
-
-                {/* Véhicule */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Véhicule
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.vehicleModel}
-                      onChange={(e) =>
-                        updateProfileDraft("vehicleModel", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Plaque
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.vehiclePlate}
-                      onChange={(e) =>
-                        updateProfileDraft("vehiclePlate", e.target.value)
-                      }
-                    />
-                  </label>
-                </div>
-
-                {/* Formule (optionnel) */}
-                <label className="space-y-1">
-                  <span className="text-neutral-400 text-[11px]">
-                    Nom de la formule
-                  </span>
-                  <input
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    value={profileDraft.formulaName}
-                    onChange={(e) =>
-                      updateProfileDraft("formulaName", e.target.value)
-                    }
-                  />
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Max nettoyages
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.formulaTotal}
-                      onChange={(e) =>
-                        updateProfileDraft("formulaTotal", e.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-neutral-400 text-[11px]">
-                      Restants
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      value={profileDraft.formulaRemaining}
-                      onChange={(e) =>
-                        updateProfileDraft(
-                          "formulaRemaining",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-
-                {/* Notes */}
-                <label className="space-y-1">
-                  <span className="text-neutral-400 text-[11px]">
-                    Notes internes
-                  </span>
-                  <textarea
-                    rows={3}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-2 py-1.5 text-[12px] text-neutral-200 placeholder:text-white0 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    value={profileDraft.notes}
-                    onChange={(e) =>
-                      updateProfileDraft("notes", e.target.value)
-                    }
-                  />
-                </label>
+        <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+          <aside className="bb-surface p-5">
+            <div className="bb-section-head">
+              <div>
+                <p className="bb-eyebrow">Clients</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">
+                  Bibliotheque rapide
+                </h2>
               </div>
-
-              <div className="mt-3 flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  className="h-8 px-3 text-[12px] rounded-full"
-                  onClick={() => {
-                    setProfileModalOpen(false);
-                    setProfileDraft(null);
-                  }}
-                  disabled={profileSubmitting}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  className="h-8 px-3 text-[12px] rounded-full"
-                  onClick={submitProfile}
-                  disabled={profileSubmitting}
-                >
-                  {profileMode === "new"
-                    ? "Créer le client"
-                    : "Enregistrer"}
-                </Button>
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                <Users className="h-3.5 w-3.5 text-[#f7b955]" />
+                {filteredClients.length}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Toast */}
-        {toast && (
-          <div className="fixed bottom-4 inset-x-0 flex justify-center z-40">
-            <div className="max-w-xs rounded-full bg-slate-950/95 border border-slate-700 px-3.5 py-2 text-[12px] text-neutral-200 shadow-lg">
-              {toast}
+            <div className="mt-5 grid gap-3">
+              <button className="bb-button-brand justify-center" onClick={openCreateProfile} type="button">
+                <Plus className="mr-2 h-4 w-4" />
+                Nouveau client
+              </button>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                <input
+                  className="bb-input pl-11"
+                  onChange={(event) => setFilterClientQuery(event.target.value)}
+                  placeholder="Nom, slug, plaque, ville..."
+                  value={filterClientQuery}
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3 max-h-[920px] overflow-y-auto pr-1">
+              {clientsLoading ? (
+                <div className="bb-surface flex items-center gap-3 px-4 py-3 text-sm text-white/65">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                  Chargement des clients...
+                </div>
+              ) : clientsError ? (
+                <div className="rounded-[24px] border border-rose-300/20 bg-rose-300/10 p-4 text-sm text-rose-100">
+                  {clientsError}
+                </div>
+              ) : (
+                filteredClients.map((client) => {
+                  const active = client.id === selectedClientId;
+                  const creditsRatio =
+                    client.formulaTotal > 0
+                      ? clampNumber(client.formulaRemaining / client.formulaTotal, 0, 1)
+                      : 0;
+
+                  return (
+                    <button
+                      className={cn(
+                        "w-full rounded-[26px] border p-4 text-left transition duration-200",
+                        active
+                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                          : "border-white/10 bg-white/[0.03] hover:-translate-y-1 hover:bg-white/[0.05]",
+                      )}
+                      key={client.id}
+                      onClick={() => focusClient(client)}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-lg font-semibold text-white">
+                            {fullClientName(client)}
+                          </p>
+                          <p className="mt-1 text-sm text-white/55">
+                            {client.vehicleModel || "Vehicule non renseigne"}
+                            {client.vehiclePlate ? ` / ${client.vehiclePlate}` : ""}
+                          </p>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
+                          {client.formulaRemaining}/{client.formulaTotal}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[#f7b955] to-[#ff7a18]"
+                          style={{ width: `${creditsRatio * 100}%` }}
+                        />
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-white/45">
+                        <span>{client.slug}</span>
+                        <span>{client.cardCode || "Sans code"}</span>
+                        {client.city && <span>{client.city}</span>}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </aside>
+
+          <section className="space-y-4">
+            <article className="bb-surface p-6">
+              <div className="bb-section-head">
+                <div>
+                  <p className="bb-eyebrow">Client actif</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                    {managedClient ? fullClientName(managedClient) : "Aucun client"}
+                  </h2>
+                </div>
+                {managedClient && (
+                  <button className="bb-button-ghost" onClick={openFormulaEdit} type="button">
+                    Editer formule
+                  </button>
+                )}
+              </div>
+
+              {clientLoading || isNavigatingSelection ? (
+                <div className="mt-6 bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                  Chargement de la fiche client...
+                </div>
+              ) : managedClient ? (
+                <>
+                  <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                          {managedClient.cardCode || "Sans code"}
+                        </div>
+                        <h3 className="mt-4 text-2xl font-semibold text-white">
+                          {fullClientName(managedClient)}
+                        </h3>
+                        <p className="mt-2 text-sm text-white/58">
+                          {managedClient.vehicleModel || "Vehicule non renseigne"}
+                          {managedClient.vehiclePlate
+                            ? ` / ${managedClient.vehiclePlate}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Credits
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-white">
+                          {managedClient.formulaRemaining}
+                          <span className="ml-1 text-sm text-white/35">
+                            / {managedClient.formulaTotal}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 space-y-3 text-sm text-white/65">
+                      <p>{managedClient.phone || "Telephone non renseigne"}</p>
+                      <p>{managedClient.email || "Email non renseigne"}</p>
+                      <p>
+                        {[
+                          managedClient.addressLine1,
+                          managedClient.addressLine2,
+                          managedClient.postalCode,
+                          managedClient.city,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Adresse non renseignee"}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <button className="bb-button-ghost" onClick={openEditProfile} type="button">
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Modifier le profil
+                      </button>
+                      <Link className="bb-button-ghost" to={`/card/${managedClient.slug}`}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Voir carte client
+                      </Link>
+                      {managedClient.phone && (
+                        <a
+                          className="bb-button-ghost"
+                          href={`tel:${normalizePhoneForTel(managedClient.phone)}`}
+                        >
+                          <Phone className="mr-2 h-4 w-4" />
+                          Appeler
+                        </a>
+                      )}
+                      {managedClient.email && (
+                        <a
+                          className="bb-button-ghost"
+                          href={`mailto:${managedClient.email}`}
+                        >
+                          <Mail className="mr-2 h-4 w-4" />
+                          Email
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Historique rapide du client
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      {selectedClientAppointments.length === 0 ? (
+                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                          <p className="text-sm text-white/60">
+                            Aucun rendez-vous encore rattache a ce client.
+                          </p>
+                        </div>
+                      ) : (
+                        selectedClientAppointments.map((appointment) => (
+                          <Link
+                            className="block w-full rounded-[22px] border border-white/10 bg-black/20 p-4 text-left transition duration-200 hover:bg-white/[0.05]"
+                            key={appointment.id}
+                            to={appointmentAdminLink(appointment)}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">
+                                  {formatDateFR(appointment.date)} - {slotLabel(
+                                    appointmentSlot(appointment),
+                                  )} · {formatTimeHHMM(appointment.time)}
+                                </p>
+                                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/45">
+                                  {appointmentPrimaryAction(appointment.status)}
+                                </p>
+                              </div>
+                              <div
+                                className={cn(
+                                  "bb-pill",
+                                  appointmentStatusClasses(appointment.status),
+                                )}
+                              >
+                                {appointmentStatusLabel(appointment.status)}
+                              </div>
+                            </div>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Notes internes
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-white/62">
+                      {managedClient.notes || "Aucune note interne pour ce client."}
+                    </p>
+                    <div className="mt-5 flex items-center gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                        <CarFront className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {managedClient.formulaName || "Formule libre"}
+                        </p>
+                        <p className="mt-1 text-sm text-white/55">
+                          {managedClient.city || "Ville non renseignee"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                  <p className="text-sm leading-6 text-white/62">
+                    Choisissez un client dans la liste pour ouvrir sa fiche detaillee.
+                  </p>
+                </div>
+              )}
+            </article>
+          </section>
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <div className="bb-shell">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-[-6rem] top-24 h-72 w-72 rounded-full bg-[#f7b955]/10 blur-3xl" />
+        <div className="absolute right-[-7rem] top-12 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#ff7a18]/10 blur-3xl" />
+      </div>
+
+      <main className="bb-content space-y-6 md:space-y-8">
+        <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]" to="/">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Retour
+              </Link>
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                <Sparkles className="h-3.5 w-3.5 text-[#f7b955]" />
+                Admin cockpit
+              </div>
+            </div>
+
+            <div className="max-w-4xl">
+              <p className="bb-eyebrow">Operations BlackBox</p>
+              <h1 className="bb-title mt-3">{sectionTitle}</h1>
+              <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <Link
+                className={cn(
+                  "rounded-[28px] border p-5 transition duration-200",
+                  adminSection === "home"
+                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                )}
+                to="/admin"
+              >
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Hall</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Vue d'ensemble</h2>
+                <p className="mt-3 text-sm leading-6 text-white/62">
+                  Entrez par une page simple puis ouvrez la bonne zone de travail.
+                </p>
+              </Link>
+
+              <Link
+                className={cn(
+                  "rounded-[28px] border p-5 transition duration-200",
+                  adminSection === "appointments"
+                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                )}
+                to="/admin/appointments"
+              >
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Rendez-vous</h2>
+                <p className="mt-3 text-sm leading-6 text-white/62">
+                  Inbox, planning, validation et suivi des dossiers actifs.
+                </p>
+              </Link>
+
+              <Link
+                className={cn(
+                  "rounded-[28px] border p-5 transition duration-200",
+                  adminSection === "clients"
+                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                )}
+                to="/admin/clients"
+              >
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Clients</h2>
+                <p className="mt-3 text-sm leading-6 text-white/62">
+                  Fiches, credits, contact, formules et historique client.
+                </p>
+              </Link>
             </div>
           </div>
-        )}
+        </section>
+
+        {adminSection === "appointments"
+          ? renderAppointmentsPage()
+          : adminSection === "clients"
+            ? renderClientsPage()
+            : renderHomePage()}
       </main>
+
+      {profileModalOpen && profileDraft && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
+          <div className="bb-surface-strong w-full max-w-3xl p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="bb-eyebrow">
+                  {profileMode === "new" ? "Creation client" : "Edition client"}
+                </p>
+                <h3 className="mt-3 text-2xl font-semibold text-white">
+                  {profileMode === "new"
+                    ? "Nouveau client BlackBox"
+                    : "Mettre a jour la fiche"}
+                </h3>
+              </div>
+              <button
+                className="bb-button-ghost"
+                disabled={profileSubmitting}
+                onClick={() => {
+                  setProfileModalOpen(false);
+                  setProfileDraft(null);
+                }}
+                type="button"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="mt-6 grid max-h-[70vh] gap-4 overflow-y-auto pr-1 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Prenom
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) => updateProfileDraft("firstName", event.target.value)}
+                  value={profileDraft.firstName}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Nom
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) => updateProfileDraft("lastName", event.target.value)}
+                  value={profileDraft.lastName}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Societe
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) => updateProfileDraft("company", event.target.value)}
+                  value={profileDraft.company}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Telephone
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) => updateProfileDraft("phone", event.target.value)}
+                  value={profileDraft.phone}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Email
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) => updateProfileDraft("email", event.target.value)}
+                  value={profileDraft.email}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Adresse
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("addressLine1", event.target.value)
+                  }
+                  value={profileDraft.addressLine1}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Complement
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("addressLine2", event.target.value)
+                  }
+                  value={profileDraft.addressLine2}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Code postal
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("postalCode", event.target.value)
+                  }
+                  value={profileDraft.postalCode}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Ville
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) => updateProfileDraft("city", event.target.value)}
+                  value={profileDraft.city}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Vehicule
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("vehicleModel", event.target.value)
+                  }
+                  value={profileDraft.vehicleModel}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Plaque
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("vehiclePlate", event.target.value)
+                  }
+                  value={profileDraft.vehiclePlate}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Formule
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("formulaName", event.target.value)
+                  }
+                  value={profileDraft.formulaName}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Total credits
+                </span>
+                <input
+                  className="bb-input"
+                  min={0}
+                  onChange={(event) =>
+                    updateProfileDraft("formulaTotal", event.target.value)
+                  }
+                  type="number"
+                  value={profileDraft.formulaTotal}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Credits restants
+                </span>
+                <input
+                  className="bb-input"
+                  min={0}
+                  onChange={(event) =>
+                    updateProfileDraft("formulaRemaining", event.target.value)
+                  }
+                  type="number"
+                  value={profileDraft.formulaRemaining}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Notes internes
+                </span>
+                <textarea
+                  className="bb-textarea"
+                  onChange={(event) => updateProfileDraft("notes", event.target.value)}
+                  value={profileDraft.notes}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className="bb-button-ghost"
+                disabled={profileSubmitting}
+                onClick={() => {
+                  setProfileModalOpen(false);
+                  setProfileDraft(null);
+                }}
+                type="button"
+              >
+                Annuler
+              </button>
+              <button
+                className="bb-button-brand"
+                disabled={profileSubmitting}
+                onClick={() => {
+                  void submitProfile();
+                }}
+                type="button"
+              >
+                {profileSubmitting ? "Enregistrement..." : "Enregistrer la fiche"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {formulaEditOpen && selectedClientData && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
+          <div className="bb-surface-strong w-full max-w-lg p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="bb-eyebrow">Formule sur mesure</p>
+                <h3 className="mt-3 text-2xl font-semibold text-white">
+                  Ajuster {fullClientName(selectedClientData)}
+                </h3>
+              </div>
+              <button
+                className="bb-button-ghost"
+                disabled={busyFormula}
+                onClick={() => setFormulaEditOpen(false)}
+                type="button"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Credits max
+                </span>
+                <input
+                  className="bb-input"
+                  min={0}
+                  onChange={(event) => setFormulaDraftTotal(Number(event.target.value))}
+                  type="number"
+                  value={formulaDraftTotal ?? 0}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Credits restants
+                </span>
+                <input
+                  className="bb-input"
+                  max={formulaDraftTotal ?? undefined}
+                  min={0}
+                  onChange={(event) =>
+                    setFormulaDraftRemaining(Number(event.target.value))
+                  }
+                  type="number"
+                  value={formulaDraftRemaining ?? 0}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className="bb-button-ghost"
+                disabled={busyFormula}
+                onClick={() => setFormulaEditOpen(false)}
+                type="button"
+              >
+                Annuler
+              </button>
+              <button
+                className="bb-button-brand"
+                disabled={busyFormula}
+                onClick={() => {
+                  void updateFormula("custom");
+                }}
+                type="button"
+              >
+                {busyFormula ? "Sauvegarde..." : "Appliquer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">
+          <div className="rounded-full border border-white/10 bg-black/80 px-4 py-3 text-sm text-white shadow-2xl backdrop-blur-md">
+            {toast}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

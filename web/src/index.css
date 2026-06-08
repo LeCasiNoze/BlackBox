@@ -1,112 +1,231 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: dark;
+  --bb-bg: #05070b;
+  --bb-bg-deep: #090d12;
+  --bb-surface: rgba(11, 13, 18, 0.72);
+  --bb-surface-strong: rgba(14, 16, 22, 0.92);
+  --bb-border: rgba(255, 255, 255, 0.08);
+  --bb-copy: #edf2ff;
+  --bb-muted: #9ca9bd;
+  --bb-accent: #f7b955;
+  --bb-accent-strong: #ff7a18;
+  --bb-success: #43d79d;
+  --bb-danger: #ff7d89;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(247, 185, 85, 0.15), transparent 34%),
+    radial-gradient(circle at 85% 0%, rgba(44, 162, 255, 0.14), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(255, 122, 24, 0.12), transparent 40%),
+    linear-gradient(180deg, #06080d 0%, #05070b 48%, #090d12 100%);
 }
 
 body {
-  @apply bg-neutral-950 text-white antialiased;
+  margin: 0;
+  min-height: 100vh;
+  color: var(--bb-copy);
+  font-family:
+    "Manrope",
+    "Segoe UI",
+    sans-serif;
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-.shineBadge::after {
+body::before {
   content: "";
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    120deg,
-    transparent 0%,
-    rgba(255,255,255,0.3) 50%,
-    transparent 100%
-  );
-  transform: skewX(-20deg);
-  animation: badgeShine 4s ease-in-out infinite;
-}
-
-@keyframes badgeShine {
-  0% { left: -120%; }
-  30% { left: 120%; }
-  100% { left: 120%; }
-}
-/* Flair premium verre / shine */
-.card-shine {
-  position: relative;
-  overflow: hidden;
-}
-
-.card-shine::after {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -100%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    115deg,
-    transparent 0%,
-    rgba(255,255,255,0.06) 45%,
-    rgba(255,255,255,0.12) 50%,
-    rgba(255,255,255,0.06) 55%,
-    transparent 100%
-  );
-  transform: rotate(0deg);
-  animation: shineMove 14s ease-in-out infinite;
+  position: fixed;
+  inset: 0;
   pointer-events: none;
+  opacity: 0.06;
+  background-image: url("/textures/noise.png");
+  background-size: 420px;
+  mix-blend-mode: screen;
 }
 
-@keyframes shineMove {
-  0%   { transform: translateX(-60%) translateY(-40%); }
-  50%  { transform: translateX(10%)  translateY(20%); }
-  100% { transform: translateX(-60%) translateY(-40%); }
-}
-/* Cadre or premium pour les blocs client + véhicule */
-.gold-frame {
-  position: relative;
-  overflow: hidden;
-  padding: 1px;              /* épaisseur de la bordure */
-  border-radius: 1rem;       /* même radius que le bloc */
-  background: linear-gradient(
-    120deg,
-    rgba(253, 224, 71, 0.95),   /* or clair */
-    rgba(245, 158, 11, 0.95),   /* or chaud */
-    rgba(253, 224, 71, 0.95)
-  );
+* {
+  box-sizing: border-box;
 }
 
-/* Lumière qui tourne le long de la bordure */
-.gold-frame::before {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  background: conic-gradient(
-    from 0deg,
-    rgba(253, 224, 71, 0),
-    rgba(253, 224, 71, 0.95),
-    rgba(245, 158, 11, 0),
-    rgba(253, 224, 71, 0.95),
-    rgba(253, 224, 71, 0)
-  );
-  animation: gold-orbit 6s linear infinite;
-  opacity: 0.8;
+#root {
+  min-height: 100vh;
 }
 
-/* Contenu interne, posé au-dessus de l'effet */
-.gold-frame-inner {
-  position: relative;
-  z-index: 1;
-  background: radial-gradient(circle at 0% 0%, #020617, #000000);
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-/* Animation de la lumière */
-@keyframes gold-orbit {
-  0% {
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(247, 185, 85, 0.32);
+  color: white;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer components {
+  .bb-shell {
+    @apply relative isolate overflow-hidden px-4 pb-16 pt-6 md:px-8 md:pt-8;
+  }
+
+  .bb-content {
+    @apply relative z-10 mx-auto w-full max-w-7xl;
+  }
+
+  .bb-surface {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+      var(--bb-surface);
+    border: 1px solid var(--bb-border);
+    box-shadow:
+      0 24px 80px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    @apply rounded-[28px] backdrop-blur-xl;
+  }
+
+  .bb-surface-strong {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
+      var(--bb-surface-strong);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 28px 90px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    @apply rounded-[32px] backdrop-blur-2xl;
+  }
+
+  .bb-display {
+    font-family:
+      "Syne",
+      "Segoe UI",
+      sans-serif;
+    letter-spacing: -0.04em;
+  }
+
+  .bb-eyebrow {
+    color: rgba(247, 185, 85, 0.92);
+    letter-spacing: 0.18em;
+    @apply text-[11px] font-semibold uppercase;
+  }
+
+  .bb-title {
+    @apply bb-display text-3xl font-semibold text-white md:text-5xl;
+  }
+
+  .bb-subtitle {
+    color: var(--bb-muted);
+    @apply text-sm leading-6 md:text-base;
+  }
+
+  .bb-pill {
+    @apply inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em];
+  }
+
+  .bb-metric {
+    @apply bb-surface relative overflow-hidden p-5;
+  }
+
+  .bb-input {
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-white/35 focus:border-[#f7b955]/45 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#f7b955]/20;
+  }
+
+  .bb-textarea {
+    @apply bb-input min-h-[112px] resize-y;
+  }
+
+  .bb-select {
+    @apply bb-input appearance-none;
+  }
+
+  .bb-section-head {
+    @apply flex flex-col gap-2 md:flex-row md:items-end md:justify-between;
+  }
+
+  .bb-button-brand {
+    background:
+      linear-gradient(135deg, rgba(247, 185, 85, 0.98), rgba(255, 122, 24, 0.98));
+    box-shadow:
+      0 18px 40px rgba(255, 122, 24, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    color: #120b02;
+    @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-bold transition duration-200 hover:-translate-y-0.5 hover:brightness-105;
+  }
+
+  .bb-button-ghost {
+    @apply inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:border-white/20 hover:bg-white/[0.06];
+  }
+
+  .bb-button-danger {
+    @apply inline-flex items-center justify-center rounded-full border border-rose-300/30 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-100 transition duration-200 hover:bg-rose-400/20;
+  }
+}
+
+@keyframes bb-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+@keyframes bb-spin-slow {
+  from {
     transform: rotate(0deg);
   }
-  100% {
+  to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes bb-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -5,15 +5,16 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 import { ClientCardPage } from "./pages/ClientCardPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { LandingPage } from "./pages/LandingPage";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/card/:slug" element={<ClientCardPage />} />
-        <Route path="/admin" element={<AdminDashboardPage />} />
-        {/* pour tester facilement la carte client */}
-        <Route path="/" element={<ClientCardPage />} />
+        <Route path="/admin/*" element={<AdminDashboardPage />} />
+        <Route path="*" element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

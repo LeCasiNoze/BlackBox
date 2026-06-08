@@ -106,6 +106,7 @@ function mapAppointmentRow(row) {
     id: row.id,
     clientId: row.client_id,
     date: row.date,
+    slot: row.slot || null,
     time: row.time,
     status: row.status,
     clientNote: row.client_note,
@@ -575,7 +576,11 @@ router.post("/appointments/:id/status", (req, res) => {
       }
 
       // 1) passe le RDV en cancelled (via la fonction existante)
-      cancelAppointmentForClientOnDate(appt.client_id, appt.date);
+      cancelAppointmentForClientOnDate(
+        appt.client_id,
+        appt.date,
+        appt.slot || null
+      );
       // 2) recrédite 1 nettoyage
       incrementFormulaRemaining(appt.client_id);
 
