@@ -5,6 +5,7 @@ require("dotenv").config({
 });
 
 const express = require("express");
+const { UPLOADS_DIR, ensureDir } = require("./config/storage");
 
 const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
@@ -15,11 +16,12 @@ ensureDemoClient();
 
 const app = express();
 const distDir = path.join(__dirname, "../web/dist");
+ensureDir(UPLOADS_DIR);
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use("/api/client", clientApiRoutes);
 app.use("/api/admin", adminApiRoutes);

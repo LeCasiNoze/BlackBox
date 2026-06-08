@@ -2,8 +2,8 @@
 const express = require("express");
 const router = express.Router();
 const path = require("path");
-const fs = require("fs");
 const multer = require("multer");
+const { APPOINTMENTS_UPLOAD_DIR, ensureDir } = require("../config/storage");
 
 const { db, nowUnix } = require("../db");
 
@@ -24,8 +24,8 @@ const {
 } = require("../db/appointments");
 
 // Dossier de stockage des photos de rendez-vous
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "appointments");
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPLOAD_DIR = APPOINTMENTS_UPLOAD_DIR;
+ensureDir(UPLOAD_DIR);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

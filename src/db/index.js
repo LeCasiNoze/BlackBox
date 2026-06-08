@@ -1,20 +1,11 @@
 const Database = require("better-sqlite3");
 const fs = require("fs");
 const path = require("path");
+const { DB_FILE, ensureDir } = require("../config/storage");
 
-const IS_RENDER = !!process.env.RENDER;
-
-const LOCAL_DATA_DIR = path.join(__dirname, "..", "..", "data");
-const LOCAL_DB_PATH = path.join(LOCAL_DATA_DIR, "blackbox.db");
-
-const DB_PATH =
-  process.env.DB_FILE ||
-  (IS_RENDER ? "/data/blackbox.db" : LOCAL_DB_PATH);
-
+const DB_PATH = DB_FILE;
 const DB_DIR = path.dirname(DB_PATH);
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
-}
+ensureDir(DB_DIR);
 
 const db = new Database(DB_PATH);
 
