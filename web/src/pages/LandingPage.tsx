@@ -49,12 +49,12 @@ export function LandingPage() {
         <section className="bb-surface-strong grid gap-8 overflow-hidden p-6 md:grid-cols-[1.3fr_0.9fr] md:p-10">
           <div className="space-y-6">
             <div className="space-y-3">
-              <div className="bb-eyebrow">BlackBox detailing platform</div>
+              <div className="bb-eyebrow">Bryan Cars detailing platform</div>
               <h1 className="bb-title max-w-3xl">
                 Une vitrine plus nette, un parcours plus premium, une gestion plus fluide.
               </h1>
               <p className="bb-subtitle max-w-2xl">
-                Cette nouvelle base reprend le coeur du systeme BlackBox:
+                Cette nouvelle base reprend le coeur du systeme Bryan Cars:
                 reservation client, suivi des credits, cockpit admin, notes et
                 photos de rendez-vous.
               </p>
@@ -87,8 +87,8 @@ export function LandingPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-[#f7b955]/20 via-transparent to-sky-400/10" />
             <img
               alt="Bryan Cars Detailing"
-              className="relative z-10 h-full min-h-[360px] w-full rounded-[24px] object-cover object-center opacity-90"
-              src="/BCD.jpg"
+              className="relative z-10 h-full min-h-[360px] w-full rounded-[24px] object-contain object-center px-4 py-6 opacity-95"
+              src="/bryan-cars-logo.png"
             />
             <div className="absolute inset-x-5 bottom-5 z-20 rounded-[24px] border border-white/10 bg-black/65 p-5 backdrop-blur-md">
               <div className="bb-eyebrow">Signature visuelle</div>

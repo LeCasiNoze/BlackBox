@@ -2,12 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 const {
-  getClientBySlugOrCardCode,
-  getClientById,
+  createClient,
   decrementFormulaRemaining,
+  getClientById,
+  getClientBySlugOrCardCode,
   incrementFormulaRemaining,
+  updateClientTermsAcceptance,
 } = require("../db/clients");
-
 const {
   APPOINTMENT_SLOTS,
   createRequestedAppointmentForSlot,
@@ -18,19 +19,30 @@ const {
   getAppointmentsByDate,
   getAppointmentsForClient,
   getAppointmentsForMonth,
+  getPublicAppointmentsFeed,
   hasAppointmentPhotos,
   normalizeAppointmentSlot,
   updateAppointmentForClientSlot,
   updateAppointmentUserReview,
   cancelAppointmentForClientOnDate,
 } = require("../db/appointments");
-
-const { sendAdminNotification } = require("../email");
-
-const SLOT_START_TIMES = {
-  morning: "09:00",
-  afternoon: "14:00",
-};
+const {
+  BC_REWARDS,
+  createRewardRedemption,
+  getRewardDefinition,
+  listRewardRedemptionsByClient,
+  changeClientPoints,
+} = require("../db/rewards");
+const {
+  createVehicleForClient,
+  deleteVehicleForClient,
+  getPrimaryVehicleByClientId,
+  getVehicleById,
+  listVehiclesByClient,
+  setPrimaryVehicle,
+  updateVehicleForClient,
+} = require("../db/vehicles");
+const { sendAdminNotification, sendAdminRewardRedemption } = require("../email");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
@@ -91,7 +103,28 @@ function isTimeAllowedForSlot(time, slot) {
   return hour >= 14 && hour <= 18 && !(hour === 18 && minute > 0);
 }
 
-function mapClientAppointment(client, appointment) {
+function formulaNameFromClient(client) {
+  if (client.formula_name) return client.formula_name;
+  const total = Number(client.formula_total || 0);
+  if (total <= 0) return "Formule libre";
+  return `Formule ${total} nettoyage${total > 1 ? "s" : ""}`;
+}
+
+function mapVehicleRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    label: row.label || null,
+    model: row.model || null,
+    plate: row.plate || null,
+    isPrimary: !!row.is_primary,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapClientAppointment(appointment) {
   return {
     id: appointment.id,
     date: appointment.date,
@@ -101,11 +134,75 @@ function mapClientAppointment(client, appointment) {
     adminNote: appointment.admin_note || null,
     userRating: appointment.user_rating ?? null,
     userReview: appointment.user_review ?? null,
-    vehicleModel: client.vehicle_model,
-    vehiclePlate: client.vehicle_plate,
+    vehicleId: appointment.vehicle_id ?? null,
+    vehicleLabel: appointment.vehicle_label || null,
+    vehicleModel: appointment.vehicle_model || null,
+    vehiclePlate: appointment.vehicle_plate || null,
+    cleanlinessRating: null,
     hasPhotos: hasAppointmentPhotos(appointment.id),
     location: appointment.location || null,
   };
+}
+
+function mapClientPayload(client) {
+  return {
+    id: client.id,
+    slug: client.slug,
+    cardCode: client.card_code,
+    firstName: client.first_name,
+    lastName: client.last_name,
+    fullName: client.full_name,
+    phone: client.phone,
+    email: client.email,
+    clientType: client.client_type || "bbx",
+    isFounder: !!client.is_founder,
+    founderMediaUrl: client.founder_media_url || null,
+    addressLine1: client.address_line1,
+    postalCode: client.postal_code,
+    city: client.city,
+    vehicleModel: client.vehicle_model,
+    vehiclePlate: client.vehicle_plate,
+    formulaName: formulaNameFromClient(client),
+    formulaTotal: client.formula_total,
+    formulaRemaining: client.formula_remaining,
+    formulaPurchasedAt: client.formula_purchased_at ?? null,
+    formulaExpiresAt: client.formula_expires_at ?? null,
+    termsAcceptedAt: client.terms_accepted_at ?? null,
+    formulaRecapSentAt: client.formula_recap_sent_at ?? null,
+    welcomeEmailSentAt: client.welcome_email_sent_at ?? null,
+    bcPoints: client.bc_points ?? 0,
+  };
+}
+
+function mapRewardRow(row) {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    rewardKey: row.reward_key,
+    rewardLabel: row.reward_label,
+    pointsCost: row.points_cost,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function clientFormulaHasExpired(client) {
+  const expiresAt = Number(client?.formula_expires_at || 0);
+  if (!expiresAt) return false;
+
+  const expiryDate = new Date(expiresAt * 1000);
+  const endOfDay = new Date(
+    expiryDate.getFullYear(),
+    expiryDate.getMonth(),
+    expiryDate.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+
+  return Date.now() > endOfDay.getTime();
 }
 
 function buildMonthPayload(client, monthParam) {
@@ -187,41 +284,216 @@ function buildMonthPayload(client, monthParam) {
   };
 }
 
+function getBookingVehicleForClient(client, requestedVehicleId) {
+  const vehicles = listVehiclesByClient(client.id);
+  if (vehicles.length === 0) {
+    return { vehicle: null, error: null };
+  }
+
+  if (requestedVehicleId) {
+    const vehicle = getVehicleById(requestedVehicleId);
+    if (!vehicle || vehicle.client_id !== client.id) {
+      return { vehicle: null, error: "invalid_vehicle" };
+    }
+    return { vehicle, error: null };
+  }
+
+  if (vehicles.length === 1) {
+    return { vehicle: vehicles[0], error: null };
+  }
+
+  const primary = getPrimaryVehicleByClientId(client.id);
+  if (primary) {
+    return { vehicle: primary, error: null };
+  }
+
+  return { vehicle: null, error: "vehicle_required" };
+}
+
+function ensurePortalEligible(client, res) {
+  if (!client) {
+    res.status(404).json({ ok: false, error: "client_not_found" });
+    return false;
+  }
+
+  if ((client.client_type || "bbx") !== "bbx") {
+    res.status(403).json({ ok: false, error: "portal_disabled_for_data_client" });
+    return false;
+  }
+
+  return true;
+}
+
 router.get("/:idOrSlug", (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
-
-  if (!client) {
-    return res.status(404).json({ ok: false, error: "client_not_found" });
+  if (!ensurePortalEligible(client, res)) {
+    return;
   }
 
   const monthParam = parseMonthParam(req.query.m);
   const month = buildMonthPayload(client, monthParam);
+  const vehicles = listVehiclesByClient(client.id).map(mapVehicleRow);
+  const rewardRedemptions = listRewardRedemptionsByClient(client.id).map(mapRewardRow);
 
   return res.json({
     ok: true,
-    client: {
-      id: client.id,
-      slug: client.slug,
-      cardCode: client.card_code,
-      firstName: client.first_name,
-      lastName: client.last_name,
-      fullName: client.full_name,
-      phone: client.phone,
-      email: client.email,
-      addressLine1: client.address_line1,
-      postalCode: client.postal_code,
-      city: client.city,
-      vehicleModel: client.vehicle_model,
-      vehiclePlate: client.vehicle_plate,
-      formulaName: client.formula_name,
-      formulaTotal: client.formula_total,
-      formulaRemaining: client.formula_remaining,
-    },
+    client: mapClientPayload(client),
+    vehicles,
+    rewardCatalog: BC_REWARDS,
+    rewardRedemptions,
     month,
   });
 });
 
+router.post("/:idOrSlug/terms/accept", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  try {
+    if (!client.terms_accepted_at) {
+      updateClientTermsAcceptance(client.id);
+    }
+
+    return res.json({
+      ok: true,
+      client: mapClientPayload(getClientById(client.id)),
+    });
+  } catch (error) {
+    console.error("[API] client terms accept:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.get("/:idOrSlug/vehicles", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  return res.json({
+    ok: true,
+    vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+  });
+});
+
+router.post("/:idOrSlug/vehicles", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  try {
+    const vehicle = createVehicleForClient(client.id, {
+      label: req.body?.label,
+      model: req.body?.model,
+      plate: req.body?.plate,
+      isPrimary: req.body?.isPrimary === true,
+    });
+
+    return res.json({
+      ok: true,
+      vehicle: mapVehicleRow(vehicle),
+      vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[API] client create vehicle:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/:idOrSlug/vehicles/:vehicleId", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const vehicleId = Number(req.params.vehicleId || 0);
+  if (!vehicleId) {
+    return res.status(400).json({ ok: false, error: "invalid_vehicle_id" });
+  }
+
+  try {
+    const vehicle = updateVehicleForClient(client.id, vehicleId, {
+      label: req.body?.label,
+      model: req.body?.model,
+      plate: req.body?.plate,
+      isPrimary: req.body?.isPrimary === true,
+    });
+
+    if (!vehicle) {
+      return res.status(404).json({ ok: false, error: "vehicle_not_found" });
+    }
+
+    return res.json({
+      ok: true,
+      vehicle: mapVehicleRow(vehicle),
+      vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[API] client update vehicle:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/:idOrSlug/vehicles/:vehicleId/primary", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const vehicleId = Number(req.params.vehicleId || 0);
+  if (!vehicleId) {
+    return res.status(400).json({ ok: false, error: "invalid_vehicle_id" });
+  }
+
+  try {
+    const primary = setPrimaryVehicle(client.id, vehicleId);
+    return res.json({
+      ok: true,
+      primaryVehicle: mapVehicleRow(primary),
+      vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[API] client primary vehicle:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.delete("/:idOrSlug/vehicles/:vehicleId", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const vehicleId = Number(req.params.vehicleId || 0);
+  if (!vehicleId) {
+    return res.status(400).json({ ok: false, error: "invalid_vehicle_id" });
+  }
+
+  try {
+    const deleted = deleteVehicleForClient(client.id, vehicleId);
+    if (!deleted) {
+      return res.status(400).json({ ok: false, error: "cannot_delete_vehicle" });
+    }
+
+    return res.json({
+      ok: true,
+      vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[API] client delete vehicle:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
 router.get("/:idOrSlug/appointments/:appointmentId/photos", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
   const appointmentId = Number(req.params.appointmentId) || 0;
 
   if (!appointmentId) {
@@ -229,6 +501,14 @@ router.get("/:idOrSlug/appointments/:appointmentId/photos", (req, res) => {
   }
 
   try {
+    const appointment = getAppointmentById(appointmentId);
+    if (!appointment || appointment.client_id !== client.id) {
+      return res.status(404).json({
+        ok: false,
+        error: "appointment_not_found",
+      });
+    }
+
     const rows = getAppointmentPhotos(appointmentId);
     return res.json({
       ok: true,
@@ -247,17 +527,54 @@ router.get("/:idOrSlug/appointments/:appointmentId/photos", (req, res) => {
   }
 });
 
-router.get("/:idOrSlug/appointments", (req, res) => {
+router.get("/:idOrSlug/community", (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
-
-  if (!client) {
-    return res.status(404).json({ ok: false, error: "client_not_found" });
+  if (!ensurePortalEligible(client, res)) {
+    return;
   }
 
+  const limit = Math.max(1, Math.min(40, Number(req.query.limit || 18)));
+
   try {
-    const appointments = getAppointmentsForClient(client.id).map((appointment) =>
-      mapClientAppointment(client, appointment)
-    );
+    const items = getPublicAppointmentsFeed(limit).map((appointment) => ({
+      id: appointment.id,
+      date: appointment.date,
+      slot: normalizeAppointmentSlot(appointment.slot, appointment.time),
+      time: appointment.time,
+      location: appointment.location || null,
+      vehicleId: appointment.vehicle_id ?? null,
+      vehicleLabel: appointment.vehicle_label || null,
+      vehicleModel: appointment.vehicle_model || null,
+      vehiclePlate: appointment.vehicle_plate || null,
+      userRating: appointment.user_rating ?? null,
+      userReview: appointment.user_review ?? null,
+      photos: getAppointmentPhotos(appointment.id).map((photo) => ({
+        id: photo.id,
+        url: photo.url,
+        label: photo.caption || null,
+      })),
+    }));
+
+    return res.json({ ok: true, items });
+  } catch (error) {
+    console.error("[API] client community:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.get("/:idOrSlug/appointments", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const vehicleId = Number(req.query.vehicleId || 0) || null;
+
+  try {
+    const appointments = getAppointmentsForClient(client.id, {
+      vehicleId,
+      includeCancelled: true,
+    }).map(mapClientAppointment);
 
     return res.json({ ok: true, appointments });
   } catch (error) {
@@ -268,8 +585,8 @@ router.get("/:idOrSlug/appointments", (req, res) => {
 
 router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
-  if (!client) {
-    return res.status(404).json({ ok: false, error: "client_not_found" });
+  if (!ensurePortalEligible(client, res)) {
+    return;
   }
 
   const appointmentId = Number(req.params.appointmentId) || 0;
@@ -296,7 +613,7 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
   const changes = updateAppointmentUserReview(
     appointmentId,
     numericRating,
-    typeof review === "string" && review.trim() !== "" ? review.trim() : null
+    typeof review === "string" && review.trim() !== "" ? review.trim() : null,
   );
 
   if (!changes) {
@@ -306,7 +623,7 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
   const updated = getAppointmentById(appointmentId);
   return res.json({
     ok: true,
-    appointment: mapClientAppointment(client, updated),
+    appointment: mapClientAppointment(updated),
   });
 });
 
@@ -339,7 +656,6 @@ router.get("/appointments/:date", (req, res) => {
     });
   }
 
-  const client = getClientById(appointment.client_id);
   return res.json({
     ok: true,
     appointment: {
@@ -351,9 +667,9 @@ router.get("/appointments/:date", (req, res) => {
       adminNote: appointment.admin_note || null,
       userRating: appointment.user_rating ?? null,
       userReview: appointment.user_review ?? null,
-      vehicleModel: client?.vehicle_model || null,
-      vehiclePlate: client?.vehicle_plate || null,
-      clientName: client?.full_name || "Client",
+      vehicleModel: appointment.vehicle_model || null,
+      vehiclePlate: appointment.vehicle_plate || null,
+      clientName: appointment.full_name || "Client",
       location: appointment.location || null,
       hasPhotos: hasAppointmentPhotos(appointment.id),
     },
@@ -362,16 +678,23 @@ router.get("/appointments/:date", (req, res) => {
 
 router.post("/:idOrSlug/book", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
-  if (!client) {
-    return res.status(404).json({ ok: false, error: "client_not_found" });
+  if (!ensurePortalEligible(client, res)) {
+    return;
   }
 
-  const { date, time, location, slot: rawSlot } = req.body || {};
+  const { date, time, location, slot: rawSlot, clientNote } = req.body || {};
+  const vehicleId = Number(req.body?.vehicleId || 0) || null;
+
   if (!date) {
     return res.status(400).json({ ok: false, error: "missing_date" });
   }
   if (!isValidSlot(rawSlot)) {
     return res.status(400).json({ ok: false, error: "missing_or_invalid_slot" });
+  }
+
+  const { vehicle, error: vehicleError } = getBookingVehicleForClient(client, vehicleId);
+  if (vehicleError) {
+    return res.status(400).json({ ok: false, error: vehicleError });
   }
 
   const slot = normalizeAppointmentSlot(rawSlot, time);
@@ -384,8 +707,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
     return res.status(400).json({ ok: false, error: "slot_already_passed" });
   }
 
-  const normalizedLocation =
-    typeof location === "string" ? location.toLowerCase() : "";
+  const normalizedLocation = typeof location === "string" ? location.toLowerCase() : "";
   const loc =
     normalizedLocation === "domicile"
       ? "domicile"
@@ -407,10 +729,11 @@ router.post("/:idOrSlug/book", async (req, res) => {
     try {
       const changed = updateAppointmentForClientSlot({
         clientId: client.id,
+        vehicleId: vehicle?.id || null,
         dateStr: date,
         slot,
         time: normalizedTime,
-        clientNote: null,
+        clientNote: typeof clientNote === "string" ? clientNote.trim() : null,
         location: loc,
       });
 
@@ -424,7 +747,11 @@ router.post("/:idOrSlug/book", async (req, res) => {
       try {
         await sendAdminNotification({
           type: "update",
-          client,
+          client: {
+            ...client,
+            vehicle_model: vehicle?.model || client.vehicle_model,
+            vehicle_plate: vehicle?.plate || client.vehicle_plate,
+          },
           date,
           time: normalizedTime,
           location: loc || existing.location || null,
@@ -437,6 +764,14 @@ router.post("/:idOrSlug/book", async (req, res) => {
     } catch (error) {
       return res.status(500).json({ ok: false, error: "server_error" });
     }
+  }
+
+  if (!client.terms_accepted_at) {
+    return res.status(412).json({ ok: false, error: "terms_not_accepted" });
+  }
+
+  if (clientFormulaHasExpired(client)) {
+    return res.status(400).json({ ok: false, error: "formula_expired" });
   }
 
   if (client.formula_remaining <= 0) {
@@ -452,10 +787,11 @@ router.post("/:idOrSlug/book", async (req, res) => {
     try {
       createRequestedAppointmentForSlot({
         clientId: client.id,
+        vehicleId: vehicle?.id || null,
         dateStr: date,
         slot,
         time: normalizedTime,
-        clientNote: null,
+        clientNote: typeof clientNote === "string" ? clientNote.trim() : null,
         location: loc,
       });
     } catch (error) {
@@ -472,7 +808,11 @@ router.post("/:idOrSlug/book", async (req, res) => {
     try {
       await sendAdminNotification({
         type: "book",
-        client,
+        client: {
+          ...client,
+          vehicle_model: vehicle?.model || client.vehicle_model,
+          vehicle_plate: vehicle?.plate || client.vehicle_plate,
+        },
         date,
         time: normalizedTime,
         location: loc,
@@ -489,8 +829,8 @@ router.post("/:idOrSlug/book", async (req, res) => {
 
 router.post("/:idOrSlug/cancel", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
-  if (!client) {
-    return res.status(404).json({ ok: false, error: "client_not_found" });
+  if (!ensurePortalEligible(client, res)) {
+    return;
   }
 
   const { date, slot: rawSlot } = req.body || {};
@@ -529,7 +869,7 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
       type: "cancel",
       client,
       date,
-      time: appointment.time || SLOT_START_TIMES[slot],
+      time: appointment.time || defaultTimeForSlot(slot),
       location: appointment.location || null,
     });
   } catch (error) {
@@ -537,6 +877,63 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
   }
 
   return res.json({ ok: true });
+});
+
+router.get("/:idOrSlug/rewards", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  return res.json({
+    ok: true,
+    bcPoints: client.bc_points ?? 0,
+    rewardCatalog: BC_REWARDS,
+    rewardRedemptions: listRewardRedemptionsByClient(client.id).map(mapRewardRow),
+  });
+});
+
+router.post("/:idOrSlug/rewards/redeem", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const rewardKey = req.body?.rewardKey;
+  const reward = getRewardDefinition(rewardKey);
+  if (!reward) {
+    return res.status(400).json({ ok: false, error: "reward_not_found" });
+  }
+
+  const currentPoints = Number(client.bc_points || 0);
+  if (currentPoints < reward.pointsCost) {
+    return res.status(400).json({ ok: false, error: "not_enough_points" });
+  }
+
+  try {
+    const nextPoints = changeClientPoints(client.id, -reward.pointsCost);
+    if (nextPoints == null) {
+      return res.status(400).json({ ok: false, error: "not_enough_points" });
+    }
+
+    const redemption = createRewardRedemption(client.id, reward);
+
+    try {
+      await sendAdminRewardRedemption({ client: getClientById(client.id), reward });
+    } catch (error) {
+      console.error("[MAIL] reward redemption:", error);
+    }
+
+    return res.json({
+      ok: true,
+      bcPoints: nextPoints,
+      redemption: mapRewardRow(redemption),
+      rewardRedemptions: listRewardRedemptionsByClient(client.id).map(mapRewardRow),
+    });
+  } catch (error) {
+    console.error("[API] redeem reward:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
 });
 
 module.exports = router;

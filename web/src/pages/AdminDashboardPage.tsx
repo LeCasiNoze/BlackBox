@@ -6,6 +6,8 @@ import {
   CarFront,
   CheckCircle2,
   Clock3,
+  Crown,
+  Download,
   ExternalLink,
   Loader2,
   Mail,
@@ -28,12 +30,15 @@ import {
   cn,
   formatDateFR,
   formatTimeHHMM,
+  formatUnixDateFR,
+  formatUnixDateTimeFR,
   locationClasses,
   locationLabel,
   normalizeAppointmentSlot,
   normalizePhoneForTel,
   slotLabel,
   slotWindowLabel,
+  unixToDateInputValue,
   type AppointmentLocation,
   type AppointmentSlot,
   type AppointmentStatus,
@@ -49,6 +54,9 @@ type AdminClient = {
   email: string | null;
   phone: string | null;
   company: string | null;
+  clientType: "bbx" | "data";
+  isFounder: boolean;
+  founderMediaUrl: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
   postalCode: string | null;
@@ -58,6 +66,12 @@ type AdminClient = {
   formulaName: string | null;
   formulaTotal: number;
   formulaRemaining: number;
+  formulaPurchasedAt: number | null;
+  formulaExpiresAt: number | null;
+  termsAcceptedAt: number | null;
+  formulaRecapSentAt: number | null;
+  welcomeEmailSentAt: number | null;
+  bcPoints: number;
   notes: string | null;
   createdAt: number;
   updatedAt: number;
@@ -66,19 +80,32 @@ type AdminClient = {
 type AdminAppointment = {
   id: number;
   clientId: number;
+  vehicleId: number | null;
   date: string;
   slot: AppointmentSlot | null;
   time: string | null;
   status: AppointmentStatus;
   clientNote: string | null;
   adminNote: string | null;
+  userRating: number | null;
+  userReview: string | null;
+  cleanlinessRating: CleanlinessRating | null;
+  bcPointsAwarded: boolean;
   createdAt: number;
   updatedAt: number;
   clientName: string | null;
+  vehicleLabel: string | null;
   vehicleModel: string | null;
   vehiclePlate: string | null;
   location: AppointmentLocation | null;
 };
+
+type CleanlinessRating =
+  | "very_clean"
+  | "correct"
+  | "dirty"
+  | "very_dirty"
+  | "reset_recommended";
 
 type AdminAppointmentPhoto = {
   id: number;
@@ -97,10 +124,40 @@ type AdminAppointmentPhotoCreateResponse = {
   photo: AdminAppointmentPhoto | null;
 };
 
+type AdminVehicle = {
+  id: number;
+  clientId: number;
+  label: string | null;
+  model: string | null;
+  plate: string | null;
+  isPrimary: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type RewardRedemption = {
+  id: number;
+  clientId: number;
+  rewardKey: string;
+  rewardLabel: string;
+  pointsCost: number;
+  status: "requested" | "processed" | "cancelled";
+  createdAt: number;
+  updatedAt: number;
+};
+
+type CleanlinessSummary = {
+  total: number;
+  averageScore: number | null;
+};
+
 type ClientDetailResponse = {
   ok: boolean;
   client: AdminClient;
+  vehicles: AdminVehicle[];
   appointments: AdminAppointment[];
+  rewardRedemptions: RewardRedemption[];
+  cleanliness: CleanlinessSummary;
 };
 
 type ListClientsResponse = {
@@ -119,6 +176,9 @@ type ProfileDraft = {
   company: string;
   email: string;
   phone: string;
+  clientType: "bbx" | "data";
+  isFounder: boolean;
+  sendWelcomeEmail: boolean;
   addressLine1: string;
   addressLine2: string;
   postalCode: string;
@@ -128,6 +188,8 @@ type ProfileDraft = {
   formulaName: string;
   formulaTotal: string;
   formulaRemaining: string;
+  formulaPurchasedAt: string;
+  formulaExpiresAt: string;
   notes: string;
 };
 
@@ -145,6 +207,18 @@ const APPOINTMENT_FILTERS: Array<{
   { key: "client", label: "Client actif" },
 ];
 
+const CLEANLINESS_OPTIONS: Array<{
+  value: CleanlinessRating;
+  label: string;
+  tone: string;
+}> = [
+  { value: "very_clean", label: "Tres propre", tone: "border-emerald-400/35 bg-emerald-300/10 text-emerald-100" },
+  { value: "correct", label: "Correct", tone: "border-lime-400/30 bg-lime-300/10 text-lime-100" },
+  { value: "dirty", label: "Sale", tone: "border-amber-400/35 bg-amber-300/10 text-amber-100" },
+  { value: "very_dirty", label: "Tres sale", tone: "border-orange-400/35 bg-orange-300/10 text-orange-100" },
+  { value: "reset_recommended", label: "Remise a niveau", tone: "border-rose-400/35 bg-rose-300/10 text-rose-100" },
+];
+
 function defaultProfileDraft(): ProfileDraft {
   return {
     firstName: "",
@@ -152,6 +226,9 @@ function defaultProfileDraft(): ProfileDraft {
     company: "",
     email: "",
     phone: "",
+    clientType: "bbx",
+    isFounder: false,
+    sendWelcomeEmail: true,
     addressLine1: "",
     addressLine2: "",
     postalCode: "",
@@ -161,6 +238,8 @@ function defaultProfileDraft(): ProfileDraft {
     formulaName: "",
     formulaTotal: "",
     formulaRemaining: "",
+    formulaPurchasedAt: "",
+    formulaExpiresAt: "",
     notes: "",
   };
 }
@@ -172,6 +251,9 @@ function profileDraftFromClient(client: AdminClient): ProfileDraft {
     company: client.company ?? "",
     email: client.email ?? "",
     phone: client.phone ?? "",
+    clientType: client.clientType ?? "bbx",
+    isFounder: !!client.isFounder,
+    sendWelcomeEmail: false,
     addressLine1: client.addressLine1 ?? "",
     addressLine2: client.addressLine2 ?? "",
     postalCode: client.postalCode ?? "",
@@ -181,8 +263,21 @@ function profileDraftFromClient(client: AdminClient): ProfileDraft {
     formulaName: client.formulaName ?? "",
     formulaTotal: String(client.formulaTotal ?? 0),
     formulaRemaining: String(client.formulaRemaining ?? 0),
+    formulaPurchasedAt: unixToDateInputValue(client.formulaPurchasedAt),
+    formulaExpiresAt: unixToDateInputValue(client.formulaExpiresAt),
     notes: client.notes ?? "",
   };
+}
+
+function cleanlinessLabel(rating: CleanlinessRating | null | undefined) {
+  return CLEANLINESS_OPTIONS.find((option) => option.value === rating)?.label || "Non note";
+}
+
+function cleanlinessTone(rating: CleanlinessRating | null | undefined) {
+  return (
+    CLEANLINESS_OPTIONS.find((option) => option.value === rating)?.tone ||
+    "border-white/12 bg-white/[0.04] text-white/70"
+  );
 }
 
 function fullClientName(client: AdminClient | null) {
@@ -197,6 +292,25 @@ function fullClientName(client: AdminClient | null) {
 function previewText(value: string | null, fallback: string) {
   if (!value) return fallback;
   return value.length > 140 ? `${value.slice(0, 140)}...` : value;
+}
+
+function formulaHasExpired(timestamp: number | null | undefined) {
+  if (!timestamp) return false;
+
+  const date = new Date(timestamp * 1000);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const endOfDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+
+  return Date.now() > endOfDay.getTime();
 }
 
 function sortAppointments(
@@ -247,6 +361,82 @@ function appointmentPrimaryAction(status: AppointmentStatus) {
   }
 }
 
+function appointmentWorkflowActions(status: AppointmentStatus) {
+  if (status === "requested") {
+    return {
+      primary: {
+        label: "Confirmer",
+        nextStatus: "confirmed" as AppointmentStatus,
+        icon: CheckCircle2,
+        className: "bb-button-brand justify-center",
+        disabled: false,
+      },
+      secondary: {
+        label: "Refuser",
+        nextStatus: "cancelled" as AppointmentStatus,
+        icon: XCircle,
+        className: "bb-button-danger justify-center",
+        disabled: false,
+      },
+    };
+  }
+
+  if (status === "confirmed") {
+    return {
+      primary: {
+        label: "Marquer effectue",
+        nextStatus: "done" as AppointmentStatus,
+        icon: CheckCircle2,
+        className: "bb-button-brand justify-center",
+        disabled: false,
+      },
+      secondary: {
+        label: "Deconfirmer",
+        nextStatus: "requested" as AppointmentStatus,
+        icon: Clock3,
+        className: "bb-button-ghost justify-center",
+        disabled: false,
+      },
+    };
+  }
+
+  if (status === "done") {
+    return {
+      primary: {
+        label: "Effectue",
+        nextStatus: "done" as AppointmentStatus,
+        icon: CheckCircle2,
+        className: "bb-button-brand justify-center opacity-70",
+        disabled: true,
+      },
+      secondary: {
+        label: "Repasser en attente",
+        nextStatus: "requested" as AppointmentStatus,
+        icon: Clock3,
+        className: "bb-button-ghost justify-center",
+        disabled: false,
+      },
+    };
+  }
+
+  return {
+    primary: {
+      label: "Repasser en attente",
+      nextStatus: "requested" as AppointmentStatus,
+      icon: Clock3,
+      className: "bb-button-brand justify-center",
+      disabled: false,
+    },
+    secondary: {
+      label: "Confirmer",
+      nextStatus: "confirmed" as AppointmentStatus,
+      icon: CheckCircle2,
+      className: "bb-button-ghost justify-center",
+      disabled: false,
+    },
+  };
+}
+
 function groupAppointmentsByDate(appointments: AdminAppointment[]) {
   const groups = new Map<string, AdminAppointment[]>();
 
@@ -283,8 +473,11 @@ export function AdminDashboardPage() {
 
   const [busyAction, setBusyAction] = React.useState(false);
   const [busyFormula, setBusyFormula] = React.useState(false);
+  const [busyFormulaRecap, setBusyFormulaRecap] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [refreshToken, setRefreshToken] = React.useState(0);
+  const [clientTypeFilter, setClientTypeFilter] = React.useState<"bbx" | "data" | "all">("bbx");
+  const [exportingData, setExportingData] = React.useState(false);
 
   const [filterClientQuery, setFilterClientQuery] = React.useState("");
   const deferredClientQuery = React.useDeferredValue(filterClientQuery);
@@ -299,6 +492,9 @@ export function AdminDashboardPage() {
   const [highlightAppointmentId, setHighlightAppointmentId] =
     React.useState<number | null>(null);
   const [noteDrafts, setNoteDrafts] = React.useState<Record<number, string>>({});
+  const [cleanlinessDrafts, setCleanlinessDrafts] = React.useState<
+    Record<number, CleanlinessRating | null>
+  >({});
 
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [photoFormCaption, setPhotoFormCaption] = React.useState("");
@@ -311,6 +507,7 @@ export function AdminDashboardPage() {
   const [profileMode, setProfileMode] = React.useState<"edit" | "new">("edit");
   const [profileSubmitting, setProfileSubmitting] = React.useState(false);
   const [profileDraft, setProfileDraft] = React.useState<ProfileDraft | null>(null);
+  const [founderMediaFile, setFounderMediaFile] = React.useState<File | null>(null);
 
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
@@ -353,7 +550,7 @@ export function AdminDashboardPage() {
         setClientsLoading(true);
         setClientsError(null);
 
-        const response = await fetch("/api/admin/clients");
+        const response = await fetch(`/api/admin/clients?filter=${clientTypeFilter}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const json = (await response.json()) as ListClientsResponse;
@@ -381,7 +578,7 @@ export function AdminDashboardPage() {
     return () => {
       active = false;
     };
-  }, [refreshToken, selectedClientId]);
+  }, [clientTypeFilter, refreshToken, selectedClientId]);
 
   React.useEffect(() => {
     let active = true;
@@ -438,6 +635,15 @@ export function AdminDashboardPage() {
           json.appointments.forEach((appointment) => {
             if (next[appointment.id] === undefined) {
               next[appointment.id] = appointment.adminNote ?? "";
+            }
+          });
+          return next;
+        });
+        setCleanlinessDrafts((current) => {
+          const next = { ...current };
+          json.appointments.forEach((appointment) => {
+            if (next[appointment.id] === undefined) {
+              next[appointment.id] = appointment.cleanlinessRating ?? null;
             }
           });
           return next;
@@ -547,6 +753,29 @@ export function AdminDashboardPage() {
     setToast(message);
   }
 
+  function applyAppointmentUpdate(updated: AdminAppointment) {
+    setGlobalAppointments((current) =>
+      current.map((appointment) =>
+        appointment.id === updated.id ? updated : appointment,
+      ),
+    );
+
+    setSelectedClient((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        appointments: current.appointments.map((appointment) =>
+          appointment.id === updated.id ? updated : appointment,
+        ),
+      };
+    });
+
+    setCleanlinessDrafts((current) => ({
+      ...current,
+      [updated.id]: updated.cleanlinessRating ?? null,
+    }));
+  }
+
   function focusAppointment(appointment: AdminAppointment) {
     setSelectedAppointmentId(appointment.id);
     setHighlightAppointmentId(appointment.id);
@@ -632,22 +861,7 @@ export function AdminDashboardPage() {
       }
 
       const updated = json.appointment as AdminAppointment;
-
-      setGlobalAppointments((current) =>
-        current.map((appointment) =>
-          appointment.id === appointmentId ? updated : appointment,
-        ),
-      );
-
-      setSelectedClient((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          appointments: current.appointments.map((appointment) =>
-            appointment.id === appointmentId ? updated : appointment,
-          ),
-        };
-      });
+      applyAppointmentUpdate(updated);
 
       showToast("Statut mis a jour.");
       setRefreshToken((value) => value + 1);
@@ -663,6 +877,7 @@ export function AdminDashboardPage() {
 
   async function saveAppointmentWorkspace(appointmentId: number) {
     const note = noteDrafts[appointmentId] ?? "";
+    const cleanlinessRating = cleanlinessDrafts[appointmentId] ?? null;
     const hasFile = !!photoFile;
     const captionTrim = photoFormCaption.trim();
 
@@ -673,37 +888,18 @@ export function AdminDashboardPage() {
 
     try {
       try {
-        const response = await fetch(
-          `/api/admin/appointments/${appointmentId}/admin-note`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ adminNote: note }),
-          },
-        );
+        const response = await fetch(`/api/admin/appointments/${appointmentId}/workspace`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ adminNote: note, cleanlinessRating }),
+        });
 
         const json = await response.json();
         if (!response.ok || !json.ok || !json.appointment) {
           showToast("La note admin n'a pas ete enregistree.");
         } else {
           noteSaved = true;
-          const updated = json.appointment as AdminAppointment;
-
-          setGlobalAppointments((current) =>
-            current.map((appointment) =>
-              appointment.id === appointmentId ? updated : appointment,
-            ),
-          );
-
-          setSelectedClient((current) => {
-            if (!current) return current;
-            return {
-              ...current,
-              appointments: current.appointments.map((appointment) =>
-                appointment.id === appointmentId ? updated : appointment,
-              ),
-            };
-          });
+          applyAppointmentUpdate(json.appointment as AdminAppointment);
         }
       } catch (error) {
         showToast("Erreur reseau pendant la sauvegarde de la note.");
@@ -825,6 +1021,69 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function sendFormulaRecap() {
+    const client = selectedClient?.client;
+    if (!client) return;
+
+    if (!client.email) {
+      showToast("Ajoutez un email client avant l'envoi du recapitulatif.");
+      return;
+    }
+
+    setBusyFormulaRecap(true);
+
+    try {
+      const response = await fetch(`/api/admin/clients/${client.id}/formula-recap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const json = await response.json();
+      if (!response.ok || !json.ok || !json.client) {
+        showToast("Impossible d'envoyer le recapitulatif client.");
+        return;
+      }
+
+      const updated = json.client as AdminClient;
+      setClients((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      );
+      setSelectedClient((current) =>
+        current ? { ...current, client: updated } : current,
+      );
+      showToast("Recapitulatif formule envoye au client.");
+    } catch (error) {
+      showToast("Erreur reseau pendant l'envoi du recapitulatif.");
+    } finally {
+      setBusyFormulaRecap(false);
+    }
+  }
+
+  async function exportFullData() {
+    setExportingData(true);
+
+    try {
+      const response = await fetch("/api/admin/exports", {
+        method: "POST",
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        showToast("Impossible d'exporter les donnees.");
+        return;
+      }
+
+      showToast(
+        json.emailSent
+          ? "Export complet cree et envoye a l'admin."
+          : "Export cree. Verifiez la configuration email admin.",
+      );
+    } catch (error) {
+      showToast("Erreur reseau pendant l'export des donnees.");
+    } finally {
+      setExportingData(false);
+    }
+  }
+
   function openFormulaEdit() {
     const client = selectedClient?.client;
     if (!client) return;
@@ -837,6 +1096,7 @@ export function AdminDashboardPage() {
   function openCreateProfile() {
     setProfileMode("new");
     setProfileDraft(defaultProfileDraft());
+    setFounderMediaFile(null);
     setProfileModalOpen(true);
   }
 
@@ -846,6 +1106,7 @@ export function AdminDashboardPage() {
 
     setProfileMode("edit");
     setProfileDraft(profileDraftFromClient(client));
+    setFounderMediaFile(null);
     setProfileModalOpen(true);
   }
 
@@ -859,23 +1120,33 @@ export function AdminDashboardPage() {
     setProfileSubmitting(true);
 
     try {
-      const payload: Record<string, string | number> = {
-        firstName: profileDraft.firstName,
-        lastName: profileDraft.lastName,
-        company: profileDraft.company,
-        email: profileDraft.email,
-        phone: profileDraft.phone,
-        addressLine1: profileDraft.addressLine1,
-        addressLine2: profileDraft.addressLine2,
-        postalCode: profileDraft.postalCode,
-        city: profileDraft.city,
-        vehicleModel: profileDraft.vehicleModel,
-        vehiclePlate: profileDraft.vehiclePlate,
-        formulaName: profileDraft.formulaName,
-        formulaTotal: Number(profileDraft.formulaTotal || 0),
-        formulaRemaining: Number(profileDraft.formulaRemaining || 0),
-        notes: profileDraft.notes,
-      };
+      const payload = new FormData();
+      payload.append("firstName", profileDraft.firstName);
+      payload.append("lastName", profileDraft.lastName);
+      payload.append("company", profileDraft.company);
+      payload.append("email", profileDraft.email);
+      payload.append("phone", profileDraft.phone);
+      payload.append("clientType", profileDraft.clientType);
+      payload.append("isFounder", String(profileDraft.isFounder));
+      payload.append("sendWelcomeEmail", String(profileDraft.sendWelcomeEmail));
+      payload.append("addressLine1", profileDraft.addressLine1);
+      payload.append("addressLine2", profileDraft.addressLine2);
+      payload.append("postalCode", profileDraft.postalCode);
+      payload.append("city", profileDraft.city);
+      payload.append("vehicleModel", profileDraft.vehicleModel);
+      payload.append("vehiclePlate", profileDraft.vehiclePlate);
+      payload.append("formulaName", profileDraft.formulaName);
+      payload.append("formulaTotal", String(Number(profileDraft.formulaTotal || 0)));
+      payload.append(
+        "formulaRemaining",
+        String(Number(profileDraft.formulaRemaining || 0)),
+      );
+      payload.append("formulaPurchasedAt", profileDraft.formulaPurchasedAt);
+      payload.append("formulaExpiresAt", profileDraft.formulaExpiresAt);
+      payload.append("notes", profileDraft.notes);
+      if (founderMediaFile) {
+        payload.append("founderImage", founderMediaFile);
+      }
 
       const creating = profileMode === "new";
       const url = creating
@@ -884,8 +1155,7 @@ export function AdminDashboardPage() {
 
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
       const json = await response.json();
@@ -912,6 +1182,7 @@ export function AdminDashboardPage() {
 
       setProfileModalOpen(false);
       setProfileDraft(null);
+      setFounderMediaFile(null);
       setRefreshToken((value) => value + 1);
     } catch (error) {
       showToast("Erreur reseau pendant l'enregistrement du profil.");
@@ -1040,7 +1311,12 @@ export function AdminDashboardPage() {
     : location.pathname.startsWith("/admin/clients")
       ? "clients"
       : "home";
+  const selectedAppointmentActions = selectedAppointment
+    ? appointmentWorkflowActions(selectedAppointment.status)
+    : null;
   const managedClient = selectedClientData;
+  const managedClientFormulaExpired = formulaHasExpired(managedClient?.formulaExpiresAt);
+  const managedClientTermsAccepted = !!managedClient?.termsAcceptedAt;
   const sectionTitle =
     adminSection === "appointments"
       ? "Rendez-vous"
@@ -1144,6 +1420,17 @@ export function AdminDashboardPage() {
               <button className="bb-button-ghost justify-center" onClick={openCreateProfile} type="button">
                 <Plus className="mr-2 h-4 w-4" />
                 Nouveau client
+              </button>
+              <button
+                className="bb-button-ghost justify-center"
+                disabled={exportingData}
+                onClick={() => {
+                  void exportFullData();
+                }}
+                type="button"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exportingData ? "Export..." : "Exporter les donnees"}
               </button>
             </div>
           </article>
@@ -1583,52 +1870,44 @@ export function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <button
-                        className="bb-button-brand justify-center"
-                        disabled={busyAction || selectedAppointment.status === "confirmed"}
-                        onClick={() => {
-                          void changeStatus(selectedAppointment.id, "confirmed");
-                        }}
-                        type="button"
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Confirmer
-                      </button>
-                      <button
-                        className="bb-button-danger justify-center"
-                        disabled={busyAction || selectedAppointment.status === "cancelled"}
-                        onClick={() => {
-                          void changeStatus(selectedAppointment.id, "cancelled");
-                        }}
-                        type="button"
-                      >
-                        <XCircle className="mr-2 h-4 w-4" />
-                        Annuler
-                      </button>
-                      <button
-                        className="bb-button-ghost justify-center"
-                        disabled={busyAction || selectedAppointment.status === "requested"}
-                        onClick={() => {
-                          void changeStatus(selectedAppointment.id, "requested");
-                        }}
-                        type="button"
-                      >
-                        <Clock3 className="mr-2 h-4 w-4" />
-                        Repasser en attente
-                      </button>
-                      <button
-                        className="bb-button-ghost justify-center"
-                        disabled={busyAction || selectedAppointment.status === "done"}
-                        onClick={() => {
-                          void changeStatus(selectedAppointment.id, "done");
-                        }}
-                        type="button"
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Marquer effectue
-                      </button>
-                    </div>
+                    {selectedAppointmentActions && (
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <button
+                          className={selectedAppointmentActions.primary.className}
+                          disabled={
+                            busyAction || selectedAppointmentActions.primary.disabled
+                          }
+                          onClick={() => {
+                            if (selectedAppointmentActions.primary.disabled) return;
+                            void changeStatus(
+                              selectedAppointment.id,
+                              selectedAppointmentActions.primary.nextStatus,
+                            );
+                          }}
+                          type="button"
+                        >
+                          <selectedAppointmentActions.primary.icon className="mr-2 h-4 w-4" />
+                          {selectedAppointmentActions.primary.label}
+                        </button>
+                        <button
+                          className={selectedAppointmentActions.secondary.className}
+                          disabled={
+                            busyAction || selectedAppointmentActions.secondary.disabled
+                          }
+                          onClick={() => {
+                            if (selectedAppointmentActions.secondary.disabled) return;
+                            void changeStatus(
+                              selectedAppointment.id,
+                              selectedAppointmentActions.secondary.nextStatus,
+                            );
+                          }}
+                          type="button"
+                        >
+                          <selectedAppointmentActions.secondary.icon className="mr-2 h-4 w-4" />
+                          {selectedAppointmentActions.secondary.label}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
@@ -1655,6 +1934,31 @@ export function AdminDashboardPage() {
                           {selectedAppointment.clientNote || "Aucun message client."}
                         </p>
                       </div>
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Avis client
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-white/50">
+                          La note etoilee et le commentaire client sont visibles par tous.
+                        </p>
+                        {selectedAppointment.userRating ? (
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
+                                {selectedAppointment.userRating}/5
+                              </div>
+                              <p className="text-sm text-white/70">Evaluation client</p>
+                            </div>
+                            <p className="text-sm leading-6 text-white/60">
+                              {selectedAppointment.userReview || "Aucun commentaire ecrit."}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm leading-6 text-white/60">
+                            Aucun avis client enregistre pour le moment.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1662,6 +1966,31 @@ export function AdminDashboardPage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                       Suivi interne
                     </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {CLEANLINESS_OPTIONS.map((option) => (
+                        <button
+                          className={cn(
+                            "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                            cleanlinessDrafts[selectedAppointment.id] === option.value
+                              ? option.tone
+                              : "border-white/10 bg-black/20 text-white/60 hover:bg-white/[0.04]",
+                          )}
+                          key={option.value}
+                          onClick={() =>
+                            setCleanlinessDrafts((current) => ({
+                              ...current,
+                              [selectedAppointment.id]:
+                                current[selectedAppointment.id] === option.value
+                                  ? null
+                                  : option.value,
+                            }))
+                          }
+                          type="button"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                     <textarea
                       className="bb-textarea mt-4"
                       onChange={(event) =>
@@ -1682,7 +2011,7 @@ export function AdminDashboardPage() {
                       type="button"
                     >
                       <Save className="mr-2 h-4 w-4" />
-                      Enregistrer
+                      {photoFile ? "Enregistrer la note et la photo" : "Enregistrer"}
                     </button>
                   </div>
 
@@ -1722,6 +2051,9 @@ export function AdminDashboardPage() {
                         placeholder="Legende optionnelle"
                         value={photoFormCaption}
                       />
+                      <div className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100/85">
+                        Les photos ajoutees ici seront visibles par tous les clients.
+                      </div>
                     </div>
 
                     <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -1739,19 +2071,23 @@ export function AdminDashboardPage() {
                       )}
 
                       {currentPhotos.map((photo) => (
-                        <a
-                          className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                          href={photo.url}
-                          key={photo.id}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          <img
-                            alt={photo.caption || "Photo rendez-vous"}
-                            className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
-                            src={photo.url}
-                          />
-                        </a>
+                        <div className="space-y-2" key={photo.id}>
+                          <a
+                            className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                            href={photo.url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <img
+                              alt={photo.caption || "Photo rendez-vous"}
+                              className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                              src={photo.url}
+                            />
+                          </a>
+                          <p className="min-w-0 text-xs text-white/45">
+                            {photo.caption || "Sans legende"}
+                          </p>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1851,6 +2187,16 @@ export function AdminDashboardPage() {
                                 <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/45">
                                   {appointmentPrimaryAction(appointment.status)}
                                 </p>
+                                {appointment.cleanlinessRating && (
+                                  <div
+                                    className={cn(
+                                      "mt-2 inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                      cleanlinessTone(appointment.cleanlinessRating),
+                                    )}
+                                  >
+                                    {cleanlinessLabel(appointment.cleanlinessRating)}
+                                  </div>
+                                )}
                               </div>
                               <div
                                 className={cn(
@@ -1933,6 +2279,27 @@ export function AdminDashboardPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 Nouveau client
               </button>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "bbx" as const, label: "BBX" },
+                  { key: "data" as const, label: "Data" },
+                  { key: "all" as const, label: "Tout" },
+                ].map((filter) => (
+                  <button
+                    className={cn(
+                      "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                      clientTypeFilter === filter.key
+                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                        : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
+                    )}
+                    key={filter.key}
+                    onClick={() => setClientTypeFilter(filter.key)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                 <input
@@ -1998,7 +2365,8 @@ export function AdminDashboardPage() {
 
                       <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-white/45">
                         <span>{client.slug}</span>
-                        <span>{client.cardCode || "Sans code"}</span>
+                        <span>{client.clientType === "data" ? "Data" : client.cardCode || "BBX"}</span>
+                        {client.isFounder && <span>Fondateur</span>}
                         {client.city && <span>{client.city}</span>}
                       </div>
                     </button>
@@ -2018,9 +2386,22 @@ export function AdminDashboardPage() {
                   </h2>
                 </div>
                 {managedClient && (
-                  <button className="bb-button-ghost" onClick={openFormulaEdit} type="button">
-                    Editer formule
-                  </button>
+                  <div className="flex flex-wrap gap-3">
+                    <button className="bb-button-ghost" onClick={openFormulaEdit} type="button">
+                      Editer formule
+                    </button>
+                    <button
+                      className="bb-button-ghost"
+                      disabled={busyFormulaRecap}
+                      onClick={() => {
+                        void sendFormulaRecap();
+                      }}
+                      type="button"
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      {busyFormulaRecap ? "Envoi..." : "Envoyer recap"}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2034,8 +2415,18 @@ export function AdminDashboardPage() {
                   <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                          {managedClient.cardCode || "Sans code"}
+                        <div className="flex flex-wrap gap-2">
+                          <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                            {managedClient.clientType === "data"
+                              ? "Data"
+                              : managedClient.cardCode || "Sans code"}
+                          </div>
+                          {managedClient.isFounder && (
+                            <div className="bb-pill border-[#f7b955]/35 bg-[#f7b955]/10 text-[#ffe8a8]">
+                              <Crown className="h-3.5 w-3.5" />
+                              Fondateur
+                            </div>
+                          )}
                         </div>
                         <h3 className="mt-4 text-2xl font-semibold text-white">
                           {fullClientName(managedClient)}
@@ -2049,7 +2440,7 @@ export function AdminDashboardPage() {
                       </div>
                       <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Credits
+                          Credits / BC'Coins
                         </p>
                         <p className="mt-2 text-xl font-semibold text-white">
                           {managedClient.formulaRemaining}
@@ -2057,6 +2448,7 @@ export function AdminDashboardPage() {
                             / {managedClient.formulaTotal}
                           </span>
                         </p>
+                        <p className="mt-2 text-sm text-white/55">{managedClient.bcPoints} points</p>
                       </div>
                     </div>
 
@@ -2080,10 +2472,16 @@ export function AdminDashboardPage() {
                         <PencilLine className="mr-2 h-4 w-4" />
                         Modifier le profil
                       </button>
-                      <Link className="bb-button-ghost" to={`/card/${managedClient.slug}`}>
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Voir carte client
-                      </Link>
+                      {managedClient.clientType === "bbx" ? (
+                        <Link className="bb-button-ghost" to={`/card/${managedClient.slug}`}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Voir carte client
+                        </Link>
+                      ) : (
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
+                          Client Data sans carte
+                        </div>
+                      )}
                       {managedClient.phone && (
                         <a
                           className="bb-button-ghost"
@@ -2102,6 +2500,153 @@ export function AdminDashboardPage() {
                           Email
                         </a>
                       )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                            Formule & validite
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-white">
+                            {managedClient.formulaName || "Formule libre"}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "bb-pill",
+                            managedClientFormulaExpired
+                              ? "border-rose-400/35 bg-rose-300/10 text-rose-100"
+                              : "border-white/12 bg-white/[0.04] text-white/75",
+                          )}
+                        >
+                          {managedClientFormulaExpired ? "Expiree" : "Active"}
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                            Date d'achat
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {formatUnixDateFR(managedClient.formulaPurchasedAt)}
+                          </p>
+                        </div>
+                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                            Date d'expiration
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {formatUnixDateFR(managedClient.formulaExpiresAt)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-sm leading-6 text-white/62">
+                        Credits disponibles: {managedClient.formulaRemaining} / {managedClient.formulaTotal}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                            Conditions & recap
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-white">
+                            {managedClientTermsAccepted
+                              ? "Conditions acceptees"
+                              : "Conditions non acceptees"}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "bb-pill",
+                            managedClientTermsAccepted
+                              ? "border-emerald-400/35 bg-emerald-300/10 text-emerald-100"
+                              : "border-amber-400/35 bg-amber-300/10 text-amber-100",
+                          )}
+                        >
+                          {managedClientTermsAccepted ? "Conforme" : "A valider"}
+                        </div>
+                      </div>
+
+                      <div className="mt-5 space-y-3 text-sm text-white/62">
+                        <p>
+                          Conditions acceptees le: {formatUnixDateTimeFR(managedClient.termsAcceptedAt)}
+                        </p>
+                        <p>
+                          Dernier recap envoye: {formatUnixDateTimeFR(managedClient.formulaRecapSentAt)}
+                        </p>
+                        <p>
+                          {managedClient.email
+                            ? "Le recapitulatif client peut etre renvoye depuis cette fiche."
+                            : "Ajoutez un email client pour envoyer le recapitulatif formule."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Qualite vehicule moyenne
+                      </p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "bb-pill",
+                            cleanlinessTone(selectedClient?.cleanliness.averageScore == null
+                              ? null
+                              : selectedClient.cleanliness.averageScore >= 4.5
+                                ? "very_clean"
+                                : selectedClient.cleanliness.averageScore >= 3.5
+                                  ? "correct"
+                                  : selectedClient.cleanliness.averageScore >= 2.5
+                                    ? "dirty"
+                                    : selectedClient.cleanliness.averageScore >= 1.5
+                                      ? "very_dirty"
+                                      : "reset_recommended"),
+                          )}
+                        >
+                          {selectedClient?.cleanliness.averageScore == null
+                            ? "Aucune note"
+                            : `${selectedClient.cleanliness.averageScore}/5`}
+                        </div>
+                        <p className="text-sm text-white/62">
+                          {selectedClient?.cleanliness.total || 0} rendez-vous notes
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Demandes BC'Coins
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {selectedClient?.rewardRedemptions.length ? (
+                          selectedClient.rewardRedemptions.slice(0, 3).map((redemption) => (
+                            <div className="flex items-center justify-between gap-3" key={redemption.id}>
+                              <div>
+                                <p className="text-sm font-semibold text-white">
+                                  {redemption.rewardLabel}
+                                </p>
+                                <p className="text-xs text-white/45">
+                                  {formatUnixDateTimeFR(redemption.createdAt)}
+                                </p>
+                              </div>
+                              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                                {redemption.status}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/58">Aucune demande enregistree.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -2208,7 +2753,7 @@ export function AdminDashboardPage() {
             </div>
 
             <div className="max-w-4xl">
-              <p className="bb-eyebrow">Operations BlackBox</p>
+              <p className="bb-eyebrow">Operations Bryan Cars</p>
               <h1 className="bb-title mt-3">{sectionTitle}</h1>
               <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
             </div>
@@ -2282,7 +2827,7 @@ export function AdminDashboardPage() {
                 </p>
                 <h3 className="mt-3 text-2xl font-semibold text-white">
                   {profileMode === "new"
-                    ? "Nouveau client BlackBox"
+                    ? "Nouveau client Bryan Cars"
                     : "Mettre a jour la fiche"}
                 </h3>
               </div>
@@ -2292,6 +2837,7 @@ export function AdminDashboardPage() {
                 onClick={() => {
                   setProfileModalOpen(false);
                   setProfileDraft(null);
+                  setFounderMediaFile(null);
                 }}
                 type="button"
               >
@@ -2350,6 +2896,105 @@ export function AdminDashboardPage() {
                   value={profileDraft.email}
                 />
               </label>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Type de client
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[
+                    { value: "bbx" as const, label: "BBX" },
+                    { value: "data" as const, label: "Data" },
+                  ].map((option) => (
+                    <button
+                      className={cn(
+                        "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                        profileDraft.clientType === option.value
+                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                          : "border-white/10 bg-black/20 text-white/60 hover:bg-white/[0.04]",
+                      )}
+                      key={option.value}
+                      onClick={() =>
+                        setProfileDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                clientType: option.value,
+                                isFounder:
+                                  option.value === "bbx" ? current.isFounder : false,
+                              }
+                            : current,
+                        )
+                      }
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                    <input
+                      checked={profileDraft.isFounder}
+                      disabled={profileDraft.clientType !== "bbx"}
+                      onChange={(event) =>
+                        setProfileDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                isFounder: event.target.checked,
+                              }
+                            : current,
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Compte fondateur</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                    <input
+                      checked={profileDraft.sendWelcomeEmail}
+                      onChange={(event) =>
+                        setProfileDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                sendWelcomeEmail: event.target.checked,
+                              }
+                            : current,
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>Envoyer le mail de bienvenue</span>
+                  </label>
+                </div>
+
+                {profileDraft.clientType === "data" && (
+                  <p className="mt-3 text-sm leading-6 text-white/55">
+                    Un client Data n'a pas de carte BBX publique. Il reste uniquement dans la base admin pour le suivi et la relance.
+                  </p>
+                )}
+
+                {profileDraft.clientType === "bbx" && profileDraft.isFounder && (
+                  <label className="mt-4 block space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Image fondateur
+                    </span>
+                    <input
+                      className="bb-input"
+                      onChange={(event) => setFounderMediaFile(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                    <p className="text-sm text-white/50">
+                      {founderMediaFile
+                        ? founderMediaFile.name
+                        : "Ajoutez un visuel premium pour la carte fondateur."}
+                    </p>
+                  </label>
+                )}
+              </div>
               <label className="space-y-2 md:col-span-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
                   Adresse
@@ -2460,6 +3105,49 @@ export function AdminDashboardPage() {
                   value={profileDraft.formulaRemaining}
                 />
               </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Date d'achat
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("formulaPurchasedAt", event.target.value)
+                  }
+                  type="date"
+                  value={profileDraft.formulaPurchasedAt}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Date d'expiration
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    updateProfileDraft("formulaExpiresAt", event.target.value)
+                  }
+                  type="date"
+                  value={profileDraft.formulaExpiresAt}
+                />
+              </label>
+              {profileMode === "edit" && selectedClientData && (
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                    Conditions & recap
+                  </p>
+                  <div className="mt-3 grid gap-3 text-sm text-white/65 md:grid-cols-2">
+                    <p>
+                      Conditions acceptees le:{" "}
+                      {formatUnixDateTimeFR(selectedClientData.termsAcceptedAt)}
+                    </p>
+                    <p>
+                      Dernier recap envoye:{" "}
+                      {formatUnixDateTimeFR(selectedClientData.formulaRecapSentAt)}
+                    </p>
+                  </div>
+                </div>
+              )}
               <label className="space-y-2 md:col-span-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
                   Notes internes

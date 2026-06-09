@@ -68,6 +68,50 @@ export function formatDateFR(dateStr: string, options: DateLabelOptions = {}) {
   });
 }
 
+export function formatUnixDateFR(
+  timestamp: number | null | undefined,
+  options: DateLabelOptions = {},
+) {
+  if (!timestamp) return "--";
+
+  const date = new Date(timestamp * 1000);
+  if (Number.isNaN(date.getTime())) return "--";
+
+  return date.toLocaleDateString("fr-FR", {
+    day: options.day ?? "2-digit",
+    month: options.month ?? "long",
+    year: options.year ?? "numeric",
+    weekday: options.weekday,
+  });
+}
+
+export function formatUnixDateTimeFR(timestamp: number | null | undefined) {
+  if (!timestamp) return "--";
+
+  const date = new Date(timestamp * 1000);
+  if (Number.isNaN(date.getTime())) return "--";
+
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function unixToDateInputValue(timestamp: number | null | undefined) {
+  if (!timestamp) return "";
+
+  const date = new Date(timestamp * 1000);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function formatTimeHHMM(time: string | null) {
   if (!time) return "--";
   return time.slice(0, 5);

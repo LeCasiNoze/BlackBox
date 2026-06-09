@@ -5,18 +5,29 @@ require("dotenv").config({
 });
 
 const express = require("express");
-const { UPLOADS_DIR, ensureDir } = require("./config/storage");
+const {
+  EXPORTS_DIR,
+  FOUNDERS_UPLOAD_DIR,
+  UPLOADS_DIR,
+  ensureDir,
+} = require("./config/storage");
 
 const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
 const adminApiRoutes = require("./routes/adminApi");
 const { ensureDemoClient } = require("./db/clients");
+const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 
-ensureDemoClient();
+if (process.env.SEED_DEMO_CLIENT === "true") {
+  ensureDemoClient();
+}
 
 const app = express();
 const distDir = path.join(__dirname, "../web/dist");
 ensureDir(UPLOADS_DIR);
+ensureDir(FOUNDERS_UPLOAD_DIR);
+ensureDir(EXPORTS_DIR);
+startWeeklyExportScheduler();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());

@@ -1,77 +1,131 @@
-// src/routes/adminApi.js
 const express = require("express");
-const router = express.Router();
-const path = require("path");
 const multer = require("multer");
-const { APPOINTMENTS_UPLOAD_DIR, ensureDir } = require("../config/storage");
+const path = require("path");
 
-const { db, nowUnix } = require("../db");
+const router = express.Router();
 
 const {
-  listClients,
+  APPOINTMENTS_UPLOAD_DIR,
+  FOUNDERS_UPLOAD_DIR,
+  ensureDir,
+} = require("../config/storage");
+const { nowUnix } = require("../db");
+const {
+  createClient,
+  formulaNameFromTotal,
   getClientById,
   incrementFormulaRemaining,
+  listClients,
+  markFormulaRecapSent,
+  markWelcomeEmailSent,
+  parseDateInputToUnix,
+  sanitizeString,
+  updateClientFormulaBalance,
+  updateClientProfile,
 } = require("../db/clients");
 const {
-  getAppointmentsForClient,
+  cancelAppointmentForClientOnDate,
   getAllAppointmentsWithClient,
   getAppointmentById,
+  getAppointmentPhotos,
+  getAppointmentsForClient,
+  getClientCleanlinessAverage,
+  insertAppointmentPhoto,
+  normalizeAppointmentSlot,
+  updateAppointmentAdminWorkspace,
   updateAppointmentStatus,
-  updateAppointmentAdminNote,
-  cancelAppointmentForClientOnDate,
-  getAppointmentPhotos,       // 👈 NEW
-  insertAppointmentPhoto,     // 👈 NEW
 } = require("../db/appointments");
+const {
+  awardPointsForAppointment,
+  listRewardRedemptionsByClient,
+  revokePointsForAppointment,
+} = require("../db/rewards");
+const {
+  createVehicleForClient,
+  deleteVehicleForClient,
+  listVehiclesByClient,
+  setPrimaryVehicle,
+  updateVehicleForClient,
+} = require("../db/vehicles");
+const {
+  sendAdminDataExportEmail,
+  sendAdminNotification,
+  sendClientFormulaRecap,
+  sendClientWelcomeEmail,
+} = require("../email");
+const {
+  createDataExportFile,
+  markExportJobEmailSent,
+} = require("../services/dataExport");
 
-// Dossier de stockage des photos de rendez-vous
-const UPLOAD_DIR = APPOINTMENTS_UPLOAD_DIR;
-ensureDir(UPLOAD_DIR);
+ensureDir(APPOINTMENTS_UPLOAD_DIR);
+ensureDir(FOUNDERS_UPLOAD_DIR);
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    const base = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, base + ext.toLowerCase());
-  },
+function diskStorageFor(uploadDir) {
+  return multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      callback(null, uploadDir);
+    },
+    filename: (_req, file, callback) => {
+      const ext = path.extname(file.originalname) || ".png";
+      const base = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      callback(null, `${base}${ext.toLowerCase()}`);
+    },
+  });
+}
+
+const founderUpload = multer({ storage: diskStorageFor(FOUNDERS_UPLOAD_DIR) });
+const appointmentPhotoUpload = multer({
+  storage: diskStorageFor(APPOINTMENTS_UPLOAD_DIR),
 });
-
-const upload = multer({ storage });
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
 
 const ALLOWED_STATUSES = ["requested", "confirmed", "done", "cancelled"];
 
-// Génère le prochain code carte du style "BBX-001", "BBX-002", ...
-function generateNextCardCode() {
-  const row = db
-    .prepare(`
-      SELECT card_code
-      FROM clients
-      WHERE card_code LIKE 'BBX-%'
-      ORDER BY LENGTH(card_code) DESC, card_code DESC
-      LIMIT 1
-    `)
-    .get();
-
-  let nextNum = 1;
-
-  if (row && row.card_code) {
-    const m = String(row.card_code).match(/^BBX-(\d+)$/);
-    if (m) {
-      nextNum = parseInt(m[1], 10) + 1;
-    }
+function parseBoolean(value, fallback = false) {
+  if (typeof value === "boolean") {
+    return value;
   }
 
-  const suffix = String(nextNum).padStart(3, "0"); // 001, 002, ..., 010, 011...
-  return `BBX-${suffix}`;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+
+  return fallback;
 }
 
-// Transforme une ligne client DB -> objet JSON camelCase
+function parseInteger(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.floor(numeric);
+}
+
+function parseClientType(value) {
+  return value === "data" ? "data" : "bbx";
+}
+
+function founderMediaUrlFromFile(file) {
+  if (!file) return null;
+  return `/uploads/founders/${file.filename}`;
+}
+
+function mapVehicleRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    label: row.label || null,
+    model: row.model || null,
+    plate: row.plate || null,
+    isPrimary: !!row.is_primary,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapClientRow(row) {
   if (!row) return null;
   return {
@@ -84,42 +138,56 @@ function mapClientRow(row) {
     email: row.email,
     phone: row.phone,
     company: row.company || null,
+    clientType: row.client_type || "bbx",
+    isFounder: !!row.is_founder,
+    founderMediaUrl: row.founder_media_url || null,
     addressLine1: row.address_line1,
     addressLine2: row.address_line2,
     postalCode: row.postal_code,
     city: row.city,
     vehicleModel: row.vehicle_model,
     vehiclePlate: row.vehicle_plate,
-    formulaName: row.formula_name,
+    formulaName:
+      row.formula_name || formulaNameFromTotal(row.formula_total ?? row.formulaTotal ?? 0),
     formulaTotal: row.formula_total,
     formulaRemaining: row.formula_remaining,
+    formulaPurchasedAt: row.formula_purchased_at ?? null,
+    formulaExpiresAt: row.formula_expires_at ?? null,
+    termsAcceptedAt: row.terms_accepted_at ?? null,
+    formulaRecapSentAt: row.formula_recap_sent_at ?? null,
+    welcomeEmailSentAt: row.welcome_email_sent_at ?? null,
+    bcPoints: row.bc_points ?? 0,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-// Transforme une ligne appointment DB (+ éventuels champs client_) -> objet JSON
 function mapAppointmentRow(row) {
   if (!row) return null;
   return {
     id: row.id,
     clientId: row.client_id,
+    vehicleId: row.vehicle_id ?? null,
     date: row.date,
     slot: row.slot || null,
     time: row.time,
     status: row.status,
     clientNote: row.client_note,
     adminNote: row.admin_note,
+    userRating: row.user_rating ?? null,
+    userReview: row.user_review ?? null,
+    cleanlinessRating: row.cleanliness_rating ?? null,
+    bcPointsAwarded: !!row.bc_points_awarded,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     clientName: row.full_name || row.client_full_name || null,
+    vehicleLabel: row.vehicle_label || null,
     vehicleModel: row.vehicle_model || null,
     vehiclePlate: row.vehicle_plate || null,
-    location: row.location || null, // 👈 on expose bien le lieu
+    location: row.location || null,
   };
 }
-
 
 function mapPhotoRow(row) {
   if (!row) return null;
@@ -128,26 +196,83 @@ function mapPhotoRow(row) {
     url: row.url,
     caption: row.caption || null,
     isCover: !!row.is_cover,
+    isPublic: !!row.is_public,
   };
 }
 
-// ─────────────────────────────────────────────
-// Clients
-// ─────────────────────────────────────────────
+function mapRewardRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    rewardKey: row.reward_key,
+    rewardLabel: row.reward_label,
+    pointsCost: row.points_cost,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
-// GET /api/admin/clients -> liste de tous les clients
+function buildClientPayloadFromRequest(req, options = {}) {
+  const body = req.body || {};
+  const clientType = parseClientType(body.clientType);
+  const founderMediaUrl = founderMediaUrlFromFile(req.file);
+  const founderRequested = parseBoolean(body.isFounder, false);
+
+  return {
+    firstName: body.firstName,
+    lastName: body.lastName,
+    email: body.email,
+    phone: body.phone,
+    company: body.company,
+    addressLine1: body.addressLine1,
+    addressLine2: body.addressLine2,
+    postalCode: body.postalCode,
+    city: body.city,
+    vehicleLabel: body.vehicleLabel,
+    vehicleModel: body.vehicleModel,
+    vehiclePlate: body.vehiclePlate,
+    formulaName: body.formulaName,
+    formulaTotal: parseInteger(body.formulaTotal, 0),
+    formulaRemaining: parseInteger(body.formulaRemaining, parseInteger(body.formulaTotal, 0)),
+    formulaPurchasedAt: body.formulaPurchasedAt,
+    formulaExpiresAt: body.formulaExpiresAt,
+    notes: body.notes,
+    clientType,
+    isFounder: clientType === "bbx" ? founderRequested : false,
+    founderMediaUrl:
+      founderMediaUrl ??
+      (options.allowExistingFounderMedia ? body.founderMediaUrl : null) ??
+      null,
+    clearFounderMedia: parseBoolean(body.clearFounderMedia, false),
+    bcPoints: parseInteger(body.bcPoints, 0),
+  };
+}
+
+async function maybeSendWelcomeEmail(client, enabled) {
+  if (!enabled || !client || client.client_type !== "bbx" || !client.email) {
+    return false;
+  }
+
+  const sent = await sendClientWelcomeEmail(client);
+  if (sent) {
+    markWelcomeEmailSent(client.id);
+  }
+  return sent;
+}
+
 router.get("/clients", (req, res) => {
   try {
-    const rows = listClients();
-    const clients = rows.map(mapClientRow);
-    res.json({ ok: true, clients });
-  } catch (err) {
-    console.error("[adminApi] GET /clients error:", err);
-    res.status(500).json({ ok: false, error: "server_error" });
+    const filter = req.query.filter === "all" ? "all" : req.query.filter === "data" ? "data" : "bbx";
+    const clients = listClients(filter).map(mapClientRow);
+    return res.json({ ok: true, clients });
+  } catch (error) {
+    console.error("[adminApi] GET /clients:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// GET /api/admin/clients/:id -> détails + rendez-vous
 router.get("/clients/:id", (req, res) => {
   const id = Number(req.params.id || 0);
   if (!id) {
@@ -155,306 +280,200 @@ router.get("/clients/:id", (req, res) => {
   }
 
   try {
-    const clientRow = getClientById(id);
-    if (!clientRow) {
+    const client = getClientById(id);
+    if (!client) {
       return res.status(404).json({ ok: false, error: "client_not_found" });
     }
 
-    const apptsRows = getAppointmentsForClient(id);
-    const appointments = apptsRows.map(mapAppointmentRow);
+    const appointments = getAppointmentsForClient(id, {
+      includeCancelled: true,
+    }).map(mapAppointmentRow);
+    const vehicles = listVehiclesByClient(id).map(mapVehicleRow);
+    const rewardRedemptions = listRewardRedemptionsByClient(id).map(mapRewardRow);
+    const cleanliness = getClientCleanlinessAverage(id);
 
-    res.json({
+    return res.json({
       ok: true,
-      client: mapClientRow(clientRow),
+      client: mapClientRow(client),
+      vehicles,
       appointments,
+      rewardRedemptions,
+      cleanliness,
     });
-  } catch (err) {
-    console.error("[adminApi] GET /clients/:id error:", err);
-    res.status(500).json({ ok: false, error: "server_error" });
+  } catch (error) {
+    console.error("[adminApi] GET /clients/:id:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// POST /api/admin/clients/:id/profile
-// Met à jour les infos du client (hors card_code & slug)
-router.post("/clients/:id/profile", (req, res) => {
+router.post("/clients", founderUpload.single("founderImage"), async (req, res) => {
+  try {
+    const payload = buildClientPayloadFromRequest(req);
+    const client = createClient(payload);
+    const sendWelcomeEmail = parseBoolean(
+      req.body?.sendWelcomeEmail,
+      payload.clientType === "bbx",
+    );
+    const welcomeEmailSent = await maybeSendWelcomeEmail(client, sendWelcomeEmail);
+
+    return res.json({
+      ok: true,
+      client: mapClientRow(getClientById(client.id)),
+      vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+      welcomeEmailSent,
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /clients:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/clients/:id/profile", founderUpload.single("founderImage"), (req, res) => {
   const id = Number(req.params.id || 0);
   if (!id) {
     return res.status(400).json({ ok: false, error: "invalid_id" });
   }
 
-  const {
-    firstName,
-    lastName,
-    email,
-    phone,
-    company,
-    addressLine1,
-    addressLine2,
-    postalCode,
-    city,
-    vehicleModel,
-    vehiclePlate,
-    formulaName,
-    formulaTotal,
-    formulaRemaining,
-    notes,
-  } = req.body || {};
-
   try {
-    const existing = getClientById(id);
-    if (!existing) {
-      return res
-        .status(404)
-        .json({ ok: false, error: "client_not_found" });
+    const client = getClientById(id);
+    if (!client) {
+      return res.status(404).json({ ok: false, error: "client_not_found" });
     }
 
-    const now = nowUnix();
+    const payload = buildClientPayloadFromRequest(req, {
+      allowExistingFounderMedia: true,
+    });
+    const updated = updateClientProfile(id, payload);
 
-    const fn =
-      typeof firstName === "string"
-        ? firstName.trim()
-        : existing.first_name;
-    const ln =
-      typeof lastName === "string"
-        ? lastName.trim()
-        : existing.last_name;
-
-    let fullName = existing.full_name;
-    if (firstName !== undefined || lastName !== undefined) {
-      const tmpFull =
-        (fn || ln) ? [fn, ln].filter(Boolean).join(" ") : null;
-      fullName = tmpFull || existing.full_name;
-    }
-
-    const ftRaw = formulaTotal !== undefined ? Number(formulaTotal) : existing.formula_total;
-    const frRaw = formulaRemaining !== undefined ? Number(formulaRemaining) : existing.formula_remaining;
-
-    const ft =
-      Number.isFinite(ftRaw) && ftRaw >= 0 ? Math.floor(ftRaw) : existing.formula_total;
-    let fr =
-      Number.isFinite(frRaw) && frRaw >= 0 ? Math.floor(frRaw) : existing.formula_remaining;
-
-    // On évite d'avoir "restants > total"
-    fr = Math.min(fr, ft);
-
-    db.prepare(
-      `
-      UPDATE clients
-      SET
-        first_name        = ?,
-        last_name         = ?,
-        full_name         = ?,
-        email             = ?,
-        phone             = ?,
-        company           = ?,
-        address_line1     = ?,
-        address_line2     = ?,
-        postal_code       = ?,
-        city              = ?,
-        vehicle_model     = ?,
-        vehicle_plate     = ?,
-        formula_name      = ?,
-        formula_total     = ?,
-        formula_remaining = ?,
-        notes             = ?,
-        updated_at        = ?
-      WHERE id = ?
-    `
-    ).run(
-      fn,
-      ln,
-      fullName,
-      email !== undefined ? email || null : existing.email,
-      phone !== undefined ? phone || null : existing.phone,
-      company !== undefined ? company || null : existing.company,
-      addressLine1 !== undefined
-        ? addressLine1 || null
-        : existing.address_line1,
-      addressLine2 !== undefined
-        ? addressLine2 || null
-        : existing.address_line2,
-      postalCode !== undefined
-        ? postalCode || null
-        : existing.postal_code,
-      city !== undefined ? city || null : existing.city,
-      vehicleModel !== undefined
-        ? vehicleModel || null
-        : existing.vehicle_model,
-      vehiclePlate !== undefined
-        ? vehiclePlate || null
-        : existing.vehicle_plate,
-      formulaName !== undefined
-        ? formulaName || null
-        : existing.formula_name,
-      ft,
-      fr,
-      notes !== undefined ? notes || null : existing.notes,
-      now,
-      id
-    );
-
-    const updated = getClientById(id);
     return res.json({
       ok: true,
       client: mapClientRow(updated),
+      vehicles: listVehiclesByClient(id).map(mapVehicleRow),
     });
-  } catch (err) {
-    console.error("[adminApi] POST /clients/:id/profile error:", err);
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/profile:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// POST /api/admin/clients
-// Crée un nouveau client avec un card_code auto "BBX-00X"
-router.post("/clients", (req, res) => {
-  const {
-    firstName,
-    lastName,
-    email,
-    phone,
-    company,
-    addressLine1,
-    addressLine2,
-    postalCode,
-    city,
-    vehicleModel,
-    vehiclePlate,
-    formulaName,
-    formulaTotal,
-    formulaRemaining,
-    notes,
-  } = req.body || {};
+router.post("/clients/:id/vehicles", (req, res) => {
+  const clientId = Number(req.params.id || 0);
+  if (!clientId) {
+    return res.status(400).json({ ok: false, error: "invalid_client_id" });
+  }
 
   try {
-    const now = nowUnix();
-    const cardCode = generateNextCardCode();
-    const slug = cardCode.toLowerCase(); // ex: "bbx-001"
+    const client = getClientById(clientId);
+    if (!client) {
+      return res.status(404).json({ ok: false, error: "client_not_found" });
+    }
 
-    const fn = typeof firstName === "string" ? firstName.trim() : null;
-    const ln = typeof lastName === "string" ? lastName.trim() : null;
-    const fullName =
-      fn || ln ? [fn, ln].filter(Boolean).join(" ") : null;
-
-    const ftRaw = Number(formulaTotal);
-    const frRaw = Number(formulaRemaining);
-
-    const ft =
-      Number.isFinite(ftRaw) && ftRaw >= 0 ? Math.floor(ftRaw) : 0;
-    const fr =
-      Number.isFinite(frRaw) && frRaw >= 0 ? Math.floor(frRaw) : 0;
-
-    const stmt = db.prepare(`
-      INSERT INTO clients (
-        slug,
-        card_code,
-        first_name,
-        last_name,
-        full_name,
-        email,
-        phone,
-        company,
-        address_line1,
-        address_line2,
-        postal_code,
-        city,
-        vehicle_model,
-        vehicle_plate,
-        formula_name,
-        formula_total,
-        formula_remaining,
-        notes,
-        created_at,
-        updated_at
-      ) VALUES (
-        @slug,
-        @card_code,
-        @first_name,
-        @last_name,
-        @full_name,
-        @email,
-        @phone,
-        @company,
-        @address_line1,
-        @address_line2,
-        @postal_code,
-        @city,
-        @vehicle_model,
-        @vehicle_plate,
-        @formula_name,
-        @formula_total,
-        @formula_remaining,
-        @notes,
-        @created_at,
-        @updated_at
-      )
-    `);
-
-    const info = stmt.run({
-      slug,
-      card_code: cardCode,
-      first_name: fn,
-      last_name: ln,
-      full_name: fullName,
-      email: email || null,
-      phone: phone || null,
-      company: company || null,
-      address_line1: addressLine1 || null,
-      address_line2: addressLine2 || null,
-      postal_code: postalCode || null,
-      city: city || null,
-      vehicle_model: vehicleModel || null,
-      vehicle_plate: vehiclePlate || null,
-      formula_name: formulaName || null,
-      formula_total: ft,
-      formula_remaining: fr,
-      notes: notes || null,
-      created_at: now,
-      updated_at: now,
+    const vehicle = createVehicleForClient(clientId, {
+      label: req.body?.label,
+      model: req.body?.model,
+      plate: req.body?.plate,
+      isPrimary: parseBoolean(req.body?.isPrimary, false),
     });
 
-    const created = getClientById(info.lastInsertRowid);
     return res.json({
       ok: true,
-      client: mapClientRow(created),
+      vehicle: mapVehicleRow(vehicle),
+      vehicles: listVehiclesByClient(clientId).map(mapVehicleRow),
     });
-  } catch (err) {
-    console.error("[adminApi] POST /clients error:", err);
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/vehicles:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
+router.post("/clients/:id/vehicles/:vehicleId", (req, res) => {
+  const clientId = Number(req.params.id || 0);
+  const vehicleId = Number(req.params.vehicleId || 0);
 
-// ─────────────────────────────────────────────
-// Rendez-vous (vue globale)
-// ─────────────────────────────────────────────
-
-// GET /api/admin/appointments?limit=100
-router.get("/appointments", (req, res) => {
-  const limit = Math.max(
-    1,
-    Math.min(500, Number(req.query.limit || 100))
-  );
+  if (!clientId || !vehicleId) {
+    return res.status(400).json({ ok: false, error: "invalid_identifiers" });
+  }
 
   try {
-    const rows = getAllAppointmentsWithClient(limit);
-    const appointments = rows.map(mapAppointmentRow);
-
-    res.json({
-      ok: true,
-      appointments,
+    const vehicle = updateVehicleForClient(clientId, vehicleId, {
+      label: req.body?.label,
+      model: req.body?.model,
+      plate: req.body?.plate,
+      isPrimary: parseBoolean(req.body?.isPrimary, false),
     });
-  } catch (err) {
-    console.error("[adminApi] GET /appointments error:", err);
-    res.status(500).json({ ok: false, error: "server_error" });
+
+    if (!vehicle) {
+      return res.status(404).json({ ok: false, error: "vehicle_not_found" });
+    }
+
+    return res.json({
+      ok: true,
+      vehicle: mapVehicleRow(vehicle),
+      vehicles: listVehiclesByClient(clientId).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/vehicles/:vehicleId:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// ─────────────────────────────────────────────
-// Actions sur un rendez-vous
-// ─────────────────────────────────────────────
+router.post("/clients/:id/vehicles/:vehicleId/primary", (req, res) => {
+  const clientId = Number(req.params.id || 0);
+  const vehicleId = Number(req.params.vehicleId || 0);
 
-// POST /api/admin/clients/:id/formula
-// body: { mode: "reset" | "empty" | "custom", total?: number, remaining?: number }
+  if (!clientId || !vehicleId) {
+    return res.status(400).json({ ok: false, error: "invalid_identifiers" });
+  }
+
+  try {
+    const primary = setPrimaryVehicle(clientId, vehicleId);
+    return res.json({
+      ok: true,
+      primaryVehicle: mapVehicleRow(primary),
+      vehicles: listVehiclesByClient(clientId).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/vehicles/:vehicleId/primary:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.delete("/clients/:id/vehicles/:vehicleId", (req, res) => {
+  const clientId = Number(req.params.id || 0);
+  const vehicleId = Number(req.params.vehicleId || 0);
+
+  if (!clientId || !vehicleId) {
+    return res.status(400).json({ ok: false, error: "invalid_identifiers" });
+  }
+
+  try {
+    const deleted = deleteVehicleForClient(clientId, vehicleId);
+    if (!deleted) {
+      return res.status(400).json({ ok: false, error: "cannot_delete_vehicle" });
+    }
+
+    return res.json({
+      ok: true,
+      vehicles: listVehiclesByClient(clientId).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[adminApi] DELETE /clients/:id/vehicles/:vehicleId:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.get("/appointments", (req, res) => {
+  const limit = Math.max(1, Math.min(500, Number(req.query.limit || 300)));
+
+  try {
+    const appointments = getAllAppointmentsWithClient(limit).map(mapAppointmentRow);
+    return res.json({ ok: true, appointments });
+  } catch (error) {
+    console.error("[adminApi] GET /appointments:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
 router.post("/clients/:id/formula", (req, res) => {
   const id = Number(req.params.id || 0);
   const { mode, total, remaining } = req.body || {};
@@ -469,60 +488,69 @@ router.post("/clients/:id/formula", (req, res) => {
       return res.status(404).json({ ok: false, error: "not_found" });
     }
 
-    let newTotal = client.formula_total ?? 0;
-    let newRemaining = client.formula_remaining ?? 0;
+    let nextTotal = client.formula_total ?? 0;
+    let nextRemaining = client.formula_remaining ?? 0;
 
     if (mode === "reset") {
-      // remet le nombre restant au max actuel
-      newRemaining = newTotal;
+      nextRemaining = nextTotal;
     } else if (mode === "empty") {
-      // vide le forfait
-      newRemaining = 0;
+      nextRemaining = 0;
     } else if (mode === "custom") {
-      const t =
-        typeof total === "number" && Number.isFinite(total) && total >= 0
-          ? Math.floor(total)
-          : newTotal;
-
-      const r =
-        typeof remaining === "number" && Number.isFinite(remaining) && remaining >= 0
-          ? Math.floor(remaining)
-          : newRemaining;
-
-      newTotal = t;
-      newRemaining = Math.min(r, t); // on ne laisse pas restants > total
+      nextTotal = Math.max(0, parseInteger(total, nextTotal));
+      nextRemaining = Math.min(Math.max(0, parseInteger(remaining, nextRemaining)), nextTotal);
     } else {
       return res.status(400).json({ ok: false, error: "invalid_mode" });
     }
 
-    db.prepare(
-      `
-      UPDATE clients
-      SET
-        formula_total = ?,
-        formula_remaining = ?,
-        updated_at = ?
-      WHERE id = ?
-    `
-    ).run(newTotal, newRemaining, nowUnix(), id);
-
-    const updated = getClientById(id);
+    const updated = updateClientFormulaBalance(id, {
+      total: nextTotal,
+      remaining: nextRemaining,
+    });
 
     return res.json({
       ok: true,
       client: mapClientRow(updated),
     });
-  } catch (err) {
-    console.error("[adminApi] formula update error:", err);
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/formula:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
-// --------------------------------------------------
-// TEST EMAIL (Brevo) : /api/admin/test-email
-// --------------------------------------------------
-const { sendAdminNotification } = require("../email");
 
-router.get("/test-email", async (req, res) => {
+router.post("/clients/:id/formula-recap", async (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+
+  try {
+    const client = getClientById(id);
+    if (!client) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+
+    if (!client.email) {
+      return res.status(400).json({ ok: false, error: "missing_email" });
+    }
+
+    const sent = await sendClientFormulaRecap(client);
+    if (!sent) {
+      return res.status(500).json({ ok: false, error: "formula_recap_not_sent" });
+    }
+
+    markFormulaRecapSent(id);
+
+    return res.json({
+      ok: true,
+      client: mapClientRow(getClientById(id)),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/formula-recap:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.get("/test-email", async (_req, res) => {
   try {
     await sendAdminNotification({
       type: "test",
@@ -536,18 +564,18 @@ router.get("/test-email", async (req, res) => {
         vehicle_plate: "TEST-001",
         card_code: "TEST-CARD",
       },
-      date: "2025-12-19",
+      date: "2026-06-10",
       time: "14:00",
+      location: "atelier",
     });
 
-    res.json({ ok: true, message: "Email envoyé via Brevo !" });
-  } catch (err) {
-    console.error("[MAIL TEST] Error:", err);
-    res.status(500).json({ ok: false, error: String(err) });
+    return res.json({ ok: true, message: "Email de test tente." });
+  } catch (error) {
+    console.error("[adminApi] GET /test-email:", error);
+    return res.status(500).json({ ok: false, error: String(error) });
   }
 });
 
-// POST /api/admin/appointments/:id/status  { status }
 router.post("/appointments/:id/status", (req, res) => {
   const id = Number(req.params.id || 0);
   const { status } = req.body || {};
@@ -560,127 +588,147 @@ router.post("/appointments/:id/status", (req, res) => {
   }
 
   try {
-    const appt = getAppointmentById(id);
-    if (!appt) {
+    const appointment = getAppointmentById(id);
+    if (!appointment) {
       return res.status(404).json({ ok: false, error: "appointment_not_found" });
     }
 
-    // Cas spécial : annulation admin => libère le jour + recrédite le client
-    if (status === "cancelled") {
-      if (!["requested", "confirmed"].includes(appt.status)) {
-        return res.status(400).json({
-          ok: false,
-          error: "cannot_cancel",
-          message: "Seuls les rendez-vous en attente ou confirmés peuvent être annulés.",
-        });
-      }
-
-      // 1) passe le RDV en cancelled (via la fonction existante)
-      cancelAppointmentForClientOnDate(
-        appt.client_id,
-        appt.date,
-        appt.slot || null
-      );
-      // 2) recrédite 1 nettoyage
-      incrementFormulaRemaining(appt.client_id);
-
-      const updated = getAppointmentById(id);
+    if (appointment.status === status) {
       return res.json({
         ok: true,
-        appointment: mapAppointmentRow(updated),
+        appointment: mapAppointmentRow(appointment),
       });
     }
 
-    // Autres status (requested, confirmed, done) → simple update
-    const changes = updateAppointmentStatus(id, status);
-    if (!changes) {
-      return res.status(400).json({ ok: false, error: "no_change" });
+    if (status === "cancelled") {
+      if (["requested", "confirmed"].includes(appointment.status)) {
+        cancelAppointmentForClientOnDate(
+          appointment.client_id,
+          appointment.date,
+          appointment.slot || null,
+        );
+        incrementFormulaRemaining(appointment.client_id);
+      } else {
+        updateAppointmentStatus(id, "cancelled");
+      }
+
+      if (appointment.status === "done") {
+        revokePointsForAppointment(appointment.client_id, appointment.id);
+      }
+
+      return res.json({
+        ok: true,
+        appointment: mapAppointmentRow(getAppointmentById(id)),
+      });
     }
 
-    const updated = getAppointmentById(id);
-    res.json({
+    updateAppointmentStatus(id, status);
+
+    if (appointment.status === "done" && status !== "done") {
+      revokePointsForAppointment(appointment.client_id, appointment.id);
+    }
+
+    if (status === "done") {
+      awardPointsForAppointment(appointment.client_id, appointment.id);
+    }
+
+    return res.json({
       ok: true,
-      appointment: mapAppointmentRow(updated),
+      appointment: mapAppointmentRow(getAppointmentById(id)),
     });
-  } catch (err) {
-    console.error("[adminApi] POST /appointments/:id/status error:", err);
-    res.status(500).json({ ok: false, error: "server_error" });
+  } catch (error) {
+    console.error("[adminApi] POST /appointments/:id/status:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// POST /api/admin/appointments/:id/admin-note  { adminNote }
-router.post("/appointments/:id/admin-note", (req, res) => {
+router.post("/appointments/:id/workspace", (req, res) => {
   const id = Number(req.params.id || 0);
-  const { adminNote } = req.body || {};
-
   if (!id) {
     return res.status(400).json({ ok: false, error: "invalid_id" });
   }
 
   try {
-    const appt = getAppointmentById(id);
-    if (!appt) {
+    const appointment = getAppointmentById(id);
+    if (!appointment) {
       return res.status(404).json({ ok: false, error: "appointment_not_found" });
     }
 
-    updateAppointmentAdminNote(id, adminNote || null);
-    const updated = getAppointmentById(id);
-
-    res.json({
-      ok: true,
-      appointment: mapAppointmentRow(updated),
+    updateAppointmentAdminWorkspace(id, {
+      adminNote: sanitizeString(req.body?.adminNote),
+      cleanlinessRating: req.body?.cleanlinessRating || null,
     });
-  } catch (err) {
-    console.error("[adminApi] POST /appointments/:id/admin-note error:", err);
-    res.status(500).json({ ok: false, error: "server_error" });
+
+    return res.json({
+      ok: true,
+      appointment: mapAppointmentRow(getAppointmentById(id)),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /appointments/:id/workspace:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// POST /api/admin/appointments/:id/photos/upload
-// FormData: file, caption?
+router.post("/appointments/:id/admin-note", (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+
+  try {
+    const appointment = getAppointmentById(id);
+    if (!appointment) {
+      return res.status(404).json({ ok: false, error: "appointment_not_found" });
+    }
+
+    updateAppointmentAdminWorkspace(id, {
+      adminNote: sanitizeString(req.body?.adminNote),
+      cleanlinessRating: req.body?.cleanlinessRating || null,
+    });
+
+    return res.json({
+      ok: true,
+      appointment: mapAppointmentRow(getAppointmentById(id)),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /appointments/:id/admin-note:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
 router.post(
   "/appointments/:id/photos/upload",
-  upload.single("file"),
+  appointmentPhotoUpload.single("file"),
   (req, res) => {
     const id = Number(req.params.id || 0);
     if (!id) {
       return res.status(400).json({ ok: false, error: "invalid_id" });
     }
-
     if (!req.file) {
       return res.status(400).json({ ok: false, error: "no_file" });
     }
 
     try {
-      const appt = getAppointmentById(id);
-      if (!appt) {
-        return res
-          .status(404)
-          .json({ ok: false, error: "appointment_not_found" });
+      const appointment = getAppointmentById(id);
+      if (!appointment) {
+        return res.status(404).json({ ok: false, error: "appointment_not_found" });
       }
 
       const caption =
         typeof req.body.caption === "string" && req.body.caption.trim() !== ""
           ? req.body.caption.trim()
           : null;
-
-      // URL publique de la photo
       const url = `/uploads/appointments/${req.file.filename}`;
-
-      const row = insertAppointmentPhoto(id, url, caption, 0);
+      const row = insertAppointmentPhoto(id, url, caption, 0, 1);
 
       return res.json({ ok: true, photo: mapPhotoRow(row) });
-    } catch (err) {
-      console.error(
-        "[adminApi] POST /appointments/:id/photos/upload error:",
-        err
-      );
+    } catch (error) {
+      console.error("[adminApi] POST /appointments/:id/photos/upload:", error);
       return res.status(500).json({ ok: false, error: "server_error" });
     }
-  }
+  },
 );
 
-// GET /api/admin/appointments/:id/photos
 router.get("/appointments/:id/photos", (req, res) => {
   const id = Number(req.params.id || 0);
   if (!id) {
@@ -688,24 +736,21 @@ router.get("/appointments/:id/photos", (req, res) => {
   }
 
   try {
-    const appt = getAppointmentById(id);
-    if (!appt) {
-      return res
-        .status(404)
-        .json({ ok: false, error: "appointment_not_found" });
+    const appointment = getAppointmentById(id);
+    if (!appointment) {
+      return res.status(404).json({ ok: false, error: "appointment_not_found" });
     }
 
-    const rows = getAppointmentPhotos(id);
-    const photos = rows.map(mapPhotoRow);
-    return res.json({ ok: true, photos });
-  } catch (err) {
-    console.error("[adminApi] GET /appointments/:id/photos error:", err);
+    return res.json({
+      ok: true,
+      photos: getAppointmentPhotos(id).map(mapPhotoRow),
+    });
+  } catch (error) {
+    console.error("[adminApi] GET /appointments/:id/photos:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
 
-// POST /api/admin/appointments/:id/photos
-// body: { url: string, caption?: string }
 router.post("/appointments/:id/photos", (req, res) => {
   const id = Number(req.params.id || 0);
   if (!id) {
@@ -718,25 +763,48 @@ router.post("/appointments/:id/photos", (req, res) => {
   }
 
   try {
-    const appt = getAppointmentById(id);
-    if (!appt) {
-      return res
-        .status(404)
-        .json({ ok: false, error: "appointment_not_found" });
+    const appointment = getAppointmentById(id);
+    if (!appointment) {
+      return res.status(404).json({ ok: false, error: "appointment_not_found" });
     }
 
     const row = insertAppointmentPhoto(
       id,
       url.trim(),
-      typeof caption === "string" && caption.trim() !== ""
-        ? caption.trim()
-        : null,
-      0
+      typeof caption === "string" && caption.trim() !== "" ? caption.trim() : null,
+      0,
+      1,
     );
 
     return res.json({ ok: true, photo: mapPhotoRow(row) });
-  } catch (err) {
-    console.error("[adminApi] POST /appointments/:id/photos error:", err);
+  } catch (error) {
+    console.error("[adminApi] POST /appointments/:id/photos:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/exports", async (_req, res) => {
+  try {
+    const exportFile = createDataExportFile("manual");
+    const emailSent = await sendAdminDataExportEmail({
+      fileName: exportFile.fileName,
+      buffer: exportFile.buffer,
+      triggerType: "manual",
+    });
+
+    if (emailSent) {
+      markExportJobEmailSent(exportFile.filePath);
+    }
+
+    return res.json({
+      ok: true,
+      fileName: exportFile.fileName,
+      filePath: exportFile.filePath,
+      emailSent,
+      createdAt: nowUnix(),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /exports:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

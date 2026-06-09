@@ -8,6 +8,8 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || DEFAULT_DATA_DIR);
 const DB_FILE = path.resolve(process.env.DB_FILE || path.join(DATA_DIR, "blackbox.db"));
 const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(DATA_DIR, "uploads"));
 const APPOINTMENTS_UPLOAD_DIR = path.join(UPLOADS_DIR, "appointments");
+const FOUNDERS_UPLOAD_DIR = path.join(UPLOADS_DIR, "founders");
+const EXPORTS_DIR = path.join(DATA_DIR, "exports");
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -21,5 +23,7 @@ module.exports = {
   DB_FILE,
   UPLOADS_DIR,
   APPOINTMENTS_UPLOAD_DIR,
+  FOUNDERS_UPLOAD_DIR,
+  EXPORTS_DIR,
   ensureDir,
 };

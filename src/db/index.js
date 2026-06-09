@@ -20,16 +20,30 @@ function applySchema() {
   }
 }
 
-applySchema();
-
 console.log("[DB] SQLite initialisee:", DB_PATH);
 
 function nowUnix() {
   return Math.floor(Date.now() / 1000);
 }
 
+function getTableColumns(tableName) {
+  return db.prepare(`PRAGMA table_info('${tableName}')`).all();
+}
+
 function getAppointmentsColumns() {
-  return db.prepare(`PRAGMA table_info('appointments')`).all();
+  return getTableColumns("appointments");
+}
+
+function getAppointmentPhotosColumns() {
+  return getTableColumns("appointment_photos");
+}
+
+function getClientsColumns() {
+  return getTableColumns("clients");
+}
+
+function getVehiclesColumns() {
+  return getTableColumns("vehicles");
 }
 
 function ensureAppointmentsTimeColumn() {
@@ -59,11 +73,208 @@ function ensureAppointmentsExtraColumns() {
     addColumnIfMissing("user_rating", "user_rating INTEGER");
     addColumnIfMissing("user_review", "user_review TEXT");
     addColumnIfMissing(
+      "cleanliness_rating",
+      "cleanliness_rating TEXT CHECK (cleanliness_rating IN ('very_clean','correct','dirty','very_dirty','reset_recommended'))"
+    );
+    addColumnIfMissing(
+      "bc_points_awarded",
+      "bc_points_awarded INTEGER NOT NULL DEFAULT 0 CHECK (bc_points_awarded IN (0, 1))"
+    );
+    addColumnIfMissing(
+      "is_public",
+      "is_public INTEGER NOT NULL DEFAULT 0 CHECK (is_public IN (0, 1))"
+    );
+    addColumnIfMissing(
       "location",
       "location TEXT CHECK(location IN ('atelier','domicile')) DEFAULT 'atelier'"
     );
+    addColumnIfMissing(
+      "vehicle_id",
+      "vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL"
+    );
   } catch (error) {
     console.error("[DB] Erreur ensureAppointmentsExtraColumns:", error);
+  }
+}
+
+function ensureAppointmentPhotosExtraColumns() {
+  try {
+    const cols = getAppointmentPhotosColumns();
+    if (cols.length === 0) return;
+
+    const colNames = cols.map((column) => column.name);
+
+    if (!colNames.includes("is_public")) {
+      console.log("[DB] Ajout de la colonne appointment_photos.is_public");
+      db.exec(`
+        ALTER TABLE appointment_photos
+        ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0
+        CHECK (is_public IN (0, 1));
+      `);
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureAppointmentPhotosExtraColumns:", error);
+  }
+}
+
+function ensureClientsExtraColumns() {
+  try {
+    const cols = getClientsColumns();
+    if (cols.length === 0) return;
+
+    const colNames = cols.map((column) => column.name);
+
+    const addColumnIfMissing = (name, ddl) => {
+      if (!colNames.includes(name)) {
+        console.log(`[DB] Ajout de la colonne clients.${name}`);
+        db.exec(`ALTER TABLE clients ADD COLUMN ${ddl};`);
+      }
+    };
+
+    addColumnIfMissing("formula_purchased_at", "formula_purchased_at INTEGER");
+    addColumnIfMissing("formula_expires_at", "formula_expires_at INTEGER");
+    addColumnIfMissing("terms_accepted_at", "terms_accepted_at INTEGER");
+    addColumnIfMissing("formula_recap_sent_at", "formula_recap_sent_at INTEGER");
+    addColumnIfMissing(
+      "client_type",
+      "client_type TEXT NOT NULL DEFAULT 'bbx' CHECK (client_type IN ('bbx', 'data'))"
+    );
+    addColumnIfMissing(
+      "is_founder",
+      "is_founder INTEGER NOT NULL DEFAULT 0 CHECK (is_founder IN (0, 1))"
+    );
+    addColumnIfMissing("founder_media_url", "founder_media_url TEXT");
+    addColumnIfMissing("welcome_email_sent_at", "welcome_email_sent_at INTEGER");
+    addColumnIfMissing("bc_points", "bc_points INTEGER NOT NULL DEFAULT 0");
+  } catch (error) {
+    console.error("[DB] Erreur ensureClientsExtraColumns:", error);
+  }
+}
+
+function ensureVehiclesFromClients() {
+  try {
+    const vehicleCols = getVehiclesColumns();
+    if (vehicleCols.length === 0) return;
+
+    const clients = db
+      .prepare(
+        `
+        SELECT id, vehicle_model, vehicle_plate
+        FROM clients
+      `
+      )
+      .all();
+
+    const countVehiclesForClient = db.prepare(
+      `
+      SELECT COUNT(*) AS count
+      FROM vehicles
+      WHERE client_id = ?
+    `
+    );
+
+    const insertVehicle = db.prepare(
+      `
+      INSERT INTO vehicles (
+        client_id,
+        label,
+        model,
+        plate,
+        is_primary,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, 1, ?, ?)
+    `
+    );
+
+    const primaryVehicleForClient = db.prepare(
+      `
+      SELECT id
+      FROM vehicles
+      WHERE client_id = ?
+      ORDER BY is_primary DESC, created_at ASC, id ASC
+      LIMIT 1
+    `
+    );
+
+    const updateAppointmentVehicle = db.prepare(
+      `
+      UPDATE appointments
+      SET vehicle_id = ?
+      WHERE id = ?
+    `
+    );
+
+    const appointmentsMissingVehicle = db.prepare(
+      `
+      SELECT id, client_id
+      FROM appointments
+      WHERE vehicle_id IS NULL
+    `
+    ).all();
+
+    const syncClientVehicleSnapshot = db.prepare(
+      `
+      UPDATE clients
+      SET vehicle_model = ?,
+          vehicle_plate = ?,
+          updated_at = ?
+      WHERE id = ?
+    `
+    );
+
+    for (const client of clients) {
+      const vehicleCount = countVehiclesForClient.get(client.id)?.count || 0;
+      if (
+        vehicleCount === 0 &&
+        ((client.vehicle_model && client.vehicle_model.trim()) ||
+          (client.vehicle_plate && client.vehicle_plate.trim()))
+      ) {
+        const label =
+          client.vehicle_model && client.vehicle_plate
+            ? `${client.vehicle_model} · ${client.vehicle_plate}`
+            : client.vehicle_model || client.vehicle_plate || "Vehicule principal";
+        insertVehicle.run(
+          client.id,
+          label,
+          client.vehicle_model || null,
+          client.vehicle_plate || null,
+          nowUnix(),
+          nowUnix()
+        );
+      }
+
+      const primaryVehicle = primaryVehicleForClient.get(client.id);
+      if (primaryVehicle) {
+        const vehicle = db
+          .prepare(
+            `
+            SELECT model, plate
+            FROM vehicles
+            WHERE id = ?
+          `
+          )
+          .get(primaryVehicle.id);
+
+        if (vehicle) {
+          syncClientVehicleSnapshot.run(
+            vehicle.model || null,
+            vehicle.plate || null,
+            nowUnix(),
+            client.id
+          );
+        }
+      }
+    }
+
+    for (const appointment of appointmentsMissingVehicle) {
+      const primaryVehicle = primaryVehicleForClient.get(appointment.client_id);
+      if (primaryVehicle?.id) {
+        updateAppointmentVehicle.run(primaryVehicle.id, appointment.id);
+      }
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureVehiclesFromClients:", error);
   }
 }
 
@@ -196,7 +407,10 @@ function ensureAppointmentsSlotModel() {
 ensureAppointmentsTimeColumn();
 ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
+ensureAppointmentPhotosExtraColumns();
+ensureClientsExtraColumns();
 applySchema();
+ensureVehiclesFromClients();
 
 module.exports = {
   db,
