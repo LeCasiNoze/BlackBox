@@ -186,6 +186,69 @@ select {
   .bb-button-danger {
     @apply inline-flex items-center justify-center rounded-full border border-rose-300/30 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-100 transition duration-200 hover:bg-rose-400/20;
   }
+
+  .bb-founder-hero {
+    background:
+      radial-gradient(circle at top left, rgba(247, 185, 85, 0.18), transparent 24%),
+      radial-gradient(circle at right 20%, rgba(44, 162, 255, 0.12), transparent 26%),
+      linear-gradient(180deg, rgba(255, 224, 138, 0.06), rgba(255, 255, 255, 0.02)),
+      var(--bb-surface-strong);
+  }
+
+  .bb-founder-orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(54px);
+    opacity: 0.42;
+    pointer-events: none;
+    animation: bb-founder-drift 11s ease-in-out infinite;
+  }
+
+  .bb-founder-orb-gold {
+    top: -3rem;
+    left: -2rem;
+    width: 13rem;
+    height: 13rem;
+    background: rgba(247, 185, 85, 0.2);
+  }
+
+  .bb-founder-orb-blue {
+    top: 15%;
+    right: -2rem;
+    width: 12rem;
+    height: 12rem;
+    background: rgba(44, 162, 255, 0.14);
+    animation-delay: -3s;
+  }
+
+  .bb-founder-orb-ember {
+    bottom: -3rem;
+    left: 34%;
+    width: 11rem;
+    height: 11rem;
+    background: rgba(255, 122, 24, 0.12);
+    animation-delay: -6s;
+  }
+
+  .bb-founder-media {
+    animation: bb-founder-float 6.5s ease-in-out infinite;
+  }
+
+  .bb-founder-shimmer {
+    position: absolute;
+    inset: -32% auto auto -42%;
+    width: 54%;
+    height: 180%;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0.12),
+      rgba(255, 255, 255, 0)
+    );
+    transform: rotate(18deg);
+    animation: bb-founder-shimmer 5.8s ease-in-out infinite;
+    pointer-events: none;
+  }
 }
 
 @keyframes bb-float {
@@ -258,6 +321,43 @@ select {
   }
   80% {
     transform: translate3d(3px, 0, 0);
+  }
+}
+
+@keyframes bb-founder-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, 18px, 0) scale(1.08);
+  }
+}
+
+@keyframes bb-founder-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes bb-founder-shimmer {
+  0% {
+    transform: translate3d(-12%, 0, 0) rotate(18deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.45;
+  }
+  45% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: translate3d(250%, 0, 0) rotate(18deg);
+    opacity: 0;
   }
 }
 

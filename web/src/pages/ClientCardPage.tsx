@@ -1769,6 +1769,166 @@ export function ClientCardPage() {
   }
 
   function renderHomeView() {
+    if (clientData.isFounder) {
+      return (
+        <section className="space-y-4">
+          <article className="bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+            <div className="bb-founder-orb bb-founder-orb-gold" />
+            <div className="bb-founder-orb bb-founder-orb-blue" />
+            <div className="bb-founder-orb bb-founder-orb-ember" />
+
+            <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
+                    <Crown className="h-3.5 w-3.5" />
+                    Acces fondateur
+                  </div>
+                  <div className="bb-pill border-white/12 bg-white/[0.04] text-white/72">
+                    {clientData.formulaName || "Formule detailing"}
+                  </div>
+                </div>
+
+                <div className="max-w-3xl">
+                  <p className="bb-eyebrow">Bryan Cars founder portal</p>
+                  <h1 className="bb-title mt-3">
+                    Bonjour {clientData.firstName || clientData.fullName || "fondateur"},
+                  </h1>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68 md:text-base">
+                    Votre espace fondateur rassemble la formule, les credits, l&apos;echeance
+                    et l&apos;univers visuel Bryan Cars dans une seule carte signature.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-[24px] border border-[#f7b955]/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                      {clientData.formulaRemaining}
+                      <span className="ml-2 text-base text-white/35">/ {clientData.formulaTotal}</span>
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Jours restants</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                      {formulaDaysRemaining == null
+                        ? "--"
+                        : formulaDaysRemaining < 0
+                          ? "Expiree"
+                          : formulaDaysRemaining}
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">BC&apos;Coins</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{clientData.bcPoints}</p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Prochain passage</p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {upcomingAppointment
+                        ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
+                        : "Aucun"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-[#f7b955] via-[#ffd06b] to-[#ff7a18]"
+                    style={{ width: `${creditsRatio * 100}%` }}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    className="bb-button-brand"
+                    onClick={() => navigateView("booking")}
+                    type="button"
+                  >
+                    Ouvrir l&apos;agenda
+                  </button>
+                  <button
+                    className="bb-button-ghost"
+                    onClick={() => setContactModalOpen(true)}
+                    type="button"
+                  >
+                    <Phone className="mr-2 h-4 w-4" />
+                    Contact
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                <div className="bb-founder-media relative overflow-hidden rounded-[30px] border border-[#f7b955]/22 bg-[radial-gradient(circle_at_top,rgba(247,185,85,0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
+                  <div className="bb-founder-shimmer" />
+                  <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/35">
+                    <img
+                      alt="Univers fondateur Bryan Cars"
+                      className="h-[260px] w-full object-cover md:h-[320px]"
+                      src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
+                    />
+                  </div>
+                  <div className="absolute bottom-6 left-6 right-6 rounded-[22px] border border-white/10 bg-black/55 p-4 backdrop-blur-md">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[#f7b955]">Edition fondateur</p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {clientData.formulaName || "Formule detailing"}
+                    </p>
+                    <p className="mt-2 text-sm text-white/64">
+                      Achat: {formatUnixDateFR(clientData.formulaPurchasedAt)} · Expiration:{" "}
+                      {formatUnixDateFR(clientData.formulaExpiresAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+                    </p>
+                    <p className="mt-2 text-sm text-white/56">
+                      {activeVehicle ? vehicleSubtitle(activeVehicle) : clientData.vehiclePlate || "Aucun detail"}
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Statut formule</p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {formulaExpired ? "A renouveler" : "Active"}
+                    </p>
+                    <p className="mt-2 text-sm text-white/56">
+                      {formulaExpired
+                        ? "La formule doit etre rechargee."
+                        : `${clientData.formulaRemaining} passage${clientData.formulaRemaining > 1 ? "s" : ""} disponible${clientData.formulaRemaining > 1 ? "s" : ""}.`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {quickCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <button
+                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
+                  key={card.view}
+                  onClick={() => navigateView(card.view)}
+                  type="button"
+                >
+                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-white">{card.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-white/62">{card.copy}</p>
+                </button>
+              );
+            })}
+          </section>
+        </section>
+      );
+    }
+
     return (
       <section className="grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
         <article className="bb-surface-strong relative overflow-hidden p-6 md:p-8">
