@@ -54,7 +54,7 @@ function main() {
     clientType: "bbx",
     isFounder: true,
     founderMediaUrl,
-    vehicleLabel: "Vehicule fondateur",
+    vehicleLabel: "Vehicule",
     vehicleModel: "BMW M3",
     vehiclePlate: "FO-001-BC",
     formulaName: "Formule 10 nettoyages",

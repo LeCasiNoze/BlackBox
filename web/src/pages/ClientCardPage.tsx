@@ -3,11 +3,13 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarClock,
+  CarFront,
   CheckCircle2,
   Clock3,
   Crown,
   ExternalLink,
   Gift,
+  House,
   Loader2,
   MapPin,
   MessageCircle,
@@ -19,12 +21,11 @@ import {
   Sparkles,
   Star,
   Trash2,
-  UserRound,
+  X,
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import {
-  addMonthsIso,
   appointmentDateTime,
   appointmentIsPast,
   appointmentStatusClasses,
@@ -43,9 +44,7 @@ import {
   normalizeAppointmentSlot,
   slotIsPast,
   slotLabel,
-  slotShortLabel,
   slotWindowLabel,
-  weekdayLabel,
   type AppointmentLocation,
   type AppointmentSlot,
   type AppointmentStatus,
@@ -60,6 +59,9 @@ import {
 
 const SUMUP_TOPUP_URL =
   import.meta.env.VITE_SUMUP_TOPUP_URL || "https://www.sumupbookings.com/bryan-cars";
+const GOOGLE_REVIEWS_URL = "https://maps.app.goo.gl/SNXz7PaTRSWWMxLa8";
+const WHATSAPP_URL = "https://wa.me/message/FSJMNKNGPVTTK1";
+const PHONE_URL = "tel:0603125186";
 
 type ApiDaySlot = {
   slot: AppointmentSlot;
@@ -149,6 +151,8 @@ type ApiResponse = {
 };
 
 type ModalMode = "book" | "manage" | "past";
+type PortalView = "home" | "booking" | "vehicles" | "shop" | "history";
+type HistoryTab = "mine" | "community";
 
 type ClientAppointment = {
   id: number;
@@ -232,18 +236,94 @@ type VehicleDraft = {
   plate: string;
 };
 
+type NavItem = {
+  view: PortalView;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const SLOT_ORDER: AppointmentSlot[] = ["morning", "afternoon"];
+const MINUTES = ["00", "30"];
+const SLOT_HOURS: Record<AppointmentSlot, number[]> = {
+  morning: [9, 10, 11, 12],
+  afternoon: [14, 15, 16, 17, 18],
+};
+
+const PORTAL_NAV_ITEMS: NavItem[] = [
+  { view: "home", label: "Accueil", icon: House },
+  { view: "booking", label: "Agenda", icon: CalendarClock },
+  { view: "vehicles", label: "Vehicules", icon: CarFront },
+  { view: "shop", label: "Boutique", icon: Gift },
+  { view: "history", label: "Suivi", icon: Clock3 },
+];
+
+const GOOGLE_REVIEWS_FALLBACK = [
+  {
+    author: "Avis Google",
+    rating: 5,
+    copy:
+      "La zone Google Reviews sert a prolonger l'experience apres prestation et a guider les nouveaux clients.",
+  },
+  {
+    author: "Bryan Cars",
+    rating: 5,
+    copy:
+      "Invitez vos clients a noter le resultat, l'accueil et la finition pour renforcer la preuve sociale de la marque.",
+  },
+];
+
 function useQuery() {
   const { search } = useLocation();
   return React.useMemo(() => new URLSearchParams(search), [search]);
 }
 
-const SLOT_ORDER: AppointmentSlot[] = ["morning", "afternoon"];
-const MINUTES = ["00", "30"];
+function normalizePortalView(value: string | null): PortalView {
+  if (value === "booking") return "booking";
+  if (value === "vehicles") return "vehicles";
+  if (value === "shop") return "shop";
+  if (value === "history") return "history";
+  return "home";
+}
 
-const SLOT_HOURS: Record<AppointmentSlot, number[]> = {
-  morning: [9, 10, 11, 12],
-  afternoon: [14, 15, 16, 17, 18],
-};
+function toIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysIso(dateStr: string, delta: number) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  date.setDate(date.getDate() + delta);
+  return toIsoDate(date);
+}
+
+function startOfWeekIso(dateStr: string) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  const diff = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  return toIsoDate(date);
+}
+
+function weekdayShort(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("fr-FR", {
+    weekday: "short",
+  });
+}
+
+function weekRangeLabel(days: Array<ApiDay | null>) {
+  const first = days.find(Boolean);
+  const last = [...days].reverse().find(Boolean);
+
+  if (!first || !last) return "Semaine en cours";
+
+  return `${formatDateFR(first.date, { day: "numeric", month: "short" })} - ${formatDateFR(
+    last.date,
+    { day: "numeric", month: "short" },
+  )}`;
+}
 
 function splitTime(value: string, slot: AppointmentSlot) {
   const fallback = defaultTimeForSlot(slot);
@@ -254,26 +334,9 @@ function splitTime(value: string, slot: AppointmentSlot) {
   };
 }
 
-function buildMonthMatrix(days: ApiDay[]) {
-  const first = days[0];
-  if (!first) return [];
-
-  const firstDate = new Date(`${first.date}T00:00:00`);
-  const lead = (firstDate.getDay() + 6) % 7;
-  const cells: Array<ApiDay | null> = Array.from({ length: lead }, () => null);
-
-  days.forEach((day) => cells.push(day));
-
-  while (cells.length % 7 !== 0) {
-    cells.push(null);
-  }
-
-  return cells;
-}
-
 function previewNote(note: string | null) {
   if (!note) return "Aucun compte-rendu admin pour cette prestation.";
-  return note.length > 110 ? `${note.slice(0, 110)}...` : note;
+  return note.length > 120 ? `${note.slice(0, 120)}...` : note;
 }
 
 function vehicleTitle(vehicle: {
@@ -281,6 +344,10 @@ function vehicleTitle(vehicle: {
   model?: string | null;
   plate?: string | null;
 }) {
+  const rawLabel = vehicle.label?.trim().toLowerCase();
+  if (rawLabel === "vehicule fondateur") {
+    return "Vehicule";
+  }
   return vehicle.label || vehicle.model || vehicle.plate || "Vehicule";
 }
 
@@ -322,19 +389,6 @@ function rewardStatusLabel(status: RewardRedemption["status"]) {
   return "Demandee";
 }
 
-const GOOGLE_REVIEWS_FALLBACK = [
-  {
-    author: "Avis Google",
-    rating: 5,
-    copy: "Un espace dedie aux retours Google sera alimente ici pour mettre en avant les experiences client Bryan Cars.",
-  },
-  {
-    author: "Note moyenne",
-    rating: 5,
-    copy: "L'objectif de cette zone est d'inviter les clients a laisser leur note et a renforcer la preuve sociale du service.",
-  },
-];
-
 function nextFreeSlot(days: ApiDay[]) {
   for (const day of days) {
     for (const slot of SLOT_ORDER) {
@@ -345,6 +399,34 @@ function nextFreeSlot(days: ApiDay[]) {
   }
 
   return null;
+}
+
+function pickFocusedDay(days: ApiDay[]) {
+  if (days.length === 0) return null;
+
+  const mine = days.find((day) => SLOT_ORDER.some((slot) => day.slots[slot].status === "mine"));
+  if (mine) return mine.date;
+
+  const free = days.find((day) => SLOT_ORDER.some((slot) => day.slots[slot].status === "free"));
+  if (free) return free.date;
+
+  const busy = days.find((day) => SLOT_ORDER.some((slot) => day.slots[slot].status === "busy"));
+  if (busy) return busy.date;
+
+  return days[0].date;
+}
+
+function pickDefaultSlot(day: ApiDay) {
+  for (const slot of SLOT_ORDER) {
+    if (day.slots[slot].status === "mine") return slot;
+  }
+  for (const slot of SLOT_ORDER) {
+    if (day.slots[slot].status === "free") return slot;
+  }
+  for (const slot of SLOT_ORDER) {
+    if (day.slots[slot].status === "busy") return slot;
+  }
+  return "morning";
 }
 
 function dayOverviewStatus(day: ApiDay): DayStatus {
@@ -363,59 +445,20 @@ function dayOverviewStatus(day: ApiDay): DayStatus {
   return "done";
 }
 
-function dayOverviewLabel(status: DayStatus) {
-  if (status === "free") return "Jour ouvert";
-  if (status === "mine") return "Votre jour";
-  if (status === "busy") return "Jour complet";
-  return "Jour passe";
-}
-
-function dayOverviewCompactLabel(status: DayStatus) {
-  if (status === "free") return "Ouvert";
-  if (status === "mine") return "A vous";
-  if (status === "busy") return "Complet";
-  return "Passe";
-}
-
 function slotNavigatorStatusLabel(status: DayStatus) {
   if (status === "free") return "Libre";
   if (status === "mine") return "A vous";
-  if (status === "busy") return "Occupe";
+  if (status === "busy") return "Pris";
   return "Passe";
 }
 
-function pickFocusedDay(days: ApiDay[]) {
-  if (days.length === 0) return null;
+function buildWeekDays(days: ApiDay[], anchorDate: string | null) {
+  if (!anchorDate) return [];
 
-  const mine = days.find((day) =>
-    SLOT_ORDER.some((slot) => day.slots[slot].status === "mine"),
-  );
-  if (mine) return mine.date;
+  const byDate = new Map(days.map((day) => [day.date, day]));
+  const start = startOfWeekIso(anchorDate);
 
-  const free = days.find((day) =>
-    SLOT_ORDER.some((slot) => day.slots[slot].status === "free"),
-  );
-  if (free) return free.date;
-
-  const busy = days.find((day) =>
-    SLOT_ORDER.some((slot) => day.slots[slot].status === "busy"),
-  );
-  if (busy) return busy.date;
-
-  return days[0].date;
-}
-
-function pickDefaultSlot(day: ApiDay) {
-  for (const slot of SLOT_ORDER) {
-    if (day.slots[slot].status === "mine") return slot;
-  }
-  for (const slot of SLOT_ORDER) {
-    if (day.slots[slot].status === "free") return slot;
-  }
-  for (const slot of SLOT_ORDER) {
-    if (day.slots[slot].status === "busy") return slot;
-  }
-  return "morning";
+  return Array.from({ length: 7 }, (_, index) => byDate.get(addDaysIso(start, index)) ?? null);
 }
 
 function nextAppointment(appointments: ClientAppointment[]) {
@@ -451,18 +494,15 @@ function formulaHasExpired(expiresAt: number | null | undefined) {
   return Date.now() > endOfDay.getTime();
 }
 
-function AppointmentsEmpty() {
+function AppointmentsEmpty({ copy }: { copy: string }) {
   return (
     <div className="bb-surface flex flex-col items-start gap-3 p-6">
       <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[#f7b955]">
         <CalendarClock className="h-5 w-5" />
       </div>
       <div>
-        <h3 className="text-lg font-semibold text-white">Aucun rendez-vous pour le moment</h3>
-        <p className="mt-2 max-w-lg text-sm leading-6 text-white/65">
-          Des qu&apos;une prestation est planifiee, elle apparait ici avec son
-          statut, son lieu, les notes du centre et vos photos.
-        </p>
+        <h3 className="text-lg font-semibold text-white">Aucune fiche pour le moment</h3>
+        <p className="mt-2 max-w-lg text-sm leading-6 text-white/65">{copy}</p>
       </div>
     </div>
   );
@@ -536,6 +576,8 @@ export function ClientCardPage() {
 
   const slug = params.slug || "card01";
   const monthParam = query.get("m");
+  const requestedView = normalizePortalView(query.get("view"));
+  const requestedDayParam = query.get("d");
 
   const [data, setData] = React.useState<ApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -549,11 +591,9 @@ export function ClientCardPage() {
   const [focusedDayDate, setFocusedDayDate] = React.useState<string | null>(null);
 
   const [selectedDay, setSelectedDay] = React.useState<ApiDay | null>(null);
-  const [selectedSlot, setSelectedSlot] =
-    React.useState<AppointmentSlot>("morning");
+  const [selectedSlot, setSelectedSlot] = React.useState<AppointmentSlot>("morning");
   const [selectedMode, setSelectedMode] = React.useState<ModalMode>("book");
-  const [selectedTime, setSelectedTime] =
-    React.useState(defaultTimeForSlot("morning"));
+  const [selectedTime, setSelectedTime] = React.useState(defaultTimeForSlot("morning"));
   const [appointmentLocation, setAppointmentLocation] =
     React.useState<AppointmentLocation>("atelier");
 
@@ -571,6 +611,8 @@ export function ClientCardPage() {
   const [termsSubmitting, setTermsSubmitting] = React.useState(false);
   const [termsPanelAttention, setTermsPanelAttention] = React.useState(false);
   const [termsCheckboxAttention, setTermsCheckboxAttention] = React.useState(false);
+  const [contactModalOpen, setContactModalOpen] = React.useState(false);
+  const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
   const [vehicleQuery, setVehicleQuery] = React.useState("");
   const [bookingVehicleQuery, setBookingVehicleQuery] = React.useState("");
   const [activeVehicleId, setActiveVehicleId] = React.useState<number | null>(null);
@@ -595,7 +637,6 @@ export function ClientCardPage() {
       }
     | null
   >(null);
-  const termsSectionRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -605,10 +646,7 @@ export function ClientCardPage() {
         setLoading(true);
         setError(null);
 
-        const url = new URL(
-          `/api/client/${encodeURIComponent(slug)}`,
-          window.location.origin,
-        );
+        const url = new URL(`/api/client/${encodeURIComponent(slug)}`, window.location.origin);
         if (monthParam) {
           url.searchParams.set("m", monthParam);
         }
@@ -623,7 +661,7 @@ export function ClientCardPage() {
         setData(json);
       } catch (loadError) {
         if (active) {
-          setError("Impossible de charger votre carte client.");
+          setError("Impossible de charger votre espace client.");
         }
       } finally {
         if (active) {
@@ -646,9 +684,7 @@ export function ClientCardPage() {
       try {
         setAppointmentsLoading(true);
 
-        const response = await fetch(
-          `/api/client/${encodeURIComponent(slug)}/appointments`,
-        );
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/appointments`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const json = (await response.json()) as ListClientAppointmentsResponse;
@@ -681,9 +717,7 @@ export function ClientCardPage() {
       try {
         setCommunityLoading(true);
 
-        const response = await fetch(
-          `/api/client/${encodeURIComponent(slug)}/community?limit=8`,
-        );
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/community?limit=8`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const json = (await response.json()) as PublicShowcaseResponse;
@@ -743,6 +777,19 @@ export function ClientCardPage() {
     setToast(message);
   }
 
+  const client = data?.client ?? null;
+  const vehicles = data?.vehicles ?? [];
+  const rewardCatalog = data?.rewardCatalog ?? [];
+  const rewardRedemptions = data?.rewardRedemptions ?? [];
+  const month = data?.month ?? null;
+  const monthDays = month?.days ?? [];
+  const termsAccepted = !!client?.termsAcceptedAt;
+  const formulaExpired = formulaHasExpired(client?.formulaExpiresAt);
+  const formulaDaysRemaining = daysUntilExpiry(client?.formulaExpiresAt);
+
+  const deferredVehicleQuery = React.useDeferredValue(vehicleQuery);
+  const deferredBookingVehicleQuery = React.useDeferredValue(bookingVehicleQuery);
+
   React.useEffect(() => {
     const currentVehicles = data?.vehicles ?? [];
 
@@ -763,10 +810,6 @@ export function ClientCardPage() {
     window.requestAnimationFrame(() => {
       setTermsPanelAttention(true);
     });
-    termsSectionRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
   }
 
   function drawTermsCheckboxAttention() {
@@ -776,51 +819,58 @@ export function ClientCardPage() {
     });
   }
 
-  const client = data?.client ?? null;
-  const vehicles = data?.vehicles ?? [];
-  const rewardCatalog = data?.rewardCatalog ?? [];
-  const rewardRedemptions = data?.rewardRedemptions ?? [];
-  const month = data?.month ?? null;
-  const monthDays = month?.days ?? [];
-  const termsAccepted = !!client?.termsAcceptedAt;
-  const formulaExpired = formulaHasExpired(client?.formulaExpiresAt);
-  const formulaDaysRemaining = daysUntilExpiry(client?.formulaExpiresAt);
-  const matrix = React.useMemo(() => buildMonthMatrix(monthDays), [monthDays]);
-  const upcomingAppointment = React.useMemo(
-    () => nextAppointment(appointments),
-    [appointments],
-  );
-  const freeSlot = React.useMemo(() => nextFreeSlot(monthDays), [monthDays]);
   const creditsRatio = client
     ? clampNumber(
-        client.formulaTotal > 0
-          ? client.formulaRemaining / client.formulaTotal
-          : 0,
+        client.formulaTotal > 0 ? client.formulaRemaining / client.formulaTotal : 0,
         0,
         1,
       )
     : 0;
 
+  const upcomingAppointment = React.useMemo(() => nextAppointment(appointments), [appointments]);
+  const freeSlot = React.useMemo(() => nextFreeSlot(monthDays), [monthDays]);
+
   const sortedAppointments = React.useMemo(() => {
     const next = [...appointments];
     next.sort(
-      (left, right) =>
-        appointmentDateTime(right).getTime() - appointmentDateTime(left).getTime(),
+      (left, right) => appointmentDateTime(right).getTime() - appointmentDateTime(left).getTime(),
     );
     return next;
   }, [appointments]);
 
+  const upcomingAppointments = React.useMemo(() => {
+    const next = [...appointments].filter((appointment) => {
+      if (appointment.status === "cancelled") return false;
+      return appointmentDateTime(appointment).getTime() >= Date.now();
+    });
+    next.sort(
+      (left, right) => appointmentDateTime(left).getTime() - appointmentDateTime(right).getTime(),
+    );
+    return next;
+  }, [appointments]);
+
+  const archivedAppointments = React.useMemo(
+    () =>
+      sortedAppointments.filter(
+        (appointment) =>
+          appointment.status === "cancelled" ||
+          appointment.status === "done" ||
+          appointmentIsPast(appointment),
+      ),
+    [sortedAppointments],
+  );
+
   const visibleVehicles = React.useMemo(() => {
-    const queryValue = vehicleQuery.trim().toLowerCase();
+    const queryValue = deferredVehicleQuery.trim().toLowerCase();
     if (!queryValue) return vehicles;
     return vehicles.filter((vehicle) => vehicleSearchText(vehicle).includes(queryValue));
-  }, [vehicleQuery, vehicles]);
+  }, [deferredVehicleQuery, vehicles]);
 
   const bookingVisibleVehicles = React.useMemo(() => {
-    const queryValue = bookingVehicleQuery.trim().toLowerCase();
+    const queryValue = deferredBookingVehicleQuery.trim().toLowerCase();
     if (!queryValue) return vehicles;
     return vehicles.filter((vehicle) => vehicleSearchText(vehicle).includes(queryValue));
-  }, [bookingVehicleQuery, vehicles]);
+  }, [deferredBookingVehicleQuery, vehicles]);
 
   const activeVehicle = React.useMemo(
     () =>
@@ -831,27 +881,37 @@ export function ClientCardPage() {
     [activeVehicleId, vehicles],
   );
 
-  const filteredAppointments = React.useMemo(() => {
+  const activeVehicleAppointments = React.useMemo(() => {
     if (!activeVehicle?.id) return sortedAppointments;
     return sortedAppointments.filter((appointment) => appointment.vehicleId === activeVehicle.id);
   }, [activeVehicle?.id, sortedAppointments]);
 
-  const focusedDay = React.useMemo(
-    () =>
-      monthDays.find((day) => day.date === focusedDayDate) ??
-      monthDays[0] ??
-      null,
-    [focusedDayDate, monthDays],
-  );
-
   React.useEffect(() => {
     if (monthDays.length === 0) return;
+
+    if (requestedDayParam && monthDays.some((day) => day.date === requestedDayParam)) {
+      if (focusedDayDate !== requestedDayParam) {
+        setFocusedDayDate(requestedDayParam);
+      }
+      return;
+    }
+
     if (focusedDayDate && monthDays.some((day) => day.date === focusedDayDate)) {
       return;
     }
 
     setFocusedDayDate(pickFocusedDay(monthDays));
-  }, [focusedDayDate, monthDays]);
+  }, [focusedDayDate, monthDays, requestedDayParam]);
+
+  const focusedDay = React.useMemo(
+    () => monthDays.find((day) => day.date === focusedDayDate) ?? monthDays[0] ?? null,
+    [focusedDayDate, monthDays],
+  );
+
+  const weekDays = React.useMemo(
+    () => buildWeekDays(monthDays, focusedDay?.date ?? null),
+    [focusedDay?.date, monthDays],
+  );
 
   React.useEffect(() => {
     if (
@@ -859,7 +919,8 @@ export function ClientCardPage() {
       !selectedAppointment &&
       !lightboxUrl &&
       !termsModalOpen &&
-      !vehicleModalOpen
+      !vehicleModalOpen &&
+      !contactModalOpen
     ) {
       return undefined;
     }
@@ -887,6 +948,11 @@ export function ClientCardPage() {
         return;
       }
 
+      if (contactModalOpen) {
+        setContactModalOpen(false);
+        return;
+      }
+
       if (selectedDay) {
         closeDayModal();
       }
@@ -894,7 +960,7 @@ export function ClientCardPage() {
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [lightboxUrl, selectedAppointment, selectedDay, termsModalOpen, vehicleModalOpen]);
+  }, [contactModalOpen, lightboxUrl, selectedAppointment, selectedDay, termsModalOpen, vehicleModalOpen]);
 
   const currentDayAppointment = React.useMemo(() => {
     if (!selectedDay) return null;
@@ -912,6 +978,41 @@ export function ClientCardPage() {
   const timeParts = splitTime(selectedTime, selectedSlot);
   const availableHours = SLOT_HOURS[selectedSlot];
 
+  function portalHref(
+    view: PortalView,
+    overrides: { month?: string | null; date?: string | null } = {},
+  ) {
+    const params = new URLSearchParams();
+
+    if (view !== "home") {
+      params.set("view", view);
+    }
+
+    if (view === "booking") {
+      const nextMonth =
+        overrides.month ??
+        month?.iso ??
+        monthParam ??
+        toIsoDate(new Date()).slice(0, 7);
+      const nextDate =
+        overrides.date ??
+        focusedDayDate ??
+        requestedDayParam ??
+        pickFocusedDay(monthDays) ??
+        null;
+
+      if (nextMonth) params.set("m", nextMonth);
+      if (nextDate) params.set("d", nextDate);
+    }
+
+    const search = params.toString();
+    return `/card/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`;
+  }
+
+  function navigateView(view: PortalView) {
+    navigate(portalHref(view));
+  }
+
   function syncDaySelection(day: ApiDay, slot: AppointmentSlot) {
     const normalizedSlot = normalizeAppointmentSlot(slot);
     const appointmentForSlot =
@@ -928,13 +1029,9 @@ export function ClientCardPage() {
     setSelectedDay(day);
     setSelectedSlot(normalizedSlot);
     setSelectedTime(
-      appointmentForSlot?.time ??
-        slotInfo.time ??
-        defaultTimeForSlot(normalizedSlot),
+      appointmentForSlot?.time ?? slotInfo.time ?? defaultTimeForSlot(normalizedSlot),
     );
-    setAppointmentLocation(
-      appointmentForSlot?.location ?? slotInfo.location ?? "atelier",
-    );
+    setAppointmentLocation(appointmentForSlot?.location ?? slotInfo.location ?? "atelier");
 
     if (slotInfo.status === "mine" && !slotPast) {
       setSelectedMode("manage");
@@ -954,6 +1051,21 @@ export function ClientCardPage() {
     setSelectedSlot("morning");
   }
 
+  async function openDayModal(day: ApiDay, preferredSlot?: AppointmentSlot) {
+    if (!client) return;
+    const slot = preferredSlot ?? pickDefaultSlot(day);
+    syncDaySelection(day, slot);
+
+    if (day.slots[slot].status === "free" && client.formulaRemaining <= 0) {
+      showToast("Votre formule n'a plus de credits disponibles.");
+    }
+  }
+
+  function selectDaySlot(slot: AppointmentSlot) {
+    if (!selectedDay) return;
+    syncDaySelection(selectedDay, slot);
+  }
+
   async function openAppointmentModal(appointment: ClientAppointment) {
     setSelectedAppointment(appointment);
     setReviewRating(appointment.userRating ?? 0);
@@ -962,9 +1074,7 @@ export function ClientCardPage() {
 
     try {
       const response = await fetch(
-        `/api/client/${encodeURIComponent(
-          slug,
-        )}/appointments/${appointment.id}/photos`,
+        `/api/client/${encodeURIComponent(slug)}/appointments/${appointment.id}/photos`,
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -1085,7 +1195,7 @@ export function ClientCardPage() {
       closeVehicleModal();
       showToast(creating ? "Vehicule ajoute." : "Vehicule mis a jour.");
       setReloadToken((value) => value + 1);
-    } catch (error) {
+    } catch (saveError) {
       showToast("Erreur reseau pendant la sauvegarde du vehicule.");
     } finally {
       setSavingVehicle(false);
@@ -1096,12 +1206,9 @@ export function ClientCardPage() {
     setDeletingVehicleId(vehicleId);
 
     try {
-      const response = await fetch(
-        `/api/client/${encodeURIComponent(slug)}/vehicles/${vehicleId}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/vehicles/${vehicleId}`, {
+        method: "DELETE",
+      });
       const json = (await response.json()) as VehiclesResponse;
       if (!response.ok || !json.ok || !json.vehicles) {
         showToast("Impossible de supprimer ce vehicule.");
@@ -1121,7 +1228,7 @@ export function ClientCardPage() {
       }
       showToast("Vehicule supprime.");
       setReloadToken((value) => value + 1);
-    } catch (error) {
+    } catch (saveError) {
       showToast("Erreur reseau pendant la suppression du vehicule.");
     } finally {
       setDeletingVehicleId(null);
@@ -1132,9 +1239,7 @@ export function ClientCardPage() {
     try {
       const response = await fetch(
         `/api/client/${encodeURIComponent(slug)}/vehicles/${vehicleId}/primary`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
       const json = (await response.json()) as VehiclesResponse;
       if (!response.ok || !json.ok || !json.vehicles) {
@@ -1152,7 +1257,7 @@ export function ClientCardPage() {
       );
       setActiveVehicleId(vehicleId);
       showToast("Vehicule principal mis a jour.");
-    } catch (error) {
+    } catch (saveError) {
       showToast("Erreur reseau pendant la mise a jour du vehicule principal.");
     }
   }
@@ -1161,14 +1266,11 @@ export function ClientCardPage() {
     setRedeemingRewardKey(reward.key);
 
     try {
-      const response = await fetch(
-        `/api/client/${encodeURIComponent(slug)}/rewards/redeem`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rewardKey: reward.key }),
-        },
-      );
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/rewards/redeem`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rewardKey: reward.key }),
+      });
 
       const json = (await response.json()) as RewardRedeemResponse;
       if (!response.ok || !json.ok) {
@@ -1189,28 +1291,10 @@ export function ClientCardPage() {
           : current,
       );
       showToast("Demande envoyee a Bryan Cars. L'equipe reprend contact avec vous.");
-    } catch (error) {
+    } catch (saveError) {
       showToast("Erreur reseau pendant l'utilisation des BC'Coins.");
     } finally {
       setRedeemingRewardKey(null);
-    }
-  }
-
-  function selectDaySlot(slot: AppointmentSlot) {
-    if (!selectedDay) return;
-    syncDaySelection(selectedDay, slot);
-  }
-
-  async function openDayModal(day: ApiDay, preferredSlot?: AppointmentSlot) {
-    if (!client) return;
-    const slot = preferredSlot ?? pickDefaultSlot(day);
-    const slotInfo = day.slots[slot];
-
-    setFocusedDayDate(day.date);
-    syncDaySelection(day, slot);
-
-    if (slotInfo.status === "free" && client.formulaRemaining <= 0) {
-      showToast("Votre formule n'a plus de credits disponibles.");
     }
   }
 
@@ -1335,7 +1419,7 @@ export function ClientCardPage() {
       if (action?.type === "book") {
         await submitBooking(action.date, action.slot, action.time, true);
       }
-    } catch (error) {
+    } catch (saveError) {
       showToast("Erreur reseau pendant l'acceptation des conditions.");
     } finally {
       setTermsSubmitting(false);
@@ -1385,6 +1469,7 @@ export function ClientCardPage() {
           slot,
           time: newTime,
           location: appointmentLocation,
+          vehicleId: currentDayAppointment?.vehicleId ?? activeVehicleId,
         }),
       });
 
@@ -1415,9 +1500,7 @@ export function ClientCardPage() {
 
     try {
       const response = await fetch(
-        `/api/client/${encodeURIComponent(
-          slug,
-        )}/appointments/${selectedAppointment.id}/review`,
+        `/api/client/${encodeURIComponent(slug)}/appointments/${selectedAppointment.id}/review`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1450,9 +1533,26 @@ export function ClientCardPage() {
     }
   }
 
-  function goMonth(delta: number) {
-    if (!month) return;
-    navigate(`/card/${encodeURIComponent(slug)}?m=${addMonthsIso(month.iso, delta)}`);
+  function goWeek(delta: number) {
+    const base = focusedDay?.date ?? requestedDayParam ?? pickFocusedDay(monthDays);
+    if (!base) return;
+    const target = addDaysIso(base, delta * 7);
+    navigate(portalHref("booking", { month: target.slice(0, 7), date: target }));
+  }
+
+  function goFocusedDay(delta: number) {
+    const base = focusedDay?.date ?? requestedDayParam ?? pickFocusedDay(monthDays);
+    if (!base) return;
+    const target = addDaysIso(base, delta);
+    const existsInMonth = monthDays.some((day) => day.date === target);
+
+    if (existsInMonth) {
+      setFocusedDayDate(target);
+      navigate(portalHref("booking", { month: target.slice(0, 7), date: target }));
+      return;
+    }
+
+    navigate(portalHref("booking", { month: target.slice(0, 7), date: target }));
   }
 
   const canReviewSelected =
@@ -1461,10 +1561,6 @@ export function ClientCardPage() {
     appointments.some((appointment) => appointment.id === selectedAppointment.id);
   const creditsExhausted = (client?.formulaRemaining ?? 0) <= 0;
   const bookingLocked = creditsExhausted || formulaExpired || !termsAccepted;
-  const nextFreeDay = React.useMemo(() => {
-    if (!freeSlot) return null;
-    return monthDays.find((day) => day.date === freeSlot.date) ?? null;
-  }, [freeSlot, monthDays]);
 
   if (loading) {
     return (
@@ -1489,8 +1585,7 @@ export function ClientCardPage() {
               Impossible d&apos;ouvrir cet espace.
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/65">
-              Verifiez le lien NFC ou retournez a l&apos;accueil pour relancer la
-              navigation.
+              Verifiez le lien NFC ou retournez a l&apos;accueil pour relancer la navigation.
             </p>
             <Link className="bb-button-brand mt-6 inline-flex" to="/">
               Retour a l&apos;accueil
@@ -1501,613 +1596,1085 @@ export function ClientCardPage() {
     );
   }
 
-  return (
-    <div className="bb-shell">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-[#f7b955]/12 blur-3xl" />
-        <div className="absolute right-[-7rem] top-0 h-80 w-80 rounded-full bg-sky-400/12 blur-3xl" />
-        <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#ff7a18]/10 blur-3xl" />
-      </div>
+  const clientData = client;
 
-      <main className="bb-content space-y-6 md:space-y-8">
-        <section className="bb-surface-strong relative overflow-hidden p-6 md:p-8">
-          <div className="pointer-events-none absolute inset-y-0 right-0 hidden lg:flex lg:items-center lg:justify-end">
-            <div className="absolute right-10 top-12 h-44 w-44 rounded-full bg-[#f7b955]/18 blur-3xl" />
-            <img
-              alt=""
-              aria-hidden="true"
-              className="h-[34rem] w-[28rem] translate-x-6 object-contain opacity-[0.18] mix-blend-screen drop-shadow-[0_0_60px_rgba(247,185,85,0.16)]"
-              src="/bryan-cars-logo.png"
-            />
-          </div>
+  const quickCards = [
+    {
+      view: "booking" as const,
+      title: "Prendre rendez-vous",
+      copy: freeSlot
+        ? `${formatDateFR(freeSlot.date, { day: "numeric", month: "short" })} · ${slotLabel(
+            freeSlot.slot,
+          )}`
+        : "Planning a consulter",
+      icon: CalendarClock,
+    },
+    {
+      view: "vehicles" as const,
+      title: "Mes vehicules",
+      copy:
+        vehicles.length <= 1
+          ? vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })
+          : `${vehicles.length} vehicules enregistres`,
+      icon: CarFront,
+    },
+    {
+      view: "shop" as const,
+      title: "Boutique BC'Coins",
+      copy: `${clientData.bcPoints} point${clientData.bcPoints > 1 ? "s" : ""} disponibles`,
+      icon: Gift,
+    },
+    {
+      view: "history" as const,
+      title: "Historique et suivi",
+      copy: upcomingAppointment
+        ? `Prochain passage: ${formatDateFR(upcomingAppointment.date, {
+            day: "numeric",
+            month: "short",
+          })}`
+        : "Photos, avis et dossiers",
+      icon: Clock3,
+    },
+  ];
 
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl space-y-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <Link
-                  className="bb-button-ghost px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/80"
-                  to="/"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Retour
-                </Link>
-                <div className="bb-pill border-white/12 bg-white/[0.05] text-white/80">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#f7b955]" />
-                  Carte active
-                </div>
-              </div>
+  function renderHeader() {
+    return (
+      <>
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            className="bb-button-ghost px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/80"
+            to="/"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour
+          </Link>
 
-              <div>
-                <p className="bb-eyebrow">Bryan Cars client portal</p>
-                <h1 className="bb-title mt-3">
-                  Bonjour {client.firstName || client.fullName || "client"},
-                </h1>
-                <p className="bb-subtitle mt-3 max-w-2xl">
-                  {client.isFounder
-                    ? "Votre espace fondateur met votre formule, vos vehicules et votre historique detailing au premier plan dans une experience plus privilegiee."
-                    : "Suivez vos passages, planifiez la prochaine prestation et gardez une vue claire sur votre formule detailing."}
-                </p>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                <article className="bb-metric">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                    Credits
-                  </p>
-                  <p className="mt-3 text-3xl font-semibold text-white">
-                    {client.formulaRemaining}
-                    <span className="ml-2 text-lg text-white/35">/ {client.formulaTotal}</span>
-                  </p>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#f7b955] to-[#ff7a18]"
-                      style={{ width: `${creditsRatio * 100}%` }}
-                    />
-                  </div>
-                </article>
-
-                <article className="bb-metric">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                    Prochain creneau libre
-                  </p>
-                  <p className="mt-3 text-xl font-semibold text-white">
-                    {freeSlot ? formatDateFR(freeSlot.date) : "A confirmer"}
-                  </p>
-                  <p className="mt-2 text-sm text-white/55">
-                    {freeSlot
-                      ? `${slotLabel(freeSlot.slot)} ${slotWindowLabel(
-                          freeSlot.slot,
-                        )} disponible a la reservation.`
-                      : "Le planning ne propose pas encore de disponibilite."}
-                  </p>
-                </article>
-
-                <article className="bb-metric">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                    Prochain rendez-vous
-                  </p>
-                  <p className="mt-3 text-xl font-semibold text-white">
-                    {upcomingAppointment
-                      ? formatDateFR(upcomingAppointment.date)
-                      : "Rien de prevu"}
-                  </p>
-                  <p className="mt-2 text-sm text-white/55">
-                    {upcomingAppointment
-                      ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(
-                          upcomingAppointment.time,
-                        )} - ${locationLabel(
-                          upcomingAppointment.location,
-                        )}`
-                      : "Aucune prestation planifiee pour le moment."}
-                  </p>
-                </article>
-              </div>
-            </div>
-
-            <div
-              className={cn(
-                "bb-surface relative min-w-[280px] max-w-sm overflow-hidden p-5",
-                client.isFounder &&
-                  "border-[#f7b955]/30 bg-[radial-gradient(circle_at_top,rgba(247,185,85,0.18),transparent_45%),linear-gradient(180deg,rgba(255,227,160,0.08),rgba(255,255,255,0.02))]",
-              )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="bb-button-ghost px-4 py-2"
+              onClick={() => setContactModalOpen(true)}
+              type="button"
             >
-              <div className="pointer-events-none absolute -right-10 top-2 h-24 w-24 rounded-full bg-sky-400/10 blur-3xl" />
-              {client.isFounder && (
-                <div className="pointer-events-none absolute inset-x-10 top-0 h-28 rounded-b-full bg-[#f7b955]/10 blur-3xl" />
-              )}
+              <Phone className="mr-2 h-4 w-4" />
+              Contact
+            </button>
+            <button className="bb-button-brand px-4 py-2" onClick={openTopupFlow} type="button">
+              Recharger
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </button>
+          </div>
+        </header>
 
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "rounded-2xl border p-3",
-                      client.isFounder
-                        ? "border-[#f7b955]/35 bg-[#f7b955]/12 text-[#ffe8a8]"
-                        : "border-white/10 bg-white/[0.05] text-[#f7b955]",
-                    )}
-                  >
-                    {client.isFounder ? (
-                      <Crown className="h-5 w-5" />
-                    ) : (
-                      <Sparkles className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                      {client.isFounder ? "Acces fondateur" : "Formule active"}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white">
-                      {client.formulaName || "Formule detailing"}
-                    </p>
-                  </div>
-                </div>
+        <nav className="hidden grid-cols-5 gap-2 rounded-[28px] border border-white/10 bg-white/[0.03] p-2 backdrop-blur-xl md:grid">
+          {PORTAL_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = requestedView === item.view;
+            return (
+              <Link
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-[22px] px-4 py-3 text-sm font-semibold transition duration-200",
+                  active
+                    ? "bg-[#f7b955]/12 text-white shadow-[0_12px_28px_rgba(247,185,85,0.12)]"
+                    : "text-white/68 hover:bg-white/[0.05]",
+                )}
+                key={item.view}
+                to={portalHref(item.view)}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </>
+    );
+  }
 
-                <div className="hidden overflow-hidden rounded-[24px] border border-white/10 bg-gradient-to-br from-white/[0.08] to-black/35 shadow-[0_20px_50px_rgba(0,0,0,0.28)] sm:block">
-                  <img
-                    alt="Bryan Cars Detailing"
-                    className="h-32 w-48 object-contain object-center px-3 py-2 opacity-100"
-                    src="/bryan-cars-logo.png"
-                  />
-                </div>
+  function renderMetricCard(title: string, value: string, copy: string, tone?: string) {
+    return (
+      <article
+        className={cn(
+          "bb-metric min-h-[150px]",
+          tone === "warning" && "border-amber-300/25 bg-amber-300/10",
+          tone === "danger" && "border-rose-300/25 bg-rose-300/10",
+        )}
+      >
+        <p className="text-xs uppercase tracking-[0.16em] text-white/45">{title}</p>
+        <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
+        <p className="mt-3 text-sm leading-6 text-white/58">{copy}</p>
+      </article>
+    );
+  }
+
+  function renderAppointmentCard(appointment: ClientAppointment) {
+    return (
+      <button
+        className="bb-surface w-full p-5 text-left transition duration-200 hover:-translate-y-1"
+        key={appointment.id}
+        onClick={() => {
+          void openAppointmentModal(appointment);
+        }}
+        type="button"
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className={cn("bb-pill", appointmentStatusClasses(appointment.status))}>
+                {appointmentStatusLabel(appointment.status)}
               </div>
-
-              {client.isFounder && (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
-                    <Crown className="h-3.5 w-3.5" />
-                    Membre fondateur
-                  </div>
-                  <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                    BC'Coins: {client.bcPoints}
-                  </div>
-                </div>
-              )}
-
-              <p className="mt-5 text-sm leading-6 text-white/62">
-                {client.isFounder
-                  ? "Votre zone privilegiee rassemble la formule, les BC'Coins, l'echeance et votre univers visuel fondateur en un seul point d'acces."
-                  : "Cet espace affiche votre formule, son echeance, vos BC'Coins et le vehicule actuellement suivi."}
-              </p>
-
-              {client.isFounder && client.founderMediaUrl && (
-                <div className="mt-5 overflow-hidden rounded-[24px] border border-[#f7b955]/20 bg-black/25">
-                  <img
-                    alt="Visuel fondateur"
-                    className="h-40 w-full object-cover"
-                    src={client.founderMediaUrl}
-                  />
-                </div>
-              )}
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Date d'achat
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    {formatUnixDateFR(client.formulaPurchasedAt)}
-                  </p>
-                </div>
-                <div
-                  className={cn(
-                    "rounded-[22px] border p-4",
-                    formulaExpired
-                      ? "border-rose-300/25 bg-rose-300/10"
-                      : "border-white/10 bg-black/25",
-                  )}
-                >
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Jours restants
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    {formulaDaysRemaining == null
-                      ? "Non defini"
-                      : formulaDaysRemaining < 0
-                        ? "Expiree"
-                        : `${formulaDaysRemaining} jour${formulaDaysRemaining > 1 ? "s" : ""}`}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Formule actuelle
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    {client.formulaName || "Formule detailing"}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    BC'Coins
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    {client.bcPoints} points
-                  </p>
-                </div>
-              </div>
-
               <div
                 className={cn(
-                  "mt-4 rounded-[22px] border p-4 transition duration-200",
-                  termsAccepted
-                    ? "border-emerald-300/25 bg-emerald-300/10"
-                    : "border-amber-300/25 bg-amber-300/10",
-                  termsPanelAttention &&
-                    !termsAccepted &&
-                    "bb-attention-ring border-[#f7b955]/60 bg-[#f7b955]/12",
+                  "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                  locationClasses(appointment.location),
                 )}
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Conditions & reglement
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-white">
-                      {termsAccepted
-                        ? `Acceptees le ${formatUnixDateTimeFR(client.termsAcceptedAt)}`
-                        : "Acceptation encore requise"}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-white/68">
-                      Vous devez valider les conditions avant une nouvelle recharge
-                      de formule et avant tout nouveau rendez-vous.
-                    </p>
-                  </div>
-                  <Link
-                    className="bb-button-ghost justify-center"
-                    to={`/card/${encodeURIComponent(slug)}/conditions${termsAccepted ? "" : "?intent=terms"}`}
-                  >
-                    Ouvrir les conditions
-                  </Link>
-                </div>
+                {locationLabel(appointment.location)}
               </div>
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
+                {slotLabel(appointment.slot)}
+              </div>
+            </div>
 
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  className="bb-button-brand flex-1 justify-center px-4 py-3"
-                  onClick={openTopupFlow}
-                  type="button"
-                >
-                  Recharger
-                  <ExternalLink className="ml-2 h-4 w-4" />
-                </button>
-                <a
-                  className="bb-button-ghost flex-1 justify-center px-4 py-3"
-                  href="tel:0603125186"
-                >
-                  <Phone className="mr-2 h-4 w-4" />
-                  Appeler
-                </a>
-              </div>
+            <div>
+              <h3 className="text-xl font-semibold text-white">{formatDateFR(appointment.date)}</h3>
+              <p className="mt-2 text-sm text-white/60">
+                {slotWindowLabel(appointment.slot)} · {formatTimeHHMM(appointment.time)} -{" "}
+                {appointment.vehicleModel || clientData.vehicleModel || "Vehicule"}
+                {appointment.vehiclePlate ? ` / ${appointment.vehiclePlate}` : ""}
+              </p>
+            </div>
 
-              <div className="mt-4 flex items-center gap-3 rounded-[22px] border border-white/10 bg-black/25 p-3 sm:hidden">
-                <img
-                  alt="Bryan Cars Detailing"
-                  className="h-24 w-36 rounded-[18px] object-contain object-center px-2 py-1"
-                  src="/bryan-cars-logo.png"
-                />
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Signature Bryan Cars
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-white/62">
-                    Une identite visuelle detailer plus marquee sur l'espace client.
-                  </p>
-                </div>
-              </div>
+            <p className="max-w-2xl text-sm leading-6 text-white/58">
+              {previewNote(appointment.adminNote)}
+            </p>
+          </div>
+
+          <div className="min-w-[150px] space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
+              <p className="text-xs uppercase tracking-[0.16em] text-white/35">Photos</p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {appointment.hasPhotos ? "Oui" : "Non"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
+              <p className="text-xs uppercase tracking-[0.16em] text-white/35">Avis</p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {appointment.userRating ? `${appointment.userRating}/5` : "--"}
+              </p>
             </div>
           </div>
-        </section>
+        </div>
+      </button>
+    );
+  }
 
-        <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Profil client</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Coordonnees et carte
-                </h2>
-              </div>
+  function renderHomeView() {
+    return (
+      <section className="grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
+        <article className="bb-surface-strong relative overflow-hidden p-6 md:p-8">
+          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-[#f7b955]/12 blur-3xl" />
+          <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
+          <img
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 right-0 hidden w-[26rem] opacity-[0.12] mix-blend-screen md:block"
+            src="/bryan-cars-logo.png"
+          />
+
+          <div className="relative z-10 space-y-6">
+            <div className="max-w-3xl">
+              <p className="bb-eyebrow">Bryan Cars client portal</p>
+              <h1 className="bb-title mt-3">
+                Bonjour {clientData.firstName || clientData.fullName || "client"},
+              </h1>
+              <p className="bb-subtitle mt-3 max-w-2xl">
+                {clientData.isFounder
+                  ? "Votre espace fondateur va droit au but: formule, vehicules, rendez-vous et historique premium sans surcharge."
+                  : "Votre espace client est maintenant separe par usages pour aller plus vite sur mobile comme sur ordinateur."}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {clientData.isFounder && (
+                <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
+                  <Crown className="h-3.5 w-3.5" />
+                  Membre fondateur
+                </div>
+              )}
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                <UserRound className="h-3.5 w-3.5 text-[#f7b955]" />
-                {client.cardCode || slug}
+                BC&apos;Coins: {clientData.bcPoints}
               </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/45">Nom</p>
-                <p className="mt-3 text-xl font-semibold text-white">
-                  {client.fullName || `${client.firstName || ""} ${client.lastName || ""}`.trim() || "Client"}
-                </p>
-                <div className="mt-5 space-y-3 text-sm text-white/65">
-                  <p>{client.phone || "Telephone non renseigne"}</p>
-                  <p>{client.email || "Email non renseigne"}</p>
-                  <p>
-                    {[client.addressLine1, client.postalCode, client.city]
-                      .filter(Boolean)
-                      .join(", ") || "Adresse non renseignee"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/45">Vehicule</p>
-                <p className="mt-3 text-xl font-semibold text-white">
-                  {activeVehicle ? vehicleTitle(activeVehicle) : client.vehicleModel || "Vehicule non renseigne"}
-                </p>
-                <div className="mt-5 space-y-3 text-sm text-white/65">
-                  <p>
-                    Plaque: {activeVehicle?.plate || client.vehiclePlate || "Non renseignee"}
-                  </p>
-                  <p>
-                    Modele: {activeVehicle?.model || client.vehicleModel || "Non renseigne"}
-                  </p>
-                  <p>Formule: {client.formulaName || "Non renseignee"}</p>
-                  <p>
-                    Credits restants: {client.formulaRemaining} sur {client.formulaTotal}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Acces rapide</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Contact centre
-                </h2>
-              </div>
-              <div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-100">
-                Support direct
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="text-lg font-semibold text-white">Bryan Cars Detailing</p>
-                <p className="mt-2 text-sm leading-6 text-white/65">
-                  Une question sur votre nettoyage, un besoin de precision avant le
-                  rendez-vous ou une demande specifique sur le vehicule ?
-                </p>
-              </div>
-
-              <div className="grid gap-3">
-                <a className="bb-button-brand justify-center" href="tel:0603125186">
-                  <Phone className="mr-2 h-4 w-4" />
-                  Appeler le centre
-                </a>
-                <a
-                  className="bb-button-ghost justify-center"
-                  href="https://wa.me/message/FSJMNKNGPVTTK1"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <MessageCircle className="mr-2 h-4 w-4" />
-                  WhatsApp direct
-                </a>
-                <button
-                  className="bb-button-ghost justify-center"
-                  onClick={openTopupFlow}
-                  type="button"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Voir la recharge / booking
-                </button>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Vehicules</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Votre garage Bryan Cars
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                  Ajoutez, modifiez ou supprimez vos vehicules, puis utilisez la
-                  recherche pour afficher le bon historique de detailing.
-                </p>
-              </div>
-              <button className="bb-button-brand" onClick={openVehicleCreate} type="button">
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un vehicule
-              </button>
-            </div>
-
-            {vehicles.length > 1 && (
-              <div className="relative mt-5">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                <input
-                  className="bb-input pl-11"
-                  onChange={(event) => setVehicleQuery(event.target.value)}
-                  placeholder="Rechercher un vehicule par modele ou plaque"
-                  value={vehicleQuery}
-                />
-              </div>
-            )}
-
-            <div className="mt-5 grid gap-3">
-              {(visibleVehicles.length > 0 ? visibleVehicles : vehicles).map((vehicle) => {
-                const active = activeVehicle?.id === vehicle.id;
-                return (
-                  <div
-                    className={cn(
-                      "rounded-[24px] border p-4 transition duration-200",
-                      active
-                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.1)]"
-                        : "border-white/10 bg-white/[0.03]",
-                    )}
-                    key={vehicle.id}
-                  >
-                    <button
-                      className="w-full text-left"
-                      onClick={() => setActiveVehicleId(vehicle.id)}
-                      type="button"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-lg font-semibold text-white">
-                              {vehicleTitle(vehicle)}
-                            </p>
-                            {vehicle.isPrimary && (
-                              <div className="bb-pill border-emerald-400/35 bg-emerald-300/10 text-emerald-100">
-                                Principal
-                              </div>
-                            )}
-                          </div>
-                          <p className="mt-2 text-sm text-white/58">
-                            {vehicleSubtitle(vehicle)}
-                          </p>
-                        </div>
-                        <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/60">
-                          {sortedAppointments.filter((appointment) => appointment.vehicleId === vehicle.id).length} dossier(s)
-                        </div>
-                      </div>
-                    </button>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {!vehicle.isPrimary && (
-                        <button
-                          className="bb-button-ghost px-4 py-2"
-                          onClick={() => {
-                            void makeVehiclePrimary(vehicle.id);
-                          }}
-                          type="button"
-                        >
-                          Principal
-                        </button>
-                      )}
-                      <button
-                        className="bb-button-ghost px-4 py-2"
-                        onClick={() => openVehicleEdit(vehicle)}
-                        type="button"
-                      >
-                        <PencilLine className="mr-2 h-4 w-4" />
-                        Modifier
-                      </button>
-                      {vehicles.length > 1 && (
-                        <button
-                          className="bb-button-ghost px-4 py-2 text-rose-100"
-                          disabled={deletingVehicleId === vehicle.id}
-                          onClick={() => {
-                            void deleteVehicle(vehicle.id);
-                          }}
-                          type="button"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {deletingVehicleId === vehicle.id ? "Suppression..." : "Supprimer"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {vehicles.length === 0 && (
-                <div className="rounded-[24px] border border-dashed border-white/12 bg-black/15 p-5 text-sm leading-6 text-white/62">
-                  Aucun vehicule n'est encore enregistre sur ce compte. Ajoutez-en un pour suivre les rendez-vous et associer les prestations au bon vehicule.
+              {upcomingAppointment && (
+                <div className="bb-pill border-sky-400/35 bg-sky-300/10 text-sky-100">
+                  Prochain rendez-vous le {formatDateFR(upcomingAppointment.date, {
+                    day: "numeric",
+                    month: "short",
+                  })}
                 </div>
               )}
             </div>
-          </article>
 
-          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              {renderMetricCard(
+                "Credits restants",
+                `${clientData.formulaRemaining} / ${clientData.formulaTotal}`,
+                clientData.formulaRemaining > 0
+                  ? "La jauge descend automatiquement a chaque demande de rendez-vous validee."
+                  : "Aucun credit disponible. Rechargez la formule pour reprendre des passages.",
+                clientData.formulaRemaining > 0 ? undefined : "warning",
+              )}
+              {renderMetricCard(
+                "Formule restante",
+                formulaDaysRemaining == null
+                  ? "Non definie"
+                  : formulaDaysRemaining < 0
+                    ? "Expiree"
+                    : `${formulaDaysRemaining} jour${formulaDaysRemaining > 1 ? "s" : ""}`,
+                formulaExpired
+                  ? "La formule est arrivee a expiration."
+                  : `Expiration le ${formatUnixDateFR(clientData.formulaExpiresAt)}.`,
+                formulaExpired ? "danger" : undefined,
+              )}
+              {renderMetricCard(
+                "Prochain passage",
+                upcomingAppointment
+                  ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "long" })
+                  : "Rien de prevu",
+                upcomingAppointment
+                  ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(
+                      upcomingAppointment.time,
+                    )} · ${locationLabel(upcomingAppointment.location)}`
+                  : freeSlot
+                    ? `Prochain libre: ${formatDateFR(freeSlot.date, {
+                        day: "numeric",
+                        month: "short",
+                      })} · ${slotLabel(freeSlot.slot)}`
+                    : "Le planning ne propose pas encore de disponibilite visible.",
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {quickCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <button
+                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
+                    key={card.view}
+                    onClick={() => navigateView(card.view)}
+                    type="button"
+                  >
+                    <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-white">{card.title}</h2>
+                    <p className="mt-2 text-sm leading-6 text-white/62">{card.copy}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button className="bb-button-brand" onClick={() => navigateView("booking")} type="button">
+                Prendre rendez-vous
+              </button>
+              <button
+                className="bb-button-ghost"
+                onClick={() => setContactModalOpen(true)}
+                type="button"
+              >
+                <Phone className="mr-2 h-4 w-4" />
+                Contact
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <aside
+          className={cn(
+            "bb-surface relative overflow-hidden p-5 md:p-6",
+            clientData.isFounder &&
+              "border-[#f7b955]/28 bg-[radial-gradient(circle_at_top,rgba(247,185,85,0.16),transparent_42%),linear-gradient(180deg,rgba(255,227,160,0.06),rgba(255,255,255,0.02))]",
+          )}
+        >
+          <div className="pointer-events-none absolute -right-10 top-2 h-28 w-28 rounded-full bg-sky-400/10 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block">
+            <div className="ml-5 mt-auto overflow-hidden rounded-[26px] border border-white/10 bg-black/30 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+              {clientData.isFounder && clientData.founderMediaUrl ? (
+                <img
+                  alt="Visuel fondateur"
+                  className="h-36 w-44 object-cover"
+                  src={clientData.founderMediaUrl}
+                />
+              ) : (
+                <img
+                  alt="Bryan Cars Detailing"
+                  className="h-36 w-44 object-contain px-4 py-3"
+                  src="/bryan-cars-logo.png"
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="relative z-10 space-y-5 md:pl-52">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "rounded-2xl border p-3",
+                    clientData.isFounder
+                      ? "border-[#f7b955]/35 bg-[#f7b955]/12 text-[#ffe8a8]"
+                      : "border-white/10 bg-white/[0.05] text-[#f7b955]",
+                  )}
+                >
+                  {clientData.isFounder ? (
+                    <Crown className="h-5 w-5" />
+                  ) : (
+                    <Sparkles className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/45">
+                    {clientData.isFounder ? "Acces fondateur" : "Formule active"}
+                  </p>
+                  <p className="mt-1 text-xl font-semibold text-white">
+                    {clientData.formulaName || "Formule detailing"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-2 md:hidden">
+                <img
+                  alt="Bryan Cars Detailing"
+                  className="h-16 w-24 object-contain"
+                  src={
+                    clientData.isFounder && clientData.founderMediaUrl
+                      ? clientData.founderMediaUrl
+                      : "/bryan-cars-logo.png"
+                  }
+                />
+              </div>
+            </div>
+
+            <p className="text-sm leading-6 text-white/62">
+              {clientData.isFounder
+                ? "Le visuel fondateur est maintenant integre plus bas dans la carte premium, avec la formule et l'echeance au premier plan."
+                : "Cette carte resume l'essentiel: credits, echeance, points et acces rapide vers les bonnes sections."}
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Date d'achat</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {formatUnixDateFR(clientData.formulaPurchasedAt)}
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "rounded-[22px] border p-4",
+                  formulaExpired ? "border-rose-300/25 bg-rose-300/10" : "border-white/10 bg-black/25",
+                )}
+              >
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Expiration</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {formatUnixDateFR(clientData.formulaExpiresAt)}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Credits</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {clientData.formulaRemaining} / {clientData.formulaTotal}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">BC&apos;Coins</p>
+                <p className="mt-2 text-sm font-semibold text-white">{clientData.bcPoints} points</p>
+              </div>
+            </div>
+
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#f7b955] to-[#ff7a18]"
+                style={{ width: `${creditsRatio * 100}%` }}
+              />
+            </div>
+          </div>
+        </aside>
+      </section>
+    );
+  }
+
+  function renderBookingView() {
+    return (
+      <section className="space-y-4">
+        <article className="bb-surface-strong p-5 md:p-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="bb-pill border-white/12 bg-white/[0.04] text-white">
+              Agenda
+            </div>
+            <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-white">
+              {clientData.formulaRemaining} credit{clientData.formulaRemaining > 1 ? "s" : ""}
+            </div>
+            {activeVehicle && (
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                <CarFront className="h-3.5 w-3.5 text-[#f7b955]" />
+                {vehicleTitle(activeVehicle)}
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="bb-surface p-5 md:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="bb-eyebrow">Agenda</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">{weekRangeLabel(weekDays)}</h2>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                onClick={() => goWeek(-1)}
+                type="button"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <button
+                className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                onClick={() => goWeek(1)}
+                type="button"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {[
+              { label: "Libre", status: "free" as const },
+              { label: "Votre creneau", status: "mine" as const },
+              { label: "Pris", status: "busy" as const },
+              { label: "Passe", status: "done" as const },
+            ].map((item) => (
+              <div className={cn("bb-pill", dayStatusClasses(item.status))} key={item.label}>
+                {item.label}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 md:hidden">
+            {focusedDay ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                    onClick={() => goFocusedDay(-1)}
+                    type="button"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="text-center">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/42">
+                      {weekdayShort(focusedDay.date)}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-semibold text-white">
+                      {formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}
+                    </h3>
+                  </div>
+                  <button
+                    className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                    onClick={() => goFocusedDay(1)}
+                    type="button"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <button
+                  className="w-full rounded-[28px] border border-[#f7b955]/45 bg-[#f7b955]/10 p-4 text-left shadow-[0_18px_48px_rgba(247,185,85,0.12)] transition duration-200"
+                  onClick={() => {
+                    void openDayModal(focusedDay);
+                  }}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/45">
+                        {focusedDay.day}
+                      </p>
+                    </div>
+                    <div
+                      className={cn(
+                        "bb-pill px-2.5 py-1",
+                        dayStatusClasses(dayOverviewStatus(focusedDay)),
+                      )}
+                    >
+                      {slotNavigatorStatusLabel(dayOverviewStatus(focusedDay))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    {SLOT_ORDER.map((slot) => (
+                      <div
+                        className={cn(
+                          "rounded-[18px] border px-3 py-3",
+                          dayStatusClasses(focusedDay.slots[slot].status),
+                        )}
+                        key={`${focusedDay.date}-${slot}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+                              {slotLabel(slot)}
+                            </p>
+                            <p className="mt-1 text-[11px] opacity-75">{slotWindowLabel(slot)}</p>
+                          </div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+                            {slotNavigatorStatusLabel(focusedDay.slots[slot].status)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-5 hidden md:block">
+            <div className="grid grid-cols-7 gap-3">
+              {weekDays.map((day, index) =>
+                day ? (
+                  <button
+                    className={cn(
+                      "rounded-[26px] border p-4 text-left transition duration-200",
+                      focusedDay?.date === day.date
+                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                        : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                    )}
+                    key={day.date}
+                    onClick={() => {
+                      void openDayModal(day);
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/45">
+                          {weekdayShort(day.date)}
+                        </p>
+                        <h3 className="mt-2 text-2xl font-semibold text-white">{day.day}</h3>
+                        <p className="mt-1 text-xs text-white/45">
+                          {formatDateFR(day.date, { day: "numeric", month: "short" })}
+                        </p>
+                      </div>
+                      <div className={cn("bb-pill px-2.5 py-1", dayStatusClasses(dayOverviewStatus(day)))}>
+                        {slotNavigatorStatusLabel(dayOverviewStatus(day))}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {SLOT_ORDER.map((slot) => (
+                        <div
+                          className={cn("rounded-[18px] border px-3 py-3", dayStatusClasses(day.slots[slot].status))}
+                          key={`${day.date}-${slot}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+                                {slotLabel(slot)}
+                              </p>
+                              <p className="mt-1 text-[11px] opacity-75">{slotWindowLabel(slot)}</p>
+                            </div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+                              {slotNavigatorStatusLabel(day.slots[slot].status)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                ) : (
+                  <div
+                    className="rounded-[26px] border border-dashed border-white/8 bg-black/10 p-4 text-sm text-white/28"
+                    key={`empty-${index}`}
+                  >
+                    Hors mois
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        </article>
+      </section>
+    );
+  }
+
+  function renderVehiclesView() {
+    return (
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <article className="bb-surface p-6">
+          <div className="bb-section-head">
+            <div>
+              <p className="bb-eyebrow">Vehicules</p>
+              <h1 className="mt-2 text-2xl font-semibold text-white">Votre garage Bryan Cars</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
+                Ajoutez, modifiez ou retrouvez un vehicule en quelques secondes.
+              </p>
+            </div>
+            <button className="bb-button-brand" onClick={openVehicleCreate} type="button">
+              <Plus className="mr-2 h-4 w-4" />
+              Ajouter
+            </button>
+          </div>
+
+          {vehicles.length > 1 && (
+            <div className="relative mt-5">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+              <input
+                className="bb-input pl-11"
+                onChange={(event) => setVehicleQuery(event.target.value)}
+                placeholder="Rechercher par modele ou plaque"
+                value={vehicleQuery}
+              />
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-3">
+            {(visibleVehicles.length > 0 ? visibleVehicles : vehicles).map((vehicle) => {
+              const active = activeVehicle?.id === vehicle.id;
+              return (
+                <div
+                  className={cn(
+                    "rounded-[24px] border p-4 transition duration-200",
+                    active
+                      ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.1)]"
+                      : "border-white/10 bg-white/[0.03]",
+                  )}
+                  key={vehicle.id}
+                >
+                  <button
+                    className="w-full text-left"
+                    onClick={() => setActiveVehicleId(vehicle.id)}
+                    type="button"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-lg font-semibold text-white">{vehicleTitle(vehicle)}</p>
+                          {vehicle.isPrimary && (
+                            <div className="bb-pill border-emerald-400/35 bg-emerald-300/10 text-emerald-100">
+                              Principal
+                            </div>
+                          )}
+                        </div>
+                        <p className="mt-2 text-sm text-white/58">{vehicleSubtitle(vehicle)}</p>
+                      </div>
+                      <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/60">
+                        {
+                          sortedAppointments.filter((appointment) => appointment.vehicleId === vehicle.id).length
+                        }{" "}
+                        dossier(s)
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {!vehicle.isPrimary && (
+                      <button
+                        className="bb-button-ghost px-4 py-2"
+                        onClick={() => {
+                          void makeVehiclePrimary(vehicle.id);
+                        }}
+                        type="button"
+                      >
+                        Principal
+                      </button>
+                    )}
+                    <button
+                      className="bb-button-ghost px-4 py-2"
+                      onClick={() => openVehicleEdit(vehicle)}
+                      type="button"
+                    >
+                      <PencilLine className="mr-2 h-4 w-4" />
+                      Modifier
+                    </button>
+                    {vehicles.length > 1 && (
+                      <button
+                        className="bb-button-ghost px-4 py-2 text-rose-100"
+                        disabled={deletingVehicleId === vehicle.id}
+                        onClick={() => {
+                          void deleteVehicle(vehicle.id);
+                        }}
+                        type="button"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {deletingVehicleId === vehicle.id ? "Suppression..." : "Supprimer"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {vehicles.length === 0 && (
+              <div className="rounded-[24px] border border-dashed border-white/12 bg-black/15 p-5 text-sm leading-6 text-white/62">
+                Aucun vehicule n&apos;est encore enregistre sur ce compte. Ajoutez-en un pour relier
+                les rendez-vous au bon vehicule.
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="bb-surface p-6">
+          <div className="bb-section-head">
+            <div>
+              <p className="bb-eyebrow">Vehicule actif</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">
+                {activeVehicle ? vehicleTitle(activeVehicle) : "Aucun vehicule selectionne"}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
+                Depuis cette fiche, vous retrouvez les prestations realisees sur le vehicule
+                selectionne.
+              </p>
+            </div>
+            {activeVehicle && (
+              <button
+                className="bb-button-ghost"
+                onClick={() => navigateView("booking")}
+                type="button"
+              >
+                Prendre rendez-vous
+              </button>
+            )}
+          </div>
+
+          {activeVehicle ? (
+            <div className="mt-6 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">Modele</p>
+                  <p className="mt-2 text-sm font-semibold text-white">
+                    {activeVehicle.model || "Non renseigne"}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">Plaque</p>
+                  <p className="mt-2 text-sm font-semibold text-white">
+                    {activeVehicle.plate || "Non renseignee"}
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">Dossiers</p>
+                  <p className="mt-2 text-sm font-semibold text-white">
+                    {activeVehicleAppointments.length} fiche{activeVehicleAppointments.length > 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+
+              {activeVehicleAppointments.length === 0 ? (
+                <AppointmentsEmpty copy="Aucune prestation n'est encore reliee a ce vehicule." />
+              ) : (
+                <div className="grid gap-3">
+                  {activeVehicleAppointments.map((appointment) => renderAppointmentCard(appointment))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <AppointmentsEmpty copy="Selectionnez ou ajoutez d'abord un vehicule pour consulter ses dossiers." />
+          )}
+        </article>
+      </section>
+    );
+  }
+
+  function renderShopView() {
+    return (
+      <section className="grid gap-4 xl:grid-cols-[1.06fr_0.94fr]">
+        <article className="bb-surface p-6">
+          <div className="bb-section-head">
+            <div>
+              <p className="bb-eyebrow">BC&apos;Coins</p>
+              <h1 className="mt-2 text-2xl font-semibold text-white">Boutique fidelite</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
+                Vos points sont visibles ici, sans encombrer la page d&apos;accueil.
+              </p>
+            </div>
+            <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+              <Gift className="h-3.5 w-3.5 text-[#f7b955]" />
+              {clientData.bcPoints} points
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {rewardCatalog.map((reward) => {
+              const affordable = clientData.bcPoints >= reward.pointsCost;
+              return (
+                <div
+                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                  key={reward.key}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-white">{reward.label}</p>
+                      <p className="mt-2 text-sm text-white/58">{reward.pointsCost} BC&apos;Coins</p>
+                    </div>
+                    <button
+                      className={affordable ? "bb-button-brand px-4 py-2" : "bb-button-ghost px-4 py-2"}
+                      disabled={!affordable || redeemingRewardKey === reward.key}
+                      onClick={() => {
+                        void redeemReward(reward);
+                      }}
+                      type="button"
+                    >
+                      {redeemingRewardKey === reward.key
+                        ? "Envoi..."
+                        : affordable
+                          ? "Utiliser"
+                          : "Plus tard"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className="bb-surface p-6">
+          <div className="bb-section-head">
+            <div>
+              <p className="bb-eyebrow">Historique boutique</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">Dernieres demandes</h2>
+            </div>
+            <button className="bb-button-ghost" onClick={() => setContactModalOpen(true)} type="button">
+              Besoin d&apos;aide
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {rewardRedemptions.length === 0 ? (
+              <AppointmentsEmpty copy="Aucune demande BC'Coins pour le moment." />
+            ) : (
+              rewardRedemptions.map((redemption) => (
+                <div
+                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                  key={redemption.id}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold text-white">{redemption.rewardLabel}</p>
+                      <p className="mt-2 text-sm text-white/58">
+                        {formatUnixDateTimeFR(redemption.createdAt)}
+                      </p>
+                    </div>
+                    <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                      {rewardStatusLabel(redemption.status)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+    );
+  }
+
+  function renderHistoryView() {
+    return (
+      <section className="space-y-4">
+        <article className="bb-surface-strong p-6 md:p-7">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="bb-eyebrow">Historique et suivi</p>
+              <h1 className="mt-2 text-3xl font-semibold text-white">
+                Vos fiches et les retours visibles
+              </h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
+                Retrouvez ici vos rendez-vous a venir, vos archives, puis les photos et avis
+                partages par les autres clients.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={cn(
+                  "bb-button-ghost px-4 py-2",
+                  historyTab === "mine" && "border-[#f7b955]/35 bg-[#f7b955]/10 text-white",
+                )}
+                onClick={() => setHistoryTab("mine")}
+                type="button"
+              >
+                Mes rendez-vous
+              </button>
+              <button
+                className={cn(
+                  "bb-button-ghost px-4 py-2",
+                  historyTab === "community" && "border-[#f7b955]/35 bg-[#f7b955]/10 text-white",
+                )}
+                onClick={() => setHistoryTab("community")}
+                type="button"
+              >
+                Retours clients
+              </button>
+            </div>
+          </div>
+        </article>
+
+        {historyTab === "mine" ? (
+          <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <article className="bb-surface p-6">
               <div className="bb-section-head">
                 <div>
-                  <p className="bb-eyebrow">BC'Coins</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
-                    Boutique fidelite
-                  </h2>
+                  <p className="bb-eyebrow">A venir</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Rendez-vous deja pris</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                  <Gift className="h-3.5 w-3.5 text-[#f7b955]" />
-                  {client.bcPoints} points
+                  {upcomingAppointments.length} fiche{upcomingAppointments.length > 1 ? "s" : ""}
                 </div>
               </div>
 
-              <div className="mt-5 space-y-3">
-                {rewardCatalog.map((reward) => {
-                  const affordable = client.bcPoints >= reward.pointsCost;
-                  return (
-                    <div
-                      className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
-                      key={reward.key}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-lg font-semibold text-white">{reward.label}</p>
-                          <p className="mt-2 text-sm text-white/58">
-                            {reward.pointsCost} BC'Coins
-                          </p>
-                        </div>
-                        <button
-                          className={affordable ? "bb-button-brand px-4 py-2" : "bb-button-ghost px-4 py-2"}
-                          disabled={!affordable || redeemingRewardKey === reward.key}
-                          onClick={() => {
-                            void redeemReward(reward);
-                          }}
-                          type="button"
-                        >
-                          {redeemingRewardKey === reward.key
-                            ? "Envoi..."
-                            : affordable
-                              ? "Utiliser"
-                              : "Plus tard"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-5 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Dernieres demandes
-                </p>
-                <div className="mt-3 space-y-2">
-                  {rewardRedemptions.length === 0 ? (
-                    <p className="text-sm text-white/58">Aucune demande BC'Coins pour le moment.</p>
-                  ) : (
-                    rewardRedemptions.slice(0, 4).map((redemption) => (
-                      <div className="flex items-center justify-between gap-3" key={redemption.id}>
-                        <div>
-                          <p className="text-sm font-semibold text-white">
-                            {redemption.rewardLabel}
-                          </p>
-                          <p className="text-xs text-white/45">
-                            {formatUnixDateTimeFR(redemption.createdAt)}
-                          </p>
-                        </div>
-                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                          {rewardStatusLabel(redemption.status)}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <div className="mt-6 grid gap-3">
+                {appointmentsLoading ? (
+                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    Chargement des rendez-vous...
+                  </div>
+                ) : upcomingAppointments.length === 0 ? (
+                  <AppointmentsEmpty copy="Aucune prestation planifiee pour le moment." />
+                ) : (
+                  upcomingAppointments.map((appointment) => renderAppointmentCard(appointment))
+                )}
               </div>
             </article>
 
             <article className="bb-surface p-6">
               <div className="bb-section-head">
                 <div>
-                  <p className="bb-eyebrow">Avis Google</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
-                    Laisser votre note publique
-                  </h2>
+                  <p className="bb-eyebrow">Archives</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Historique detaille</h2>
+                </div>
+                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                  {archivedAppointments.length} fiche{archivedAppointments.length > 1 ? "s" : ""}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3">
+                {appointmentsLoading ? (
+                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    Chargement des rendez-vous...
+                  </div>
+                ) : archivedAppointments.length === 0 ? (
+                  <AppointmentsEmpty copy="Aucune archive disponible pour le moment." />
+                ) : (
+                  archivedAppointments.map((appointment) => renderAppointmentCard(appointment))
+                )}
+              </div>
+            </article>
+          </div>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
+            <article className="bb-surface p-6">
+              <div className="bb-section-head">
+                <div>
+                  <p className="bb-eyebrow">Galerie publique</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Photos et avis partages</h2>
+                </div>
+                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                  {communityItems.length} retour{communityItems.length > 1 ? "s" : ""}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4">
+                {communityLoading ? (
+                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    Chargement des retours clients...
+                  </div>
+                ) : communityItems.length === 0 ? (
+                  <AppointmentsEmpty copy="Des qu'une prestation terminee contient des photos ou un avis client, elle apparait ici." />
+                ) : (
+                  communityItems.map((item) => (
+                    <article
+                      className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
+                      key={item.id}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
+                          {slotLabel(item.slot)}
+                        </div>
+                        <div
+                          className={cn(
+                            "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                            locationClasses(item.location),
+                          )}
+                        >
+                          {locationLabel(item.location)}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <h3 className="text-xl font-semibold text-white">
+                          {item.vehicleModel || "Vehicule detaille"}
+                        </h3>
+                        <p className="text-sm text-white/55">
+                          {formatDateFR(item.date)} · {slotWindowLabel(item.slot)} · {formatTimeHHMM(item.time)}
+                        </p>
+                      </div>
+
+                      {item.userRating ? (
+                        <div className="mt-4 flex items-center gap-3">
+                          <RatingStars rating={item.userRating} />
+                          <span className="text-sm font-semibold text-white">{item.userRating}/5</span>
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-white/55">
+                          Prestation partagee sans note etoilee
+                        </div>
+                      )}
+
+                      <p className="mt-4 text-sm leading-6 text-white/68">
+                        {item.userReview ||
+                          "Le client n'a pas laisse de commentaire ecrit, mais des photos sont disponibles."}
+                      </p>
+
+                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        {item.photos.length === 0 ? (
+                          <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-black/15 text-center text-xs uppercase tracking-[0.16em] text-white/30 sm:col-span-3">
+                            Aucune photo visible
+                          </div>
+                        ) : (
+                          item.photos.map((photo) => (
+                            <button
+                              className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                              key={photo.id}
+                              onClick={() => setLightboxUrl(photo.url)}
+                              type="button"
+                            >
+                              <img
+                                alt={photo.label || "Photo client"}
+                                className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                                src={photo.url}
+                              />
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </article>
+
+            <article className="bb-surface p-6">
+              <div className="bb-section-head">
+                <div>
+                  <p className="bb-eyebrow">Google reviews</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Donner une note publique</h2>
                 </div>
                 <a
                   className="bb-button-brand"
-                  href="https://maps.app.goo.gl/SNXz7PaTRSWWMxLa8"
+                  href={GOOGLE_REVIEWS_URL}
                   rel="noreferrer"
                   target="_blank"
                 >
@@ -2116,7 +2683,7 @@ export function ClientCardPage() {
                 </a>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-6 space-y-3">
                 {GOOGLE_REVIEWS_FALLBACK.map((review) => (
                   <div
                     className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
@@ -2136,593 +2703,52 @@ export function ClientCardPage() {
               </div>
             </article>
           </div>
-        </section>
+        )}
+      </section>
+    );
+  }
 
-        <section className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-          <article
-            className={cn(
-              "bb-surface p-6 transition duration-200",
-              termsPanelAttention &&
-                !termsAccepted &&
-                "bb-attention-ring border-[#f7b955]/55 bg-[#f7b955]/[0.07]",
-            )}
-            ref={termsSectionRef}
-          >
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Conditions</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Conditions & reglement
-                </h2>
-              </div>
-              <div
-                className={cn(
-                  "bb-pill",
-                  termsAccepted
-                    ? "border-emerald-400/35 bg-emerald-300/10 text-emerald-100"
-                    : "border-amber-400/35 bg-amber-300/10 text-amber-100",
-                )}
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {termsAccepted ? "Conditions acceptees" : "Acceptation requise"}
-              </div>
-            </div>
+  return (
+    <div className="bb-shell pb-24 md:pb-16">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-[#f7b955]/12 blur-3xl" />
+        <div className="absolute right-[-7rem] top-0 h-80 w-80 rounded-full bg-sky-400/12 blur-3xl" />
+        <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#ff7a18]/10 blur-3xl" />
+      </div>
 
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-white/65">
-              Voici les regles qui encadrent la formule, les reservations et la
-              diffusion des retours apres prestation. Version du {TERMS_UPDATED_LABEL}.
-            </p>
+      <main className="bb-content relative z-10 space-y-5 md:space-y-6">
+        {renderHeader()}
 
-            <div className="mt-6 space-y-3">
-              {TERMS_HIGHLIGHTS.map((item) => (
-                <div
-                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/68"
-                  key={item}
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                className="bb-button-brand justify-center"
-                to={`/card/${encodeURIComponent(slug)}/conditions${termsAccepted ? "" : "?intent=terms"}`}
-              >
-                Lire le document complet
-              </Link>
-              {!termsAccepted && (
-                <button
-                  className="bb-button-ghost justify-center"
-                  onClick={() => openTermsModal()}
-                  type="button"
-                >
-                  Accepter maintenant
-                </button>
-              )}
-            </div>
-          </article>
-
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Validite formule</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Suivi de votre abonnement
-                </h2>
-              </div>
-              <div
-                className={cn(
-                  "bb-pill",
-                  formulaExpired
-                    ? "border-rose-400/35 bg-rose-300/10 text-rose-100"
-                    : "border-white/12 bg-white/[0.04] text-white/75",
-                )}
-              >
-                {formulaExpired ? "Formule expiree" : "Formule active"}
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                  Date d'achat
-                </p>
-                <p className="mt-3 text-xl font-semibold text-white">
-                  {formatUnixDateFR(client.formulaPurchasedAt)}
-                </p>
-              </div>
-              <div
-                className={cn(
-                  "rounded-[24px] border p-5",
-                  formulaExpired
-                    ? "border-rose-300/25 bg-rose-300/10"
-                    : "border-white/10 bg-white/[0.03]",
-                )}
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                  Date d'expiration
-                </p>
-                <p className="mt-3 text-xl font-semibold text-white">
-                  {formatUnixDateFR(client.formulaExpiresAt)}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                Etat actuel
-              </p>
-              <p className="mt-3 text-sm leading-6 text-white/68">
-                {!termsAccepted
-                  ? "Les conditions doivent encore etre acceptees avant une nouvelle recharge ou une nouvelle reservation."
-                  : formulaExpired
-                    ? "La formule est arrivee a expiration. Rechargez-la pour debloquer de nouveaux passages."
-                    : creditsExhausted
-                      ? "Tous les credits ont ete utilises. Une recharge est necessaire avant le prochain passage."
-                      : "La formule est exploitable. Vous pouvez reserver un nouveau passage quand un creneau est libre."}
-              </p>
-            </div>
-          </article>
-        </section>
-
-        <section className="space-y-4">
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Agenda</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Choisissez votre prochain passage
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                  Les jours libres sont reservables. Vos prochains rendez-vous sont
-                  mis en avant. Une fois passes, ils restent consultables avec leur
-                  historique et les photos de prestation.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="bb-button-ghost h-11 w-11 rounded-full px-0"
-                  onClick={() => goMonth(-1)}
-                  type="button"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <button
-                  className="bb-button-ghost h-11 w-11 rounded-full px-0"
-                  onClick={() => goMonth(1)}
-                  type="button"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[32px] border border-white/10 bg-black/25 p-4 md:p-6">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-sm uppercase tracking-[0.16em] text-white/40">
-                    Periode
-                  </p>
-                  <h3 className="mt-1 text-2xl font-semibold capitalize text-white">
-                    {month.label}
-                  </h3>
-                  <p className="mt-3 text-sm leading-6 text-white/58">
-                    Chaque jour peut accueillir deux passages distincts: un le
-                    matin entre 9h et 12h, puis un l&apos;apres-midi entre 14h et
-                    18h. Choisissez un jour pour afficher les deux creneaux en
-                    detail.
-                  </p>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {[
-                    { label: "Libre", status: "free" as const },
-                    { label: "Votre date", status: "mine" as const },
-                    { label: "Passe", status: "done" as const },
-                    { label: "Complet", status: "busy" as const },
-                  ].map((item) => (
-                    <div
-                      className={cn(
-                        "bb-pill justify-center px-3 py-1.5",
-                        dayStatusClasses(item.status),
-                      )}
-                      key={item.label}
-                    >
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                {nextFreeDay && freeSlot && (
-                  <button
-                    className="bb-button-brand"
-                    onClick={() => {
-                      void openDayModal(nextFreeDay, freeSlot.slot);
-                    }}
-                    type="button"
-                  >
-                    Premier creneau libre
-                  </button>
-                )}
-                {upcomingAppointment && (
-                  <button
-                    className="bb-button-ghost"
-                    onClick={() => {
-                      void openAppointmentModal(upcomingAppointment);
-                    }}
-                    type="button"
-                  >
-                    Voir mon prochain rendez-vous
-                  </button>
-                )}
-              </div>
-
-              <div className="mt-6 space-y-3 md:hidden">
-                {monthDays.map((day) => {
-                  const overviewStatus = dayOverviewStatus(day);
-                  const active = focusedDay?.date === day.date;
-
-                  return (
-                    <div
-                      className={cn(
-                        "rounded-[26px] border p-4 transition duration-200",
-                        active
-                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
-                          : "border-white/10 bg-white/[0.03]",
-                      )}
-                      key={day.date}
-                    >
-                      <button
-                        className="w-full text-left"
-                        onClick={() => {
-                          void openDayModal(day);
-                        }}
-                        type="button"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                              {weekdayLabel(day.date)}
-                            </p>
-                            <h3 className="mt-2 text-2xl font-semibold text-white">
-                              {formatDateFR(day.date, {
-                                day: "numeric",
-                                month: "long",
-                              })}
-                            </h3>
-                          </div>
-                          <div
-                            className={cn(
-                              "bb-pill px-3 py-1",
-                              dayStatusClasses(overviewStatus),
-                            )}
-                          >
-                            {dayOverviewLabel(overviewStatus)}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-2">
-                          {SLOT_ORDER.map((slot) => (
-                            <div
-                              className={cn(
-                                "rounded-[18px] border px-3 py-3",
-                                dayStatusClasses(day.slots[slot].status),
-                              )}
-                              key={`${day.date}-${slot}`}
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
-                                    {slotLabel(slot)}
-                                  </p>
-                                  <p className="mt-1 text-xs opacity-75">
-                                    {slotWindowLabel(slot)}
-                                  </p>
-                                </div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.16em]">
-                                  {slotNavigatorStatusLabel(day.slots[slot].status)}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6 hidden md:block">
-                <div className="mb-4 grid grid-cols-7 gap-4">
-                  {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((label) => (
-                    <div
-                      className="px-2 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-white/35"
-                      key={label}
-                    >
-                      {label}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-7 gap-4">
-                  {matrix.map((day, index) =>
-                    day ? (
-                      <button
-                        className={cn(
-                          "min-h-[184px] rounded-[28px] border p-4 text-left transition duration-200",
-                          focusedDay?.date === day.date
-                            ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
-                            : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
-                        )}
-                        key={day.date}
-                        onClick={() => {
-                          void openDayModal(day);
-                        }}
-                        type="button"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-3xl font-semibold text-white">{day.day}</p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/40">
-                              {weekdayLabel(day.date)}
-                            </p>
-                          </div>
-                          <div
-                            className={cn(
-                              "bb-pill px-2.5 py-1 text-[10px]",
-                              dayStatusClasses(dayOverviewStatus(day)),
-                            )}
-                          >
-                            {dayOverviewCompactLabel(dayOverviewStatus(day))}
-                          </div>
-                        </div>
-
-                        <div className="mt-5 space-y-3">
-                          {SLOT_ORDER.map((slot) => (
-                            <div
-                              className={cn(
-                                "rounded-[20px] border px-3 py-3",
-                                dayStatusClasses(day.slots[slot].status),
-                              )}
-                              key={`${day.date}-${slot}`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div>
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
-                                    {slotShortLabel(slot)}
-                                  </p>
-                                  <p className="mt-1 text-[11px] opacity-75">
-                                    {slotWindowLabel(slot)}
-                                  </p>
-                                </div>
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">
-                                  {slotNavigatorStatusLabel(day.slots[slot].status)}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </button>
-                    ) : (
-                      <div
-                        className="min-h-[184px] rounded-[28px] border border-transparent bg-transparent"
-                        key={`empty-${index}`}
-                      />
-                    ),
-                  )}
-                </div>
-              </div>
-            </div>
-
-          </article>
-
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Rendez-vous</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Historique et suivi
-                </h2>
-              </div>
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                {filteredAppointments.length} fiche{filteredAppointments.length > 1 ? "s" : ""}
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 xl:grid-cols-2">
-              {appointmentsLoading ? (
-                <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
-                  Chargement des rendez-vous...
-                </div>
-              ) : filteredAppointments.length === 0 ? (
-                <AppointmentsEmpty />
-              ) : (
-                filteredAppointments.map((appointment) => (
-                  <button
-                    className="bb-surface w-full p-5 text-left transition duration-200 hover:-translate-y-1"
-                    key={appointment.id}
-                    onClick={() => {
-                      void openAppointmentModal(appointment);
-                    }}
-                    type="button"
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div
-                            className={cn(
-                              "bb-pill",
-                              appointmentStatusClasses(appointment.status),
-                            )}
-                          >
-                            {appointmentStatusLabel(appointment.status)}
-                          </div>
-                          <div
-                            className={cn(
-                              "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
-                              locationClasses(appointment.location),
-                            )}
-                          >
-                            {locationLabel(appointment.location)}
-                          </div>
-                          <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
-                            {slotLabel(appointment.slot)}
-                          </div>
-                          {appointmentIsPast(appointment) && (
-                            <div className="bb-pill border-white/12 bg-white/[0.04] text-white/55">
-                              Archive
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <h3 className="text-xl font-semibold text-white">
-                            {formatDateFR(appointment.date)}
-                          </h3>
-                          <p className="mt-2 text-sm text-white/60">
-                            {slotWindowLabel(appointment.slot)} · {formatTimeHHMM(appointment.time)} -{" "}
-                            {appointment.vehicleModel || client.vehicleModel || "Vehicule"}
-                            {appointment.vehiclePlate ? ` / ${appointment.vehiclePlate}` : ""}
-                          </p>
-                        </div>
-
-                        <p className="max-w-2xl text-sm leading-6 text-white/58">
-                          {previewNote(appointment.adminNote)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Photos
-                          </p>
-                          <p className="mt-2 text-lg font-semibold text-white">
-                            {appointment.hasPhotos ? "Oui" : "Non"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </article>
-
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Galerie clients</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Photos et retours partages
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                  Retrouvez les photos ajoutees par le centre ainsi que la note
-                  etoilee et le commentaire laisses par les clients apres
-                  prestation.
-                </p>
-              </div>
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                {communityItems.length} retour{communityItems.length > 1 ? "s" : ""}
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              {communityLoading ? (
-                <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
-                  Chargement des retours clients...
-                </div>
-              ) : communityItems.length === 0 ? (
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-                  <p className="text-lg font-semibold text-white">
-                    Aucun retour visible pour le moment
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-white/62">
-                    Des qu&apos;une prestation terminee contient des photos ou un
-                    avis client, elle apparait ici automatiquement.
-                  </p>
-                </div>
-              ) : (
-                communityItems.map((item) => (
-                  <article
-                    className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
-                    key={item.id}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
-                        {slotLabel(item.slot)}
-                      </div>
-                      <div
-                        className={cn(
-                          "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
-                          locationClasses(item.location),
-                        )}
-                      >
-                        {locationLabel(item.location)}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-2">
-                      <h3 className="text-xl font-semibold text-white">
-                        {item.vehicleModel || "Vehicule detaille"}
-                      </h3>
-                      <p className="text-sm text-white/55">
-                        {formatDateFR(item.date)} · {slotWindowLabel(item.slot)} ·{" "}
-                        {formatTimeHHMM(item.time)}
-                      </p>
-                    </div>
-
-                    {item.userRating ? (
-                      <div className="mt-4 flex items-center gap-3">
-                        <RatingStars rating={item.userRating} />
-                        <span className="text-sm font-semibold text-white">
-                          {item.userRating}/5
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="mt-4 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-white/55">
-                        Prestation partagee sans note etoilee
-                      </div>
-                    )}
-
-                    <p className="mt-4 text-sm leading-6 text-white/68">
-                      {item.userReview ||
-                        "Le client n'a pas laisse de commentaire ecrit, mais des photos sont disponibles."}
-                    </p>
-
-                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                      {item.photos.length === 0 ? (
-                        <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-black/15 text-center text-xs uppercase tracking-[0.16em] text-white/30 sm:col-span-3">
-                          Aucune photo visible
-                        </div>
-                      ) : (
-                        item.photos.map((photo) => (
-                          <button
-                            className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                            key={photo.id}
-                            onClick={() => setLightboxUrl(photo.url)}
-                            type="button"
-                          >
-                            <img
-                              alt={photo.label || "Photo client"}
-                              className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
-                              src={photo.url}
-                            />
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </article>
-        </section>
+        {requestedView === "home" && renderHomeView()}
+        {requestedView === "booking" && renderBookingView()}
+        {requestedView === "vehicles" && renderVehiclesView()}
+        {requestedView === "shop" && renderShopView()}
+        {requestedView === "history" && renderHistoryView()}
       </main>
+
+      <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
+        <div className="mx-auto grid max-w-xl grid-cols-5 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
+          {PORTAL_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = requestedView === item.view;
+            return (
+              <Link
+                className={cn(
+                  "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
+                  active
+                    ? "bg-gradient-to-b from-[#f7b955]/18 to-[#ff7a18]/12 text-white shadow-[0_10px_24px_rgba(247,185,85,0.12)]"
+                    : "text-white/54",
+                )}
+                key={item.view}
+                to={portalHref(item.view)}
+              >
+                <Icon className={cn("h-4 w-4", active && "text-[#f7b955]")} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
 
       {selectedDay && currentDaySlot && (
         <div
@@ -2730,7 +2756,7 @@ export function ClientCardPage() {
           onClick={closeDayModal}
         >
           <div
-            className="bb-surface-strong w-full max-w-lg p-6"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-lg overflow-y-auto p-6 overscroll-contain"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -2747,11 +2773,11 @@ export function ClientCardPage() {
                 </h3>
                 <p className="mt-2 text-sm text-white/60">
                   {selectedMode === "book" &&
-                    "Chaque jour propose un passage le matin 9h-12h et un autre l'apres-midi 14h-18h."}
+                    "Choisissez votre demi-journee, l'heure et le vehicule pour envoyer la demande."}
                   {selectedMode === "manage" &&
-                    "Vous pouvez ajuster l'heure de ce passage ou l'annuler tant que la fenetre est encore ouverte."}
+                    "Votre demande existe deja sur ce jour. Vous pouvez l'ajuster ou l'annuler."}
                   {selectedMode === "past" &&
-                    "Ce creneau n'est plus reservable depuis ce planning instantane."}
+                    "Ce jour n'est plus reservable depuis l'agenda. Ouvrez la fiche si elle existe deja."}
                 </p>
               </div>
 
@@ -2760,7 +2786,7 @@ export function ClientCardPage() {
                 onClick={closeDayModal}
                 type="button"
               >
-                <span className="text-lg">x</span>
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -2781,8 +2807,7 @@ export function ClientCardPage() {
                       className={cn(
                         "rounded-[24px] border p-4 text-left transition duration-200",
                         dayStatusClasses(slotInfo.status),
-                        selectedSlot === slot &&
-                          "shadow-[0_0_0_1px_rgba(247,185,85,0.45)]",
+                        selectedSlot === slot && "shadow-[0_0_0_1px_rgba(247,185,85,0.45)]",
                       )}
                       key={slot}
                       onClick={() => selectDaySlot(slot)}
@@ -2811,9 +2836,9 @@ export function ClientCardPage() {
                               slotAppointment.location,
                             )}`
                           : slotInfo.status === "free"
-                            ? "Choisissez ce creneau pour envoyer une demande."
+                            ? "Cette demi-journee est reservable."
                             : slotInfo.status === "busy"
-                              ? "Une autre reservation est deja engagee sur cette demi-journee."
+                              ? "Une autre reservation existe deja sur cette demi-journee."
                               : "Creneau consulte a titre d'historique."}
                       </p>
                     </button>
@@ -2825,12 +2850,10 @@ export function ClientCardPage() {
                 <>
                   {!termsAccepted && (
                     <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">
-                        Conditions a accepter
-                      </p>
+                      <p className="text-sm font-semibold text-white">Conditions a accepter</p>
                       <p className="mt-2 text-sm leading-6 text-white/70">
-                        Avant une nouvelle reservation, validez les conditions
-                        d'utilisation et le reglement Bryan Cars.
+                        Le reglement n&apos;est plus affiche en permanence. Il vous sera demande ici,
+                        uniquement au moment de reserver.
                       </p>
                       <div className="mt-4 flex flex-wrap gap-3">
                         <button
@@ -2840,24 +2863,21 @@ export function ClientCardPage() {
                         >
                           Lire et accepter
                         </button>
-                      <Link
-                        className="bb-button-ghost justify-center"
-                        to={`/card/${encodeURIComponent(slug)}/conditions?intent=terms`}
-                      >
-                        Ouvrir la page complete
-                      </Link>
+                        <Link
+                          className="bb-button-ghost justify-center"
+                          to={`/card/${encodeURIComponent(slug)}/conditions?intent=terms`}
+                        >
+                          Ouvrir la page complete
+                        </Link>
                       </div>
                     </div>
                   )}
 
                   {termsAccepted && formulaExpired && (
                     <div className="rounded-[24px] border border-rose-300/25 bg-rose-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">
-                        Formule expiree
-                      </p>
+                      <p className="text-sm font-semibold text-white">Formule expiree</p>
                       <p className="mt-2 text-sm leading-6 text-white/70">
-                        Cette formule n'est plus valable pour reserver un nouveau
-                        passage. Rechargez-la avant de continuer.
+                        Rechargez la formule avant d&apos;envoyer une nouvelle demande.
                       </p>
                       <button
                         className="bb-button-ghost mt-4 justify-center"
@@ -2871,12 +2891,9 @@ export function ClientCardPage() {
 
                   {termsAccepted && !formulaExpired && creditsExhausted && (
                     <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">
-                        Aucun credit disponible
-                      </p>
+                      <p className="text-sm font-semibold text-white">Aucun credit disponible</p>
                       <p className="mt-2 text-sm leading-6 text-white/70">
-                        Rechargez votre formule pour envoyer une nouvelle demande
-                        de rendez-vous sur ce creneau.
+                        Rechargez la formule pour demander un nouveau passage.
                       </p>
                       <button
                         className="bb-button-ghost mt-4 justify-center"
@@ -2939,9 +2956,7 @@ export function ClientCardPage() {
                   )}
 
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Lieu souhaite
-                    </p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu souhaite</p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {[
                         {
@@ -2967,9 +2982,7 @@ export function ClientCardPage() {
                           type="button"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-base font-semibold text-white">
-                              {option.label}
-                            </span>
+                            <span className="text-base font-semibold text-white">{option.label}</span>
                             {appointmentLocation === option.value && (
                               <CheckCircle2 className="h-4 w-4 text-[#f7b955]" />
                             )}
@@ -3019,8 +3032,8 @@ export function ClientCardPage() {
                           : formulaExpired
                             ? "Formule expiree"
                             : creditsExhausted
-                          ? "Credits epuises"
-                          : "Demander ce rendez-vous"}
+                              ? "Credits epuises"
+                              : "Demander ce rendez-vous"}
                     </button>
                     <button
                       className="bb-button-ghost justify-center"
@@ -3037,19 +3050,11 @@ export function ClientCardPage() {
               {selectedMode === "manage" && currentDayAppointment && (
                 <>
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Lieu de prestation
-                    </p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu de prestation</p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {[
-                        {
-                          value: "atelier" as const,
-                          label: "Au studio",
-                        },
-                        {
-                          value: "domicile" as const,
-                          label: "A domicile",
-                        },
+                        { value: "atelier" as const, label: "Au studio" },
+                        { value: "domicile" as const, label: "A domicile" },
                       ].map((option) => (
                         <button
                           className={cn(
@@ -3169,18 +3174,13 @@ export function ClientCardPage() {
           onClick={closeAppointmentModal}
         >
           <div
-            className="bb-surface-strong w-full max-w-4xl p-6 md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-4xl overflow-y-auto p-6 overscroll-contain md:p-7"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div
-                    className={cn(
-                      "bb-pill",
-                      appointmentStatusClasses(selectedAppointment.status),
-                    )}
-                  >
+                  <div className={cn("bb-pill", appointmentStatusClasses(selectedAppointment.status))}>
                     {appointmentStatusLabel(selectedAppointment.status)}
                   </div>
                   <div
@@ -3203,18 +3203,12 @@ export function ClientCardPage() {
                   {slotWindowLabel(selectedAppointment.slot)} · {formatTimeHHMM(
                     selectedAppointment.time,
                   )} -{" "}
-                  {selectedAppointment.vehicleModel || client.vehicleModel || "Vehicule"}
-                  {selectedAppointment.vehiclePlate
-                    ? ` / ${selectedAppointment.vehiclePlate}`
-                    : ""}
+                  {selectedAppointment.vehicleModel || clientData.vehicleModel || "Vehicule"}
+                  {selectedAppointment.vehiclePlate ? ` / ${selectedAppointment.vehiclePlate}` : ""}
                 </p>
               </div>
 
-              <button
-                className="bb-button-ghost self-start"
-                onClick={closeAppointmentModal}
-                type="button"
-              >
+              <button className="bb-button-ghost self-start" onClick={closeAppointmentModal} type="button">
                 Fermer
               </button>
             </div>
@@ -3383,7 +3377,7 @@ export function ClientCardPage() {
           onClick={closeVehicleModal}
         >
           <div
-            className="bb-surface-strong w-full max-w-2xl p-6 md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-2xl overflow-y-auto p-6 overscroll-contain md:p-7"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -3409,9 +3403,7 @@ export function ClientCardPage() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 md:col-span-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Nom affiche
-                </span>
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Nom affiche</span>
                 <input
                   className="bb-input"
                   onChange={(event) =>
@@ -3422,9 +3414,7 @@ export function ClientCardPage() {
                 />
               </label>
               <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Modele
-                </span>
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Modele</span>
                 <input
                   className="bb-input"
                   onChange={(event) =>
@@ -3435,9 +3425,7 @@ export function ClientCardPage() {
                 />
               </label>
               <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Plaque
-                </span>
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Plaque</span>
                 <input
                   className="bb-input"
                   onChange={(event) =>
@@ -3479,7 +3467,7 @@ export function ClientCardPage() {
           onClick={closeTermsModal}
         >
           <div
-            className="bb-surface-strong w-full max-w-4xl p-6 md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-4xl overflow-y-auto p-6 overscroll-contain md:p-7"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -3495,12 +3483,10 @@ export function ClientCardPage() {
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {termsAccepted ? "Conditions acceptees" : "Acceptation requise"}
                 </div>
-                <h3 className="mt-4 text-3xl font-semibold text-white">
-                  Conditions & reglement
-                </h3>
+                <h3 className="mt-4 text-3xl font-semibold text-white">Conditions & reglement</h3>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
-                  Version du {TERMS_UPDATED_LABEL}. Relisez les regles de la formule,
-                  du planning et de la diffusion des retours avant de continuer.
+                  Version du {TERMS_UPDATED_LABEL}. Le reglement n'est plus bloque sur la page
+                  d'accueil: il apparait ici uniquement quand c'est utile.
                 </p>
               </div>
 
@@ -3516,6 +3502,24 @@ export function ClientCardPage() {
 
             <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <section className="space-y-4">
+                <div
+                  className={cn(
+                    "rounded-[24px] border p-4",
+                    termsAccepted
+                      ? "border-emerald-300/25 bg-emerald-300/10"
+                      : "border-amber-300/25 bg-amber-300/10",
+                    termsPanelAttention &&
+                      !termsAccepted &&
+                      "bb-attention-ring bb-attention-nudge border-[#f7b955]/60 bg-[#f7b955]/12",
+                  )}
+                >
+                  <p className="text-sm font-semibold text-white">
+                    {termsAccepted
+                      ? `Acceptation enregistree le ${formatUnixDateTimeFR(clientData.termsAcceptedAt)}`
+                      : "Avant de poursuivre, vous devez accepter le reglement."}
+                  </p>
+                </div>
+
                 {TERMS_HIGHLIGHTS.map((item) => (
                   <article
                     className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/68"
@@ -3524,21 +3528,6 @@ export function ClientCardPage() {
                     {item}
                   </article>
                 ))}
-
-                <div
-                  className={cn(
-                    "rounded-[24px] border p-4",
-                    termsAccepted
-                      ? "border-emerald-300/25 bg-emerald-300/10"
-                      : "border-amber-300/25 bg-amber-300/10",
-                  )}
-                >
-                  <p className="text-sm font-semibold text-white">
-                    {termsAccepted
-                      ? `Acceptation enregistree le ${formatUnixDateTimeFR(client?.termsAcceptedAt ?? null)}`
-                      : "Vous devrez valider ce document avant de poursuivre."}
-                  </p>
-                </div>
               </section>
 
               <section className="space-y-4">
@@ -3601,15 +3590,68 @@ export function ClientCardPage() {
         </div>
       )}
 
+      {contactModalOpen && (
+        <div
+          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          onClick={() => setContactModalOpen(false)}
+        >
+          <div
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="bb-eyebrow">Contact</p>
+                <h3 className="mt-3 text-2xl font-semibold text-white">Joindre Bryan Cars rapidement</h3>
+                <p className="mt-2 text-sm leading-6 text-white/65">
+                  Le contact et les acces utiles sont regroupes ici pour ne plus surcharger la carte client.
+                </p>
+              </div>
+              <button
+                className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                onClick={() => setContactModalOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              <a className="bb-button-brand justify-center" href={PHONE_URL}>
+                <Phone className="mr-2 h-4 w-4" />
+                Appeler Bryan Cars
+              </a>
+              <a className="bb-button-ghost justify-center" href={WHATSAPP_URL} rel="noreferrer" target="_blank">
+                <MessageCircle className="mr-2 h-4 w-4" />
+                WhatsApp direct
+              </a>
+              <a
+                className="bb-button-ghost justify-center"
+                href={GOOGLE_REVIEWS_URL}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <Star className="mr-2 h-4 w-4" />
+                Laisser un avis Google
+              </a>
+              <Link
+                className="bb-button-ghost justify-center"
+                to={`/card/${encodeURIComponent(slug)}/conditions`}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Voir le reglement
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {lightboxUrl && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 px-4"
           onClick={() => setLightboxUrl(null)}
         >
-          <div
-            className="relative max-h-[90vh] max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="relative max-h-[90vh] max-w-5xl" onClick={(event) => event.stopPropagation()}>
             <button
               className="bb-button-ghost absolute right-3 top-3 z-10"
               onClick={() => setLightboxUrl(null)}
@@ -3627,7 +3669,7 @@ export function ClientCardPage() {
       )}
 
       {toast && (
-        <div className="fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">
+        <div className="fixed inset-x-0 bottom-24 z-[70] flex justify-center px-4 md:bottom-5">
           <div className="rounded-full border border-white/10 bg-black/80 px-4 py-3 text-sm text-white shadow-2xl backdrop-blur-md">
             {toast}
           </div>
