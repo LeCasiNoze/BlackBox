@@ -1274,7 +1274,7 @@ export function ClientCardPage() {
 
       const json = (await response.json()) as RewardRedeemResponse;
       if (!response.ok || !json.ok) {
-        showToast("Impossible d'utiliser vos BC'Coins pour le moment.");
+        showToast("Impossible d'utiliser vos 🪙 BC'Coins pour le moment.");
         return;
       }
 
@@ -1292,7 +1292,7 @@ export function ClientCardPage() {
       );
       showToast("Demande envoyee a Bryan Cars. L'equipe reprend contact avec vous.");
     } catch (saveError) {
-      showToast("Erreur reseau pendant l'utilisation des BC'Coins.");
+      showToast("Erreur reseau pendant l'utilisation des 🪙 BC'Coins.");
     } finally {
       setRedeemingRewardKey(null);
     }
@@ -1620,7 +1620,7 @@ export function ClientCardPage() {
     },
     {
       view: "shop" as const,
-      title: "Boutique BC'Coins",
+      title: "Boutique 🪙 BC'Coins",
       copy: `${clientData.bcPoints} point${clientData.bcPoints > 1 ? "s" : ""} disponibles`,
       icon: Gift,
     },
@@ -1819,7 +1819,7 @@ export function ClientCardPage() {
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">BC&apos;Coins</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">🪙 BC&apos;Coins</p>
                     <p className="mt-2 text-2xl font-semibold text-white">{clientData.bcPoints}</p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
@@ -1962,7 +1962,7 @@ export function ClientCardPage() {
                 </div>
               )}
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                BC&apos;Coins: {clientData.bcPoints}
+                🪙 BC&apos;Coins: {clientData.bcPoints}
               </div>
               {upcomingAppointment && (
                 <div className="bb-pill border-sky-400/35 bg-sky-300/10 text-sky-100">
@@ -2146,7 +2146,7 @@ export function ClientCardPage() {
                 </p>
               </div>
               <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">BC&apos;Coins</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">🪙 BC&apos;Coins</p>
                 <p className="mt-2 text-sm font-semibold text-white">{clientData.bcPoints} points</p>
               </div>
             </div>
@@ -2553,7 +2553,7 @@ export function ClientCardPage() {
         <article className="bb-surface p-6">
           <div className="bb-section-head">
             <div>
-              <p className="bb-eyebrow">BC&apos;Coins</p>
+              <p className="bb-eyebrow">🪙 BC&apos;Coins</p>
               <h1 className="mt-2 text-2xl font-semibold text-white">Boutique fidelite</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
                 Vos points sont visibles ici, sans encombrer la page d&apos;accueil.
@@ -2576,7 +2576,7 @@ export function ClientCardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold text-white">{reward.label}</p>
-                      <p className="mt-2 text-sm text-white/58">{reward.pointsCost} BC&apos;Coins</p>
+                      <p className="mt-2 text-sm text-white/58">{reward.pointsCost} 🪙 BC&apos;Coins</p>
                     </div>
                     <button
                       className={affordable ? "bb-button-brand px-4 py-2" : "bb-button-ghost px-4 py-2"}
@@ -2612,7 +2612,7 @@ export function ClientCardPage() {
 
           <div className="mt-6 space-y-3">
             {rewardRedemptions.length === 0 ? (
-              <AppointmentsEmpty copy="Aucune demande BC'Coins pour le moment." />
+              <AppointmentsEmpty copy="Aucune demande 🪙 BC'Coins pour le moment." />
             ) : (
               rewardRedemptions.map((redemption) => (
                 <div
