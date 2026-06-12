@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS appointments (
                     )),
   bc_points_awarded INTEGER NOT NULL DEFAULT 0
                     CHECK (bc_points_awarded IN (0, 1)),
+  admin_reminder_24h_sent_at INTEGER,
+  client_reminder_24h_sent_at INTEGER,
   is_public   INTEGER NOT NULL DEFAULT 0
               CHECK (is_public IN (0, 1)),
   location    TEXT

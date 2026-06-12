@@ -71,6 +71,10 @@ function locationLabel(location) {
   return "Non precise";
 }
 
+function adminInboxEmail() {
+  return MAIL_ADMIN_TO || MAIL_FROM_EMAIL || "";
+}
+
 function normalizeAppointmentSlot(slot, time) {
   if (slot === "morning" || slot === "afternoon") {
     return slot;
@@ -423,9 +427,10 @@ async function sendBrevoEmail({ to, subject, html, text, attachments = [] }) {
   }
 }
 
-async function sendAdminNotification({ type, client, date, time, location }) {
-  if (!MAIL_ADMIN_TO) {
-    console.warn("[MAIL] MAIL_ADMIN_TO manquant, notif admin ignoree.");
+async function sendAdminNotification({ type, client, date, time, location, clientNote = null }) {
+  const adminEmail = adminInboxEmail();
+  if (!adminEmail) {
+    console.warn("[MAIL] MAIL_ADMIN_TO / MAIL_FROM_EMAIL manquant, notif admin ignoree.");
     return false;
   }
 
@@ -455,6 +460,7 @@ Date : ${formattedDate}
 Heure : ${safeTime}
 Lieu : ${locationLabel(location)}
 Vehicule : ${vehicle}
+Commentaire client : ${clientNote || "-"}
 Admin : ${adminUrl}
   `.trim();
 
@@ -478,6 +484,7 @@ Admin : ${adminUrl}
             { label: "Email", value: client.email || "-" },
             { label: "Lieu", value: locationLabel(location) },
             { label: "Vehicule", value: vehicle },
+            { label: "Commentaire client", value: clientNote || "-" },
           ])}
           ${actionButtons([
             { label: "Ouvrir le tableau de bord admin", href: adminUrl, tone: "primary" },
@@ -488,7 +495,79 @@ Admin : ${adminUrl}
   });
 
   return sendBrevoEmail({
-    to: [{ email: MAIL_ADMIN_TO }],
+    to: [{ email: adminEmail }],
+    subject,
+    html,
+    text,
+  });
+}
+
+async function sendAdminAppointmentReminderEmail({ appointment, client }) {
+  const adminEmail = adminInboxEmail();
+  if (!adminEmail || !appointment || !client) {
+    return false;
+  }
+
+  const fullName = fallbackClientName(client);
+  const formattedDate = formatDateFr(appointment.date);
+  const safeTime = appointment.time || "heure non renseignee";
+  const slotLabel = appointmentSlotLabel(appointment.slot, appointment.time);
+  const slotWindow = appointmentWindowLabel(appointment.slot, appointment.time);
+  const vehicle = vehicleSummary(appointment);
+  const place = locationLabel(appointment.location);
+  const clientNote = appointment.client_note || appointment.clientNote || null;
+  const adminUrl = `${ADMIN_DASHBOARD_URL}?clientId=${client.id}&appointmentId=${appointment.id}`;
+
+  const subject = `[Bryan Cars] Rappel demain - ${safeTime} - ${fullName}`;
+  const text = `
+Rappel rendez-vous demain
+
+Client : ${fullName}
+Date : ${formattedDate}
+Creneau : ${slotLabel} ${slotWindow}
+Heure : ${safeTime}
+Lieu : ${place}
+Vehicule : ${vehicle}
+Telephone : ${client.phone || "-"}
+Email : ${client.email || "-"}
+Commentaire client : ${clientNote || "-"}
+Admin : ${adminUrl}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Rappel admin J-1",
+    title: "Demain, un rendez-vous vous attend",
+    subtitle:
+      "Voici le rappel complet du prochain passage pour garder le planning sous controle sans rien oublier.",
+    preheader: `Demain ${safeTime} · ${fullName} · ${vehicle}`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Client", value: fullName },
+        { label: "Heure", value: safeTime },
+        { label: "Creneau", value: `${slotLabel} ${slotWindow}` },
+      ])}
+      ${panelCard({
+        title: "Resume du dossier",
+        description: "Toutes les infos utiles du rendez-vous de demain au meme endroit.",
+        bodyHtml: `
+          ${infoRows([
+            { label: "Date", value: formattedDate },
+            { label: "Lieu", value: place },
+            { label: "Vehicule", value: vehicle },
+            { label: "Telephone", value: client.phone || "-" },
+            { label: "Email", value: client.email || "-" },
+            { label: "Commentaire client", value: clientNote || "-" },
+          ])}
+          ${actionButtons([
+            { label: "Ouvrir le rendez-vous dans l'admin", href: adminUrl, tone: "primary" },
+          ])}
+        `,
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: adminEmail }],
     subject,
     html,
     text,
@@ -738,6 +817,72 @@ Espace client : ${portalUrl || "Lien indisponible"}
   });
 }
 
+async function sendClientAppointmentReminderEmail({ client, appointment }) {
+  if (!client?.email || !appointment) {
+    return false;
+  }
+
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const formattedDate = formatDateFr(appointment.date);
+  const safeTime = appointment.time || "heure non renseignee";
+  const slot = appointmentSlotLabel(appointment.slot, appointment.time);
+  const windowLabel = appointmentWindowLabel(appointment.slot, appointment.time);
+  const vehicle = vehicleSummary(appointment);
+  const place = locationLabel(appointment.location);
+
+  const subject = `[Bryan Cars] Rappel de rendez-vous demain - ${formattedDate}`;
+  const text = `
+Bonjour ${fullName},
+
+Rappel de votre rendez-vous demain.
+
+Date : ${formattedDate}
+Creneau : ${slot} ${windowLabel}
+Heure : ${safeTime}
+Lieu : ${place}
+Vehicule : ${vehicle}
+Espace client : ${portalUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Rappel client J-1",
+    title: "Votre rendez-vous est demain",
+    subtitle:
+      "Un rappel simple et clair pour garder en tete votre prochain passage Bryan Cars.",
+    preheader: `Demain ${safeTime} · ${slot} · ${vehicle}`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Date", value: formattedDate },
+        { label: "Heure", value: safeTime },
+        { label: "Lieu", value: place },
+      ])}
+      ${panelCard({
+        title: "Resume du rendez-vous",
+        description: "Retrouvez votre creneau, votre vehicule et votre acces client juste ici.",
+        bodyHtml: `
+          ${infoRows([
+            { label: "Creneau", value: `${slot} ${windowLabel}` },
+            { label: "Vehicule", value: vehicle },
+          ])}
+          ${actionButtons([
+            portalUrl
+              ? { label: "Ouvrir mon espace client", href: portalUrl, tone: "primary" }
+              : null,
+          ])}
+        `,
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
 async function sendAdminRewardRedemption({ client, reward }) {
   if (!MAIL_ADMIN_TO) {
     console.warn("[MAIL] MAIL_ADMIN_TO manquant, redemption ignoree.");
@@ -827,8 +972,10 @@ async function sendAdminDataExportEmail({ fileName, buffer, triggerType = "weekl
 module.exports = {
   normalizePhoneForTel,
   sendAdminDataExportEmail,
+  sendAdminAppointmentReminderEmail,
   sendAdminNotification,
   sendAdminRewardRedemption,
+  sendClientAppointmentReminderEmail,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
   sendClientWelcomeEmail,

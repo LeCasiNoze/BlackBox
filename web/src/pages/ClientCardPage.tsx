@@ -596,6 +596,7 @@ export function ClientCardPage() {
   const [selectedTime, setSelectedTime] = React.useState(defaultTimeForSlot("morning"));
   const [appointmentLocation, setAppointmentLocation] =
     React.useState<AppointmentLocation>("atelier");
+  const [clientBookingNote, setClientBookingNote] = React.useState("");
 
   const [selectedAppointment, setSelectedAppointment] =
     React.useState<ClientAppointment | null>(null);
@@ -1049,12 +1050,14 @@ export function ClientCardPage() {
   function closeDayModal() {
     setSelectedDay(null);
     setSelectedSlot("morning");
+    setClientBookingNote("");
   }
 
   async function openDayModal(day: ApiDay, preferredSlot?: AppointmentSlot) {
     if (!client) return;
     const slot = preferredSlot ?? pickDefaultSlot(day);
     syncDaySelection(day, slot);
+    setClientBookingNote("");
 
     if (day.slots[slot].status === "free" && client.formulaRemaining <= 0) {
       showToast("Votre formule n'a plus de credits disponibles.");
@@ -1348,6 +1351,7 @@ export function ClientCardPage() {
           time,
           location: appointmentLocation,
           vehicleId: activeVehicleId,
+          clientNote: clientBookingNote.trim(),
         }),
       });
 
@@ -1366,6 +1370,7 @@ export function ClientCardPage() {
       }
 
       showToast("Demande de rendez-vous envoyee.");
+      setClientBookingNote("");
       setSelectedDay(null);
       setReloadToken((value) => value + 1);
     } catch (saveError) {
@@ -3174,6 +3179,24 @@ export function ClientCardPage() {
                       }))}
                       value={timeParts.minute}
                     />
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <label className="block">
+                      <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Commentaire optionnel
+                      </span>
+                      <p className="mt-2 text-sm leading-6 text-white/60">
+                        Une indication utile, un acces particulier ou toute precision a transmettre a l'equipe.
+                      </p>
+                      <textarea
+                        className="bb-textarea mt-4"
+                        maxLength={300}
+                        onChange={(event) => setClientBookingNote(event.target.value)}
+                        placeholder="Ex: portail a gauche, chien dans le jardin, siege bebe a nettoyer en priorite..."
+                        value={clientBookingNote}
+                      />
+                    </label>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">

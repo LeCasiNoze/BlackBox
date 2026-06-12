@@ -20,6 +20,7 @@ const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
 const adminApiRoutes = require("./routes/adminApi");
 const { ensureDemoClient } = require("./db/clients");
+const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 
 if (process.env.SEED_DEMO_CLIENT === "true") {
@@ -31,6 +32,7 @@ const distDir = path.join(__dirname, "../web/dist");
 ensureDir(UPLOADS_DIR);
 ensureDir(FOUNDERS_UPLOAD_DIR);
 ensureDir(EXPORTS_DIR);
+startAppointmentReminderScheduler();
 startWeeklyExportScheduler();
 
 app.use(express.urlencoded({ extended: true }));

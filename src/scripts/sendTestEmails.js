@@ -58,9 +58,11 @@ async function run() {
   }
 
   const {
+    sendAdminAppointmentReminderEmail,
     sendAdminDataExportEmail,
     sendAdminNotification,
     sendAdminRewardRedemption,
+    sendClientAppointmentReminderEmail,
     sendClientAppointmentStatusEmail,
     sendClientFormulaRecap,
     sendClientWelcomeEmail,
@@ -114,6 +116,7 @@ async function run() {
           date: "2026-06-18",
           time: "10:00",
           location: "atelier",
+          clientNote: "Acces par le portail gris, siege bebe a traiter.",
         }),
     },
     {
@@ -125,6 +128,7 @@ async function run() {
           date: "2026-06-18",
           time: "14:30",
           location: "domicile",
+          clientNote: "Vehicule stationne devant la maison.",
         }),
     },
     {
@@ -168,6 +172,39 @@ async function run() {
             vehicle_plate: "AB-123-CD",
           },
           eventType: "done",
+        }),
+    },
+    {
+      label: "admin-reminder-24h",
+      run: () =>
+        sendAdminAppointmentReminderEmail({
+          client: baseClient,
+          appointment: {
+            id: 42,
+            date: "2026-06-20",
+            slot: "morning",
+            time: "09:30",
+            location: "atelier",
+            client_note: "Le portail sera ouvert des 9h.",
+            vehicle_model: "BMW M3",
+            vehicle_plate: "AB-123-CD",
+          },
+        }),
+    },
+    {
+      label: "client-reminder-24h",
+      run: () =>
+        sendClientAppointmentReminderEmail({
+          client: baseClient,
+          appointment: {
+            id: 43,
+            date: "2026-06-20",
+            slot: "afternoon",
+            time: "15:00",
+            location: "domicile",
+            vehicle_model: "BMW M3",
+            vehicle_plate: "AB-123-CD",
+          },
         }),
     },
     {

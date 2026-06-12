@@ -684,6 +684,8 @@ router.post("/:idOrSlug/book", async (req, res) => {
 
   const { date, time, location, slot: rawSlot, clientNote } = req.body || {};
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
+  const normalizedClientNote =
+    typeof clientNote === "string" && clientNote.trim() !== "" ? clientNote.trim() : null;
 
   if (!date) {
     return res.status(400).json({ ok: false, error: "missing_date" });
@@ -733,7 +735,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
         dateStr: date,
         slot,
         time: normalizedTime,
-        clientNote: typeof clientNote === "string" ? clientNote.trim() : null,
+        clientNote: normalizedClientNote,
         location: loc,
       });
 
@@ -755,6 +757,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
           date,
           time: normalizedTime,
           location: loc || existing.location || null,
+          clientNote: normalizedClientNote || existing.client_note || null,
         });
       } catch (error) {
         console.error("[MAIL] notif update:", error);
@@ -791,7 +794,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
         dateStr: date,
         slot,
         time: normalizedTime,
-        clientNote: typeof clientNote === "string" ? clientNote.trim() : null,
+        clientNote: normalizedClientNote,
         location: loc,
       });
     } catch (error) {
@@ -816,6 +819,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
         date,
         time: normalizedTime,
         location: loc,
+        clientNote: normalizedClientNote,
       });
     } catch (error) {
       console.error("[MAIL] notif book:", error);
@@ -871,6 +875,7 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
       date,
       time: appointment.time || defaultTimeForSlot(slot),
       location: appointment.location || null,
+      clientNote: appointment.client_note || null,
     });
   } catch (error) {
     console.error("[MAIL] notif cancel:", error);

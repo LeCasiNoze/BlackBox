@@ -80,6 +80,8 @@ function ensureAppointmentsExtraColumns() {
       "bc_points_awarded",
       "bc_points_awarded INTEGER NOT NULL DEFAULT 0 CHECK (bc_points_awarded IN (0, 1))"
     );
+    addColumnIfMissing("admin_reminder_24h_sent_at", "admin_reminder_24h_sent_at INTEGER");
+    addColumnIfMissing("client_reminder_24h_sent_at", "client_reminder_24h_sent_at INTEGER");
     addColumnIfMissing(
       "is_public",
       "is_public INTEGER NOT NULL DEFAULT 0 CHECK (is_public IN (0, 1))"
@@ -333,6 +335,8 @@ function ensureAppointmentsSlotModel() {
           admin_note  TEXT,
           user_rating INTEGER,
           user_review TEXT,
+          admin_reminder_24h_sent_at INTEGER,
+          client_reminder_24h_sent_at INTEGER,
           location    TEXT
                       CHECK(location IN ('atelier', 'domicile')) DEFAULT 'atelier',
           created_at  INTEGER NOT NULL,
@@ -352,6 +356,8 @@ function ensureAppointmentsSlotModel() {
           admin_note,
           user_rating,
           user_review,
+          admin_reminder_24h_sent_at,
+          client_reminder_24h_sent_at,
           location,
           created_at,
           updated_at
@@ -371,6 +377,8 @@ function ensureAppointmentsSlotModel() {
           admin_note,
           user_rating,
           user_review,
+          admin_reminder_24h_sent_at,
+          client_reminder_24h_sent_at,
           location,
           created_at,
           updated_at
