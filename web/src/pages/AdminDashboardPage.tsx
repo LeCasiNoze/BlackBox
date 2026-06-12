@@ -6,6 +6,7 @@ import {
   CarFront,
   CheckCircle2,
   Clock3,
+  Copy,
   Crown,
   Download,
   ExternalLink,
@@ -793,6 +794,22 @@ export function AdminDashboardPage() {
 
   function showToast(message: string) {
     setToast(message);
+  }
+
+  async function copyClientCardLink(client: AdminClient) {
+    if (client.clientType !== "bbx" || !client.slug) {
+      showToast("Aucun lien de carte disponible pour ce client.");
+      return;
+    }
+
+    const cardUrl = `${window.location.origin}/card/${client.slug}`;
+
+    try {
+      await navigator.clipboard.writeText(cardUrl);
+      showToast("Lien de la carte client copie.");
+    } catch (error) {
+      showToast("Impossible de copier le lien client.");
+    }
   }
 
   function applyAppointmentUpdate(updated: AdminAppointment) {
@@ -2571,10 +2588,23 @@ export function AdminDashboardPage() {
                         Modifier le profil
                       </button>
                       {managedClient.clientType === "bbx" ? (
-                        <Link className="bb-button-ghost" to={`/card/${managedClient.slug}`}>
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Voir carte client
-                        </Link>
+                        <>
+                          <Link className="bb-button-ghost" to={`/card/${managedClient.slug}`}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Voir carte client
+                          </Link>
+                          <button
+                            aria-label="Copier le lien de la carte client"
+                            className="bb-button-ghost px-4"
+                            onClick={() => {
+                              void copyClientCardLink(managedClient);
+                            }}
+                            title="Copier le lien de la carte client"
+                            type="button"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        </>
                       ) : (
                         <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
                           Client Data sans carte
