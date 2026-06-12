@@ -1984,16 +1984,6 @@ export function ClientCardPage() {
                       src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
                     />
                   </div>
-                  <div className="absolute bottom-6 left-6 right-6 rounded-[22px] border border-white/10 bg-black/55 p-4 backdrop-blur-md">
-                    <p className="text-xs uppercase tracking-[0.18em] text-[#f7b955]">Edition fondateur</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {clientData.formulaName || "Formule detailing"}
-                    </p>
-                    <p className="mt-2 text-sm text-white/64">
-                      Achat: {formatUnixDateFR(clientData.formulaPurchasedAt)} · Expiration:{" "}
-                      {formatUnixDateFR(clientData.formulaExpiresAt)}
-                    </p>
-                  </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
