@@ -37,6 +37,7 @@ const {
 } = require("../db/appointments");
 const {
   awardPointsForAppointment,
+  changeClientPoints,
   listRewardRedemptionsByClient,
   revokePointsForAppointment,
 } = require("../db/rewards");
@@ -546,6 +547,40 @@ router.post("/clients/:id/formula-recap", async (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /clients/:id/formula-recap:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/clients/:id/bc-points", (req, res) => {
+  const id = Number(req.params.id || 0);
+  const delta = parseInteger(req.body?.delta, 0);
+
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+
+  if (!delta) {
+    return res.status(400).json({ ok: false, error: "invalid_delta" });
+  }
+
+  try {
+    const client = getClientById(id);
+    if (!client) {
+      return res.status(404).json({ ok: false, error: "not_found" });
+    }
+
+    const nextPoints = changeClientPoints(id, delta);
+    if (nextPoints == null) {
+      return res.status(400).json({ ok: false, error: "not_enough_points" });
+    }
+
+    return res.json({
+      ok: true,
+      client: mapClientRow(getClientById(id)),
+      bcPoints: nextPoints,
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /clients/:id/bc-points:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

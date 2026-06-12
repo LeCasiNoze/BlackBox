@@ -1,19 +1,25 @@
 const express = require("express");
 
+const {
+  ADMIN_PASSWORD,
+  ADMIN_USERNAME,
+  clearAdminSession,
+  isAdminAuthenticated,
+  resolveNextUrl,
+  setAdminSession,
+} = require("../auth/adminSession");
+
 const router = express.Router();
 
-const ADMIN_USER = {
-  username: "admin",
-  password: "admin",
-};
+function renderLoginPage({ error = null, next = "/admin" } = {}) {
+  const safeNext = typeof next === "string" ? next : "/admin";
 
-router.get("/login", (req, res) => {
-  res.send(`
+  return `
     <html lang="fr">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>BlackBox - Connexion admin</title>
+        <title>Bryan Cars - Connexion admin</title>
         <style>
           @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap");
 
@@ -125,139 +131,111 @@ router.get("/login", (req, res) => {
             cursor: pointer;
           }
 
+          .error {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 125, 137, 0.25);
+            background: rgba(255, 125, 137, 0.12);
+            color: #ffd4da;
+            font-size: 13px;
+            line-height: 1.6;
+          }
+
           .footer {
             margin-top: 18px;
             padding-top: 18px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
           }
 
           .footer a {
             color: #f7b955;
             text-decoration: none;
           }
+
+          .hint {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 13px;
+            line-height: 1.6;
+            color: rgba(237, 242, 255, 0.62);
+          }
         </style>
       </head>
       <body>
         <div class="card">
-          <div class="eyebrow">BlackBox admin access</div>
-          <h1>Connexion cockpit</h1>
+          <div class="eyebrow">Bryan Cars admin</div>
+          <h1>Connexion securisee</h1>
           <p>
-            Cet ecran n'est pas encore branche a une vraie session. Il sert pour
-            l'instant d'entree rapide avant une auth complete.
+            Le cockpit admin est maintenant protege. Entrez les identifiants
+            pour ouvrir les dossiers clients, l'agenda et les actions de gestion.
           </p>
+          ${
+            error
+              ? `<div class="error">${error}</div>`
+              : ""
+          }
           <form method="POST" action="/login">
+            <input name="next" type="hidden" value="${safeNext}" />
             <label>
               <span>Nom d'utilisateur</span>
-              <input name="username" type="text" value="admin" />
+              <input name="username" type="text" value="${ADMIN_USERNAME}" autocomplete="username" />
             </label>
             <label>
               <span>Mot de passe</span>
-              <input name="password" type="password" value="admin" />
+              <input name="password" type="password" placeholder="Mot de passe admin" autocomplete="current-password" />
             </label>
             <button type="submit">Entrer dans l'espace admin</button>
           </form>
+          <div class="hint">
+            Redirection apres connexion: <strong>${safeNext}</strong>
+          </div>
           <div class="footer">
-            <p>
-              Besoin d'un acces direct ? <a href="/admin">Ouvrir le dashboard</a>
-            </p>
+            <a href="/">Retour au site</a>
+            <a href="/admin">Ouvrir le cockpit</a>
           </div>
         </div>
       </body>
     </html>
-  `);
+  `;
+}
+
+router.get("/login", (req, res) => {
+  const next = resolveNextUrl(req);
+
+  if (isAdminAuthenticated(req)) {
+    return res.redirect(next);
+  }
+
+  return res.send(renderLoginPage({ next }));
 });
 
 router.post("/login", (req, res) => {
   const { username, password } = req.body || {};
+  const next = resolveNextUrl(req);
 
-  if (username === ADMIN_USER.username && password === ADMIN_USER.password) {
-    return res.send(`
-      <html lang="fr">
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>BlackBox - Connexion reussie</title>
-          <style>
-            body {
-              margin: 0;
-              min-height: 100vh;
-              display: grid;
-              place-items: center;
-              padding: 24px;
-              font-family: "Segoe UI", sans-serif;
-              color: white;
-              background: linear-gradient(180deg, #05070b 0%, #090d12 100%);
-            }
-            .card {
-              width: min(100%, 420px);
-              border: 1px solid rgba(255,255,255,0.1);
-              border-radius: 24px;
-              background: rgba(12, 14, 20, 0.92);
-              padding: 28px;
-              box-shadow: 0 24px 80px rgba(0,0,0,0.45);
-            }
-            a {
-              display: inline-flex;
-              margin-top: 18px;
-              text-decoration: none;
-              color: #120b02;
-              background: linear-gradient(135deg, rgba(247,185,85,0.98), rgba(255,122,24,0.98));
-              border-radius: 999px;
-              padding: 12px 18px;
-              font-weight: 700;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>Connexion reussie</h1>
-            <p>Bienvenue ${username}. Vous pouvez ouvrir le cockpit admin.</p>
-            <a href="/admin">Aller au dashboard</a>
-          </div>
-        </body>
-      </html>
-    `);
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    setAdminSession(res);
+    return res.redirect(next);
   }
 
-  res.send(`
-    <html lang="fr">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>BlackBox - Acces refuse</title>
-        <style>
-          body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            padding: 24px;
-            font-family: "Segoe UI", sans-serif;
-            color: white;
-            background: linear-gradient(180deg, #05070b 0%, #090d12 100%);
-          }
-          .card {
-            width: min(100%, 420px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 24px;
-            background: rgba(12, 14, 20, 0.92);
-            padding: 28px;
-            box-shadow: 0 24px 80px rgba(0,0,0,0.45);
-          }
-          a {
-            color: #f7b955;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>Acces refuse</h1>
-          <p>Les identifiants fournis ne correspondent pas.</p>
-          <p><a href="/login">Revenir a la connexion</a></p>
-        </div>
-      </body>
-    </html>
-  `);
+  return res.status(401).send(
+    renderLoginPage({
+      error: "Les identifiants fournis ne correspondent pas.",
+      next,
+    }),
+  );
+});
+
+router.get("/logout", (req, res) => {
+  clearAdminSession(res);
+  return res.redirect("/login");
 });
 
 module.exports = router;

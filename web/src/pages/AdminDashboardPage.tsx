@@ -10,6 +10,7 @@ import {
   Download,
   ExternalLink,
   Loader2,
+  LogOut,
   Mail,
   PencilLine,
   Phone,
@@ -194,6 +195,7 @@ type ProfileDraft = {
 };
 
 type AppointmentFilterKey = "all" | AppointmentStatus | "client";
+type AdminSection = "home" | "appointments" | "clients";
 
 const APPOINTMENT_FILTERS: Array<{
   key: AppointmentFilterKey;
@@ -205,6 +207,17 @@ const APPOINTMENT_FILTERS: Array<{
   { key: "done", label: "Effectues" },
   { key: "cancelled", label: "Annules" },
   { key: "client", label: "Client actif" },
+];
+
+const ADMIN_NAV_ITEMS: Array<{
+  key: AdminSection;
+  label: string;
+  shortLabel: string;
+  icon: typeof Sparkles;
+}> = [
+  { key: "home", label: "Hall principal", shortLabel: "Hall", icon: Sparkles },
+  { key: "appointments", label: "Agenda admin", shortLabel: "Agenda", icon: CalendarClock },
+  { key: "clients", label: "Clients", shortLabel: "Clients", icon: Users },
 ];
 
 const CLEANLINESS_OPTIONS: Array<{
@@ -474,10 +487,12 @@ export function AdminDashboardPage() {
   const [busyAction, setBusyAction] = React.useState(false);
   const [busyFormula, setBusyFormula] = React.useState(false);
   const [busyFormulaRecap, setBusyFormulaRecap] = React.useState(false);
+  const [busyPoints, setBusyPoints] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [refreshToken, setRefreshToken] = React.useState(0);
   const [clientTypeFilter, setClientTypeFilter] = React.useState<"bbx" | "data" | "all">("bbx");
   const [exportingData, setExportingData] = React.useState(false);
+  const [pointsDeltaDraft, setPointsDeltaDraft] = React.useState("100");
 
   const [filterClientQuery, setFilterClientQuery] = React.useState("");
   const deferredClientQuery = React.useDeferredValue(filterClientQuery);
@@ -687,6 +702,33 @@ export function AdminDashboardPage() {
       null
     );
   }, [globalAppointments, selectedAppointmentId, selectedClient]);
+
+  function syncManagedClient(updatedClient: AdminClient) {
+    setClients((current) =>
+      current.map((client) => (client.id === updatedClient.id ? updatedClient : client)),
+    );
+    setSelectedClient((current) =>
+      current
+        ? {
+            ...current,
+            client: updatedClient,
+          }
+        : current,
+    );
+  }
+
+  const adminSectionHrefs = React.useMemo(() => {
+    const clientQuery = selectedClientId ? `?clientId=${selectedClientId}` : "";
+    const appointmentQuery = selectedAppointment
+      ? `?clientId=${selectedAppointment.clientId}&appointmentId=${selectedAppointment.id}`
+      : clientQuery;
+
+    return {
+      home: "/admin",
+      appointments: `/admin/appointments${appointmentQuery}`,
+      clients: `/admin/clients${clientQuery}`,
+    };
+  }, [selectedAppointment, selectedClientId]);
 
   React.useEffect(() => {
     const sortedGlobalAsc = sortAppointments(globalAppointments, "asc");
@@ -1059,6 +1101,48 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function updateClientPoints(deltaOverride?: number) {
+    const client = selectedClient?.client;
+    if (!client) return;
+
+    const delta = Math.trunc(Number(deltaOverride ?? pointsDeltaDraft));
+    if (!Number.isFinite(delta) || delta === 0) {
+      showToast("Entrez un montant positif ou negatif pour les BC'Coins.");
+      return;
+    }
+
+    setBusyPoints(true);
+
+    try {
+      const response = await fetch(`/api/admin/clients/${client.id}/bc-points`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delta }),
+      });
+
+      const json = await response.json();
+      if (!response.ok || !json.ok || !json.client) {
+        showToast(
+          json?.error === "not_enough_points"
+            ? "Impossible de retirer plus de BC'Coins que le solde disponible."
+            : "La mise a jour des BC'Coins a echoue.",
+        );
+        return;
+      }
+
+      syncManagedClient(json.client as AdminClient);
+      showToast(
+        delta > 0
+          ? `${Math.abs(delta)} BC'Coins ajoutes.`
+          : `${Math.abs(delta)} BC'Coins retires.`,
+      );
+    } catch (error) {
+      showToast("Erreur reseau pendant la mise a jour des BC'Coins.");
+    } finally {
+      setBusyPoints(false);
+    }
+  }
+
   async function exportFullData() {
     setExportingData(true);
 
@@ -1306,7 +1390,7 @@ export function AdminDashboardPage() {
   ).length;
   const firstPendingRequest = pendingRequests[0] ?? null;
   const firstUpcomingAppointment = upcomingAppointments[0] ?? null;
-  const adminSection = location.pathname.startsWith("/admin/appointments")
+  const adminSection: AdminSection = location.pathname.startsWith("/admin/appointments")
     ? "appointments"
     : location.pathname.startsWith("/admin/clients")
       ? "clients"
@@ -1319,16 +1403,16 @@ export function AdminDashboardPage() {
   const managedClientTermsAccepted = !!managedClient?.termsAcceptedAt;
   const sectionTitle =
     adminSection === "appointments"
-      ? "Rendez-vous"
+      ? "Agenda"
       : adminSection === "clients"
         ? "Clients"
         : "Hall principal";
   const sectionSubtitle =
     adminSection === "appointments"
-      ? "Une page dediee aux demandes, au planning et aux actions de validation."
+      ? "Demandes, planning et actions de validation sur un seul flux."
       : adminSection === "clients"
-        ? "Une page dediee aux fiches, aux credits et au suivi des clients."
-        : "Choisissez une zone de travail, puis ouvrez uniquement l'ecran dont vous avez besoin.";
+        ? "Fiches, formules, BC'Coins et historique client."
+        : "Trois zones claires: hall, agenda et clients.";
 
   function appointmentAdminLink(appointment: AdminAppointment) {
     return `/admin/appointments?clientId=${appointment.clientId}&appointmentId=${appointment.id}`;
@@ -1442,7 +1526,7 @@ export function AdminDashboardPage() {
               <div>
                 <p className="bb-eyebrow">Section</p>
                 <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Rendez-vous
+                  Agenda
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
                   Toute la gestion du planning, des demandes en attente et des
@@ -1462,7 +1546,7 @@ export function AdminDashboardPage() {
               </p>
               <div className="mt-5">
                 <Link className="bb-button-brand" to="/admin/appointments">
-                  Ouvrir la page rendez-vous
+                  Ouvrir l'agenda admin
                 </Link>
               </div>
             </div>
@@ -1510,7 +1594,7 @@ export function AdminDashboardPage() {
     );
     return (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-          <div className="space-y-4">
+          <div className="order-2 space-y-4 xl:order-none">
             <article className="bb-surface p-6">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1805,7 +1889,7 @@ export function AdminDashboardPage() {
             </section>
           </div>
 
-          <aside className="xl:sticky xl:top-6 xl:self-start">
+          <aside className="order-1 xl:sticky xl:top-6 xl:order-none xl:self-start">
             <article className="bb-surface self-start p-6" ref={appointmentWorkspaceRef}>
               <div className="bb-section-head">
                 <div>
@@ -2229,7 +2313,7 @@ export function AdminDashboardPage() {
   function renderClientsPage() {
     return (
       <>
-        <section className="grid gap-3 md:grid-cols-3">
+        <section className="hidden gap-3 md:grid md:grid-cols-3">
           <article className="bb-metric">
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
               Fiches visibles
@@ -2260,7 +2344,7 @@ export function AdminDashboardPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-          <aside className="bb-surface p-5">
+          <aside className="order-2 bb-surface p-5 xl:order-none">
             <div className="bb-section-head">
               <div>
                 <p className="bb-eyebrow">Clients</p>
@@ -2311,7 +2395,7 @@ export function AdminDashboardPage() {
               </div>
             </div>
 
-            <div className="mt-5 space-y-3 max-h-[920px] overflow-y-auto pr-1">
+            <div className="mt-5 space-y-3 xl:max-h-[920px] xl:overflow-y-auto xl:pr-1">
               {clientsLoading ? (
                 <div className="bb-surface flex items-center gap-3 px-4 py-3 text-sm text-white/65">
                   <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
@@ -2376,7 +2460,7 @@ export function AdminDashboardPage() {
             </div>
           </aside>
 
-          <section className="space-y-4">
+          <section className="order-1 space-y-4 xl:order-none">
             <article className="bb-surface p-6">
               <div className="bb-section-head">
                 <div>
@@ -2623,29 +2707,92 @@ export function AdminDashboardPage() {
                     </div>
 
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Demandes BC'Coins
-                      </p>
-                      <div className="mt-3 space-y-2">
-                        {selectedClient?.rewardRedemptions.length ? (
-                          selectedClient.rewardRedemptions.slice(0, 3).map((redemption) => (
-                            <div className="flex items-center justify-between gap-3" key={redemption.id}>
-                              <div>
-                                <p className="text-sm font-semibold text-white">
-                                  {redemption.rewardLabel}
-                                </p>
-                                <p className="text-xs text-white/45">
-                                  {formatUnixDateTimeFR(redemption.createdAt)}
-                                </p>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                            BC&apos;Coins
+                          </p>
+                          <p className="mt-2 text-lg font-semibold text-white">
+                            Ajuster le solde ou suivre les demandes
+                          </p>
+                        </div>
+                        <div className="bb-pill border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                          {managedClient.bcPoints} points
+                        </div>
+                      </div>
+
+                      <div className="mt-5 space-y-3">
+                        <label className="space-y-2">
+                          <span className="text-xs uppercase tracking-[0.16em] text-white/35">
+                            Ajustement manuel
+                          </span>
+                          <input
+                            className="bb-input"
+                            inputMode="numeric"
+                            onChange={(event) => setPointsDeltaDraft(event.target.value)}
+                            placeholder="Ex: 100 ou -100"
+                            value={pointsDeltaDraft}
+                          />
+                        </label>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: "+100", value: 100 },
+                            { label: "+300", value: 300 },
+                            { label: "-100", value: -100 },
+                            { label: "-300", value: -300 },
+                          ].map((preset) => (
+                            <button
+                              className="bb-button-ghost px-4 py-2"
+                              disabled={busyPoints}
+                              key={preset.label}
+                              onClick={() => {
+                                void updateClientPoints(preset.value);
+                              }}
+                              type="button"
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          className="bb-button-brand w-full"
+                          disabled={busyPoints}
+                          onClick={() => {
+                            void updateClientPoints();
+                          }}
+                          type="button"
+                        >
+                          {busyPoints ? "Mise a jour..." : "Appliquer l'ajustement"}
+                        </button>
+                      </div>
+
+                      <div className="mt-6 border-t border-white/10 pt-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Dernieres demandes BC&apos;Coins
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          {selectedClient?.rewardRedemptions.length ? (
+                            selectedClient.rewardRedemptions.slice(0, 3).map((redemption) => (
+                              <div className="flex items-center justify-between gap-3" key={redemption.id}>
+                                <div>
+                                  <p className="text-sm font-semibold text-white">
+                                    {redemption.rewardLabel}
+                                  </p>
+                                  <p className="text-xs text-white/45">
+                                    {formatUnixDateTimeFR(redemption.createdAt)}
+                                  </p>
+                                </div>
+                                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                                  {redemption.status}
+                                </div>
                               </div>
-                              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                                {redemption.status}
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-white/58">Aucune demande enregistree.</p>
-                        )}
+                            ))
+                          ) : (
+                            <p className="text-sm text-white/58">Aucune demande enregistree.</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2731,7 +2878,7 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <div className="bb-shell">
+    <div className="bb-shell pb-28 md:pb-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-6rem] top-24 h-72 w-72 rounded-full bg-[#f7b955]/10 blur-3xl" />
         <div className="absolute right-[-7rem] top-12 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" />
@@ -2750,6 +2897,10 @@ export function AdminDashboardPage() {
                 <Sparkles className="h-3.5 w-3.5 text-[#f7b955]" />
                 Admin cockpit
               </div>
+              <a className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]" href="/logout">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sortir
+              </a>
             </div>
 
             <div className="max-w-4xl">
@@ -2758,7 +2909,29 @@ export function AdminDashboardPage() {
               <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 md:hidden">
+              {ADMIN_NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const active = adminSection === item.key;
+                return (
+                  <Link
+                    className={cn(
+                      "flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[22px] border px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition duration-200",
+                      active
+                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                        : "border-white/10 bg-white/[0.03] text-white/60",
+                    )}
+                    key={item.key}
+                    to={adminSectionHrefs[item.key]}
+                  >
+                    <Icon className={cn("h-4 w-4", active && "text-[#f7b955]")} />
+                    <span>{item.shortLabel}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="hidden gap-3 md:grid md:grid-cols-3">
               <Link
                 className={cn(
                   "rounded-[28px] border p-5 transition duration-200",
@@ -2766,7 +2939,7 @@ export function AdminDashboardPage() {
                     ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
-                to="/admin"
+                to={adminSectionHrefs.home}
               >
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Hall</p>
                 <h2 className="mt-3 text-2xl font-semibold text-white">Vue d'ensemble</h2>
@@ -2782,10 +2955,10 @@ export function AdminDashboardPage() {
                     ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
-                to="/admin/appointments"
+                to={adminSectionHrefs.appointments}
               >
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">Rendez-vous</h2>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Agenda</h2>
                 <p className="mt-3 text-sm leading-6 text-white/62">
                   Inbox, planning, validation et suivi des dossiers actifs.
                 </p>
@@ -2798,7 +2971,7 @@ export function AdminDashboardPage() {
                     ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
-                to="/admin/clients"
+                to={adminSectionHrefs.clients}
               >
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
                 <h2 className="mt-3 text-2xl font-semibold text-white">Clients</h2>
@@ -2816,6 +2989,30 @@ export function AdminDashboardPage() {
             ? renderClientsPage()
             : renderHomePage()}
       </main>
+
+      <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
+        <div className="mx-auto grid max-w-xl grid-cols-3 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
+          {ADMIN_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = adminSection === item.key;
+            return (
+              <Link
+                className={cn(
+                  "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
+                  active
+                    ? "bg-gradient-to-b from-[#f7b955]/18 to-[#ff7a18]/12 text-white shadow-[0_10px_24px_rgba(247,185,85,0.12)]"
+                    : "text-white/54",
+                )}
+                key={item.key}
+                to={adminSectionHrefs[item.key]}
+              >
+                <Icon className={cn("h-4 w-4", active && "text-[#f7b955]")} />
+                <span>{item.shortLabel}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
 
       {profileModalOpen && profileDraft && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">

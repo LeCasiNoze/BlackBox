@@ -11,6 +11,10 @@ const {
   UPLOADS_DIR,
   ensureDir,
 } = require("./config/storage");
+const {
+  requireAdminApiAuth,
+  requireAdminPageAuth,
+} = require("./auth/adminSession");
 
 const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
@@ -35,7 +39,7 @@ app.use(express.json());
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use("/api/client", clientApiRoutes);
-app.use("/api/admin", adminApiRoutes);
+app.use("/api/admin", requireAdminApiAuth, adminApiRoutes);
 app.use("/", authRoutes);
 
 app.use(express.static(distDir));
@@ -44,7 +48,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
-app.get(/^\/admin(\/.*)?$/, (req, res) => {
+app.get(/^\/admin(\/.*)?$/, requireAdminPageAuth, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
