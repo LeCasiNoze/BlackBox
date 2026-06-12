@@ -188,9 +188,6 @@ export function LandingPage() {
                   <MessageCircle className="mr-2 h-4 w-4" />
                   Contacter sur WhatsApp
                 </a>
-                <a className="bb-button-ghost" href="/login">
-                  Acces admin
-                </a>
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">

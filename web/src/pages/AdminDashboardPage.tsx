@@ -1923,8 +1923,8 @@ export function AdminDashboardPage() {
               ) : (
                 <>
                   <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                           Resume
                         </p>
@@ -2219,7 +2219,7 @@ export function AdminDashboardPage() {
                             : ""}
                         </p>
                       </div>
-                      <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
+                      <div className="w-full rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 sm:w-auto sm:text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
                           Credits
                         </p>
@@ -2363,6 +2363,20 @@ export function AdminDashboardPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 Nouveau client
               </button>
+              <button
+                className="bb-button-ghost justify-center"
+                disabled={exportingData}
+                onClick={() => {
+                  void exportFullData();
+                }}
+                type="button"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exportingData ? "Export..." : "Exporter les infos"}
+              </button>
+              <p className="text-sm leading-6 text-white/50">
+                Export hebdomadaire automatique le dimanche a 10h, plus export manuel ici.
+              </p>
               <div className="flex flex-wrap gap-2">
                 {[
                   { key: "bbx" as const, label: "BBX" },
@@ -2470,12 +2484,12 @@ export function AdminDashboardPage() {
                   </h2>
                 </div>
                 {managedClient && (
-                  <div className="flex flex-wrap gap-3">
-                    <button className="bb-button-ghost" onClick={openFormulaEdit} type="button">
+                  <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+                    <button className="bb-button-ghost w-full" onClick={openFormulaEdit} type="button">
                       Editer formule
                     </button>
                     <button
-                      className="bb-button-ghost"
+                      className="bb-button-ghost w-full"
                       disabled={busyFormulaRecap}
                       onClick={() => {
                         void sendFormulaRecap();

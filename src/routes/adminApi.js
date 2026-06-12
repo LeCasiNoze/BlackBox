@@ -51,6 +51,7 @@ const {
 const {
   sendAdminDataExportEmail,
   sendAdminNotification,
+  sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
   sendClientWelcomeEmail,
 } = require("../email");
@@ -611,7 +612,7 @@ router.get("/test-email", async (_req, res) => {
   }
 });
 
-router.post("/appointments/:id/status", (req, res) => {
+router.post("/appointments/:id/status", async (req, res) => {
   const id = Number(req.params.id || 0);
   const { status } = req.body || {};
 
@@ -667,9 +668,24 @@ router.post("/appointments/:id/status", (req, res) => {
       awardPointsForAppointment(appointment.client_id, appointment.id);
     }
 
+    const updatedAppointment = getAppointmentById(id);
+    const client = getClientById(appointment.client_id);
+
+    if (client && updatedAppointment && ["confirmed", "done"].includes(status)) {
+      try {
+        await sendClientAppointmentStatusEmail({
+          client,
+          appointment: updatedAppointment,
+          eventType: status === "done" ? "done" : "confirmed",
+        });
+      } catch (mailError) {
+        console.error("[MAIL] client appointment status:", mailError);
+      }
+    }
+
     return res.json({
       ok: true,
-      appointment: mapAppointmentRow(getAppointmentById(id)),
+      appointment: mapAppointmentRow(updatedAppointment),
     });
   } catch (error) {
     console.error("[adminApi] POST /appointments/:id/status:", error);
