@@ -1,6 +1,9 @@
 const express = require("express");
+const multer = require("multer");
+const path = require("path");
 const router = express.Router();
 
+const { APPOINTMENTS_UPLOAD_DIR, ensureDir } = require("../config/storage");
 const {
   createClient,
   decrementFormulaRemaining,
@@ -21,6 +24,7 @@ const {
   getAppointmentsForMonth,
   getPublicAppointmentsFeed,
   hasAppointmentPhotos,
+  insertAppointmentPhoto,
   normalizeAppointmentSlot,
   updateAppointmentForClientSlot,
   updateAppointmentUserReview,
@@ -48,6 +52,84 @@ const SLOT_END_TIMES = {
   morning: "12:00",
   afternoon: "18:00",
 };
+const MAX_BOOKING_IMAGES = 4;
+
+ensureDir(APPOINTMENTS_UPLOAD_DIR);
+
+const clientAppointmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      callback(null, APPOINTMENTS_UPLOAD_DIR);
+    },
+    filename: (_req, file, callback) => {
+      const ext = path.extname(file.originalname) || ".jpg";
+      const base = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      callback(null, `${base}${ext.toLowerCase()}`);
+    },
+  }),
+  limits: {
+    files: MAX_BOOKING_IMAGES,
+    fileSize: 10 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (typeof file.mimetype === "string" && file.mimetype.startsWith("image/")) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("invalid_file_type"));
+  },
+});
+
+function handleBookingUpload(req, res, next) {
+  clientAppointmentUpload.array("images", MAX_BOOKING_IMAGES)(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ ok: false, error: "image_too_large" });
+      }
+
+      if (error.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({ ok: false, error: "too_many_images" });
+      }
+    }
+
+    if (error?.message === "invalid_file_type") {
+      return res.status(400).json({ ok: false, error: "invalid_image_type" });
+    }
+
+    return res.status(400).json({ ok: false, error: "image_upload_failed" });
+  });
+}
+
+function attachClientBookingImages(appointmentId, files = []) {
+  if (!appointmentId || !Array.isArray(files) || files.length === 0) {
+    return 0;
+  }
+
+  let insertedCount = 0;
+
+  files.forEach((file) => {
+    try {
+      insertAppointmentPhoto(
+        appointmentId,
+        `/uploads/appointments/${file.filename}`,
+        "Photo envoyee par le client",
+        0,
+        0,
+      );
+      insertedCount += 1;
+    } catch (error) {
+      console.error("[BOOK] attachClientBookingImages:", error);
+    }
+  });
+
+  return insertedCount;
+}
 
 function parseMonthParam(value) {
   if (!value || typeof value !== "string") return null;
@@ -676,7 +758,7 @@ router.get("/appointments/:date", (req, res) => {
   });
 });
 
-router.post("/:idOrSlug/book", async (req, res) => {
+router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
     return;
@@ -686,6 +768,7 @@ router.post("/:idOrSlug/book", async (req, res) => {
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
   const normalizedClientNote =
     typeof clientNote === "string" && clientNote.trim() !== "" ? clientNote.trim() : null;
+  const uploadedImages = Array.isArray(req.files) ? req.files : [];
 
   if (!date) {
     return res.status(400).json({ ok: false, error: "missing_date" });
@@ -746,6 +829,9 @@ router.post("/:idOrSlug/book", async (req, res) => {
         });
       }
 
+      const appointmentId = existing?.id || null;
+      const clientImageCount = attachClientBookingImages(appointmentId, uploadedImages);
+
       try {
         await sendAdminNotification({
           type: "update",
@@ -758,12 +844,13 @@ router.post("/:idOrSlug/book", async (req, res) => {
           time: normalizedTime,
           location: loc || existing.location || null,
           clientNote: normalizedClientNote || existing.client_note || null,
+          clientImageCount,
         });
       } catch (error) {
         console.error("[MAIL] notif update:", error);
       }
 
-      return res.json({ ok: true, updated: true });
+      return res.json({ ok: true, updated: true, clientImageCount });
     } catch (error) {
       return res.status(500).json({ ok: false, error: "server_error" });
     }
@@ -787,8 +874,10 @@ router.post("/:idOrSlug/book", async (req, res) => {
       return res.status(400).json({ ok: false, error: "no_credits_left" });
     }
 
+    let appointmentId = null;
+
     try {
-      createRequestedAppointmentForSlot({
+      appointmentId = createRequestedAppointmentForSlot({
         clientId: client.id,
         vehicleId: vehicle?.id || null,
         dateStr: date,
@@ -808,6 +897,8 @@ router.post("/:idOrSlug/book", async (req, res) => {
       return res.status(500).json({ ok: false, error: "db_error" });
     }
 
+    const clientImageCount = attachClientBookingImages(appointmentId, uploadedImages);
+
     try {
       await sendAdminNotification({
         type: "book",
@@ -820,12 +911,13 @@ router.post("/:idOrSlug/book", async (req, res) => {
         time: normalizedTime,
         location: loc,
         clientNote: normalizedClientNote,
+        clientImageCount,
       });
     } catch (error) {
       console.error("[MAIL] notif book:", error);
     }
 
-    return res.json({ ok: true, created: true });
+    return res.json({ ok: true, created: true, clientImageCount });
   } catch (error) {
     return res.status(500).json({ ok: false, error: "server_error" });
   }
@@ -859,10 +951,14 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
     });
   }
 
+  const isFounder = !!client.is_founder;
   const dayStart = new Date(`${appointment.date}T00:00:00`);
   const limit = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
-  if (Date.now() >= limit.getTime()) {
+  if (!isFounder && Date.now() >= limit.getTime()) {
     return res.status(400).json({ ok: false, error: "too_late_to_cancel" });
+  }
+  if (isFounder && slotHasPassed(appointment.date, slot)) {
+    return res.status(400).json({ ok: false, error: "slot_already_passed" });
   }
 
   cancelAppointmentForClientOnDate(client.id, date, slot);

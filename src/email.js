@@ -427,7 +427,15 @@ async function sendBrevoEmail({ to, subject, html, text, attachments = [] }) {
   }
 }
 
-async function sendAdminNotification({ type, client, date, time, location, clientNote = null }) {
+async function sendAdminNotification({
+  type,
+  client,
+  date,
+  time,
+  location,
+  clientNote = null,
+  clientImageCount = 0,
+}) {
   const adminEmail = adminInboxEmail();
   if (!adminEmail) {
     console.warn("[MAIL] MAIL_ADMIN_TO / MAIL_FROM_EMAIL manquant, notif admin ignoree.");
@@ -461,6 +469,11 @@ Heure : ${safeTime}
 Lieu : ${locationLabel(location)}
 Vehicule : ${vehicle}
 Commentaire client : ${clientNote || "-"}
+Photos client : ${
+    clientImageCount > 0
+      ? `${clientImageCount} image${clientImageCount > 1 ? "s" : ""}`
+      : "-"
+  }
 Admin : ${adminUrl}
   `.trim();
 
@@ -485,6 +498,13 @@ Admin : ${adminUrl}
             { label: "Lieu", value: locationLabel(location) },
             { label: "Vehicule", value: vehicle },
             { label: "Commentaire client", value: clientNote || "-" },
+            {
+              label: "Photos client",
+              value:
+                clientImageCount > 0
+                  ? `${clientImageCount} image${clientImageCount > 1 ? "s" : ""}`
+                  : "-",
+            },
           ])}
           ${actionButtons([
             { label: "Ouvrir le tableau de bord admin", href: adminUrl, tone: "primary" },

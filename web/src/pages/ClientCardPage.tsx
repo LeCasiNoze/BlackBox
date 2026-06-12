@@ -182,6 +182,12 @@ type AppointmentPhoto = {
   label: string | null;
 };
 
+type BookingImageDraft = {
+  id: string;
+  file: File;
+  previewUrl: string;
+};
+
 type PublicShowcaseItem = {
   id: number;
   date: string;
@@ -597,6 +603,7 @@ export function ClientCardPage() {
   const [appointmentLocation, setAppointmentLocation] =
     React.useState<AppointmentLocation>("atelier");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
+  const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
 
   const [selectedAppointment, setSelectedAppointment] =
     React.useState<ClientAppointment | null>(null);
@@ -628,6 +635,8 @@ export function ClientCardPage() {
   const [savingVehicle, setSavingVehicle] = React.useState(false);
   const [deletingVehicleId, setDeletingVehicleId] = React.useState<number | null>(null);
   const [redeemingRewardKey, setRedeemingRewardKey] = React.useState<string | null>(null);
+  const bookingImagesRef = React.useRef<BookingImageDraft[]>([]);
+  const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const [pendingTermsAction, setPendingTermsAction] = React.useState<
     | { type: "topup" }
     | {
@@ -712,6 +721,18 @@ export function ClientCardPage() {
   }, [slug, reloadToken]);
 
   React.useEffect(() => {
+    bookingImagesRef.current = bookingImageDrafts;
+  }, [bookingImageDrafts]);
+
+  React.useEffect(() => {
+    return () => {
+      bookingImagesRef.current.forEach((draft) => {
+        URL.revokeObjectURL(draft.previewUrl);
+      });
+    };
+  }, []);
+
+  React.useEffect(() => {
     let active = true;
 
     async function loadCommunity() {
@@ -776,6 +797,64 @@ export function ClientCardPage() {
 
   function showToast(message: string) {
     setToast(message);
+  }
+
+  function clearBookingImages() {
+    bookingImagesRef.current.forEach((draft) => {
+      URL.revokeObjectURL(draft.previewUrl);
+    });
+    bookingImagesRef.current = [];
+    setBookingImageDrafts([]);
+    if (bookingImageInputRef.current) {
+      bookingImageInputRef.current.value = "";
+    }
+  }
+
+  function removeBookingImage(imageId: string) {
+    const target = bookingImagesRef.current.find((draft) => draft.id === imageId);
+    if (target) {
+      URL.revokeObjectURL(target.previewUrl);
+    }
+
+    setBookingImageDrafts((current) => current.filter((draft) => draft.id !== imageId));
+  }
+
+  function handleBookingImageSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    const currentCount = bookingImagesRef.current.length;
+    const remainingSlots = Math.max(0, 4 - currentCount);
+
+    if (remainingSlots <= 0) {
+      showToast("Maximum 4 images par demande.");
+      event.target.value = "";
+      return;
+    }
+
+    const imageFiles = selectedFiles.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length !== selectedFiles.length) {
+      showToast("Seules les images sont acceptees.");
+    }
+
+    const allowedFiles = imageFiles.slice(0, remainingSlots);
+    if (allowedFiles.length < imageFiles.length) {
+      showToast("Maximum 4 images par demande.");
+    }
+
+    if (allowedFiles.length > 0) {
+      const drafts = allowedFiles.map((file, index) => ({
+        id: `${Date.now()}-${currentCount + index}-${file.name}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+
+      setBookingImageDrafts((current) => [...current, ...drafts]);
+    }
+
+    event.target.value = "";
   }
 
   const client = data?.client ?? null;
@@ -1051,6 +1130,7 @@ export function ClientCardPage() {
     setSelectedDay(null);
     setSelectedSlot("morning");
     setClientBookingNote("");
+    clearBookingImages();
   }
 
   async function openDayModal(day: ApiDay, preferredSlot?: AppointmentSlot) {
@@ -1058,6 +1138,7 @@ export function ClientCardPage() {
     const slot = preferredSlot ?? pickDefaultSlot(day);
     syncDaySelection(day, slot);
     setClientBookingNote("");
+    clearBookingImages();
 
     if (day.slots[slot].status === "free" && client.formulaRemaining <= 0) {
       showToast("Votre formule n'a plus de credits disponibles.");
@@ -1342,17 +1423,24 @@ export function ClientCardPage() {
     setBusyAction(true);
 
     try {
+      const formData = new FormData();
+      formData.set("date", date);
+      formData.set("slot", slot);
+      formData.set("time", time);
+      formData.set("location", appointmentLocation);
+      if (activeVehicleId) {
+        formData.set("vehicleId", String(activeVehicleId));
+      }
+      if (clientBookingNote.trim()) {
+        formData.set("clientNote", clientBookingNote.trim());
+      }
+      bookingImageDrafts.forEach((draft) => {
+        formData.append("images", draft.file);
+      });
+
       const response = await fetch(`/api/client/${encodeURIComponent(slug)}/book`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date,
-          slot,
-          time,
-          location: appointmentLocation,
-          vehicleId: activeVehicleId,
-          clientNote: clientBookingNote.trim(),
-        }),
+        body: formData,
       });
 
       const json = await response.json();
@@ -1365,12 +1453,31 @@ export function ClientCardPage() {
           showToast("Votre formule est expiree. Rechargez-la avant de reserver.");
           return;
         }
+        if (json?.error === "too_many_images") {
+          showToast("Maximum 4 images par demande.");
+          return;
+        }
+        if (json?.error === "image_too_large") {
+          showToast("Une image depasse la taille autorisee.");
+          return;
+        }
+        if (json?.error === "invalid_image_type") {
+          showToast("Seules les images sont acceptees.");
+          return;
+        }
         showToast("Impossible de reserver ce creneau.");
         return;
       }
 
-      showToast("Demande de rendez-vous envoyee.");
+      showToast(
+        json?.clientImageCount > 0
+          ? `Demande envoyee avec ${json.clientImageCount} image${
+              json.clientImageCount > 1 ? "s" : ""
+            }.`
+          : "Demande de rendez-vous envoyee.",
+      );
       setClientBookingNote("");
+      clearBookingImages();
       setSelectedDay(null);
       setReloadToken((value) => value + 1);
     } catch (saveError) {
@@ -1432,8 +1539,12 @@ export function ClientCardPage() {
   }
 
   async function cancel(date: string, slot: AppointmentSlot) {
-    if (!canChangeDay(date)) {
+    if (!client?.isFounder && !canChangeDay(date)) {
       showToast("Annulation fermee a partir de la veille a minuit.");
+      return;
+    }
+    if (client?.isFounder && slotIsPast(date, slot)) {
+      showToast("Le creneau est deja passe.");
       return;
     }
 
@@ -3197,6 +3308,76 @@ export function ClientCardPage() {
                         value={clientBookingNote}
                       />
                     </label>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                          Images optionnelles
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-white/60">
+                          Ajoutez jusqu'a 4 photos si vous souhaitez montrer un acces, une tache
+                          ou un point a surveiller.
+                        </p>
+                      </div>
+                      <div className="bb-pill border-white/10 bg-black/20 text-white/65">
+                        {bookingImageDrafts.length}/4
+                      </div>
+                    </div>
+
+                    <input
+                      accept="image/*"
+                      className="hidden"
+                      multiple
+                      onChange={handleBookingImageSelection}
+                      ref={bookingImageInputRef}
+                      type="file"
+                    />
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        className="bb-button-ghost"
+                        onClick={() => bookingImageInputRef.current?.click()}
+                        type="button"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Ajouter des photos
+                      </button>
+                      {bookingImageDrafts.length > 0 && (
+                        <button
+                          className="bb-button-ghost"
+                          onClick={clearBookingImages}
+                          type="button"
+                        >
+                          Tout retirer
+                        </button>
+                      )}
+                    </div>
+
+                    {bookingImageDrafts.length > 0 && (
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        {bookingImageDrafts.map((draft) => (
+                          <div
+                            className="relative overflow-hidden rounded-[20px] border border-white/10 bg-black/30"
+                            key={draft.id}
+                          >
+                            <img
+                              alt={draft.file.name}
+                              className="h-28 w-full object-cover"
+                              src={draft.previewUrl}
+                            />
+                            <button
+                              className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white transition hover:bg-black/75"
+                              onClick={() => removeBookingImage(draft.id)}
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
