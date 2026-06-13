@@ -260,12 +260,14 @@ function processPaidTopupOrder(orderId, checkout) {
     const paidAt = resolvePaidAt(checkout);
     const credits = Math.max(0, Number(order.credits || 0));
     const currentTotal = Math.max(0, Number(client.formula_total || 0));
-    const currentRemaining = Math.max(0, Number(client.formula_remaining || 0));
+    const currentRemaining = Number.isFinite(Number(client.formula_remaining))
+      ? Number(client.formula_remaining)
+      : 0;
 
     const nextTotal =
       order.apply_mode === "replace" ? credits : Math.max(0, currentTotal + credits);
     const nextRemaining =
-      order.apply_mode === "replace" ? credits : Math.max(0, currentRemaining + credits);
+      order.apply_mode === "replace" ? credits : currentRemaining + credits;
     const nextFormulaName =
       order.formula_name || client.formula_name || formulaNameFromTotal(nextTotal);
     const nextExpiresAt = nextFormulaExpiry(client.formula_expires_at, order.duration_days, paidAt);

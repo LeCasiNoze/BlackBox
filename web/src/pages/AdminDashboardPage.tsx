@@ -109,6 +109,8 @@ type CleanlinessRating =
   | "very_dirty"
   | "reset_recommended";
 
+type CanonicalCleanlinessRating = "very_clean" | "correct" | "dirty";
+
 type AdminAppointmentPhoto = {
   id: number;
   url: string;
@@ -223,16 +225,27 @@ const ADMIN_NAV_ITEMS: Array<{
 ];
 
 const CLEANLINESS_OPTIONS: Array<{
-  value: CleanlinessRating;
+  value: CanonicalCleanlinessRating;
   label: string;
   tone: string;
 }> = [
-  { value: "very_clean", label: "Tres propre", tone: "border-emerald-400/35 bg-emerald-300/10 text-emerald-100" },
+  { value: "very_clean", label: "Propre", tone: "border-emerald-400/35 bg-emerald-300/10 text-emerald-100" },
   { value: "correct", label: "Correct", tone: "border-lime-400/30 bg-lime-300/10 text-lime-100" },
   { value: "dirty", label: "Sale", tone: "border-amber-400/35 bg-amber-300/10 text-amber-100" },
-  { value: "very_dirty", label: "Tres sale", tone: "border-orange-400/35 bg-orange-300/10 text-orange-100" },
-  { value: "reset_recommended", label: "Remise a niveau", tone: "border-rose-400/35 bg-rose-300/10 text-rose-100" },
 ];
+
+function normalizeCleanlinessRating(
+  rating: CleanlinessRating | null | undefined,
+): CanonicalCleanlinessRating | null {
+  if (!rating) return null;
+  if (rating === "very_dirty" || rating === "reset_recommended") {
+    return "dirty";
+  }
+  if (rating === "very_clean" || rating === "correct" || rating === "dirty") {
+    return rating;
+  }
+  return null;
+}
 
 function defaultProfileDraft(): ProfileDraft {
   return {
@@ -285,14 +298,29 @@ function profileDraftFromClient(client: AdminClient): ProfileDraft {
 }
 
 function cleanlinessLabel(rating: CleanlinessRating | null | undefined) {
-  return CLEANLINESS_OPTIONS.find((option) => option.value === rating)?.label || "Non note";
+  return (
+    CLEANLINESS_OPTIONS.find(
+      (option) => option.value === normalizeCleanlinessRating(rating),
+    )?.label || "Non note"
+  );
 }
 
 function cleanlinessTone(rating: CleanlinessRating | null | undefined) {
   return (
-    CLEANLINESS_OPTIONS.find((option) => option.value === rating)?.tone ||
+    CLEANLINESS_OPTIONS.find(
+      (option) => option.value === normalizeCleanlinessRating(rating),
+    )?.tone ||
     "border-white/12 bg-white/[0.04] text-white/70"
   );
+}
+
+function cleanlinessAverageRating(
+  averageScore: number | null | undefined,
+): CanonicalCleanlinessRating | null {
+  if (averageScore == null) return null;
+  if (averageScore >= 2.5) return "very_clean";
+  if (averageScore >= 1.5) return "correct";
+  return "dirty";
 }
 
 function fullClientName(client: AdminClient | null) {
@@ -339,6 +367,46 @@ function sortAppointments(
     return direction === "asc" ? diff : -diff;
   });
   return next;
+}
+
+function appointmentNeedsTreatment(appointment: AdminAppointment) {
+  return appointment.status === "requested" || appointment.status === "confirmed";
+}
+
+function pickDefaultAdminAppointment(appointments: AdminAppointment[]) {
+  const sortedAsc = sortAppointments(appointments, "asc");
+  const sortedDesc = sortAppointments(appointments, "desc");
+  const now = Date.now();
+
+  const nearestUpcomingUntreated =
+    sortedAsc.find(
+      (appointment) =>
+        appointmentNeedsTreatment(appointment) &&
+        appointmentDateTime(appointment).getTime() >= now,
+    ) ?? null;
+
+  if (nearestUpcomingUntreated) {
+    return nearestUpcomingUntreated;
+  }
+
+  const nearestUpcomingActive =
+    sortedAsc.find(
+      (appointment) =>
+        appointment.status !== "cancelled" &&
+        appointment.status !== "done" &&
+        appointmentDateTime(appointment).getTime() >= now,
+    ) ?? null;
+
+  if (nearestUpcomingActive) {
+    return nearestUpcomingActive;
+  }
+
+  const latestUntreated = sortedDesc.find((appointment) => appointmentNeedsTreatment(appointment)) ?? null;
+  if (latestUntreated) {
+    return latestUntreated;
+  }
+
+  return sortedDesc[0] ?? null;
 }
 
 function appointmentSearchText(appointment: AdminAppointment) {
@@ -660,7 +728,7 @@ export function AdminDashboardPage() {
           const next = { ...current };
           json.appointments.forEach((appointment) => {
             if (next[appointment.id] === undefined) {
-              next[appointment.id] = appointment.cleanlinessRating ?? null;
+              next[appointment.id] = normalizeCleanlinessRating(appointment.cleanlinessRating);
             }
           });
           return next;
@@ -743,10 +811,7 @@ export function AdminDashboardPage() {
   }, [selectedAppointment, selectedClientId]);
 
   React.useEffect(() => {
-    const sortedGlobalAsc = sortAppointments(globalAppointments, "asc");
-    const firstRequested =
-      sortedGlobalAsc.find((appointment) => appointment.status === "requested") ?? null;
-    const fallback = firstRequested ?? sortedGlobalAsc[0] ?? null;
+    const fallback = pickDefaultAdminAppointment(globalAppointments);
 
     if (selectedAppointmentId == null && fallback) {
       setSelectedAppointmentId(fallback.id);
@@ -778,18 +843,18 @@ export function AdminDashboardPage() {
   }, [deepLink, selectedClient]);
 
   React.useEffect(() => {
-    if (!selectedAppointmentId) {
+    if (!selectedAppointment?.id) {
       setCurrentPhotos([]);
       return;
     }
 
-    void loadAppointmentPhotosAdmin(selectedAppointmentId);
+    void loadAppointmentPhotosAdmin(selectedAppointment.id);
     setPhotoFile(null);
     setPhotoFormCaption("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [selectedAppointmentId]);
+  }, [selectedAppointment?.id, selectedAppointment?.updatedAt]);
 
   React.useEffect(() => {
     if (!highlightAppointmentId) return undefined;
@@ -842,7 +907,7 @@ export function AdminDashboardPage() {
 
     setCleanlinessDrafts((current) => ({
       ...current,
-      [updated.id]: updated.cleanlinessRating ?? null,
+      [updated.id]: normalizeCleanlinessRating(updated.cleanlinessRating),
     }));
   }
 
@@ -1391,18 +1456,18 @@ export function AdminDashboardPage() {
     if (!activeClientContext) return [];
 
     if (selectedClient?.client.id === activeClientContext.id) {
-      return sortAppointments(selectedClient.appointments ?? [], "asc");
+      return sortAppointments(selectedClient.appointments ?? [], "desc");
     }
 
     return sortAppointments(
       globalAppointments.filter(
         (appointment) => appointment.clientId === activeClientContext.id,
       ),
-      "asc",
+      "desc",
     );
   }, [activeClientContext, globalAppointments, selectedClient]);
   const selectedClientAppointments = React.useMemo(
-    () => sortAppointments(selectedClient?.appointments ?? [], "asc"),
+    () => sortAppointments(selectedClient?.appointments ?? [], "desc"),
     [selectedClient],
   );
 
@@ -2141,6 +2206,10 @@ export function AdminDashboardPage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                       Suivi interne
                     </p>
+                    <p className="mt-3 text-sm leading-6 text-white/58">
+                      Propre ne change rien. Correct retire 1 credit supplementaire. Sale retire
+                      2 credits supplementaires.
+                    </p>
                     <div className="mt-4 flex flex-wrap gap-2">
                       {CLEANLINESS_OPTIONS.map((option) => (
                         <button
@@ -2802,25 +2871,21 @@ export function AdminDashboardPage() {
                         <div
                           className={cn(
                             "bb-pill",
-                            cleanlinessTone(selectedClient?.cleanliness.averageScore == null
-                              ? null
-                              : selectedClient.cleanliness.averageScore >= 4.5
-                                ? "very_clean"
-                                : selectedClient.cleanliness.averageScore >= 3.5
-                                  ? "correct"
-                                  : selectedClient.cleanliness.averageScore >= 2.5
-                                    ? "dirty"
-                                    : selectedClient.cleanliness.averageScore >= 1.5
-                                      ? "very_dirty"
-                                      : "reset_recommended"),
+                            cleanlinessTone(
+                              cleanlinessAverageRating(selectedClient?.cleanliness.averageScore),
+                            ),
                           )}
                         >
                           {selectedClient?.cleanliness.averageScore == null
                             ? "Aucune note"
-                            : `${selectedClient.cleanliness.averageScore}/5`}
+                            : cleanlinessLabel(
+                                cleanlinessAverageRating(selectedClient.cleanliness.averageScore),
+                              )}
                         </div>
                         <p className="text-sm text-white/62">
-                          {selectedClient?.cleanliness.total || 0} rendez-vous notes
+                          {selectedClient?.cleanliness.averageScore == null
+                            ? `${selectedClient?.cleanliness.total || 0} rendez-vous notes`
+                            : `Moyenne ${selectedClient.cleanliness.averageScore}/3 sur ${selectedClient.cleanliness.total} rendez-vous`}
                         </p>
                       </div>
                     </div>

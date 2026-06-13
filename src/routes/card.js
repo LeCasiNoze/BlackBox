@@ -479,7 +479,7 @@ router.post("/:idOrSlug/book", (req, res) => {
 
   // Si plus de nettoyages restants → à raffiner (message utilisateur, etc.)
   if (client.formula_remaining <= 0) {
-    return res.redirect(`/card/${encodeURIComponent(idOrSlug)}?m=${date.slice(0, 7)}`);
+    return res.redirect(`/card/${encodeURIComponent(idOrSlug)}?view=shop`);
   }
 
   try {

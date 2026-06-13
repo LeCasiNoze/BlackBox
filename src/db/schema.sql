@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS appointments (
                       'very_dirty',
                       'reset_recommended'
                     )),
+  cleanliness_penalty_applied INTEGER NOT NULL DEFAULT 0,
   bc_points_awarded INTEGER NOT NULL DEFAULT 0
                     CHECK (bc_points_awarded IN (0, 1)),
   admin_reminder_24h_sent_at INTEGER,

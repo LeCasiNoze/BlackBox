@@ -432,6 +432,29 @@ function daysUntilExpiry(timestamp: number | null | undefined) {
   return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
 }
 
+function creditsNeededToBook(remaining: number) {
+  return remaining >= 1 ? 0 : 1 - remaining;
+}
+
+function creditAvailabilityCopy(remaining: number) {
+  if (remaining > 1) {
+    return `${remaining} passages disponibles.`;
+  }
+
+  if (remaining === 1) {
+    return "1 passage disponible.";
+  }
+
+  if (remaining === 0) {
+    return "Aucun credit disponible. Rechargez 1 credit pour reprendre les reservations.";
+  }
+
+  const needed = creditsNeededToBook(remaining);
+  return `Solde negatif de ${Math.abs(remaining)} credit${
+    Math.abs(remaining) > 1 ? "s" : ""
+  }. Rechargez au moins ${needed} credit${needed > 1 ? "s" : ""} pour reprendre les reservations.`;
+}
+
 function rewardStatusLabel(status: RewardRedemption["status"]) {
   if (status === "processed") return "Traitee";
   if (status === "cancelled") return "Annulee";
@@ -1273,13 +1296,15 @@ export function ClientCardPage() {
   async function openDayModal(day: ApiDay, preferredSlot?: AppointmentSlot) {
     if (!client) return;
     const slot = preferredSlot ?? pickDefaultSlot(day);
+
+    if (day.slots[slot].status === "free" && client.formulaRemaining <= 0) {
+      redirectToTopupView(client.formulaRemaining);
+      return;
+    }
+
     syncDaySelection(day, slot);
     setClientBookingNote("");
     clearBookingImages();
-
-    if (day.slots[slot].status === "free" && client.formulaRemaining <= 0) {
-      showToast("Votre formule n'a plus de credits disponibles.");
-    }
   }
 
   function selectDaySlot(slot: AppointmentSlot) {
@@ -1577,6 +1602,12 @@ export function ClientCardPage() {
     window.open(SUMUP_TOPUP_URL, "_blank", "noopener,noreferrer");
   }
 
+  function redirectToTopupView(remainingCredits: number) {
+    closeDayModal();
+    navigateView("shop");
+    showToast(creditAvailabilityCopy(remainingCredits));
+  }
+
   async function submitBooking(
     date: string,
     slot: AppointmentSlot,
@@ -1600,7 +1631,7 @@ export function ClientCardPage() {
     }
 
     if (data.client.formulaRemaining <= 0) {
-      showToast("Votre formule n'a plus de credits disponibles.");
+      redirectToTopupView(data.client.formulaRemaining);
       return;
     }
 
@@ -1860,6 +1891,7 @@ export function ClientCardPage() {
     selectedAppointment.status === "done" &&
     appointments.some((appointment) => appointment.id === selectedAppointment.id);
   const creditsExhausted = (client?.formulaRemaining ?? 0) <= 0;
+  const creditsTopupNeed = creditsNeededToBook(client?.formulaRemaining ?? 0);
   const bookingLocked = creditsExhausted || formulaExpired || !termsAccepted;
 
   if (loading) {
@@ -2188,7 +2220,7 @@ export function ClientCardPage() {
                     <p className="mt-2 text-sm text-white/56">
                       {formulaExpired
                         ? "La formule doit etre rechargee."
-                        : `${clientData.formulaRemaining} passage${clientData.formulaRemaining > 1 ? "s" : ""} disponible${clientData.formulaRemaining > 1 ? "s" : ""}.`}
+                        : creditAvailabilityCopy(clientData.formulaRemaining)}
                     </p>
                   </div>
                 </div>
@@ -2270,7 +2302,7 @@ export function ClientCardPage() {
                 `${clientData.formulaRemaining} / ${clientData.formulaTotal}`,
                 clientData.formulaRemaining > 0
                   ? "La jauge descend automatiquement a chaque demande de rendez-vous validee."
-                  : "Aucun credit disponible. Rechargez la formule pour reprendre des passages.",
+                  : creditAvailabilityCopy(clientData.formulaRemaining),
                 clientData.formulaRemaining > 0 ? undefined : "warning",
               )}
               {renderMetricCard(
@@ -2462,7 +2494,8 @@ export function ClientCardPage() {
               Agenda
             </div>
             <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-white">
-              {clientData.formulaRemaining} credit{clientData.formulaRemaining > 1 ? "s" : ""}
+              {clientData.formulaRemaining} credit
+              {Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}
             </div>
             {activeVehicle && (
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
@@ -3413,9 +3446,13 @@ export function ClientCardPage() {
 
                   {termsAccepted && !formulaExpired && creditsExhausted && (
                     <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">Aucun credit disponible</p>
+                      <p className="text-sm font-semibold text-white">
+                        {clientData.formulaRemaining < 0
+                          ? `Solde negatif (${creditsTopupNeed} credit${creditsTopupNeed > 1 ? "s" : ""} minimum)`
+                          : "Aucun credit disponible"}
+                      </p>
                       <p className="mt-2 text-sm leading-6 text-white/70">
-                        Rechargez la formule pour demander un nouveau passage.
+                        {creditAvailabilityCopy(clientData.formulaRemaining)}
                       </p>
                       <button
                         className="bb-button-ghost mt-4 justify-center"

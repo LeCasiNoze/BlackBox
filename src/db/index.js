@@ -77,6 +77,10 @@ function ensureAppointmentsExtraColumns() {
       "cleanliness_rating TEXT CHECK (cleanliness_rating IN ('very_clean','correct','dirty','very_dirty','reset_recommended'))"
     );
     addColumnIfMissing(
+      "cleanliness_penalty_applied",
+      "cleanliness_penalty_applied INTEGER NOT NULL DEFAULT 0"
+    );
+    addColumnIfMissing(
       "bc_points_awarded",
       "bc_points_awarded INTEGER NOT NULL DEFAULT 0 CHECK (bc_points_awarded IN (0, 1))"
     );
@@ -335,6 +339,9 @@ function ensureAppointmentsSlotModel() {
           admin_note  TEXT,
           user_rating INTEGER,
           user_review TEXT,
+          cleanliness_rating TEXT
+                      CHECK (cleanliness_rating IN ('very_clean', 'correct', 'dirty', 'very_dirty', 'reset_recommended')),
+          cleanliness_penalty_applied INTEGER NOT NULL DEFAULT 0,
           admin_reminder_24h_sent_at INTEGER,
           client_reminder_24h_sent_at INTEGER,
           location    TEXT
@@ -356,6 +363,8 @@ function ensureAppointmentsSlotModel() {
           admin_note,
           user_rating,
           user_review,
+          cleanliness_rating,
+          cleanliness_penalty_applied,
           admin_reminder_24h_sent_at,
           client_reminder_24h_sent_at,
           location,
@@ -377,6 +386,8 @@ function ensureAppointmentsSlotModel() {
           admin_note,
           user_rating,
           user_review,
+          cleanliness_rating,
+          COALESCE(cleanliness_penalty_applied, 0),
           admin_reminder_24h_sent_at,
           client_reminder_24h_sent_at,
           location,

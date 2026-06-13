@@ -41,9 +41,25 @@ function sanitizeLocation(location) {
   return null;
 }
 
-function sanitizeCleanlinessRating(value) {
+function normalizeCleanlinessRating(value) {
   if (!value) return null;
+
+  if (value === "very_dirty" || value === "reset_recommended") {
+    return "dirty";
+  }
+
   return CLEANLINESS_LEVELS.includes(value) ? value : null;
+}
+
+function sanitizeCleanlinessRating(value) {
+  return normalizeCleanlinessRating(value);
+}
+
+function cleanlinessPenaltyCredits(value) {
+  const normalized = normalizeCleanlinessRating(value);
+  if (normalized === "correct") return 1;
+  if (normalized === "dirty") return 2;
+  return 0;
 }
 
 function slotOrderSql(column = "slot") {
@@ -365,18 +381,94 @@ function updateAppointmentStatus(id, newStatus) {
     .run(newStatus, nowUnix(), id).changes;
 }
 
-function updateAppointmentAdminWorkspace(id, { adminNote, cleanlinessRating } = {}) {
-  return db
+function syncAppointmentCleanlinessPenaltyInTransaction(appointmentId) {
+  const appointment = db
     .prepare(
       `
-      UPDATE appointments
-      SET admin_note = ?,
-          cleanliness_rating = ?,
+      SELECT
+        id,
+        client_id,
+        status,
+        cleanliness_rating,
+        COALESCE(cleanliness_penalty_applied, 0) AS cleanliness_penalty_applied
+      FROM appointments
+      WHERE id = ?
+      LIMIT 1
+    `,
+    )
+    .get(appointmentId);
+
+  if (!appointment) {
+    return null;
+  }
+
+  const currentPenalty = Number(appointment.cleanliness_penalty_applied || 0);
+  const targetPenalty =
+    appointment.status === "done"
+      ? cleanlinessPenaltyCredits(appointment.cleanliness_rating)
+      : 0;
+  const delta = targetPenalty - currentPenalty;
+
+  if (delta !== 0) {
+    db.prepare(
+      `
+      UPDATE clients
+      SET formula_remaining = COALESCE(formula_remaining, 0) - ?,
           updated_at = ?
       WHERE id = ?
     `,
-    )
-    .run(adminNote || null, sanitizeCleanlinessRating(cleanlinessRating), nowUnix(), id).changes;
+    ).run(delta, nowUnix(), appointment.client_id);
+  }
+
+  if (delta !== 0 || currentPenalty !== targetPenalty) {
+    db.prepare(
+      `
+      UPDATE appointments
+      SET cleanliness_penalty_applied = ?
+      WHERE id = ?
+    `,
+    ).run(targetPenalty, appointmentId);
+  }
+
+  return {
+    appointmentId,
+    currentPenalty,
+    targetPenalty,
+    delta,
+  };
+}
+
+function syncAppointmentCleanlinessPenalty(id) {
+  return db.transaction((appointmentId) =>
+    syncAppointmentCleanlinessPenaltyInTransaction(appointmentId),
+  )(id);
+}
+
+function updateAppointmentAdminWorkspace(id, { adminNote, cleanlinessRating } = {}) {
+  return db.transaction((appointmentId) => {
+    const changes = db
+      .prepare(
+        `
+        UPDATE appointments
+        SET admin_note = ?,
+            cleanliness_rating = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      )
+      .run(
+        adminNote || null,
+        sanitizeCleanlinessRating(cleanlinessRating),
+        nowUnix(),
+        appointmentId,
+      ).changes;
+
+    if (changes) {
+      syncAppointmentCleanlinessPenaltyInTransaction(appointmentId);
+    }
+
+    return changes;
+  })(id);
 }
 
 function updateAppointmentAdminNote(id, adminNote) {
@@ -524,10 +616,10 @@ function getClientCleanlinessAverage(clientId) {
         COUNT(*) AS total,
         AVG(
           CASE cleanliness_rating
-            WHEN 'very_clean' THEN 5
-            WHEN 'correct' THEN 4
-            WHEN 'dirty' THEN 3
-            WHEN 'very_dirty' THEN 2
+            WHEN 'very_clean' THEN 3
+            WHEN 'correct' THEN 2
+            WHEN 'dirty' THEN 1
+            WHEN 'very_dirty' THEN 1
             WHEN 'reset_recommended' THEN 1
             ELSE NULL
           END
@@ -550,6 +642,7 @@ module.exports = {
   APPOINTMENT_SLOTS,
   CLEANLINESS_LEVELS,
   cancelAppointmentForClientOnDate,
+  cleanlinessPenaltyCredits,
   createRequestedAppointment,
   createRequestedAppointmentForSlot,
   defaultTimeForSlot,
@@ -566,8 +659,10 @@ module.exports = {
   getPublicAppointmentsFeed,
   hasAppointmentPhotos,
   insertAppointmentPhoto,
+  normalizeCleanlinessRating,
   normalizeAppointmentSlot,
   sanitizeCleanlinessRating,
+  syncAppointmentCleanlinessPenalty,
   updateAppointmentAdminNote,
   updateAppointmentAdminWorkspace,
   updateAppointmentCleanlinessRating,

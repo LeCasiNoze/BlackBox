@@ -31,7 +31,9 @@ const {
   getAppointmentsForClient,
   getClientCleanlinessAverage,
   insertAppointmentPhoto,
+  normalizeCleanlinessRating,
   normalizeAppointmentSlot,
+  syncAppointmentCleanlinessPenalty,
   updateAppointmentAdminWorkspace,
   updateAppointmentStatus,
 } = require("../db/appointments");
@@ -179,7 +181,7 @@ function mapAppointmentRow(row) {
     adminNote: row.admin_note,
     userRating: row.user_rating ?? null,
     userReview: row.user_review ?? null,
-    cleanlinessRating: row.cleanliness_rating ?? null,
+    cleanlinessRating: normalizeCleanlinessRating(row.cleanliness_rating),
     bcPointsAwarded: !!row.bc_points_awarded,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -652,6 +654,8 @@ router.post("/appointments/:id/status", async (req, res) => {
         revokePointsForAppointment(appointment.client_id, appointment.id);
       }
 
+      syncAppointmentCleanlinessPenalty(id);
+
       return res.json({
         ok: true,
         appointment: mapAppointmentRow(getAppointmentById(id)),
@@ -667,6 +671,8 @@ router.post("/appointments/:id/status", async (req, res) => {
     if (status === "done") {
       awardPointsForAppointment(appointment.client_id, appointment.id);
     }
+
+    syncAppointmentCleanlinessPenalty(id);
 
     const updatedAppointment = getAppointmentById(id);
     const client = getClientById(appointment.client_id);
