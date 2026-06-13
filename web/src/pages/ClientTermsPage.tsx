@@ -130,7 +130,8 @@ export function ClientTermsPage() {
       setAccepted(true);
 
       if (intent === "topup") {
-        window.open(SUMUP_TOPUP_URL, "_blank", "noopener,noreferrer");
+        const separator = returnTo.includes("?") ? "&" : "?";
+        window.location.href = `${returnTo}${separator}launchTopup=1`;
       }
     } catch (saveError) {
       setError("Erreur reseau pendant l'acceptation.");

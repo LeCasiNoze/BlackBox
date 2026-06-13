@@ -5,6 +5,11 @@ const router = express.Router();
 
 const { APPOINTMENTS_UPLOAD_DIR, ensureDir } = require("../config/storage");
 const {
+  getTopupOfferForClient,
+  isSumupTopupReady,
+  listPublicTopupOffersForClient,
+} = require("../config/topupOffers");
+const {
   createClient,
   decrementFormulaRemaining,
   getClientById,
@@ -46,7 +51,20 @@ const {
   setPrimaryVehicle,
   updateVehicleForClient,
 } = require("../db/vehicles");
-const { sendAdminNotification, sendAdminRewardRedemption } = require("../email");
+const {
+  createTopupOrder,
+  attachTopupCheckoutSession,
+  getTopupOrderByCheckoutReference,
+  mapTopupOrderRow,
+  processPaidTopupOrder,
+  syncTopupOrderFromCheckout,
+} = require("../db/topup_orders");
+const {
+  sendAdminNotification,
+  sendAdminRewardRedemption,
+  sendClientFormulaRecap,
+} = require("../email");
+const { createHostedCheckout, retrieveCheckout } = require("../services/sumup");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
@@ -141,6 +159,36 @@ function parseMonthParam(value) {
   if (Number.isNaN(year) || Number.isNaN(monthIndex)) return null;
 
   return { year, monthIndex };
+}
+
+function publicBaseUrl(req) {
+  const explicit = process.env.CLIENT_PORTAL_BASE_URL;
+  if (typeof explicit === "string" && explicit.trim() !== "") {
+    return explicit.trim().replace(/\/+$/, "");
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto");
+  const proto = forwardedProto ? forwardedProto.split(",")[0].trim() : req.protocol || "https";
+  return `${proto}://${req.get("host")}`;
+}
+
+function buildTopupCheckoutReference(client, offer) {
+  return `bbx-topup-${client.id}-${offer.key}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`.slice(
+    0,
+    90,
+  );
+}
+
+async function maybeSendTopupRecap(client, applied) {
+  if (!applied || !client?.email) {
+    return;
+  }
+
+  try {
+    await sendClientFormulaRecap(client);
+  } catch (error) {
+    console.error("[TOPUP] recap client:", error);
+  }
 }
 
 function formatDateLocal(date) {
@@ -423,6 +471,8 @@ router.get("/:idOrSlug", (req, res) => {
     vehicles,
     rewardCatalog: BC_REWARDS,
     rewardRedemptions,
+    topupOffers: listPublicTopupOffersForClient(client),
+    paymentsReady: isSumupTopupReady(),
     month,
   });
 });
@@ -457,6 +507,119 @@ router.get("/:idOrSlug/vehicles", (req, res) => {
   return res.json({
     ok: true,
     vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+  });
+});
+
+router.post("/:idOrSlug/topup/checkout", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  if (!client.terms_accepted_at) {
+    return res.status(412).json({ ok: false, error: "terms_not_accepted" });
+  }
+
+  if (!isSumupTopupReady()) {
+    return res.status(503).json({ ok: false, error: "sumup_not_ready" });
+  }
+
+  const offer = getTopupOfferForClient(client, req.body?.offerKey);
+  if (!offer) {
+    return res.status(400).json({ ok: false, error: "invalid_topup_offer" });
+  }
+
+  const baseUrl = publicBaseUrl(req);
+  const checkoutReference = buildTopupCheckoutReference(client, offer);
+  const redirectUrl = `${baseUrl}/card/${encodeURIComponent(
+    client.slug || client.card_code || req.params.idOrSlug,
+  )}?view=shop&topupRef=${encodeURIComponent(checkoutReference)}`;
+  const returnUrl = `${baseUrl}/api/payments/sumup/webhook`;
+
+  const order = createTopupOrder({
+    clientId: client.id,
+    offer,
+    checkoutReference,
+    redirectUrl,
+    returnUrl,
+  });
+
+  try {
+    const checkout = await createHostedCheckout({
+      checkoutReference,
+      amountCents: offer.priceCents,
+      currency: offer.currency,
+      description: `${offer.label} - ${client.full_name || client.card_code || client.slug}`,
+      redirectUrl,
+      returnUrl,
+    });
+
+    const updatedOrder = attachTopupCheckoutSession(order.id, {
+      checkoutId: checkout.id,
+      hostedCheckoutUrl: checkout.hosted_checkout_url,
+      sumupStatus: checkout.status || "PENDING",
+      payload: checkout,
+    });
+
+    return res.json({
+      ok: true,
+      hostedCheckoutUrl: checkout.hosted_checkout_url,
+      checkoutReference,
+      topupOrder: mapTopupOrderRow(updatedOrder),
+    });
+  } catch (error) {
+    console.error("[SUMUP] create checkout:", error);
+    return res.status(502).json({ ok: false, error: "sumup_checkout_failed" });
+  }
+});
+
+router.post("/:idOrSlug/topup/sync", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const reference =
+    typeof req.body?.reference === "string" && req.body.reference.trim() !== ""
+      ? req.body.reference.trim()
+      : null;
+
+  if (!reference) {
+    return res.status(400).json({ ok: false, error: "missing_reference" });
+  }
+
+  const order = getTopupOrderByCheckoutReference(reference);
+  if (!order || order.client_id !== client.id) {
+    return res.status(404).json({ ok: false, error: "topup_order_not_found" });
+  }
+
+  let nextOrder = order;
+  let nextClient = getClientById(client.id);
+
+  if (order.checkout_id) {
+    try {
+      const checkout = await retrieveCheckout(order.checkout_id);
+      nextOrder = syncTopupOrderFromCheckout(order.id, checkout) || nextOrder;
+
+      if (checkout.status === "PAID") {
+        const result = processPaidTopupOrder(order.id, checkout);
+        if (result?.client) {
+          nextClient = result.client;
+        }
+        if (result?.order) {
+          nextOrder = result.order;
+        }
+        await maybeSendTopupRecap(result?.client, result?.applied);
+      }
+    } catch (error) {
+      console.error("[SUMUP] sync checkout:", error);
+    }
+  }
+
+  return res.json({
+    ok: true,
+    client: mapClientPayload(nextClient),
+    topupOrder: mapTopupOrderRow(nextOrder),
   });
 });
 

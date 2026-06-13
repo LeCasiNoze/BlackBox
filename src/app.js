@@ -19,6 +19,7 @@ const {
 const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
 const adminApiRoutes = require("./routes/adminApi");
+const paymentRoutes = require("./routes/payments");
 const { ensureDemoClient } = require("./db/clients");
 const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
@@ -41,6 +42,7 @@ app.use(express.json());
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use("/api/client", clientApiRoutes);
+app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", requireAdminApiAuth, adminApiRoutes);
 app.use("/", authRoutes);
 

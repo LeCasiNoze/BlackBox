@@ -114,6 +114,7 @@ type AdminAppointmentPhoto = {
   url: string;
   caption: string | null;
   isCover: boolean;
+  isPublic: boolean;
 };
 
 type AdminAppointmentPhotosResponse = {
@@ -703,6 +704,16 @@ export function AdminDashboardPage() {
       null
     );
   }, [globalAppointments, selectedAppointmentId, selectedClient]);
+
+  const clientRequestPhotos = React.useMemo(
+    () => currentPhotos.filter((photo) => !photo.isPublic),
+    [currentPhotos],
+  );
+
+  const publicAppointmentPhotos = React.useMemo(
+    () => currentPhotos.filter((photo) => photo.isPublic),
+    [currentPhotos],
+  );
 
   function syncManagedClient(updatedClient: AdminClient) {
     setClients((current) =>
@@ -2011,6 +2022,77 @@ export function AdminDashboardPage() {
                     )}
                   </div>
 
+                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
+                          Demande client
+                        </p>
+                        <h3 className="mt-2 text-xl font-semibold text-white">
+                          A lire avant validation
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-white/58">
+                          Retrouvez ici le message laisse par le client et les photos jointes au moment
+                          de la reservation.
+                        </p>
+                      </div>
+                      <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                        {clientRequestPhotos.length} photo
+                        {clientRequestPhotos.length > 1 ? "s" : ""} client
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3">
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Commentaire client
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-white/70">
+                          {selectedAppointment.clientNote || "Aucun commentaire client."}
+                        </p>
+                      </div>
+
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                            Photos envoyees a la demande
+                          </p>
+                          {photosLoading && (
+                            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {!photosLoading && clientRequestPhotos.length === 0 && (
+                            <div className="sm:col-span-3 rounded-[20px] border border-dashed border-white/10 bg-black/15 px-4 py-6 text-sm text-white/45">
+                              Aucune photo client jointe a cette demande.
+                            </div>
+                          )}
+
+                          {clientRequestPhotos.map((photo) => (
+                            <div className="space-y-2" key={photo.id}>
+                              <a
+                                className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                                href={photo.url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                <img
+                                  alt={photo.caption || "Photo client"}
+                                  className="h-28 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                                  src={photo.url}
+                                />
+                              </a>
+                              <p className="min-w-0 text-xs text-white/45">
+                                {photo.caption || "Photo envoyee par le client"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                       Infos utiles
@@ -2025,14 +2107,6 @@ export function AdminDashboardPage() {
                           {selectedAppointment.vehiclePlate
                             ? ` / ${selectedAppointment.vehiclePlate}`
                             : ""}
-                        </p>
-                      </div>
-                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Message client
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/60">
-                          {selectedAppointment.clientNote || "Aucun message client."}
                         </p>
                       </div>
                       <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
@@ -2153,12 +2227,13 @@ export function AdminDashboardPage() {
                         value={photoFormCaption}
                       />
                       <div className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100/85">
-                        Les photos ajoutees ici seront visibles par tous les clients.
+                        Les photos ajoutees ici seront visibles par tous les clients. Les photos
+                        envoyees par le client apparaissent plus haut dans la demande.
                       </div>
                     </div>
 
                     <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                      {!photosLoading && currentPhotos.length === 0 && (
+                      {!photosLoading && publicAppointmentPhotos.length === 0 && (
                         <>
                           {Array.from({ length: 3 }).map((_, index) => (
                             <div
@@ -2171,7 +2246,7 @@ export function AdminDashboardPage() {
                         </>
                       )}
 
-                      {currentPhotos.map((photo) => (
+                      {publicAppointmentPhotos.map((photo) => (
                         <div className="space-y-2" key={photo.id}>
                           <a
                             className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"

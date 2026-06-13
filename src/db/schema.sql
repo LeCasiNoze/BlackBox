@@ -158,6 +158,44 @@ CREATE INDEX IF NOT EXISTS idx_reward_redemptions_client
   ON reward_redemptions(client_id, created_at DESC);
 
 -- ============================
+-- TABLE topup_orders
+-- ============================
+CREATE TABLE IF NOT EXISTS topup_orders (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  provider          TEXT NOT NULL DEFAULT 'sumup'
+                    CHECK (provider IN ('sumup')),
+  offer_key         TEXT NOT NULL,
+  offer_label       TEXT NOT NULL,
+  formula_name      TEXT,
+  apply_mode        TEXT NOT NULL DEFAULT 'add'
+                    CHECK (apply_mode IN ('add', 'replace')),
+  credits           INTEGER NOT NULL DEFAULT 0,
+  duration_days     INTEGER,
+  amount_cents      INTEGER NOT NULL,
+  currency          TEXT NOT NULL DEFAULT 'EUR',
+  checkout_reference TEXT NOT NULL UNIQUE,
+  checkout_id       TEXT UNIQUE,
+  hosted_checkout_url TEXT,
+  redirect_url      TEXT,
+  return_url        TEXT,
+  status            TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded', 'processed')),
+  sumup_status      TEXT,
+  paid_at           INTEGER,
+  processed_at      INTEGER,
+  sumup_payload     TEXT,
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_topup_orders_client
+  ON topup_orders(client_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_topup_orders_checkout_id
+  ON topup_orders(checkout_id);
+
+-- ============================
 -- TABLE export_jobs
 -- ============================
 CREATE TABLE IF NOT EXISTS export_jobs (

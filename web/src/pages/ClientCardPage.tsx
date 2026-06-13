@@ -141,12 +141,33 @@ type RewardRedemption = {
   updatedAt: number;
 };
 
+type TopupOffer = {
+  key: string;
+  label: string;
+  description: string | null;
+  credits: number;
+  priceCents: number;
+  currency: string;
+  applyMode: "add" | "replace";
+  durationDays: number | null;
+};
+
+type TopupOrder = {
+  id: number;
+  offerKey: string;
+  offerLabel: string;
+  status: string;
+  checkoutReference: string;
+};
+
 type ApiResponse = {
   ok: boolean;
   client: ApiClient;
   vehicles: ClientVehicle[];
   rewardCatalog: RewardCatalogItem[];
   rewardRedemptions: RewardRedemption[];
+  topupOffers: TopupOffer[];
+  paymentsReady: boolean;
   month: ApiMonth;
 };
 
@@ -236,6 +257,21 @@ type RewardRedeemResponse = {
   rewardRedemptions: RewardRedemption[];
 };
 
+type TopupCheckoutResponse = {
+  ok: boolean;
+  hostedCheckoutUrl?: string;
+  checkoutReference?: string;
+  topupOrder?: TopupOrder;
+  error?: string;
+};
+
+type TopupSyncResponse = {
+  ok: boolean;
+  client?: ApiClient;
+  topupOrder?: TopupOrder;
+  error?: string;
+};
+
 type VehicleDraft = {
   label: string;
   model: string;
@@ -296,6 +332,13 @@ function toIsoDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatMoneyCents(amountCents: number, currency = "EUR") {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency,
+  }).format(amountCents / 100);
 }
 
 function addDaysIso(dateStr: string, delta: number) {
@@ -584,6 +627,8 @@ export function ClientCardPage() {
   const monthParam = query.get("m");
   const requestedView = normalizePortalView(query.get("view"));
   const requestedDayParam = query.get("d");
+  const launchTopupParam = query.get("launchTopup") === "1";
+  const topupRefParam = query.get("topupRef");
 
   const [data, setData] = React.useState<ApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -635,8 +680,11 @@ export function ClientCardPage() {
   const [savingVehicle, setSavingVehicle] = React.useState(false);
   const [deletingVehicleId, setDeletingVehicleId] = React.useState<number | null>(null);
   const [redeemingRewardKey, setRedeemingRewardKey] = React.useState<string | null>(null);
+  const [busyTopupKey, setBusyTopupKey] = React.useState<string | null>(null);
   const bookingImagesRef = React.useRef<BookingImageDraft[]>([]);
   const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
+  const handledTopupRef = React.useRef<string | null>(null);
+  const handledLaunchTopupRef = React.useRef<string | null>(null);
   const [pendingTermsAction, setPendingTermsAction] = React.useState<
     | { type: "topup" }
     | {
@@ -861,6 +909,95 @@ export function ClientCardPage() {
   const vehicles = data?.vehicles ?? [];
   const rewardCatalog = data?.rewardCatalog ?? [];
   const rewardRedemptions = data?.rewardRedemptions ?? [];
+  const topupOffers = data?.topupOffers ?? [];
+  const paymentsReady = data?.paymentsReady ?? false;
+
+  React.useEffect(() => {
+    if (!topupRefParam || handledTopupRef.current === topupRefParam) {
+      return;
+    }
+
+    handledTopupRef.current = topupRefParam;
+    let active = true;
+
+    async function syncTopupReturn() {
+      try {
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/topup/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reference: topupRefParam }),
+        });
+
+        const json = (await response.json()) as TopupSyncResponse;
+        if (!active || !response.ok || !json.ok) {
+          return;
+        }
+
+        if (json.client) {
+          setData((current) =>
+            current
+              ? {
+                  ...current,
+                  client: json.client as ApiClient,
+                }
+              : current,
+          );
+        }
+
+        if (json.topupOrder?.status === "processed") {
+          showToast("Paiement confirme. Vos credits viennent d'etre ajoutes.");
+          setReloadToken((value) => value + 1);
+        } else if (json.topupOrder?.status === "pending" || json.topupOrder?.status === "paid") {
+          showToast("Paiement recu, confirmation encore en cours.");
+        } else if (json.topupOrder?.status === "failed" || json.topupOrder?.status === "expired") {
+          showToast("La recharge n'a pas ete finalisee.");
+        }
+      } catch (_error) {
+        if (active) {
+          showToast("Impossible de verifier la recharge pour le moment.");
+        }
+      } finally {
+        if (active) {
+          const nextQuery = new URLSearchParams(query.toString());
+          nextQuery.delete("topupRef");
+          nextQuery.delete("launchTopup");
+          const search = nextQuery.toString();
+          navigate(`/card/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`, {
+            replace: true,
+          });
+        }
+      }
+    }
+
+    void syncTopupReturn();
+
+    return () => {
+      active = false;
+    };
+  }, [navigate, query, slug, topupRefParam]);
+
+  React.useEffect(() => {
+    if (!launchTopupParam || !client || !client.termsAcceptedAt) {
+      return;
+    }
+
+    const launchKey = `${slug}:${launchTopupParam}:${topupOffers.length}:${paymentsReady ? "1" : "0"}`;
+    if (handledLaunchTopupRef.current === launchKey) {
+      return;
+    }
+    handledLaunchTopupRef.current = launchKey;
+
+    const nextQuery = new URLSearchParams(query.toString());
+    nextQuery.delete("launchTopup");
+    const search = nextQuery.toString();
+    navigate(`/card/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`, {
+      replace: true,
+    });
+
+    window.setTimeout(() => {
+      openTopupFlow();
+    }, 0);
+  }, [client, launchTopupParam, navigate, paymentsReady, query, slug, topupOffers]);
   const month = data?.month ?? null;
   const monthDays = month?.days ?? [];
   const termsAccepted = !!client?.termsAcceptedAt;
@@ -1382,11 +1519,58 @@ export function ClientCardPage() {
     }
   }
 
+  async function startTopupCheckout(offer: TopupOffer) {
+    setBusyTopupKey(offer.key);
+
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/topup/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerKey: offer.key }),
+      });
+
+      const json = (await response.json()) as TopupCheckoutResponse;
+      if (!response.ok || !json.ok || !json.hostedCheckoutUrl) {
+        if (json?.error === "terms_not_accepted") {
+          openTermsModal({ type: "topup" });
+          return;
+        }
+        if (json?.error === "sumup_not_ready") {
+          if (SUMUP_TOPUP_URL) {
+            window.open(SUMUP_TOPUP_URL, "_blank", "noopener,noreferrer");
+            return;
+          }
+          showToast("La recharge en ligne n'est pas encore disponible.");
+          return;
+        }
+        showToast("Impossible d'ouvrir la recharge pour le moment.");
+        return;
+      }
+
+      window.location.href = json.hostedCheckoutUrl;
+    } catch (saveError) {
+      showToast("Erreur reseau pendant l'ouverture de la recharge.");
+    } finally {
+      setBusyTopupKey(null);
+    }
+  }
+
   function openTopupFlow() {
     if (!client) return;
 
     if (!termsAccepted) {
       openTermsModal({ type: "topup" });
+      return;
+    }
+
+    if (paymentsReady && topupOffers.length === 1) {
+      void startTopupCheckout(topupOffers[0]);
+      return;
+    }
+
+    if (paymentsReady && topupOffers.length > 1) {
+      navigateView("shop");
+      showToast("Choisissez la recharge qui vous convient.");
       return;
     }
 
@@ -2660,18 +2844,88 @@ export function ClientCardPage() {
           <div className="bb-section-head">
             <div>
               <p className="bb-eyebrow">🪙 BC&apos;Coins</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">Boutique fidelite</h1>
+              <h1 className="mt-2 text-2xl font-semibold text-white">Boutique client</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                Vos points sont visibles ici, sans encombrer la page d&apos;accueil.
+                Recharges Bryan Cars et BC&apos;Coins sont regroupes ici pour garder un parcours
+                simple et direct.
               </p>
             </div>
             <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-              <Gift className="h-3.5 w-3.5 text-[#f7b955]" />
-              {clientData.bcPoints} points
+              {paymentsReady ? "Paiement en ligne actif" : "Recharge externe"}
             </div>
           </div>
 
           <div className="mt-6 space-y-3">
+            {paymentsReady && topupOffers.length > 0 ? (
+              topupOffers.map((offer) => (
+                <div
+                  className="rounded-[24px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-4"
+                  key={offer.key}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-white">{offer.label}</p>
+                      <p className="mt-2 text-sm text-white/58">
+                        {offer.description ||
+                          `${offer.credits} credit${offer.credits > 1 ? "s" : ""} detailing`}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                          {offer.credits} credit{offer.credits > 1 ? "s" : ""}
+                        </div>
+                        {offer.durationDays && (
+                          <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                            {offer.durationDays} jours
+                          </div>
+                        )}
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                          {offer.applyMode === "replace" ? "Nouvelle formule" : "Ajout de credits"}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="bb-button-brand px-4 py-2"
+                      disabled={busyTopupKey === offer.key}
+                      onClick={() => {
+                        void startTopupCheckout(offer);
+                      }}
+                      type="button"
+                    >
+                      {busyTopupKey === offer.key
+                        ? "Ouverture..."
+                        : formatMoneyCents(offer.priceCents, offer.currency)}
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-lg font-semibold text-white">Recharge a finaliser</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Le parcours automatique SumUp est pret a etre branche. En attendant, la recharge
+                  externe reste accessible.
+                </p>
+                <div className="mt-4">
+                  <button className="bb-button-ghost" onClick={openTopupFlow} type="button">
+                    Voir la recharge
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-8 border-t border-white/10 pt-6">
+              <div className="bb-section-head">
+                <div>
+                  <p className="bb-eyebrow">BC&apos;Coins</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Boutique fidelite</h2>
+                </div>
+                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                  <Gift className="h-3.5 w-3.5 text-[#f7b955]" />
+                  {clientData.bcPoints} points
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
             {rewardCatalog.map((reward) => {
               const affordable = clientData.bcPoints >= reward.pointsCost;
               return (
@@ -2702,6 +2956,8 @@ export function ClientCardPage() {
                 </div>
               );
             })}
+              </div>
+            </div>
           </div>
         </article>
 
@@ -2718,7 +2974,7 @@ export function ClientCardPage() {
 
           <div className="mt-6 space-y-3">
             {rewardRedemptions.length === 0 ? (
-              <AppointmentsEmpty copy="Aucune demande 🪙 BC'Coins pour le moment." />
+              <AppointmentsEmpty copy="Aucune demande BC'Coins pour le moment." />
             ) : (
               rewardRedemptions.map((redemption) => (
                 <div
