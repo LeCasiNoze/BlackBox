@@ -701,8 +701,12 @@ router.post("/appointments/:id/status", async (req, res) => {
         }
       }
 
+      // "not_enough_credits" n'est PAS un echec: le tarif est bien enregistre et
+      // le rendez-vous passe en attente de recharge cote client (waiting_payment).
+      const softWarning = result.error === "not_enough_credits";
+
       return res.json({
-        ok: result.ok !== false,
+        ok: result.ok !== false || softWarning,
         appointment: mapAppointmentRow(updatedAppointment),
         warning: result.error || null,
       });

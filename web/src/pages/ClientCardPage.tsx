@@ -2028,11 +2028,8 @@ export function ClientCardPage() {
               Impossible d&apos;ouvrir cet espace.
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/65">
-              Verifiez le lien NFC ou retournez a l&apos;accueil pour relancer la navigation.
+              Verifiez le lien NFC ou rouvrez votre carte depuis le lien fourni par Bryan Cars.
             </p>
-            <Link className="bb-button-brand mt-6 inline-flex" to="/">
-              Retour a l&apos;accueil
-            </Link>
           </div>
         </div>
       </div>
@@ -2083,8 +2080,11 @@ export function ClientCardPage() {
   // L'accueil non-fondateur n'expose pas la boutique BC'Coins (reservee aux fondateurs).
   const homeQuickCards = quickCards.filter((card) => card.view !== "shop");
 
-  // Pour les non-fondateurs, la "Boutique" devient une simple recharge de credits.
-  const navItems: NavItem[] = PORTAL_NAV_ITEMS.map((item) =>
+  // Pour les pros, la boutique/credits est masquee entierement.
+  // Pour les non-fondateurs standard, la "Boutique" devient une simple recharge de credits.
+  const navItems: NavItem[] = PORTAL_NAV_ITEMS.filter(
+    (item) => !(item.view === "shop" && clientData.clientType === "pro"),
+  ).map((item) =>
     item.view === "shop" && !clientData.isFounder
       ? { ...item, label: "Credits", icon: CreditCard }
       : item,
@@ -2108,14 +2108,16 @@ export function ClientCardPage() {
               <Phone className="mr-2 h-4 w-4" />
               Contact
             </button>
-            <button className="bb-button-brand px-4 py-2" onClick={openTopupFlow} type="button">
-              Recharger
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </button>
+            {clientData.clientType !== "pro" && (
+              <button className="bb-button-brand px-4 py-2" onClick={openTopupFlow} type="button">
+                Recharger
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </button>
+            )}
           </div>
         </header>
 
-        <nav className="hidden grid-cols-5 gap-2 rounded-[28px] border border-white/10 bg-white/[0.03] p-2 backdrop-blur-xl md:grid">
+        <nav className={cn("hidden gap-2 rounded-[28px] border border-white/10 bg-white/[0.03] p-2 backdrop-blur-xl md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -2214,6 +2216,116 @@ export function ClientCardPage() {
           </div>
         </div>
       </button>
+    );
+  }
+
+  function renderProHomeView() {
+    return (
+      <section className="space-y-4">
+        <article className="bb-surface-strong relative overflow-hidden p-5 md:p-7">
+          {/* Orbes de fond — palette steel/blue */}
+          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-cyan-400/12 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-[-3rem] left-1/3 h-48 w-48 rounded-full bg-sky-500/10 blur-3xl" />
+
+          <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-100">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Acces pro
+                </div>
+              </div>
+
+              <div className="max-w-3xl">
+                <p className="bb-eyebrow">Bryan Cars pro portal</p>
+                <h1 className="bb-title mt-3">
+                  Bonjour {clientData.firstName || clientData.fullName || "client"},
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68 md:text-base">
+                  Compte pro : vos rendez-vous sont directs, sans consommation de credits.
+                </p>
+              </div>
+
+              {upcomingAppointment && (
+                <div className="rounded-[24px] border border-sky-400/20 bg-sky-400/[0.07] p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-sky-200/70">Prochain passage</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {formatDateFR(upcomingAppointment.date, { day: "numeric", month: "long" })}
+                  </p>
+                  <p className="mt-1 text-sm text-white/62">
+                    {slotLabel(upcomingAppointment.slot)}{" · "}
+                    {formatTimeHHMM(upcomingAppointment.time)}{" · "}
+                    {locationLabel(upcomingAppointment.location)}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="bb-button-brand"
+                  onClick={() => navigateView("booking")}
+                  style={{ background: "linear-gradient(135deg,#38bdf8,#06b6d4)" }}
+                  type="button"
+                >
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Prendre rendez-vous
+                </button>
+                <button
+                  className="bb-button-ghost"
+                  onClick={() => setContactModalOpen(true)}
+                  type="button"
+                >
+                  <Phone className="mr-2 h-4 w-4" />
+                  Contact
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <div className="relative overflow-hidden rounded-[30px] border border-sky-400/22 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
+                <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/35">
+                  <img
+                    alt="Espace pro Bryan Cars"
+                    className="h-[260px] w-full object-cover md:h-[320px]"
+                    src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+                </p>
+                <p className="mt-2 text-sm text-white/56">
+                  {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {homeQuickCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <button
+                className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-sky-400/40 hover:bg-sky-400/[0.08]"
+                key={card.view}
+                onClick={() => navigateView(card.view)}
+                type="button"
+              >
+                <div className="mb-4 inline-flex rounded-2xl border border-sky-400/20 bg-sky-400/[0.08] p-3 text-sky-300">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">{card.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-white/62">{card.copy}</p>
+              </button>
+            );
+          })}
+        </section>
+      </section>
     );
   }
 
@@ -2349,6 +2461,10 @@ export function ClientCardPage() {
       );
     }
 
+    if (clientData.clientType === "pro") {
+      return renderProHomeView();
+    }
+
     return (
       <section className="space-y-4">
         <article className="bb-surface-strong relative overflow-hidden p-6 md:p-8">
@@ -2398,14 +2514,31 @@ export function ClientCardPage() {
               </div>
             </div>
 
+            <button
+              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-[#f7b955]/25 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-[#f7b955]/45"
+              onClick={() => setFounderModalOpen(true)}
+              type="button"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl border border-[#f7b955]/35 bg-[#f7b955]/12 p-3 text-[#ffe8a8]">
+                  <Crown className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-white">Devenir fondateur</p>
+                  <p className="mt-1 text-sm leading-6 text-white/62">
+                    Carte premium, 🪙 BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 shrink-0 text-[#f7b955] transition group-hover:translate-x-1" />
+            </button>
+
             <div className="grid gap-3 md:grid-cols-2">
               {renderMetricCard(
                 "Credits",
                 `${clientData.formulaRemaining}`,
-                clientData.clientType === "pro"
-                  ? "Compte pro: les rendez-vous sont directs, sans consommation de credits."
-                  : "Les credits sont consommes uniquement quand le tarif du rendez-vous est valide.",
-                clientData.formulaRemaining > 0 || clientData.clientType === "pro" ? undefined : "warning",
+                "Les credits sont consommes uniquement quand le tarif du rendez-vous est valide.",
+                clientData.formulaRemaining > 0 ? undefined : "warning",
               )}
               {renderMetricCard(
                 "Prochain passage",
@@ -2444,25 +2577,6 @@ export function ClientCardPage() {
                 );
               })}
             </div>
-
-            <button
-              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-[#f7b955]/25 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-[#f7b955]/45"
-              onClick={() => setFounderModalOpen(true)}
-              type="button"
-            >
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-[#f7b955]/35 bg-[#f7b955]/12 p-3 text-[#ffe8a8]">
-                  <Crown className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-white">Devenir fondateur</p>
-                  <p className="mt-1 text-sm leading-6 text-white/62">
-                    Carte premium, 🪙 BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
-                  </p>
-                </div>
-              </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-[#f7b955] transition group-hover:translate-x-1" />
-            </button>
           </div>
         </article>
       </section>
@@ -2477,10 +2591,12 @@ export function ClientCardPage() {
             <div className="bb-pill border-white/12 bg-white/[0.04] text-white">
               Agenda
             </div>
-            <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-white">
-              {clientData.formulaRemaining} credit
-              {Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}
-            </div>
+            {clientData.clientType !== "pro" && (
+              <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-white">
+                {clientData.formulaRemaining} credit
+                {Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}
+              </div>
+            )}
             {activeVehicle && (
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                 <CarFront className="h-3.5 w-3.5 text-[#f7b955]" />
@@ -3342,7 +3458,7 @@ export function ClientCardPage() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-5 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
+        <div className={cn("mx-auto grid max-w-xl rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;

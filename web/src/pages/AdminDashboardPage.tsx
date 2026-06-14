@@ -1,6 +1,5 @@
 import * as React from "react";
 import {
-  ArrowLeft,
   Bell,
   BellRing,
   CalendarClock,
@@ -1100,7 +1099,13 @@ export function AdminDashboardPage() {
       const updated = json.appointment as AdminAppointment;
       applyAppointmentUpdate(updated);
 
-      showToast("Statut mis a jour.");
+      if (updated.priceStatus === "waiting_payment" || json.warning === "not_enough_credits") {
+        showToast("Tarif enregistre. Le client doit recharger pour confirmer.");
+      } else if (updated.priceStatus === "waiting_client_approval") {
+        showToast("Tarif envoye au client pour validation.");
+      } else {
+        showToast("Statut mis a jour.");
+      }
       setRefreshToken((value) => value + 1);
     } catch (error) {
       setGlobalAppointments(previousGlobal);
@@ -1140,7 +1145,6 @@ export function AdminDashboardPage() {
 
   async function saveAppointmentWorkspace(appointmentId: number) {
     const note = noteDrafts[appointmentId] ?? "";
-    const cleanlinessRating = cleanlinessDrafts[appointmentId] ?? null;
     const hasFile = !!photoFile;
     const captionTrim = photoFormCaption.trim();
 
@@ -1154,7 +1158,7 @@ export function AdminDashboardPage() {
         const response = await fetch(`/api/admin/appointments/${appointmentId}/workspace`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ adminNote: note, cleanlinessRating }),
+          body: JSON.stringify({ adminNote: note, cleanlinessRating: null }),
         });
 
         const json = await response.json();
@@ -2488,37 +2492,11 @@ export function AdminDashboardPage() {
 
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Suivi interne
+                      Compte-rendu interne
                     </p>
                     <p className="mt-3 text-sm leading-6 text-white/58">
-                      Cette zone reste interne: elle sert a qualifier le dossier et a garder une note
-                      admin, sans changer automatiquement le tarif deja valide plus haut.
+                      Note interne sur le dossier (compte-rendu, particularites du vehicule).
                     </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {CLEANLINESS_OPTIONS.map((option) => (
-                        <button
-                          className={cn(
-                            "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                            cleanlinessDrafts[selectedAppointment.id] === option.value
-                              ? option.tone
-                              : "border-white/10 bg-black/20 text-white/60 hover:bg-white/[0.04]",
-                          )}
-                          key={option.value}
-                          onClick={() =>
-                            setCleanlinessDrafts((current) => ({
-                              ...current,
-                              [selectedAppointment.id]:
-                                current[selectedAppointment.id] === option.value
-                                  ? null
-                                  : option.value,
-                            }))
-                          }
-                          type="button"
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
                     <textarea
                       className="bb-textarea mt-4"
                       onChange={(event) =>
@@ -3361,10 +3339,6 @@ export function AdminDashboardPage() {
         <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
           <div className="flex flex-col gap-6">
             <div className="flex flex-wrap items-center gap-3">
-              <Link className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]" to="/">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Retour
-              </Link>
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                 <Sparkles className="h-3.5 w-3.5 text-[#f7b955]" />
                 Admin cockpit
@@ -3676,10 +3650,10 @@ export function AdminDashboardPage() {
                   </p>
                 )}
 
-                {profileDraft.clientType === "bbx" && profileDraft.isFounder && (
+                {((profileDraft.clientType === "bbx" && profileDraft.isFounder) || profileDraft.clientType === "pro") && (
                   <label className="mt-4 block space-y-2">
                     <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Image fondateur
+                      Image personnalisee
                     </span>
                     <input
                       className="bb-input"
@@ -3689,7 +3663,7 @@ export function AdminDashboardPage() {
                     <p className="text-sm text-white/50">
                       {founderMediaFile
                         ? founderMediaFile.name
-                        : "Ajoutez un visuel premium pour la carte fondateur."}
+                        : "Ajoutez un visuel premium affiche sur la carte du client."}
                     </p>
                   </label>
                 )}

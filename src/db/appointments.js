@@ -378,6 +378,26 @@ function chargeAppointmentCreditsInTransaction(appointmentId, credits) {
     return { ok: true, alreadyCharged: true, appointment };
   }
 
+  // Les comptes Pro ne consomment jamais de credits: le tarif est valide sans charge.
+  const chargeClient = db
+    .prepare(`SELECT client_type FROM clients WHERE id = ? LIMIT 1`)
+    .get(appointment.client_id);
+  if (chargeClient && chargeClient.client_type === "pro") {
+    db.prepare(
+      `
+      UPDATE appointments
+      SET approved_credits = 0,
+          credits_charged = 0,
+          price_status = 'not_required',
+          status = 'confirmed',
+          updated_at = ?
+      WHERE id = ?
+    `,
+    ).run(nowUnix(), appointmentId);
+
+    return { ok: true, appointment: getAppointmentById(appointmentId) };
+  }
+
   const needed = Math.max(0, Number(credits || 0));
   if (needed <= 0) {
     db.prepare(
@@ -663,13 +683,15 @@ function syncAppointmentCleanlinessPenaltyInTransaction(appointmentId) {
     .prepare(
       `
       SELECT
-        id,
-        client_id,
-        status,
-        cleanliness_rating,
-        COALESCE(cleanliness_penalty_applied, 0) AS cleanliness_penalty_applied
-      FROM appointments
-      WHERE id = ?
+        a.id,
+        a.client_id,
+        a.status,
+        a.cleanliness_rating,
+        COALESCE(a.cleanliness_penalty_applied, 0) AS cleanliness_penalty_applied,
+        c.client_type AS client_type
+      FROM appointments a
+      JOIN clients c ON c.id = a.client_id
+      WHERE a.id = ?
       LIMIT 1
     `,
     )
@@ -680,8 +702,9 @@ function syncAppointmentCleanlinessPenaltyInTransaction(appointmentId) {
   }
 
   const currentPenalty = Number(appointment.cleanliness_penalty_applied || 0);
+  // Les comptes Pro ne sont jamais penalises en credits (ils n'en consomment pas).
   const targetPenalty =
-    appointment.status === "done"
+    appointment.status === "done" && appointment.client_type !== "pro"
       ? cleanlinessPenaltyCredits(appointment.cleanliness_rating)
       : 0;
   const delta = targetPenalty - currentPenalty;
