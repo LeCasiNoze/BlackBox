@@ -592,6 +592,10 @@ export function AdminDashboardPage() {
   const boardTab: "agenda" | "livraison" = location.pathname.startsWith("/admin/delivery")
     ? "livraison"
     : "agenda";
+  // Sous-filtre de la Livraison: a faire (confirmes) / effectues / tous.
+  const [livraisonFilter, setLivraisonFilter] = React.useState<"all" | "confirmed" | "done">(
+    "all",
+  );
 
   const [selectedAppointmentId, setSelectedAppointmentId] =
     React.useState<number | null>(null);
@@ -1508,12 +1512,16 @@ export function AdminDashboardPage() {
 
   const boardAppointments = React.useMemo(
     () =>
-      sortedGlobalDesc.filter((appointment) =>
-        boardTab === "agenda"
-          ? appointment.status === "requested"
-          : appointment.status === "confirmed" || appointment.status === "done",
-      ),
-    [boardTab, sortedGlobalDesc],
+      sortedGlobalDesc.filter((appointment) => {
+        if (boardTab === "agenda") {
+          return appointment.status === "requested";
+        }
+        // Livraison: confirmes (a faire) et/ou effectues selon le sous-filtre.
+        if (livraisonFilter === "confirmed") return appointment.status === "confirmed";
+        if (livraisonFilter === "done") return appointment.status === "done";
+        return appointment.status === "confirmed" || appointment.status === "done";
+      }),
+    [boardTab, livraisonFilter, sortedGlobalDesc],
   );
 
   const upcomingAppointments = React.useMemo(
@@ -1999,6 +2007,32 @@ export function AdminDashboardPage() {
                     value={appointmentQuery}
                   />
                 </div>
+
+                {boardTab === "livraison" && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(
+                      [
+                        { key: "all", label: "Tous" },
+                        { key: "confirmed", label: "A faire" },
+                        { key: "done", label: "Effectues" },
+                      ] as const
+                    ).map((option) => (
+                      <button
+                        className={cn(
+                          "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                          livraisonFilter === option.key
+                            ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                            : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
+                        )}
+                        key={option.key}
+                        onClick={() => setLivraisonFilter(option.key)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 space-y-5">
