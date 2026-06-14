@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  ArrowRight,
   Bell,
   BellRing,
   CalendarClock,
@@ -7,10 +8,12 @@ import {
   CarFront,
   CheckCircle2,
   Clock3,
+  Coins,
   Copy,
   Crown,
   Download,
   ExternalLink,
+  Inbox,
   Loader2,
   LogOut,
   Mail,
@@ -1682,44 +1685,30 @@ export function AdminDashboardPage() {
             </div>
 
             <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <article className="bb-metric">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  En attente
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-white">
-                  {pendingRequests.length}
-                </p>
-                <p className="mt-2 text-sm text-white/55">Demandes a traiter</p>
-              </article>
-              <article className="bb-metric">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Prochains passages
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-white">
-                  {upcomingAppointments.length}
-                </p>
-                <p className="mt-2 text-sm text-white/55">Agenda actif</p>
-              </article>
-              <article className="bb-metric">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Credits restants
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-white">
-                  {totalCreditsRemaining}
-                </p>
-                <p className="mt-2 text-sm text-white/55">
-                  {clientsLowOnCredits} client(s) en tension
-                </p>
-              </article>
-              <article className="bb-metric">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Effectues ce mois
-                </p>
-                <p className="mt-3 text-3xl font-semibold text-white">
-                  {doneThisMonth}
-                </p>
-                <p className="mt-2 text-sm text-white/55">Prestations cloturees</p>
-              </article>
+              {[
+                { icon: Inbox, tint: "amber", label: "En attente", value: pendingRequests.length, copy: "Demandes a traiter" },
+                { icon: CalendarClock, tint: "sky", label: "Prochains passages", value: upcomingAppointments.length, copy: "Agenda actif" },
+                { icon: Coins, tint: "gold", label: "Credits restants", value: totalCreditsRemaining, copy: `${clientsLowOnCredits} client(s) en tension` },
+                { icon: CheckCircle2, tint: "emerald", label: "Effectues ce mois", value: doneThisMonth, copy: "Prestations cloturees" },
+              ].map((metric, index) => {
+                const MetricIcon = metric.icon;
+                const tints: Record<string, string> = {
+                  amber: "border-amber-300/25 bg-amber-300/10 text-amber-200",
+                  sky: "border-sky-300/25 bg-sky-300/10 text-sky-200",
+                  gold: "border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]",
+                  emerald: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
+                };
+                return (
+                  <article className={`bb-metric bb-rise bb-rise-${Math.min(index + 1, 4)}`} key={metric.label}>
+                    <span className={`mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border ${tints[metric.tint]}`}>
+                      <MetricIcon className="h-5 w-5" />
+                    </span>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">{metric.label}</p>
+                    <p className="mt-2 text-3xl font-semibold tabular-nums text-white">{metric.value}</p>
+                    <p className="mt-2 text-sm text-white/55">{metric.copy}</p>
+                  </article>
+                );
+              })}
             </div>
           </article>
 
@@ -1765,67 +1754,33 @@ export function AdminDashboardPage() {
           </article>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-2">
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Section</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Agenda
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                  Toute la gestion du planning, des demandes en attente et des
-                  validations est isolee sur une page dediee.
-                </p>
-              </div>
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                {pendingRequests.length} attente
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm leading-6 text-white/62">
-                Vous y retrouvez uniquement l&apos;inbox des demandes, l&apos;agenda
-                filtre et le panneau d&apos;action. Le reste disparait pour garder
-                un ecran plus lisible, surtout sur mobile.
-              </p>
-              <div className="mt-5">
-                <Link className="bb-button-brand" to="/admin/appointments">
-                  Ouvrir l'agenda admin
-                </Link>
-              </div>
-            </div>
-          </article>
-
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Section</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Clients
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                  Les fiches client, les credits, la formule, le contact et
-                  l&apos;historique sont rassembles sur une page dediee.
-                </p>
-              </div>
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                {clients.length} fiche(s)
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm leading-6 text-white/62">
-                Cette zone sert a retrouver un client, modifier son profil,
-                ajuster ses credits et ouvrir facilement son historique.
-              </p>
-              <div className="mt-5">
-                <Link className="bb-button-brand" to="/admin/clients">
-                  Ouvrir la gestion client
-                </Link>
-              </div>
-            </div>
-          </article>
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[
+            { icon: CalendarClock, title: "Agenda", copy: "Demandes, planning et validations.", badge: `${pendingRequests.length} attente`, to: "/admin/appointments" },
+            { icon: Truck, title: "Livraison", copy: "Rendez-vous confirmes a preparer.", badge: `${upcomingAppointments.length} actifs`, to: "/admin/delivery" },
+            { icon: Users, title: "Clients", copy: "Fiches, credits et historique.", badge: `${clients.length} fiche(s)`, to: "/admin/clients" },
+          ].map((tile) => {
+            const TileIcon = tile.icon;
+            return (
+              <Link
+                className="bb-surface bb-hover-lift group flex items-center gap-4 p-5"
+                key={tile.title}
+                to={tile.to}
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#f7b955]/20 bg-[#f7b955]/[0.08] text-[#f7b955]">
+                  <TileIcon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg font-semibold text-white">{tile.title}</span>
+                    <span className="bb-pill border-white/10 bg-white/[0.04] text-[10px] text-white/60">{tile.badge}</span>
+                  </span>
+                  <span className="mt-1 block text-sm leading-6 text-white/55">{tile.copy}</span>
+                </span>
+                <ArrowRight className="h-5 w-5 shrink-0 text-white/35 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
+              </Link>
+            );
+          })}
         </section>
       </>
     );
@@ -1840,19 +1795,20 @@ export function AdminDashboardPage() {
     return (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
           <div className="order-2 space-y-4 xl:order-none">
+            {/* ── Inbox prioritaire ── */}
             <article className="bb-surface p-6">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="bb-eyebrow">Etape 1</p>
-                    <h2 className="mt-2 text-2xl font-semibold text-white">
+                    <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                       Choisir un rendez-vous
                     </h2>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <button
-                      className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left w-full transition duration-200 hover:bg-white/[0.06] hover:border-[#f7b955]/30"
+                      className="bb-metric text-left transition duration-200 hover:border-amber-300/30"
                       onClick={() => {
                         (pendingRef.current ?? appointmentListRef.current)?.scrollIntoView({
                           behavior: "smooth",
@@ -1861,18 +1817,24 @@ export function AdminDashboardPage() {
                       }}
                       type="button"
                     >
+                      <span className="mb-3 inline-grid h-9 w-9 place-items-center rounded-xl border border-amber-300/25 bg-amber-300/10 text-amber-200">
+                        <Inbox className="h-4 w-4" />
+                      </span>
                       <p className="text-xs uppercase tracking-[0.16em] text-white/35">
                         En attente
                       </p>
-                      <p className="mt-2 text-2xl font-semibold text-white">
+                      <p className="mt-2 text-2xl font-semibold tabular-nums text-white">
                         {pendingRequests.length}
                       </p>
                     </button>
-                    <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="bb-metric">
+                      <span className="mb-3 inline-grid h-9 w-9 place-items-center rounded-xl border border-sky-300/25 bg-sky-300/10 text-sky-200">
+                        <CalendarClock className="h-4 w-4" />
+                      </span>
                       <p className="text-xs uppercase tracking-[0.16em] text-white/35">
                         Visibles
                       </p>
-                      <p className="mt-2 text-2xl font-semibold text-white">
+                      <p className="mt-2 text-2xl font-semibold tabular-nums text-white">
                         {filteredAgendaAppointments.length}
                       </p>
                     </div>
@@ -1885,71 +1847,79 @@ export function AdminDashboardPage() {
                     Chargement des rendez-vous...
                   </div>
                 ) : boardTab === "agenda" && pendingRequests.length > 0 ? (
-                  <div ref={pendingRef} className="scroll-mt-4 rounded-[28px] border border-amber-300/20 bg-[#f7b955]/8 p-5">
+                  <div ref={pendingRef} className="scroll-mt-4 rounded-[28px] border border-amber-300/20 bg-amber-300/[0.06] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
-                          Priorite
-                        </p>
-                        <h3 className="mt-2 text-xl font-semibold text-white">
-                          Demandes en attente
-                        </h3>
-                        <p className="mt-2 text-sm leading-6 text-white/62">
-                          Ouvrez un dossier pour le traiter dans la colonne de droite.
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-amber-300/25 bg-amber-300/10 text-amber-200">
+                          <Inbox className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <p className="bb-eyebrow">Priorite</p>
+                          <h3 className="bb-display mt-1 text-xl font-semibold text-white">
+                            Demandes en attente
+                          </h3>
+                        </div>
                       </div>
                       <div className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
                         {pendingRequests.length} a traiter
                       </div>
                     </div>
+                    <p className="mt-3 text-sm leading-6 text-white/55">
+                      Ouvrez un dossier pour le traiter dans la colonne de droite.
+                    </p>
 
                     <div className="mt-5 space-y-3">
-                      {visiblePendingRequests.map((appointment) => {
+                      {visiblePendingRequests.map((appointment, idx) => {
                         const active = appointment.id === selectedAppointmentId;
                         return (
                           <button
                             className={cn(
-                              "w-full rounded-[24px] border p-4 text-left transition duration-200",
+                              "bb-hover-lift group w-full rounded-[24px] border p-4 text-left transition duration-200",
                               active
                                 ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
-                                : "border-white/10 bg-black/20 hover:bg-white/[0.05]",
+                                : "border-white/10 bg-black/20 hover:border-amber-300/20",
+                              `bb-rise bb-rise-${Math.min(idx + 2, 4)}`,
                             )}
                             key={appointment.id}
                             onClick={() => focusAppointment(appointment)}
                             type="button"
                           >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
+                            <div className="flex items-start gap-3">
+                              <span className={cn(
+                                "mt-0.5 inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border",
+                                active
+                                  ? "border-amber-300/35 bg-amber-300/15 text-amber-200"
+                                  : "border-amber-300/20 bg-amber-300/[0.08] text-amber-300",
+                              )}>
+                                <Clock3 className="h-4 w-4" />
+                              </span>
+                              <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="text-base font-semibold text-white">
+                                    {appointment.clientName || "Client"}
+                                  </h4>
                                   <div className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
                                     {slotLabel(appointmentSlot(appointment))}
                                   </div>
                                   <div
                                     className={cn(
-                                      "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                      "bb-pill",
                                       locationClasses(appointment.location),
                                     )}
                                   >
                                     {locationLabel(appointment.location)}
                                   </div>
                                 </div>
-
-                                <h4 className="mt-3 text-lg font-semibold text-white">
-                                  {appointment.clientName || "Client"}
-                                </h4>
-                                <p className="mt-1 text-sm text-white/58">
-                                  {formatDateFR(appointment.date)} -{" "}
-                                  {slotWindowLabel(appointmentSlot(appointment))} -{" "}
+                                <p className="mt-1 text-sm text-white/55">
+                                  {formatDateFR(appointment.date)} &middot;{" "}
+                                  {slotWindowLabel(appointmentSlot(appointment))} &middot;{" "}
                                   {formatTimeHHMM(appointment.time)}
                                 </p>
-                                <p className="mt-2 text-sm text-white/58">
+                                <p className="mt-1 text-sm text-white/45">
                                   {appointment.vehicleModel || "Vehicule non renseigne"}
                                 </p>
                               </div>
-
-                              <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
-                                Ouvrir le dossier
-                              </div>
+                              <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
                             </div>
                           </button>
                         );
@@ -1963,25 +1933,29 @@ export function AdminDashboardPage() {
                     )}
                   </div>
                 ) : boardTab === "agenda" ? (
-                  <div className="rounded-[28px] border border-emerald-300/20 bg-emerald-300/10 p-5">
-                    <p className="text-lg font-semibold text-white">
-                      Rien en attente pour le moment
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-white/65">
-                      La liste ci-dessous contient maintenant uniquement le planning a suivre.
-                    </p>
+                  <div className="flex flex-col items-center gap-3 rounded-[28px] border border-emerald-300/20 bg-emerald-300/[0.05] p-8 text-center">
+                    <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </span>
+                    <div>
+                      <p className="text-base font-semibold text-white">
+                        Rien en attente pour le moment
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-white/55">
+                        La liste ci-dessous contient maintenant uniquement le planning a suivre.
+                      </p>
+                    </div>
                   </div>
                 ) : null}
               </div>
             </article>
 
+            {/* ── Liste complete par jour ── */}
             <section className="bb-surface p-6" ref={appointmentListRef}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                    Liste complete
-                  </p>
-                  <h3 className="mt-2 text-xl font-semibold text-white">
+                  <p className="bb-eyebrow">Liste complete</p>
+                  <h3 className="bb-display mt-2 text-xl font-semibold text-white">
                     {boardTab === "agenda" ? "Rendez-vous en attente" : "Rendez-vous confirmes"}
                   </h3>
                 </div>
@@ -2028,61 +2002,78 @@ export function AdminDashboardPage() {
                 )}
               </div>
 
-              <div className="mt-6 space-y-5">
+              <div className="mt-6 space-y-6">
                 {globalAppointmentsLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
                     <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
                     Chargement de l'agenda...
                   </div>
                 ) : agendaSections.length === 0 ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
-                    <p className="text-lg font-semibold text-white">
-                      {boardTab === "agenda" ? "Aucune demande en attente" : "Aucun rendez-vous confirme"}
-                    </p>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
-                      {boardTab === "agenda"
-                        ? "Toutes les demandes ont ete traitees ou annulees."
-                        : "Confirmez un rendez-vous depuis l'onglet Agenda pour le retrouver ici."}
-                    </p>
+                  <div className="flex flex-col items-center gap-3 rounded-[24px] border border-white/10 bg-black/20 p-8 text-center">
+                    <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/40">
+                      <CalendarClock className="h-6 w-6" />
+                    </span>
+                    <div>
+                      <p className="text-base font-semibold text-white">
+                        {boardTab === "agenda" ? "Aucune demande en attente" : "Aucun rendez-vous confirme"}
+                      </p>
+                      <p className="mt-1 max-w-xs text-sm leading-6 text-white/55">
+                        {boardTab === "agenda"
+                          ? "Toutes les demandes ont ete traitees ou annulees."
+                          : "Confirmez un rendez-vous depuis l'onglet Agenda pour le retrouver ici."}
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   agendaSections.map((section) => (
                     <div key={section.date}>
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Jour
-                          </p>
-                          <h4 className="mt-1 text-lg font-semibold capitalize text-white">
+                      <div className="mb-3 flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="bb-eyebrow">Jour</p>
+                          <h4 className="bb-display mt-1 text-lg font-semibold capitalize text-white">
                             {formatDateFR(section.date, { weekday: "long" })}
                           </h4>
                         </div>
-                        <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/55">
                           {section.items.length} rdv
                         </div>
                       </div>
 
                       <div className="space-y-3">
-                        {section.items.map((appointment) => {
+                        {section.items.map((appointment, idx) => {
                           const active = appointment.id === selectedAppointmentId;
                           const highlighted = appointment.id === highlightAppointmentId;
+                          const statusTints: Record<string, string> = {
+                            requested: "border-amber-300/25 bg-amber-300/10 text-amber-200",
+                            confirmed: "border-sky-300/25 bg-sky-300/10 text-sky-200",
+                            done: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
+                            cancelled: "border-rose-300/25 bg-rose-300/10 text-rose-200",
+                          };
+                          const iconTint = statusTints[appointment.status] ?? "border-white/12 bg-white/[0.04] text-white/50";
 
                           return (
                             <button
                               className={cn(
-                                "w-full rounded-[22px] border p-4 text-left transition duration-200",
+                                "bb-hover-lift group w-full rounded-[22px] border p-4 text-left transition duration-200",
                                 active
                                   ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
-                                  : "border-white/10 bg-black/20 hover:bg-white/[0.05]",
+                                  : "border-white/10 bg-black/20 hover:border-white/20",
                                 highlighted && "ring-1 ring-[#f7b955]/40",
+                                `bb-rise bb-rise-${Math.min(idx + 2, 4)}`,
                               )}
                               key={appointment.id}
                               onClick={() => focusAppointment(appointment)}
                               type="button"
                             >
-                              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                <div>
+                              <div className="flex items-start gap-3">
+                                <span className={cn("mt-0.5 inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border", iconTint)}>
+                                  <CalendarClock className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
+                                    <h4 className="text-base font-semibold text-white">
+                                      {appointment.clientName || "Client"}
+                                    </h4>
                                     <div
                                       className={cn(
                                         "bb-pill",
@@ -2093,42 +2084,33 @@ export function AdminDashboardPage() {
                                     </div>
                                     <div
                                       className={cn(
-                                        "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                                        "bb-pill",
                                         locationClasses(appointment.location),
                                       )}
                                     >
                                       {locationLabel(appointment.location)}
                                     </div>
-                                    <div className="bb-pill border-white/12 bg-white/[0.04] text-white/65">
+                                    <div className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
                                       {slotLabel(appointmentSlot(appointment))}
                                     </div>
                                   </div>
-
-                                  <div>
-                                    <h4 className="text-lg font-semibold text-white">
-                                      {slotWindowLabel(appointmentSlot(appointment))} ·{" "}
-                                      {formatTimeHHMM(appointment.time)} -{" "}
-                                      {appointment.clientName || "Client"}
-                                    </h4>
-                                    <p className="mt-1 text-sm text-white/58">
-                                      {appointment.vehicleModel || "Vehicule"}
-                                    </p>
-                                  </div>
-
-                                  <p className="max-w-2xl text-sm leading-6 text-white/58">
-                                    {previewText(
-                                      appointment.adminNote || appointment.clientNote,
-                                      "Aucune note enregistree sur ce rendez-vous.",
-                                    )}
+                                  <p className="mt-1 text-sm text-white/55">
+                                    {slotWindowLabel(appointmentSlot(appointment))} &middot;{" "}
+                                    {formatTimeHHMM(appointment.time)}
                                   </p>
-                                </div>
-
-                                <p className="text-sm leading-6 text-white/55 md:max-w-xs md:text-right">
-                                  {previewText(
-                                    appointment.adminNote || appointment.clientNote,
-                                    "Aucune note sur ce rendez-vous.",
+                                  <p className="mt-1 text-sm text-white/40">
+                                    {appointment.vehicleModel || "Vehicule"}
+                                  </p>
+                                  {(appointment.adminNote || appointment.clientNote) && (
+                                    <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
+                                      {previewText(
+                                        appointment.adminNote || appointment.clientNote,
+                                        "",
+                                      )}
+                                    </p>
                                   )}
-                                </p>
+                                </div>
+                                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
                               </div>
                             </button>
                           );
@@ -2141,12 +2123,13 @@ export function AdminDashboardPage() {
             </section>
           </div>
 
+          {/* ── Panneau de traitement ── */}
           <aside className="order-1 xl:sticky xl:top-6 xl:order-none xl:self-start">
             <article className="bb-surface self-start p-6" ref={appointmentWorkspaceRef}>
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">Etape 2</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                     {selectedAppointment ? "Traiter ce rendez-vous" : "Traiter ce rendez-vous"}
                   </h2>
                 </div>
@@ -2163,30 +2146,34 @@ export function AdminDashboardPage() {
               </div>
 
               {!selectedAppointment || !selectedOnBoard ? (
-                <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-                  <p className="text-lg font-semibold text-white">Aucun rendez-vous selectionne</p>
-                  <p className="mt-2 text-sm leading-6 text-white/62">
-                    {boardTab === "agenda"
-                      ? "Choisissez une demande en attente a gauche."
-                      : "Choisissez un rendez-vous confirme a gauche pour le traiter."}
-                  </p>
+                <div className="mt-6 flex flex-col items-center gap-3 rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
+                  <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/35">
+                    <CalendarClock className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold text-white">Aucun rendez-vous selectionne</p>
+                    <p className="mt-1 text-sm leading-6 text-white/55">
+                      {boardTab === "agenda"
+                        ? "Choisissez une demande en attente a gauche."
+                        : "Choisissez un rendez-vous confirme a gauche pour le traiter."}
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <>
+                  {/* Resume + actions rapides */}
                   <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                          Resume
-                        </p>
-                        <h3 className="mt-2 text-2xl font-semibold text-white">
+                        <p className="bb-eyebrow">Resume</p>
+                        <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
                           {selectedAppointment.clientName || "Client"}
                         </h3>
-                        <p className="mt-2 text-sm text-white/58">
-                          {formatDateFR(selectedAppointment.date)} - {slotLabel(
+                        <p className="mt-2 text-sm text-white/55">
+                          {formatDateFR(selectedAppointment.date)} &middot; {slotLabel(
                             appointmentSlot(selectedAppointment),
                           )}{" "}
-                          {slotWindowLabel(appointmentSlot(selectedAppointment))} ·{" "}
+                          {slotWindowLabel(appointmentSlot(selectedAppointment))} &middot;{" "}
                           {formatTimeHHMM(selectedAppointment.time)}
                         </p>
                       </div>
@@ -2196,7 +2183,7 @@ export function AdminDashboardPage() {
                         </div>
                         <div
                           className={cn(
-                            "bb-pill border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                            "bb-pill",
                             locationClasses(selectedAppointment.location),
                           )}
                         >
@@ -2245,15 +2232,19 @@ export function AdminDashboardPage() {
                     )}
                   </div>
 
-                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
+                  {/* Demande client */}
+                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
-                          Demande client
-                        </p>
-                        <h3 className="mt-2 text-xl font-semibold text-white">
-                          A lire avant validation
-                        </h3>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                          <Inbox className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="bb-eyebrow">Demande client</p>
+                          <h3 className="bb-display mt-1 text-lg font-semibold text-white">
+                            A lire avant validation
+                          </h3>
+                        </div>
                       </div>
                       <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
                         {clientRequestPhotos.length} photo
@@ -2263,19 +2254,15 @@ export function AdminDashboardPage() {
 
                     <div className="mt-5 grid gap-3">
                       <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Commentaire client
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/70">
+                        <p className="bb-eyebrow mb-2">Commentaire client</p>
+                        <p className="text-sm leading-6 text-white/70">
                           {selectedAppointment.clientNote || "Aucun commentaire client."}
                         </p>
                       </div>
 
                       <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Photos envoyees a la demande
-                          </p>
+                          <p className="bb-eyebrow">Photos envoyees a la demande</p>
                           {photosLoading && (
                             <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
                           )}
@@ -2283,8 +2270,9 @@ export function AdminDashboardPage() {
 
                         <div className="mt-4 grid gap-3 sm:grid-cols-3">
                           {!photosLoading && clientRequestPhotos.length === 0 && (
-                            <div className="sm:col-span-3 rounded-[20px] border border-dashed border-white/10 bg-black/15 px-4 py-6 text-sm text-white/45">
-                              Aucune photo client jointe a cette demande.
+                            <div className="sm:col-span-3 flex flex-col items-center gap-2 rounded-[20px] border border-dashed border-white/10 bg-black/15 px-4 py-6 text-center">
+                              <Camera className="h-5 w-5 text-white/25" />
+                              <p className="text-sm text-white/40">Aucune photo client jointe a cette demande.</p>
                             </div>
                           )}
 
@@ -2321,13 +2309,11 @@ export function AdminDashboardPage() {
                   </div>
 
                   {selectedAppointment.status === "requested" && (
-                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
+                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
-                          Tarif a valider
-                        </p>
-                        <h3 className="mt-2 text-xl font-semibold text-white">
+                        <p className="bb-eyebrow">Tarif a valider</p>
+                        <h3 className="bb-display mt-2 text-xl font-semibold text-white">
                           {selectedAppointment.priceStatus === "waiting_photos"
                             ? "Photos demandees"
                             : selectedAppointment.priceStatus === "waiting_client_approval"
@@ -2468,18 +2454,20 @@ export function AdminDashboardPage() {
                   </div>
                   )}
 
+                  {/* Infos utiles */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Infos utiles
-                    </p>
-                    <div className="mt-4 grid gap-3">
-                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Vehicule
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-white">
-                          {selectedAppointment.vehicleModel || "Vehicule non renseigne"}
-                        </p>
+                    <p className="bb-eyebrow mb-4">Infos utiles</p>
+                    <div className="grid gap-3">
+                      <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-sky-300/25 bg-sky-300/10 text-sky-200">
+                          <CarFront className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">Vehicule</p>
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {selectedAppointment.vehicleModel || "Vehicule non renseigne"}
+                          </p>
+                        </div>
                       </div>
                       <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
@@ -2511,11 +2499,12 @@ export function AdminDashboardPage() {
 
                   {(selectedAppointment.status === "confirmed" || selectedAppointment.status === "done") && (
                   <>
+                  {/* Compte-rendu */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
+                    <p className="bb-eyebrow">
                       Compte-rendu (visible par le client)
                     </p>
-                    <p className="mt-3 text-sm leading-6 text-white/58">
+                    <p className="mt-3 text-sm leading-6 text-white/55">
                       Ce commentaire est affiche au client sur son rendez-vous (compte-rendu, conseils, particularites).
                     </p>
                     <textarea
@@ -2542,13 +2531,15 @@ export function AdminDashboardPage() {
                     </button>
                   </div>
 
+                  {/* Photos */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                          Photos
-                        </p>
-                        <p className="mt-2 text-sm text-white/58">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                        <Camera className="h-4 w-4" />
+                      </span>
+                      <div className="flex-1">
+                        <p className="bb-eyebrow">Photos</p>
+                        <p className="mt-0.5 text-sm text-white/55">
                           Ajoute tes visuels directement sur le dossier actif.
                         </p>
                       </div>
@@ -2760,30 +2751,40 @@ export function AdminDashboardPage() {
   function renderClientsPage() {
     return (
       <>
+        {/* ── Metriques rapides ── */}
         <section className="hidden gap-3 md:grid md:grid-cols-3">
-          <article className="bb-metric">
+          <article className="bb-metric bb-rise">
+            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+              <Users className="h-5 w-5" />
+            </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
               Fiches visibles
             </p>
-            <p className="mt-3 text-3xl font-semibold text-white">
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
               {filteredClients.length}
             </p>
             <p className="mt-2 text-sm text-white/55">Clients filtres</p>
           </article>
-          <article className="bb-metric">
+          <article className="bb-metric bb-rise bb-rise-2">
+            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-rose-300/25 bg-rose-300/10 text-rose-200">
+              <Sparkles className="h-5 w-5" />
+            </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
               En tension
             </p>
-            <p className="mt-3 text-3xl font-semibold text-white">
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
               {clientsLowOnCredits}
             </p>
             <p className="mt-2 text-sm text-white/55">Credits bas</p>
           </article>
-          <article className="bb-metric">
+          <article className="bb-metric bb-rise bb-rise-3">
+            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+              <Coins className="h-5 w-5" />
+            </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
               Credits cumules
             </p>
-            <p className="mt-3 text-3xl font-semibold text-white">
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
               {totalCreditsRemaining}
             </p>
             <p className="mt-2 text-sm text-white/55">Base client</p>
@@ -2791,11 +2792,12 @@ export function AdminDashboardPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+          {/* ── Liste clients ── */}
           <aside className="order-2 bb-surface p-5 xl:order-none">
             <div className="bb-section-head">
               <div>
                 <p className="bb-eyebrow">Clients</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
+                <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                   Bibliotheque rapide
                 </h2>
               </div>
@@ -2864,8 +2866,18 @@ export function AdminDashboardPage() {
                   Chargement des clients...
                 </div>
               ) : clientsError ? (
-                <div className="rounded-[24px] border border-rose-300/20 bg-rose-300/10 p-4 text-sm text-rose-100">
-                  {clientsError}
+                <div className="flex flex-col items-center gap-3 rounded-[24px] border border-rose-300/20 bg-rose-300/10 p-6 text-center">
+                  <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-rose-300/25 bg-rose-300/10 text-rose-200">
+                    <XCircle className="h-5 w-5" />
+                  </span>
+                  <p className="text-sm text-rose-100">{clientsError}</p>
+                </div>
+              ) : filteredClients.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-6 text-center">
+                  <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-white/12 bg-white/[0.04] text-white/35">
+                    <Users className="h-5 w-5" />
+                  </span>
+                  <p className="text-sm text-white/55">Aucun client correspond a cette recherche.</p>
                 </div>
               ) : (
                 filteredClients.map((client) => {
@@ -2874,45 +2886,76 @@ export function AdminDashboardPage() {
                     client.formulaTotal > 0
                       ? clampNumber(client.formulaRemaining / client.formulaTotal, 0, 1)
                       : 0;
+                  const initials = [client.firstName, client.lastName]
+                    .filter(Boolean)
+                    .map((n) => (n as string)[0])
+                    .join("")
+                    .toUpperCase() || "?";
+                  const creditsTint =
+                    creditsRatio > 0.5
+                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200"
+                      : creditsRatio > 0
+                        ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
+                        : "border-rose-300/25 bg-rose-300/10 text-rose-200";
 
                   return (
                     <button
                       className={cn(
-                        "w-full rounded-[26px] border p-4 text-left transition duration-200",
+                        "bb-hover-lift group w-full rounded-[26px] border p-4 text-left transition duration-200",
                         active
                           ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
-                          : "border-white/10 bg-white/[0.03] hover:-translate-y-1 hover:bg-white/[0.05]",
+                          : "border-white/10 bg-white/[0.03] hover:border-white/20",
                       )}
                       key={client.id}
                       onClick={() => focusClient(client)}
                       type="button"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-lg font-semibold text-white">
-                            {fullClientName(client)}
-                          </p>
-                          <p className="mt-1 text-sm text-white/55">
+                      <div className="flex items-start gap-3">
+                        {/* Avatar chip */}
+                        <span className={cn(
+                          "inline-grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-[13px] font-bold",
+                          active
+                            ? "border-[#f7b955]/35 bg-[#f7b955]/15 text-[#ffe8a8]"
+                            : "border-white/12 bg-white/[0.06] text-white/60",
+                        )}>
+                          {initials}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-base font-semibold text-white">
+                              {fullClientName(client)}
+                            </p>
+                            {client.isFounder && (
+                              <span className="bb-pill border-[#f7b955]/35 bg-[#f7b955]/10 text-[#ffe8a8]">
+                                <Crown className="h-3 w-3" />
+                              </span>
+                            )}
+                            <span className={cn("bb-pill", creditsTint)}>
+                              {client.formulaRemaining}/{client.formulaTotal}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-white/50">
                             {client.vehicleModel || "Vehicule non renseigne"}
                           </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className="bb-pill border-white/10 bg-white/[0.03] text-white/40">
+                              {client.clientType === "data" ? "Data" : client.cardCode || "BBX"}
+                            </span>
+                            {client.city && (
+                              <span className="bb-pill border-white/10 bg-white/[0.03] text-white/40">
+                                {client.city}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
-                          {client.formulaRemaining}/{client.formulaTotal}
-                        </div>
+                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
                       </div>
 
-                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-[#f7b955] to-[#ff7a18]"
                           style={{ width: `${creditsRatio * 100}%` }}
                         />
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2 text-xs uppercase tracking-[0.14em] text-white/45">
-                        <span>{client.slug}</span>
-                        <span>{client.clientType === "data" ? "Data" : client.cardCode || "BBX"}</span>
-                        {client.isFounder && <span>Fondateur</span>}
-                        {client.city && <span>{client.city}</span>}
                       </div>
                     </button>
                   );
@@ -2921,12 +2964,13 @@ export function AdminDashboardPage() {
             </div>
           </aside>
 
+          {/* ── Fiche client detaillee ── */}
           <section className="order-1 space-y-4 xl:order-none">
             <article className="bb-surface p-6">
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">Client actif</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                     {managedClient ? fullClientName(managedClient) : "Aucun client"}
                   </h2>
                 </div>
@@ -2957,9 +3001,23 @@ export function AdminDashboardPage() {
                 </div>
               ) : managedClient ? (
                 <>
+                  {/* Identite + credits */}
                   <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                    <div className="flex items-start gap-4">
+                      {/* Avatar large */}
+                      <div className={cn(
+                        "inline-grid h-14 w-14 shrink-0 place-items-center rounded-2xl border text-lg font-bold",
+                        managedClient.isFounder
+                          ? "border-[#f7b955]/35 bg-[#f7b955]/[0.12] text-[#ffe8a8]"
+                          : "border-white/12 bg-white/[0.06] text-white/60",
+                      )}>
+                        {([managedClient.firstName, managedClient.lastName]
+                          .filter(Boolean)
+                          .map((n) => (n as string)[0])
+                          .join("")
+                          .toUpperCase()) || "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap gap-2">
                           <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
                             {managedClient.clientType === "data"
@@ -2975,18 +3033,18 @@ export function AdminDashboardPage() {
                             </div>
                           )}
                         </div>
-                        <h3 className="mt-4 text-2xl font-semibold text-white">
+                        <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                           {fullClientName(managedClient)}
                         </h3>
-                        <p className="mt-2 text-sm text-white/58">
+                        <p className="mt-1 text-sm text-white/55">
                           {managedClient.vehicleModel || "Vehicule non renseigne"}
                         </p>
                       </div>
                       <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Credits / BC'Coins
+                          Credits / BC&apos;Coins
                         </p>
-                        <p className="mt-2 text-xl font-semibold text-white">
+                        <p className="mt-2 text-xl font-semibold tabular-nums text-white">
                           {managedClient.formulaRemaining}
                           <span className="ml-1 text-sm text-white/35">
                             / {managedClient.formulaTotal}
@@ -2996,10 +3054,27 @@ export function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 space-y-3 text-sm text-white/65">
-                      <p>{managedClient.phone || "Telephone non renseigne"}</p>
-                      <p>{managedClient.email || "Email non renseigne"}</p>
-                      <p>
+                    {/* Coordonnees */}
+                    <div className="mt-5 grid gap-2 rounded-[22px] border border-white/10 bg-black/15 p-4">
+                      {managedClient.phone && (
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-4 w-4 shrink-0 text-white/30" />
+                          <p className="text-sm text-white/65">{managedClient.phone}</p>
+                        </div>
+                      )}
+                      {!managedClient.phone && (
+                        <p className="text-sm text-white/35">Telephone non renseigne</p>
+                      )}
+                      {managedClient.email && (
+                        <div className="flex items-center gap-3">
+                          <Mail className="h-4 w-4 shrink-0 text-white/30" />
+                          <p className="text-sm text-white/65">{managedClient.email}</p>
+                        </div>
+                      )}
+                      {!managedClient.email && (
+                        <p className="text-sm text-white/35">Email non renseigne</p>
+                      )}
+                      <p className="text-sm text-white/45">
                         {[
                           managedClient.addressLine1,
                           managedClient.addressLine2,
@@ -3011,7 +3086,7 @@ export function AdminDashboardPage() {
                       </p>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap gap-3">
+                    <div className="mt-4 flex flex-wrap gap-3">
                       <button className="bb-button-ghost" onClick={openEditProfile} type="button">
                         <PencilLine className="mr-2 h-4 w-4" />
                         Modifier le profil
@@ -3060,13 +3135,12 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
+                  {/* Formule + Conditions */}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                            Formule & validite
-                          </p>
+                          <p className="bb-eyebrow">Formule & validite</p>
                           <p className="mt-2 text-lg font-semibold text-white">
                             {managedClient.formulaName || "Formule libre"}
                           </p>
@@ -3076,17 +3150,17 @@ export function AdminDashboardPage() {
                             "bb-pill",
                             managedClientFormulaExpired
                               ? "border-rose-400/35 bg-rose-300/10 text-rose-100"
-                              : "border-white/12 bg-white/[0.04] text-white/75",
+                              : "border-emerald-400/35 bg-emerald-300/10 text-emerald-100",
                           )}
                         >
                           {managedClientFormulaExpired ? "Expiree" : "Active"}
                         </div>
                       </div>
 
-                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
                           <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Date d'achat
+                            Date d&apos;achat
                           </p>
                           <p className="mt-2 text-sm font-semibold text-white">
                             {formatUnixDateFR(managedClient.formulaPurchasedAt)}
@@ -3094,7 +3168,7 @@ export function AdminDashboardPage() {
                         </div>
                         <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
                           <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Date d'expiration
+                            Date d&apos;expiration
                           </p>
                           <p className="mt-2 text-sm font-semibold text-white">
                             {formatUnixDateFR(managedClient.formulaExpiresAt)}
@@ -3102,7 +3176,7 @@ export function AdminDashboardPage() {
                         </div>
                       </div>
 
-                      <p className="mt-4 text-sm leading-6 text-white/62">
+                      <p className="mt-3 text-sm leading-6 text-white/55">
                         Credits disponibles: {managedClient.formulaRemaining} / {managedClient.formulaTotal}
                       </p>
                     </div>
@@ -3110,9 +3184,7 @@ export function AdminDashboardPage() {
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                            Conditions & recap
-                          </p>
+                          <p className="bb-eyebrow">Conditions & recap</p>
                           <p className="mt-2 text-lg font-semibold text-white">
                             {managedClientTermsAccepted
                               ? "Conditions acceptees"
@@ -3131,7 +3203,7 @@ export function AdminDashboardPage() {
                         </div>
                       </div>
 
-                      <div className="mt-5 space-y-3 text-sm text-white/62">
+                      <div className="mt-4 space-y-3 text-sm text-white/55">
                         <p>
                           Conditions acceptees le: {formatUnixDateTimeFR(managedClient.termsAcceptedAt)}
                         </p>
@@ -3147,12 +3219,11 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
+                  {/* Qualite vehicule + BC'Coins */}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Qualite vehicule moyenne
-                      </p>
-                      <div className="mt-3 flex items-center gap-3">
+                      <p className="bb-eyebrow mb-3">Qualite vehicule moyenne</p>
+                      <div className="flex items-center gap-3">
                         <div
                           className={cn(
                             "bb-pill",
@@ -3167,7 +3238,7 @@ export function AdminDashboardPage() {
                                 cleanlinessAverageRating(selectedClient.cleanliness.averageScore),
                               )}
                         </div>
-                        <p className="text-sm text-white/62">
+                        <p className="text-sm text-white/55">
                           {selectedClient?.cleanliness.averageScore == null
                             ? `${selectedClient?.cleanliness.total || 0} rendez-vous notes`
                             : `Moyenne ${selectedClient.cleanliness.averageScore}/3 sur ${selectedClient.cleanliness.total} rendez-vous`}
@@ -3178,10 +3249,8 @@ export function AdminDashboardPage() {
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                            BC&apos;Coins
-                          </p>
-                          <p className="mt-2 text-lg font-semibold text-white">
+                          <p className="bb-eyebrow">BC&apos;Coins</p>
+                          <p className="mt-2 text-base font-semibold text-white">
                             Ajuster le solde ou suivre les demandes
                           </p>
                         </div>
@@ -3190,7 +3259,7 @@ export function AdminDashboardPage() {
                         </div>
                       </div>
 
-                      <div className="mt-5 space-y-3">
+                      <div className="mt-4 space-y-3">
                         <label className="space-y-2">
                           <span className="text-xs uppercase tracking-[0.16em] text-white/35">
                             Ajustement manuel
@@ -3237,19 +3306,17 @@ export function AdminDashboardPage() {
                         </button>
                       </div>
 
-                      <div className="mt-6 border-t border-white/10 pt-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Dernieres demandes BC&apos;Coins
-                        </p>
-                        <div className="mt-3 space-y-2">
+                      <div className="mt-5 border-t border-white/10 pt-4">
+                        <p className="bb-eyebrow mb-3">Dernieres demandes BC&apos;Coins</p>
+                        <div className="space-y-2">
                           {selectedClient?.rewardRedemptions.length ? (
                             selectedClient.rewardRedemptions.slice(0, 3).map((redemption) => (
-                              <div className="flex items-center justify-between gap-3" key={redemption.id}>
+                              <div className="flex items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-black/20 px-3 py-2.5" key={redemption.id}>
                                 <div>
                                   <p className="text-sm font-semibold text-white">
                                     {redemption.rewardLabel}
                                   </p>
-                                  <p className="text-xs text-white/45">
+                                  <p className="text-xs text-white/40">
                                     {formatUnixDateTimeFR(redemption.createdAt)}
                                   </p>
                                 </div>
@@ -3259,73 +3326,94 @@ export function AdminDashboardPage() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-sm text-white/58">Aucune demande enregistree.</p>
+                            <p className="text-sm text-white/50">Aucune demande enregistree.</p>
                           )}
                         </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* Historique rendez-vous */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Historique rapide du client
-                    </p>
-                    <div className="mt-4 space-y-3">
+                    <p className="bb-eyebrow mb-4">Historique rapide du client</p>
+                    <div className="space-y-3">
                       {selectedClientAppointments.length === 0 ? (
-                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                          <p className="text-sm text-white/60">
+                        <div className="flex flex-col items-center gap-3 rounded-[22px] border border-white/10 bg-black/20 p-6 text-center">
+                          <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-white/12 bg-white/[0.04] text-white/30">
+                            <CalendarClock className="h-5 w-5" />
+                          </span>
+                          <p className="text-sm text-white/50">
                             Aucun rendez-vous encore rattache a ce client.
                           </p>
                         </div>
                       ) : (
-                        selectedClientAppointments.map((appointment) => (
-                          <Link
-                            className="block w-full rounded-[22px] border border-white/10 bg-black/20 p-4 text-left transition duration-200 hover:bg-white/[0.05]"
-                            key={appointment.id}
-                            to={appointmentAdminLink(appointment)}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-white">
-                                  {formatDateFR(appointment.date)} - {slotLabel(
-                                    appointmentSlot(appointment),
-                                  )} · {formatTimeHHMM(appointment.time)}
-                                </p>
-                                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/45">
-                                  {appointmentPrimaryAction(appointment.status)}
-                                </p>
+                        selectedClientAppointments.map((appointment) => {
+                          const statusTints: Record<string, string> = {
+                            requested: "border-amber-300/25 bg-amber-300/10 text-amber-200",
+                            confirmed: "border-sky-300/25 bg-sky-300/10 text-sky-200",
+                            done: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
+                            cancelled: "border-rose-300/25 bg-rose-300/10 text-rose-200",
+                          };
+                          const iconTint = statusTints[appointment.status] ?? "border-white/12 bg-white/[0.04] text-white/40";
+                          return (
+                            <Link
+                              className="bb-hover-lift group block w-full rounded-[22px] border border-white/10 bg-black/20 p-4 text-left transition duration-200 hover:border-white/20"
+                              key={appointment.id}
+                              to={appointmentAdminLink(appointment)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className={cn("inline-grid h-8 w-8 shrink-0 place-items-center rounded-xl border", iconTint)}>
+                                  <CalendarClock className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-white">
+                                    {formatDateFR(appointment.date)} &middot; {slotLabel(
+                                      appointmentSlot(appointment),
+                                    )} &middot; {formatTimeHHMM(appointment.time)}
+                                  </p>
+                                  <p className="mt-0.5 text-xs uppercase tracking-[0.14em] text-white/40">
+                                    {appointmentPrimaryAction(appointment.status)}
+                                  </p>
+                                </div>
+                                <div
+                                  className={cn(
+                                    "bb-pill shrink-0",
+                                    appointmentStatusClasses(appointment.status),
+                                  )}
+                                >
+                                  {appointmentStatusLabel(appointment.status)}
+                                </div>
+                                <ArrowRight className="h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
                               </div>
-                              <div
-                                className={cn(
-                                  "bb-pill",
-                                  appointmentStatusClasses(appointment.status),
-                                )}
-                              >
-                                {appointmentStatusLabel(appointment.status)}
-                              </div>
-                            </div>
-                          </Link>
-                        ))
+                            </Link>
+                          );
+                        })
                       )}
                     </div>
                   </div>
 
+                  {/* Notes internes */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Notes internes
-                    </p>
-                    <p className="mt-3 text-sm leading-6 text-white/62">
-                      {managedClient.notes || "Aucune note interne pour ce client."}
-                    </p>
-                    <div className="mt-5 flex items-center gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
-                        <CarFront className="h-5 w-5" />
+                    <div className="flex items-start gap-3">
+                      <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                        <PencilLine className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="bb-eyebrow">Notes internes</p>
+                        <p className="mt-2 text-sm leading-6 text-white/55">
+                          {managedClient.notes || "Aucune note interne pour ce client."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center gap-3 rounded-[22px] border border-white/10 bg-black/20 p-3">
+                      <div className="rounded-xl border border-sky-300/25 bg-sky-300/10 p-2 text-sky-200">
+                        <CarFront className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-white">
                           {managedClient.formulaName || "Formule libre"}
                         </p>
-                        <p className="mt-1 text-sm text-white/55">
+                        <p className="mt-0.5 text-sm text-white/45">
                           {managedClient.city || "Ville non renseignee"}
                         </p>
                       </div>
@@ -3333,10 +3421,16 @@ export function AdminDashboardPage() {
                   </div>
                 </>
               ) : (
-                <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-                  <p className="text-sm leading-6 text-white/62">
-                    Choisissez un client dans la liste pour ouvrir sa fiche detaillee.
-                  </p>
+                <div className="mt-6 flex flex-col items-center gap-3 rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
+                  <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/30">
+                    <Users className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold text-white">Aucun client selectionne</p>
+                    <p className="mt-1 text-sm leading-6 text-white/50">
+                      Choisissez un client dans la liste pour ouvrir sa fiche detaillee.
+                    </p>
+                  </div>
                 </div>
               )}
             </article>
@@ -3525,14 +3619,14 @@ export function AdminDashboardPage() {
       </nav>
 
       {profileModalOpen && profileDraft && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
-          <div className="bb-surface-strong w-full max-w-3xl p-6">
+        <div className="bb-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
+          <div className="bb-modal-panel bb-surface-strong w-full max-w-3xl p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">
                   {profileMode === "new" ? "Creation client" : "Edition client"}
                 </p>
-                <h3 className="mt-3 text-2xl font-semibold text-white">
+                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   {profileMode === "new"
                     ? "Nouveau client Bryan Cars"
                     : "Mettre a jour la fiche"}
@@ -3884,12 +3978,12 @@ export function AdminDashboardPage() {
       )}
 
       {formulaEditOpen && selectedClientData && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
-          <div className="bb-surface-strong w-full max-w-lg p-6">
+        <div className="bb-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
+          <div className="bb-modal-panel bb-surface-strong w-full max-w-lg p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">Formule sur mesure</p>
-                <h3 className="mt-3 text-2xl font-semibold text-white">
+                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   Ajuster {fullClientName(selectedClientData)}
                 </h3>
               </div>

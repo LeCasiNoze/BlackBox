@@ -1,10 +1,16 @@
 import * as React from "react";
 import {
   ArrowRight,
+  CalendarCheck,
+  Camera,
   CheckCircle2,
+  CreditCard,
   Loader2,
+  MessageCircle,
   ShieldCheck,
+  Smartphone,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -103,29 +109,62 @@ export function LandingPage() {
       <main className="bb-content space-y-6 md:space-y-8">
         <section className="bb-surface-strong relative overflow-hidden p-6 md:p-8 xl:p-10">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(247,185,85,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(44,162,255,0.12),transparent_28%)]" />
-          <div className="relative z-10 grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="bb-pill border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+          <div className="relative z-10 grid gap-10 xl:grid-cols-[1fr_1.05fr] xl:items-center">
+            <div className="space-y-7">
+              <div className="bb-rise flex flex-wrap items-center gap-2.5">
+                <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
                   <Sparkles className="h-3.5 w-3.5" />
                   Bryan Cars Detailing
                 </div>
+                <div className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
+                  <Star className="h-3.5 w-3.5 fill-[#f7b955] text-[#f7b955]" />
+                  4,9 / 5 sur Google
+                </div>
               </div>
 
-              <div>
-                <h1 className="bb-title max-w-4xl">
-                  Creez votre espace client Bryan Cars en quelques instants.
+              <div className="bb-rise bb-rise-2">
+                <h1 className="bb-title-xl max-w-3xl">
+                  Votre voiture,
+                  <br />
+                  <span className="bb-text-gold">sublimee</span> et suivie.
                 </h1>
-                <p className="bb-subtitle mt-4 max-w-2xl text-base">
-                  Trois etapes simples pour acceder a votre agenda, vos credits et votre suivi.
+                <p className="bb-subtitle mt-5 max-w-xl text-base md:text-lg">
+                  Creez votre espace client en deux minutes : agenda, credits prepayes,
+                  historique et suivi photo de chaque prestation.
                 </p>
               </div>
+
+              <ul className="bb-rise bb-rise-3 grid gap-3 sm:grid-cols-2">
+                {[
+                  [CalendarCheck, "Reservation en ligne", "Choisissez votre creneau."],
+                  [CreditCard, "Credits prepayes", "Payez une fois, profitez."],
+                  [Camera, "Suivi photo", "Avant / apres de chaque soin."],
+                  [ShieldCheck, "Espace securise", "Acces par code email."],
+                ].map(([Icon, label, copy]) => {
+                  const FeatureIcon = Icon as typeof CalendarCheck;
+                  return (
+                    <li className="bb-hairline bb-hover-lift flex items-start gap-3 p-3.5" key={label as string}>
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f7b955]/12 text-[#f7b955]">
+                        <FeatureIcon className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-semibold text-white">{label as string}</span>
+                        <span className="block text-xs leading-5 text-white/55">{copy as string}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
 
-            <article className="bb-surface relative p-5 md:p-6">
-              <div className="mb-5 flex items-start justify-between gap-4">
+            <article className="bb-surface bb-rise bb-rise-2 relative overflow-hidden p-5 md:p-6">
+              <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[#f7b955]/10 blur-3xl" />
+              <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold text-white">
+                  <p className="bb-eyebrow">
+                    {step === "ready" ? "Bienvenue" : step === "code" ? "Verification" : "Inscription"}
+                  </p>
+                  <h2 className="bb-display mt-2 text-2xl font-bold text-white">
                     {step === "ready"
                       ? "Votre compte est pret"
                       : step === "code"
@@ -133,7 +172,7 @@ export function LandingPage() {
                         : "Vos informations"}
                   </h2>
                 </div>
-                <img alt="" className="h-14 w-14 rounded-2xl object-cover" src="/app-icon-192.png" />
+                <img alt="" className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/10" src="/app-icon-192.png" />
               </div>
 
               {error && (
@@ -222,21 +261,31 @@ export function LandingPage() {
 
         <section className="grid gap-4 md:grid-cols-3">
           {[
-            ["Avis Google", "4,9 / 5", "Consultez les avis clients publics.", GOOGLE_MAPS_URL],
-            ["Contact rapide", "WhatsApp", "Envoyez une question ou une photo.", WHATSAPP_URL],
-            ["Application", "iPhone & Android", "Ajoutez l'espace a votre ecran d'accueil.", ""],
-          ].map(([label, value, copy, href]) => (
-            <article className="bb-surface p-5" key={label}>
-              <p className="text-xs uppercase tracking-[0.16em] text-white/40">{label}</p>
-              <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
-              <p className="mt-2 text-sm leading-6 text-white/60">{copy}</p>
-              {href && (
-                <a className="bb-button-ghost mt-5" href={href} rel="noreferrer" target="_blank">
-                  Ouvrir
-                </a>
-              )}
-            </article>
-          ))}
+            [Star, "Avis Google", "4,9 / 5", "Consultez les avis clients publics.", GOOGLE_MAPS_URL],
+            [MessageCircle, "Contact rapide", "WhatsApp", "Envoyez une question ou une photo.", WHATSAPP_URL],
+            [Smartphone, "Application", "iPhone & Android", "Ajoutez l'espace a votre ecran d'accueil.", ""],
+          ].map(([Icon, label, value, copy, href], index) => {
+            const CardIcon = Icon as typeof Star;
+            return (
+              <article
+                className={`bb-surface bb-hover-lift bb-rise relative overflow-hidden p-5 bb-rise-${index + 2}`}
+                key={label as string}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#f7b955]/12 text-[#f7b955]">
+                  <CardIcon className="h-5 w-5" />
+                </span>
+                <p className="mt-4 text-xs uppercase tracking-[0.16em] text-white/40">{label as string}</p>
+                <p className="mt-1.5 text-2xl font-semibold text-white">{value as string}</p>
+                <p className="mt-2 text-sm leading-6 text-white/60">{copy as string}</p>
+                {(href as string) && (
+                  <a className="bb-button-ghost mt-5" href={href as string} rel="noreferrer" target="_blank">
+                    Ouvrir
+                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </a>
+                )}
+              </article>
+            );
+          })}
         </section>
       </main>
     </div>

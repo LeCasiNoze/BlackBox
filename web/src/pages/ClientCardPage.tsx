@@ -515,7 +515,7 @@ function CaseOpeningModal({
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="bb-eyebrow">BC&apos;Coins</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">
+            <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
               Ouverture de case &middot; {caseItem.credits} credit{caseItem.credits > 1 ? "s" : ""}
             </h3>
           </div>
@@ -2382,7 +2382,7 @@ export function ClientCardPage() {
         <div className="bb-content max-w-3xl">
           <div className="bb-surface-strong p-8 text-center">
             <p className="bb-eyebrow">Carte introuvable</p>
-            <h1 className="mt-4 text-3xl font-semibold text-white">
+            <h1 className="bb-display mt-4 text-3xl font-semibold text-white">
               Impossible d&apos;ouvrir cet espace.
             </h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/65">
@@ -2593,11 +2593,10 @@ export function ClientCardPage() {
   function renderProHomeView() {
     return (
       <section className="space-y-4">
-        <article className="bb-rise bb-surface-strong relative overflow-hidden p-5 md:p-7">
-          {/* Orbes de fond — palette steel/blue */}
-          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-cyan-400/12 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-[-3rem] left-1/3 h-48 w-48 rounded-full bg-sky-500/10 blur-3xl" />
+        <article className="bb-rise bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+          <div className="bb-pro-orb bb-pro-orb-steel" />
+          <div className="bb-pro-orb bb-pro-orb-indigo" />
+          <div className="bb-pro-orb bb-pro-orb-cyan" />
 
           <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
             <div className="space-y-5">
@@ -2609,11 +2608,11 @@ export function ClientCardPage() {
               </div>
 
               <div className="max-w-3xl">
-                <p className="bb-eyebrow">Bryan Cars pro portal</p>
-                <h1 className="bb-title mt-3">
-                  Bonjour {clientData.firstName || clientData.fullName || "client"},
+                <p className="bb-eyebrow-steel">Bryan Cars pro portal</p>
+                <h1 className="bb-title-xl mt-3">
+                  Bonjour <span className="bb-text-steel">{clientData.firstName || clientData.fullName || "client"}</span>,
                 </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68 md:text-base">
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-white/68 md:text-base">
                   Compte pro : vos rendez-vous sont directs, sans consommation de credits.
                 </p>
               </div>
@@ -2634,9 +2633,8 @@ export function ClientCardPage() {
 
               <div className="flex flex-wrap gap-3">
                 <button
-                  className="bb-button-brand"
+                  className="bb-button-steel"
                   onClick={() => navigateView("booking")}
-                  style={{ background: "linear-gradient(135deg,#38bdf8,#06b6d4)" }}
                   type="button"
                 >
                   <CalendarClock className="mr-2 h-4 w-4" />
@@ -2712,11 +2710,11 @@ export function ClientCardPage() {
 
                 <div className="max-w-3xl">
                   <p className="bb-eyebrow">Bryan Cars founder portal</p>
-                  <h1 className="bb-title mt-3">
-                    Bonjour {clientData.firstName || clientData.fullName || "fondateur"},
+                  <h1 className="bb-title-xl mt-3">
+                    Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "fondateur"}</span>,
                   </h1>
                   <button
-                    className="bb-button-brand mt-4"
+                    className="bb-button-brand mt-5"
                     onClick={() => navigateView("booking")}
                     type="button"
                   >
@@ -2784,7 +2782,7 @@ export function ClientCardPage() {
               const Icon = card.icon;
               return (
                 <button
-                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
+                  className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
                   key={card.view}
                   onClick={() => navigateView(card.view)}
                   type="button"
@@ -2822,8 +2820,8 @@ export function ClientCardPage() {
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="max-w-2xl">
                 <p className="bb-eyebrow">Bryan Cars client portal</p>
-                <h1 className="bb-title mt-3">
-                  Bonjour {clientData.firstName || clientData.fullName || "client"},
+                <h1 className="bb-title-xl mt-3">
+                  Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
                 </h1>
                 {upcomingAppointment && (
                   <p className="mt-3 text-sm text-white/62">
@@ -2943,7 +2941,7 @@ export function ClientCardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="bb-eyebrow">Agenda</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">{weekRangeLabel(weekDays)}</h2>
+              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">{weekRangeLabel(weekDays)}</h2>
             </div>
 
             <div className="flex items-center gap-2">
@@ -2992,7 +2990,7 @@ export function ClientCardPage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-white/42">
                       {weekdayShort(focusedDay.date)}
                     </p>
-                    <h3 className="mt-2 text-2xl font-semibold text-white">
+                    <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
                       {formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}
                     </h3>
                   </div>
@@ -3078,7 +3076,7 @@ export function ClientCardPage() {
                         <p className="text-xs uppercase tracking-[0.16em] text-white/45">
                           {weekdayShort(day.date)}
                         </p>
-                        <h3 className="mt-2 text-2xl font-semibold text-white">{day.day}</h3>
+                        <h3 className="bb-display mt-2 text-2xl font-semibold text-white">{day.day}</h3>
                         <p className="mt-1 text-xs text-white/45">
                           {formatDateFR(day.date, { day: "numeric", month: "short" })}
                         </p>
@@ -3132,7 +3130,7 @@ export function ClientCardPage() {
           <div className="bb-section-head">
             <div>
               <p className="bb-eyebrow">Vehicules</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">Votre garage Bryan Cars</h1>
+              <h1 className="bb-display mt-2 text-2xl font-semibold text-white">Votre garage Bryan Cars</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
                 Ajoutez, modifiez ou retrouvez un vehicule en quelques secondes.
               </p>
@@ -3245,7 +3243,7 @@ export function ClientCardPage() {
           <div className="bb-section-head">
             <div>
               <p className="bb-eyebrow">Vehicule actif</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">
+              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                 {activeVehicle ? vehicleTitle(activeVehicle) : "Aucun vehicule selectionne"}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
@@ -3304,7 +3302,7 @@ export function ClientCardPage() {
           <div className="bb-section-head">
             <div>
               <p className="bb-eyebrow">{clientData.isFounder ? "BC'Coins" : "Credits"}</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">
+              <h1 className="bb-display mt-2 text-2xl font-semibold text-white">
                 {clientData.isFounder ? "Boutique fondateur" : "Recharger des credits"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
@@ -3446,7 +3444,7 @@ export function ClientCardPage() {
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">BC&apos;Coins</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Boutique fidelite</h2>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Boutique fidelite</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                   <Gift className="h-3.5 w-3.5 text-[#f7b955]" />
@@ -3551,7 +3549,7 @@ export function ClientCardPage() {
           <div className="bb-section-head">
             <div>
               <p className="bb-eyebrow">Historique boutique</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Dernieres demandes</h2>
+              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Dernieres demandes</h2>
             </div>
             <button className="bb-button-ghost" onClick={() => setContactModalOpen(true)} type="button">
               Besoin d&apos;aide
@@ -3594,7 +3592,7 @@ export function ClientCardPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="bb-eyebrow">Historique et suivi</p>
-              <h1 className="mt-2 text-3xl font-semibold text-white">
+              <h1 className="bb-display mt-2 text-3xl font-semibold text-white">
                 Vos fiches et les retours visibles
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
@@ -3634,7 +3632,7 @@ export function ClientCardPage() {
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">A venir</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Rendez-vous deja pris</h2>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Rendez-vous deja pris</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                   {upcomingAppointments.length} fiche{upcomingAppointments.length > 1 ? "s" : ""}
@@ -3659,7 +3657,7 @@ export function ClientCardPage() {
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">Archives</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Historique detaille</h2>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Historique detaille</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                   {archivedAppointments.length} fiche{archivedAppointments.length > 1 ? "s" : ""}
@@ -3686,7 +3684,7 @@ export function ClientCardPage() {
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">Galerie publique</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Photos et avis partages</h2>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Photos et avis partages</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                   {communityItems.length} retour{communityItems.length > 1 ? "s" : ""}
@@ -3787,7 +3785,7 @@ export function ClientCardPage() {
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">Google reviews</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">Donner une note publique</h2>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Donner une note publique</h2>
                 </div>
                 <a
                   className="bb-button-brand"
@@ -3877,11 +3875,11 @@ export function ClientCardPage() {
 
       {selectedDay && currentDaySlot && (
         <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-black/75 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/75 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={closeDayModal}
         >
           <div
-            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-lg overflow-y-auto p-6 overscroll-contain"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-lg overflow-y-auto p-6 overscroll-contain bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -3893,7 +3891,7 @@ export function ClientCardPage() {
                       ? "Gestion du rendez-vous"
                       : "Archive"}
                 </p>
-                <h3 className="mt-3 text-2xl font-semibold text-white">
+                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   {formatDateFR(selectedDay.date)}
                 </h3>
                 <p className="mt-2 text-sm text-white/60">
@@ -4382,11 +4380,11 @@ export function ClientCardPage() {
 
       {selectedAppointment && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={closeAppointmentModal}
         >
           <div
-            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-4xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-4xl overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -4408,7 +4406,7 @@ export function ClientCardPage() {
                   </div>
                 </div>
 
-                <h3 className="mt-4 text-3xl font-semibold text-white">
+                <h3 className="bb-display mt-4 text-3xl font-semibold text-white">
                   {formatDateFR(selectedAppointment.date)}
                 </h3>
                 <p className="mt-2 text-sm text-white/60">
@@ -4720,11 +4718,11 @@ export function ClientCardPage() {
 
       {vehicleModalOpen && (
         <div
-          className="fixed inset-0 z-[54] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          className="fixed inset-0 z-[54] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={closeVehicleModal}
         >
           <div
-            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-2xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-2xl overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -4732,7 +4730,7 @@ export function ClientCardPage() {
                 <p className="bb-eyebrow">
                   {vehicleModalMode === "create" ? "Nouveau vehicule" : "Modifier vehicule"}
                 </p>
-                <h3 className="mt-3 text-2xl font-semibold text-white">
+                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   {vehicleModalMode === "create"
                     ? "Ajouter un vehicule a votre compte"
                     : "Mettre a jour ce vehicule"}
@@ -4799,11 +4797,11 @@ export function ClientCardPage() {
 
       {termsModalOpen && (
         <div
-          className="fixed inset-0 z-[55] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          className="fixed inset-0 z-[55] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={closeTermsModal}
         >
           <div
-            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-4xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-4xl overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
@@ -4819,7 +4817,7 @@ export function ClientCardPage() {
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {termsAccepted ? "Conditions acceptees" : "Acceptation requise"}
                 </div>
-                <h3 className="mt-4 text-3xl font-semibold text-white">Conditions & reglement</h3>
+                <h3 className="bb-display mt-4 text-3xl font-semibold text-white">Conditions & reglement</h3>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
                   Version du {TERMS_UPDATED_LABEL}. Le reglement n'est plus bloque sur la page
                   d'accueil: il apparait ici uniquement quand c'est utile.
@@ -4928,17 +4926,17 @@ export function ClientCardPage() {
 
       {contactModalOpen && (
         <div
-          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={() => setContactModalOpen(false)}
         >
           <div
-            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">Contact</p>
-                <h3 className="mt-3 text-2xl font-semibold text-white">Joindre Bryan Cars rapidement</h3>
+                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">Joindre Bryan Cars rapidement</h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Le contact et les acces utiles sont regroupes ici pour ne plus surcharger la carte client.
                 </p>
@@ -4984,17 +4982,17 @@ export function ClientCardPage() {
 
       {founderModalOpen && (
         <div
-          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={() => setFounderModalOpen(false)}
         >
           <div
-            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">Programme fondateur</p>
-                <h3 className="mt-3 text-2xl font-semibold text-white">
+                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   Devenir fondateur Bryan Cars
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
