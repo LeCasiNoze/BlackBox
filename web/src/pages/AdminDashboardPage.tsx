@@ -58,7 +58,7 @@ type AdminClient = {
   email: string | null;
   phone: string | null;
   company: string | null;
-  clientType: "bbx" | "data";
+  clientType: "bbx" | "data" | "pro";
   isFounder: boolean;
   founderMediaUrl: string | null;
   addressLine1: string | null;
@@ -94,6 +94,21 @@ type AdminAppointment = {
   userRating: number | null;
   userReview: string | null;
   cleanlinessRating: CleanlinessRating | null;
+  clientCleanlinessEstimate: ServiceLevel | null;
+  adminCleanlinessEstimate: ServiceLevel | null;
+  requestedCredits: number;
+  approvedCredits: number | null;
+  creditsCharged: number;
+  priceStatus:
+    | "pending_admin"
+    | "waiting_photos"
+    | "waiting_client_approval"
+    | "waiting_payment"
+    | "approved"
+    | "not_required"
+    | "declined";
+  photosRequestedAt: number | null;
+  photosRequestMessage: string | null;
   bcPointsAwarded: boolean;
   createdAt: number;
   updatedAt: number;
@@ -112,6 +127,7 @@ type CleanlinessRating =
   | "reset_recommended";
 
 type CanonicalCleanlinessRating = "very_clean" | "correct" | "dirty";
+type ServiceLevel = "clean" | "correct" | "dirty";
 
 type AdminAppointmentPhoto = {
   id: number;
@@ -183,7 +199,7 @@ type ProfileDraft = {
   company: string;
   email: string;
   phone: string;
-  clientType: "bbx" | "data";
+  clientType: "bbx" | "data" | "pro";
   isFounder: boolean;
   sendWelcomeEmail: boolean;
   addressLine1: string;
@@ -562,7 +578,7 @@ export function AdminDashboardPage() {
   const [busyPoints, setBusyPoints] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [refreshToken, setRefreshToken] = React.useState(0);
-  const [clientTypeFilter, setClientTypeFilter] = React.useState<"bbx" | "data" | "all">("bbx");
+  const [clientTypeFilter, setClientTypeFilter] = React.useState<"bbx" | "data" | "pro" | "all">("bbx");
   const [exportingData, setExportingData] = React.useState(false);
   const [pointsDeltaDraft, setPointsDeltaDraft] = React.useState("100");
 
@@ -582,6 +598,8 @@ export function AdminDashboardPage() {
   const [cleanlinessDrafts, setCleanlinessDrafts] = React.useState<
     Record<number, CleanlinessRating | null>
   >({});
+  const [customCreditDrafts, setCustomCreditDrafts] = React.useState<Record<number, string>>({});
+  const [photoRequestDrafts, setPhotoRequestDrafts] = React.useState<Record<number, string>>({});
 
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [photoFormCaption, setPhotoFormCaption] = React.useState("");
@@ -992,7 +1010,18 @@ export function AdminDashboardPage() {
       const response = await fetch(`/api/admin/appointments/${appointmentId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          customCredits:
+            customCreditDrafts[appointmentId] && Number(customCreditDrafts[appointmentId]) > 0
+              ? Number(customCreditDrafts[appointmentId])
+              : undefined,
+          adminCleanlinessEstimate: cleanlinessDrafts[appointmentId] === "dirty"
+            ? "dirty"
+            : cleanlinessDrafts[appointmentId] === "correct"
+              ? "correct"
+              : "clean",
+        }),
       });
 
       const json = await response.json();
@@ -1014,6 +1043,32 @@ export function AdminDashboardPage() {
       setSelectedClient(previousSelectedClient);
       showToast("Erreur reseau pendant la mise a jour.");
       setRefreshToken((value) => value + 1);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function requestClientPhotos(appointmentId: number) {
+    setBusyAction(true);
+    try {
+      const response = await fetch(`/api/admin/appointments/${appointmentId}/request-photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: photoRequestDrafts[appointmentId] || "Merci d'ajouter quelques photos du vehicule.",
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok || !json.appointment) {
+        showToast("Impossible de demander les photos.");
+        return;
+      }
+
+      applyAppointmentUpdate(json.appointment as AdminAppointment);
+      showToast("Demande de photos envoyee au client.");
+      setRefreshToken((value) => value + 1);
+    } catch (error) {
+      showToast("Erreur reseau pendant la demande de photos.");
     } finally {
       setBusyAction(false);
     }
@@ -2100,6 +2155,130 @@ export function AdminDashboardPage() {
                     )}
                   </div>
 
+                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
+                          Tarif a valider
+                        </p>
+                        <h3 className="mt-2 text-xl font-semibold text-white">
+                          {selectedAppointment.priceStatus === "waiting_photos"
+                            ? "Photos demandees"
+                            : selectedAppointment.priceStatus === "waiting_client_approval"
+                              ? "En attente accord client"
+                              : selectedAppointment.priceStatus === "waiting_payment"
+                                ? "Le client doit recharger"
+                                : selectedAppointment.priceStatus === "approved"
+                                  ? "Tarif valide et credits consommes"
+                                  : "Controle admin requis"}
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-white/62">
+                          Estimation client: {selectedAppointment.requestedCredits || 1} credit
+                          {(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}.
+                          {selectedAppointment.approvedCredits
+                            ? ` Tarif admin: ${selectedAppointment.approvedCredits} credit${
+                                selectedAppointment.approvedCredits > 1 ? "s" : ""
+                              }.`
+                            : " Vous pouvez confirmer, modifier ou demander des photos."}
+                        </p>
+                      </div>
+                      <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                        {selectedAppointment.creditsCharged || 0} credit
+                        {(selectedAppointment.creditsCharged || 0) > 1 ? "s" : ""} consomme
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-3">
+                      {[
+                        { value: "very_clean" as const, label: "Propre", credits: 1 },
+                        { value: "correct" as const, label: "Correct", credits: 2 },
+                        { value: "dirty" as const, label: "Sale", credits: 3 },
+                      ].map((option) => (
+                        <button
+                          className={cn(
+                            "rounded-[22px] border p-4 text-left transition duration-200",
+                            cleanlinessDrafts[selectedAppointment.id] === option.value
+                              ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                              : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
+                          )}
+                          key={option.value}
+                          onClick={() =>
+                            setCleanlinessDrafts((current) => ({
+                              ...current,
+                              [selectedAppointment.id]: option.value,
+                            }))
+                          }
+                          type="button"
+                        >
+                          <p className="text-base font-semibold text-white">{option.label}</p>
+                          <p className="mt-2 text-sm text-white/58">
+                            {option.credits} credit{option.credits > 1 ? "s" : ""}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr]">
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                          Prix personnalise
+                        </span>
+                        <input
+                          className="bb-input"
+                          min={1}
+                          onChange={(event) =>
+                            setCustomCreditDrafts((current) => ({
+                              ...current,
+                              [selectedAppointment.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Ex: 6 credits"
+                          type="number"
+                          value={customCreditDrafts[selectedAppointment.id] ?? ""}
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                          Message demande photos
+                        </span>
+                        <input
+                          className="bb-input"
+                          onChange={(event) =>
+                            setPhotoRequestDrafts((current) => ({
+                              ...current,
+                              [selectedAppointment.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Merci d'ajouter des photos de l'interieur et de l'exterieur."
+                          value={photoRequestDrafts[selectedAppointment.id] ?? ""}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <button
+                        className="bb-button-brand justify-center"
+                        disabled={busyAction || selectedAppointment.status === "done"}
+                        onClick={() => {
+                          void changeStatus(selectedAppointment.id, "confirmed");
+                        }}
+                        type="button"
+                      >
+                        Valider ce tarif
+                      </button>
+                      <button
+                        className="bb-button-ghost justify-center"
+                        disabled={busyAction || selectedAppointment.status === "done"}
+                        onClick={() => {
+                          void requestClientPhotos(selectedAppointment.id);
+                        }}
+                        type="button"
+                      >
+                        Demander des photos
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -2228,8 +2407,8 @@ export function AdminDashboardPage() {
                       Suivi interne
                     </p>
                     <p className="mt-3 text-sm leading-6 text-white/58">
-                      Propre ne change rien. Correct retire 1 credit supplementaire. Sale retire
-                      2 credits supplementaires.
+                      Cette zone reste interne: elle sert a qualifier le dossier et a garder une note
+                      admin, sans changer automatiquement le tarif deja valide plus haut.
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
                       {CLEANLINESS_OPTIONS.map((option) => (
@@ -2571,6 +2750,7 @@ export function AdminDashboardPage() {
                 {[
                   { key: "bbx" as const, label: "BBX" },
                   { key: "data" as const, label: "Data" },
+                  { key: "pro" as const, label: "Pro" },
                   { key: "all" as const, label: "Tout" },
                 ].map((filter) => (
                   <button
@@ -2707,7 +2887,9 @@ export function AdminDashboardPage() {
                           <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
                             {managedClient.clientType === "data"
                               ? "Data"
-                              : managedClient.cardCode || "Sans code"}
+                              : managedClient.clientType === "pro"
+                                ? "Pro"
+                                : managedClient.cardCode || "Sans code"}
                           </div>
                           {managedClient.isFounder && (
                             <div className="bb-pill border-[#f7b955]/35 bg-[#f7b955]/10 text-[#ffe8a8]">
@@ -3319,6 +3501,7 @@ export function AdminDashboardPage() {
                   {[
                     { value: "bbx" as const, label: "BBX" },
                     { value: "data" as const, label: "Data" },
+                    { value: "pro" as const, label: "Pro" },
                   ].map((option) => (
                     <button
                       className={cn(

@@ -438,7 +438,10 @@ function chargeAppointmentCreditsInTransaction(appointmentId, credits) {
   return { ok: true, appointment: getAppointmentById(appointmentId) };
 }
 
-function reviewAppointmentPrice(id, { adminLevel, requestPhotos = false, photosMessage = null } = {}) {
+function reviewAppointmentPrice(
+  id,
+  { adminLevel, customCredits = null, requestPhotos = false, photosMessage = null } = {},
+) {
   return db.transaction((appointmentId) => {
     const appointment = getAppointmentById(appointmentId);
     if (!appointment) return { ok: false, error: "appointment_not_found" };
@@ -468,7 +471,10 @@ function reviewAppointmentPrice(id, { adminLevel, requestPhotos = false, photosM
       Number(appointment.requested_credits || 1),
     );
     const adminCredits = serviceLevelCredits(normalizedAdminLevel);
-    const approvedCredits = Math.max(requestedCredits, adminCredits);
+    const customCreditValue = Number(customCredits);
+    const approvedCredits = Number.isFinite(customCreditValue) && customCreditValue > 0
+      ? Math.floor(customCreditValue)
+      : Math.max(requestedCredits, adminCredits);
 
     db.prepare(
       `

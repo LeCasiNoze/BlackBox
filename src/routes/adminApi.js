@@ -673,6 +673,7 @@ router.post("/appointments/:id/status", async (req, res) => {
     if (status === "confirmed") {
       const result = reviewAppointmentPrice(id, {
         adminLevel: req.body?.adminCleanlinessEstimate || req.body?.cleanlinessEstimate,
+        customCredits: req.body?.customCredits,
       });
       const updatedAppointment = getAppointmentById(id);
       const client = getClientById(appointment.client_id);

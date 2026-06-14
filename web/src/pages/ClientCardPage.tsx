@@ -39,7 +39,6 @@ import {
   dayStatusClasses,
   formatDateFR,
   formatTimeHHMM,
-  formatUnixDateFR,
   formatUnixDateTimeFR,
   locationClasses,
   locationLabel,
@@ -443,25 +442,6 @@ function vehicleSearchText(vehicle: ClientVehicle) {
   return [vehicle.label, vehicle.model, vehicle.plate].filter(Boolean).join(" ").toLowerCase();
 }
 
-function daysUntilExpiry(timestamp: number | null | undefined) {
-  if (!timestamp) return null;
-
-  const expiry = new Date(timestamp * 1000);
-  if (Number.isNaN(expiry.getTime())) return null;
-
-  const endOfDay = new Date(
-    expiry.getFullYear(),
-    expiry.getMonth(),
-    expiry.getDate(),
-    23,
-    59,
-    59,
-    999,
-  );
-  const diffMs = endOfDay.getTime() - Date.now();
-  return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-}
-
 function creditsNeededToBook(remaining: number) {
   return remaining >= 1 ? 0 : 1 - remaining;
 }
@@ -575,25 +555,6 @@ function nextAppointment(appointments: ClientAppointment[]) {
           appointmentDateTime(left).getTime() - appointmentDateTime(right).getTime(),
       )[0] ?? null
   );
-}
-
-function formulaHasExpired(expiresAt: number | null | undefined) {
-  if (!expiresAt) return false;
-
-  const date = new Date(expiresAt * 1000);
-  if (Number.isNaN(date.getTime())) return false;
-
-  const endOfDay = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    23,
-    59,
-    59,
-    999,
-  );
-
-  return Date.now() > endOfDay.getTime();
 }
 
 function AppointmentsEmpty({ copy }: { copy: string }) {
@@ -736,6 +697,7 @@ export function ClientCardPage() {
   const [deletingVehicleId, setDeletingVehicleId] = React.useState<number | null>(null);
   const [redeemingRewardKey, setRedeemingRewardKey] = React.useState<string | null>(null);
   const [busyTopupKey, setBusyTopupKey] = React.useState<string | null>(null);
+  const [customTopupQuantity, setCustomTopupQuantity] = React.useState("6");
   const bookingImagesRef = React.useRef<BookingImageDraft[]>([]);
   const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const handledTopupRef = React.useRef<string | null>(null);
@@ -1056,8 +1018,6 @@ export function ClientCardPage() {
   const month = data?.month ?? null;
   const monthDays = month?.days ?? [];
   const termsAccepted = !!client?.termsAcceptedAt;
-  const formulaExpired = false;
-  const formulaDaysRemaining = null;
 
   const deferredVehicleQuery = React.useDeferredValue(vehicleQuery);
   const deferredBookingVehicleQuery = React.useDeferredValue(bookingVehicleQuery);
@@ -1639,12 +1599,6 @@ export function ClientCardPage() {
     window.open(SUMUP_TOPUP_URL, "_blank", "noopener,noreferrer");
   }
 
-  function redirectToTopupView(remainingCredits: number) {
-    closeDayModal();
-    navigateView("shop");
-    showToast(creditAvailabilityCopy(remainingCredits));
-  }
-
   async function submitBooking(
     date: string,
     slot: AppointmentSlot,
@@ -2065,14 +2019,6 @@ export function ClientCardPage() {
     return (
       <>
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            className="bb-button-ghost px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-white/80"
-            to="/"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour
-          </Link>
-
           <div className="flex flex-wrap items-center gap-2">
             <InstallAppButton
               appName="Bryan Cars"
@@ -2213,9 +2159,6 @@ export function ClientCardPage() {
                     <Crown className="h-3.5 w-3.5" />
                     Acces fondateur
                   </div>
-                  <div className="bb-pill border-white/12 bg-white/[0.04] text-white/72">
-                    {clientData.formulaName || "Formule detailing"}
-                  </div>
                 </div>
 
                 <div className="max-w-3xl">
@@ -2224,8 +2167,8 @@ export function ClientCardPage() {
                     Bonjour {clientData.firstName || clientData.fullName || "fondateur"},
                   </h1>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68 md:text-base">
-                    Votre espace fondateur rassemble la formule, les credits, l&apos;echeance
-                    et l&apos;univers visuel Bryan Cars dans une seule carte signature.
+                    Votre espace fondateur rassemble vos credits, vos vehicules,
+                    vos rendez-vous et l&apos;univers visuel Bryan Cars dans une seule carte signature.
                   </p>
                 </div>
 
@@ -2234,17 +2177,6 @@ export function ClientCardPage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
                     <p className="mt-2 text-2xl font-semibold text-white">
                       {clientData.formulaRemaining}
-                      <span className="ml-2 text-base text-white/35">/ {clientData.formulaTotal}</span>
-                    </p>
-                  </div>
-                  <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Jours restants</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                      {formulaDaysRemaining == null
-                        ? "--"
-                        : formulaDaysRemaining < 0
-                          ? "Expiree"
-                          : formulaDaysRemaining}
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
@@ -2310,15 +2242,9 @@ export function ClientCardPage() {
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Statut formule</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {formulaExpired ? "A renouveler" : "Active"}
-                    </p>
-                    <p className="mt-2 text-sm text-white/56">
-                      {formulaExpired
-                        ? "La formule doit etre rechargee."
-                        : creditAvailabilityCopy(clientData.formulaRemaining)}
-                    </p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
+                    <p className="mt-2 text-lg font-semibold text-white">{clientData.formulaRemaining}</p>
+                    <p className="mt-2 text-sm text-white/56">{creditAvailabilityCopy(clientData.formulaRemaining)}</p>
                   </div>
                 </div>
               </div>
@@ -2395,24 +2321,12 @@ export function ClientCardPage() {
 
             <div className="grid gap-3 md:grid-cols-3">
               {renderMetricCard(
-                "Credits restants",
-                `${clientData.formulaRemaining} / ${clientData.formulaTotal}`,
-                clientData.formulaRemaining > 0
-                  ? "La jauge descend automatiquement a chaque demande de rendez-vous validee."
-                  : creditAvailabilityCopy(clientData.formulaRemaining),
-                clientData.formulaRemaining > 0 ? undefined : "warning",
-              )}
-              {renderMetricCard(
-                "Formule restante",
-                formulaDaysRemaining == null
-                  ? "Non definie"
-                  : formulaDaysRemaining < 0
-                    ? "Expiree"
-                    : `${formulaDaysRemaining} jour${formulaDaysRemaining > 1 ? "s" : ""}`,
-                formulaExpired
-                  ? "La formule est arrivee a expiration."
-                  : `Expiration le ${formatUnixDateFR(clientData.formulaExpiresAt)}.`,
-                formulaExpired ? "danger" : undefined,
+                "Credits",
+                `${clientData.formulaRemaining}`,
+                clientData.clientType === "pro"
+                  ? "Compte pro: les rendez-vous sont directs, sans consommation de credits."
+                  : "Les credits sont consommes uniquement quand le tarif du rendez-vous est valide.",
+                clientData.formulaRemaining > 0 || clientData.clientType === "pro" ? undefined : "warning",
               )}
               {renderMetricCard(
                 "Prochain passage",
@@ -2513,11 +2427,9 @@ export function ClientCardPage() {
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                    {clientData.isFounder ? "Acces fondateur" : "Formule active"}
+                    {clientData.isFounder ? "Acces fondateur" : "Credits actifs"}
                   </p>
-                  <p className="mt-1 text-xl font-semibold text-white">
-                    {clientData.formulaName || "Formule detailing"}
-                  </p>
+                  <p className="mt-1 text-xl font-semibold text-white">{clientData.formulaRemaining} credit{Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}</p>
                 </div>
               </div>
 
@@ -2536,33 +2448,14 @@ export function ClientCardPage() {
 
             <p className="text-sm leading-6 text-white/62">
               {clientData.isFounder
-                ? "Le visuel fondateur est maintenant integre plus bas dans la carte premium, avec la formule et l'echeance au premier plan."
-                : "Cette carte resume l'essentiel: credits, echeance, points et acces rapide vers les bonnes sections."}
+                ? "Le visuel fondateur est integre dans la carte premium, avec les credits au premier plan."
+                : "Cette carte resume l'essentiel: credits, points et acces rapide vers les bonnes sections."}
             </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Date d'achat</p>
-                <p className="mt-2 text-sm font-semibold text-white">
-                  {formatUnixDateFR(clientData.formulaPurchasedAt)}
-                </p>
-              </div>
-              <div
-                className={cn(
-                  "rounded-[22px] border p-4",
-                  formulaExpired ? "border-rose-300/25 bg-rose-300/10" : "border-white/10 bg-black/25",
-                )}
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Expiration</p>
-                <p className="mt-2 text-sm font-semibold text-white">
-                  {formatUnixDateFR(clientData.formulaExpiresAt)}
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Credits</p>
-                <p className="mt-2 text-sm font-semibold text-white">
-                  {clientData.formulaRemaining} / {clientData.formulaTotal}
-                </p>
+                <p className="mt-2 text-sm font-semibold text-white">{clientData.formulaRemaining}</p>
               </div>
               <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">🪙 BC&apos;Coins</p>
@@ -3071,6 +2964,38 @@ export function ClientCardPage() {
               </div>
             )}
 
+            {topupOffers[0] && (
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-lg font-semibold text-white">Completer un devis personnalise</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Si l'admin valide un tarif special, indiquez exactement le nombre de credits a acheter.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <input
+                    className="bb-input"
+                    min={1}
+                    onChange={(event) => setCustomTopupQuantity(event.target.value)}
+                    placeholder="Nombre de credits"
+                    type="number"
+                    value={customTopupQuantity}
+                  />
+                  <button
+                    className="bb-button-brand justify-center"
+                    disabled={
+                      busyTopupKey === `${topupOffers[0].key}-x${Number(customTopupQuantity || 1)}` ||
+                      Number(customTopupQuantity || 0) <= 0
+                    }
+                    onClick={() => {
+                      void startTopupCheckout(topupOffers[0], Number(customTopupQuantity || 1));
+                    }}
+                    type="button"
+                  >
+                    Acheter
+                  </button>
+                </div>
+              </div>
+            )}
+
             {clientData.clientType === "bbx" && (
             <div className="mt-8 border-t border-white/10 pt-6">
               <div className="bb-section-head">
@@ -3572,23 +3497,7 @@ export function ClientCardPage() {
                     </div>
                   )}
 
-                  {termsAccepted && formulaExpired && (
-                    <div className="rounded-[24px] border border-rose-300/25 bg-rose-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">Formule expiree</p>
-                      <p className="mt-2 text-sm leading-6 text-white/70">
-                        Rechargez la formule avant d&apos;envoyer une nouvelle demande.
-                      </p>
-                      <button
-                        className="bb-button-ghost mt-4 justify-center"
-                        onClick={openTopupFlow}
-                        type="button"
-                      >
-                        Voir la recharge
-                      </button>
-                    </div>
-                  )}
-
-                  {termsAccepted && !formulaExpired && creditsExhausted && (
+                  {termsAccepted && creditsExhausted && (
                     <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/10 p-4">
                       <p className="text-sm font-semibold text-white">
                         {clientData.formulaRemaining < 0
@@ -3853,13 +3762,9 @@ export function ClientCardPage() {
                     >
                       {busyAction
                         ? "Envoi..."
-                        : !termsAccepted
-                          ? "Conditions requises"
-                          : formulaExpired
-                            ? "Formule expiree"
-                            : creditsExhausted
-                              ? "Credits epuises"
-                              : "Demander ce rendez-vous"}
+                          : !termsAccepted
+                            ? "Conditions requises"
+                            : "Demander ce rendez-vous"}
                     </button>
                     <button
                       className="bb-button-ghost justify-center"
