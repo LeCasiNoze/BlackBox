@@ -93,6 +93,21 @@ type ApiMonth = {
   days: ApiDay[];
 };
 
+type PendingCase = {
+  id: number;
+  credits: number;
+  status: string;
+  rewardTier: string | null;
+  rewardBc: number | null;
+  createdAt: number;
+  openedAt: number | null;
+};
+
+type CaseOpenResult = {
+  reward: { tier: string; label: string; bc: number };
+  tiers: Array<{ key: string; label: string; proba: number; bc: number }>;
+};
+
 type ApiClient = {
   id: number;
   slug: string;
@@ -119,6 +134,7 @@ type ApiClient = {
   formulaRecapSentAt: number | null;
   welcomeEmailSentAt: number | null;
   bcPoints: number;
+  bcPending: number;
 };
 
 type ClientVehicle = {
@@ -177,6 +193,7 @@ type ApiResponse = {
   topupOffers: TopupOffer[];
   paymentsReady: boolean;
   month: ApiMonth;
+  pendingCases: PendingCase[];
 };
 
 type ModalMode = "book" | "manage" | "past";
@@ -377,6 +394,274 @@ const FOUNDER_PERKS: Array<{
     icon: ShieldCheck,
   },
 ];
+
+// Tier colors pour le reel CS:GO.
+const TIER_COLORS: Record<string, string> = {
+  commun: "#9ca3af",
+  peu_commun: "#38bdf8",
+  rare: "#a855f7",
+  epique: "#ec4899",
+  legendaire: "#f7b955",
+};
+
+// Largeur d'une carte du reel + gap en px (doit matcher le CSS).
+const REEL_CARD_WIDTH = 180;
+const REEL_GAP = 12;
+const REEL_STEP = REEL_CARD_WIDTH + REEL_GAP;
+// Index (base 0) de la carte gagnante dans le reel de 50 elements.
+const WINNER_INDEX = 45;
+
+type CaseTier = { key: string; label: string; proba: number; bc: number };
+
+const FALLBACK_TIER: CaseTier = { key: "commun", label: "Commun", proba: 1, bc: 0 };
+
+function buildReelItems(
+  tiers: CaseTier[],
+  wonTier: string,
+): Array<{ tier: CaseTier; isWinner: boolean }> {
+  if (tiers.length === 0) return [];
+  const totalProba = tiers.reduce((acc, t) => acc + t.proba, 0) || 1;
+
+  function pickTier(): CaseTier {
+    let rand = Math.random() * totalProba;
+    for (const t of tiers) {
+      rand -= t.proba;
+      if (rand <= 0) return t;
+    }
+    return tiers[tiers.length - 1] ?? FALLBACK_TIER;
+  }
+
+  return Array.from({ length: 50 }, (_, index) => {
+    if (index === WINNER_INDEX) {
+      const winnerTier = tiers.find((t) => t.key === wonTier) ?? tiers[0] ?? FALLBACK_TIER;
+      return { tier: winnerTier, isWinner: true };
+    }
+    return { tier: pickTier(), isWinner: false };
+  });
+}
+
+type CaseOpeningModalProps = {
+  caseItem: PendingCase;
+  result: CaseOpenResult | null;
+  reelRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+  onSpinEnd: () => void;
+};
+
+function CaseOpeningModal({
+  caseItem,
+  result,
+  reelRef,
+  onClose,
+  onSpinEnd,
+}: CaseOpeningModalProps) {
+  const [reelItems, setReelItems] = React.useState<
+    Array<{ tier: CaseTier; isWinner: boolean }>
+  >([]);
+  const [translateX, setTranslateX] = React.useState(0);
+  const [revealed, setRevealed] = React.useState(false);
+  const hasAnimated = React.useRef(false);
+
+  // Construire le reel des qu'on a le resultat.
+  React.useEffect(() => {
+    if (!result) return;
+    setReelItems(buildReelItems(result.tiers, result.reward.tier));
+  }, [result]);
+
+  // Declencher l'animation une seule fois apres que les items sont places.
+  React.useEffect(() => {
+    if (reelItems.length === 0 || hasAnimated.current) return;
+    hasAnimated.current = true;
+
+    let revealTimeout: ReturnType<typeof window.setTimeout> | null = null;
+
+    // Un tick pour que le DOM peuple les cartes avant de changer le transform.
+    const raf = window.requestAnimationFrame(() => {
+      // Centrer la carte gagnante sous le pointeur (milieu du conteneur visible).
+      // Le reel part a translateX=0 (+ paddingLeft=REEL_STEP pour le premier item).
+      // On veut que la carte a l'index WINNER_INDEX soit centree.
+      const containerWidth = reelRef.current?.parentElement?.clientWidth ?? 600;
+      const target = -(WINNER_INDEX * REEL_STEP - containerWidth / 2 + REEL_CARD_WIDTH / 2);
+      setTranslateX(target);
+
+      // Apres la duree de la transition, on revele le resultat.
+      revealTimeout = window.setTimeout(() => {
+        setRevealed(true);
+        onSpinEnd();
+      }, 4200);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      if (revealTimeout !== null) window.clearTimeout(revealTimeout);
+    };
+  // onSpinEnd et reelRef sont des refs/callbacks stables dans ce contexte.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reelItems]);
+
+  const wonTierColor = result ? (TIER_COLORS[result.reward.tier] ?? "#f7b955") : "#f7b955";
+  const isLegendaire = result?.reward.tier === "legendaire";
+
+  return (
+    <div
+      className="fixed inset-0 z-[57] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md"
+      onClick={revealed ? onClose : undefined}
+    >
+      <div
+        className="bb-surface-strong relative flex w-full max-w-3xl flex-col gap-6 overflow-hidden p-6 md:p-8"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {/* En-tete */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="bb-eyebrow">BC&apos;Coins</p>
+            <h3 className="mt-2 text-2xl font-semibold text-white">
+              Ouverture de case &middot; {caseItem.credits} credit{caseItem.credits > 1 ? "s" : ""}
+            </h3>
+          </div>
+          {revealed && (
+            <button className="bb-button-ghost" onClick={onClose} type="button">
+              Fermer
+            </button>
+          )}
+        </div>
+
+        {/* Zone du reel */}
+        <div className="relative overflow-hidden rounded-[20px] border border-white/10 bg-black/40">
+          {/* Marqueur central */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-1/2 z-10 w-0.5 -translate-x-1/2"
+            style={{ background: wonTierColor, boxShadow: `0 0 12px 3px ${wonTierColor}66` }}
+          />
+          {/* Degradees masquants sur les cotes */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-black/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-black/80 to-transparent" />
+
+          {/* Reel scrollable */}
+          <div className="overflow-hidden py-4">
+            <div
+              ref={reelRef}
+              style={{
+                display: "flex",
+                gap: REEL_GAP,
+                transform: `translateX(${translateX}px)`,
+                transition: reelItems.length > 0 ? "transform 4s cubic-bezier(0.15,0.85,0.25,1)" : "none",
+                willChange: "transform",
+                paddingLeft: REEL_STEP,
+              }}
+            >
+              {reelItems.length === 0 ? (
+                // Placeholder pendant le chargement de la reponse serveur.
+                Array.from({ length: 7 }).map((_, i) => (
+                  <div
+                    className="flex-shrink-0 animate-pulse rounded-[16px] border border-white/10 bg-white/[0.04]"
+                    key={i}
+                    style={{ width: REEL_CARD_WIDTH, height: 100 }}
+                  />
+                ))
+              ) : (
+                reelItems.map((item, index) => {
+                  const color = TIER_COLORS[item.tier.key] ?? "#9ca3af";
+                  return (
+                    <div
+                      className="flex-shrink-0 flex flex-col items-center justify-center rounded-[16px] border px-3 py-4 text-center"
+                      key={index}
+                      style={{
+                        width: REEL_CARD_WIDTH,
+                        borderColor: `${color}44`,
+                        background: `linear-gradient(180deg, ${color}14, ${color}06)`,
+                      }}
+                    >
+                      <Gift className="h-6 w-6" style={{ color }} />
+                      <p className="mt-2 text-xs font-semibold text-white">{item.tier.label}</p>
+                      <p className="mt-1 text-[11px]" style={{ color }}>
+                        +{item.tier.bc} BC
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Etat : en cours */}
+        {!revealed && (
+          <div className="flex items-center justify-center gap-3 py-2 text-sm text-white/60">
+            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+            {result ? "Ouverture en cours..." : "Connexion au serveur..."}
+          </div>
+        )}
+
+        {/* Resultat revele */}
+        {revealed && result && (
+          <div
+            className={cn(
+              "flex flex-col items-center gap-4 rounded-[24px] border p-6 text-center",
+              isLegendaire
+                ? "border-[#f7b955]/50 bg-[#f7b955]/10 shadow-[0_0_48px_rgba(247,185,85,0.25)]"
+                : "border-white/10 bg-white/[0.04]",
+            )}
+          >
+            <div
+              className="text-5xl font-bold"
+              style={{
+                color: wonTierColor,
+                textShadow: isLegendaire ? `0 0 24px ${wonTierColor}` : undefined,
+              }}
+            >
+              +{result.reward.bc} BC
+            </div>
+            <div>
+              <p
+                className="text-lg font-semibold"
+                style={{ color: wonTierColor }}
+              >
+                {result.reward.label}
+              </p>
+              <p className="mt-1 text-sm text-white/55">
+                BC&apos;Coins credites sur votre compte fondateur
+              </p>
+            </div>
+            <button
+              className="bb-button-brand mt-2 px-8 py-3"
+              onClick={onClose}
+              type="button"
+            >
+              {isLegendaire ? "Genial !" : "Genial !"}
+            </button>
+          </div>
+        )}
+
+        {/* Tableau des probabilites */}
+        {result && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {result.tiers.map((tier) => {
+              const color = TIER_COLORS[tier.key] ?? "#9ca3af";
+              const isWon = tier.key === result.reward.tier;
+              return (
+                <div
+                  className={cn(
+                    "rounded-[14px] border px-3 py-3 text-center text-xs",
+                    isWon ? "border-current/50" : "border-white/8 bg-white/[0.02]",
+                  )}
+                  key={tier.key}
+                  style={isWon ? { borderColor: `${color}55`, background: `${color}12` } : undefined}
+                >
+                  <p className="font-semibold" style={{ color }}>
+                    {tier.label}
+                  </p>
+                  <p className="mt-1 text-white/48">{tier.bc} BC</p>
+                  <p className="mt-0.5 text-white/35">{Math.round(tier.proba * 100)}%</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function useQuery() {
   const { search } = useLocation();
@@ -744,6 +1029,10 @@ export function ClientCardPage() {
   const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const handledTopupRef = React.useRef<string | null>(null);
   const handledLaunchTopupRef = React.useRef<string | null>(null);
+  const [openingCase, setOpeningCase] = React.useState<PendingCase | null>(null);
+  const [caseResult, setCaseResult] = React.useState<CaseOpenResult | null>(null);
+  const [caseSpinning, setCaseSpinning] = React.useState(false);
+  const caseReelRef = React.useRef<HTMLDivElement>(null);
   const [pendingTermsAction, setPendingTermsAction] = React.useState<
     | { type: "topup" }
     | {
@@ -992,6 +1281,7 @@ export function ClientCardPage() {
   const rewardRedemptions = data?.rewardRedemptions ?? [];
   const topupOffers = data?.topupOffers ?? [];
   const paymentsReady = data?.paymentsReady ?? false;
+  const pendingCases = data?.pendingCases ?? [];
 
   React.useEffect(() => {
     if (!topupRefParam || handledTopupRef.current === topupRefParam) {
@@ -1617,6 +1907,43 @@ export function ClientCardPage() {
       showToast("Erreur reseau pendant l'utilisation des 🪙 BC'Coins.");
     } finally {
       setRedeemingRewardKey(null);
+    }
+  }
+
+  async function openCase(pendingCase: PendingCase) {
+    if (caseSpinning) return;
+    setCaseSpinning(true);
+    setCaseResult(null);
+
+    try {
+      const response = await fetch(
+        `/api/client/${encodeURIComponent(slug)}/cases/${pendingCase.id}/open`,
+        { method: "POST", headers: { "Content-Type": "application/json" } },
+      );
+
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        showToast("Impossible d'ouvrir cette case pour le moment.");
+        setCaseSpinning(false);
+        return;
+      }
+
+      // Mettre a jour les cases et le solde BC depuis la reponse serveur.
+      setData((current) =>
+        current && current.client
+          ? {
+              ...current,
+              client: { ...current.client, bcPoints: json.bcPoints },
+              pendingCases: json.pendingCases ?? [],
+            }
+          : current,
+      );
+
+      setCaseResult({ reward: json.reward, tiers: json.tiers });
+      // caseSpinning reste true pendant l'animation; on le desactive apres le timeout dans le composant reel.
+    } catch (_err) {
+      showToast("Erreur reseau pendant l'ouverture de la case.");
+      setCaseSpinning(false);
     }
   }
 
@@ -3184,6 +3511,62 @@ export function ClientCardPage() {
                 </div>
               </div>
 
+              <div className="mt-4 flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
+                <div className="mt-0.5 shrink-0">
+                  <Gift className="h-4 w-4 text-white/40" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    BC en attente :{" "}
+                    <span className="text-[#f7b955]">{clientData.bcPending} BC</span>
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-white/48">
+                    Debloques au fur et a mesure de vos passages.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Cases a ouvrir</p>
+                {pendingCases.length === 0 ? (
+                  <p className="mt-3 text-sm leading-6 text-white/48">
+                    Aucune case a ouvrir. Achetez des credits pour en gagner.
+                  </p>
+                ) : (
+                  <div className="mt-3 grid gap-3">
+                    {pendingCases.map((pc) => (
+                      <div
+                        className="flex items-center justify-between gap-3 rounded-[20px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.08),rgba(255,255,255,0.02))] p-4"
+                        key={pc.id}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="shrink-0 rounded-xl border border-[#f7b955]/30 bg-[#f7b955]/12 p-2 text-[#ffe8a8]">
+                            <Gift className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              Case &middot; {pc.credits} credit{pc.credits > 1 ? "s" : ""}
+                            </p>
+                            <p className="mt-0.5 text-xs text-white/48">A ouvrir</p>
+                          </div>
+                        </div>
+                        <button
+                          className="bb-button-brand px-4 py-2"
+                          disabled={caseSpinning}
+                          onClick={() => {
+                            setOpeningCase(pc);
+                            void openCase(pc);
+                          }}
+                          type="button"
+                        >
+                          Ouvrir
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="mt-6 space-y-3">
             {rewardCatalog.map((reward) => {
               const affordable = clientData.bcPoints >= reward.pointsCost;
@@ -4719,6 +5102,20 @@ export function ClientCardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {openingCase && (
+        <CaseOpeningModal
+          caseItem={openingCase}
+          onClose={() => {
+            setOpeningCase(null);
+            setCaseResult(null);
+            setCaseSpinning(false);
+          }}
+          onSpinEnd={() => setCaseSpinning(false)}
+          reelRef={caseReelRef}
+          result={caseResult}
+        />
       )}
 
       <ImageLightbox

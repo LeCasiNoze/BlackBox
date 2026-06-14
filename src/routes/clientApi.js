@@ -77,6 +77,8 @@ const {
   saveSubscription,
   deleteSubscriptionByEndpoint,
 } = require("../db/pushSubscriptions");
+const { listPendingCaseOpenings, openCaseOpening } = require("../db/caseOpenings");
+const { caseTiersForCredits } = require("../config/bcoins");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
@@ -326,6 +328,7 @@ function mapClientPayload(client) {
     formulaRecapSentAt: client.formula_recap_sent_at ?? null,
     welcomeEmailSentAt: client.welcome_email_sent_at ?? null,
     bcPoints: client.bc_points ?? 0,
+    bcPending: client.bc_pending ?? 0,
   };
 }
 
@@ -552,6 +555,7 @@ router.get("/:idOrSlug", (req, res) => {
     rewardRedemptions: isBbxClient(client) ? rewardRedemptions : [],
     topupOffers: listPublicTopupOffersForClient(client),
     paymentsReady: isSumupTopupReady(),
+    pendingCases: client.is_founder ? listPendingCaseOpenings(client.id) : [],
     month,
   });
 });
@@ -1487,6 +1491,60 @@ router.post("/:idOrSlug/push/unsubscribe", (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     console.error("[API] client push unsubscribe:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ============================
+// BC'Coins - cases (fondateurs)
+// ============================
+router.get("/:idOrSlug/cases", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  if (!client.is_founder) {
+    return res.json({ ok: true, pendingCases: [], bcPoints: client.bc_points ?? 0 });
+  }
+  return res.json({
+    ok: true,
+    pendingCases: listPendingCaseOpenings(client.id),
+    bcPoints: client.bc_points ?? 0,
+  });
+});
+
+router.post("/:idOrSlug/cases/:caseId/open", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  if (!client.is_founder) {
+    return res.status(403).json({ ok: false, error: "not_founder" });
+  }
+  const caseId = Number(req.params.caseId) || 0;
+  if (!caseId) {
+    return res.status(400).json({ ok: false, error: "invalid_case_id" });
+  }
+
+  try {
+    // Le contenu (lots possibles) pour l'animation, avant le tirage serveur.
+    const pendingCase = listPendingCaseOpenings(client.id).find((c) => c.id === caseId);
+    const tiers = pendingCase ? caseTiersForCredits(pendingCase.credits) : [];
+
+    const result = openCaseOpening(caseId, client.id);
+    if (!result.ok) {
+      return res.status(409).json({ ok: false, error: result.error || "cannot_open" });
+    }
+
+    return res.json({
+      ok: true,
+      reward: result.reward,
+      tiers,
+      bcPoints: result.bcPoints,
+      pendingCases: listPendingCaseOpenings(client.id),
+    });
+  } catch (error) {
+    console.error("[API] open case:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

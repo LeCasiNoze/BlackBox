@@ -60,6 +60,7 @@ function ensureAppointmentsTimeColumn() {
 function ensureAppointmentsExtraColumns() {
   try {
     const cols = getAppointmentsColumns();
+    if (cols.length === 0) return;
     const colNames = cols.map((column) => column.name);
 
     const addColumnIfMissing = (name, ddl) => {
@@ -105,6 +106,7 @@ function ensureAppointmentsExtraColumns() {
     addColumnIfMissing("photos_requested_at", "photos_requested_at INTEGER");
     addColumnIfMissing("photos_request_message", "photos_request_message TEXT");
     addColumnIfMissing("price_comment", "price_comment TEXT");
+    addColumnIfMissing("bc_points_granted", "bc_points_granted INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing("client_price_approved_at", "client_price_approved_at INTEGER");
     addColumnIfMissing(
       "bc_points_awarded",
@@ -178,6 +180,7 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("founder_media_url", "founder_media_url TEXT");
     addColumnIfMissing("welcome_email_sent_at", "welcome_email_sent_at INTEGER");
     addColumnIfMissing("bc_points", "bc_points INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing("bc_pending", "bc_pending INTEGER NOT NULL DEFAULT 0");
   } catch (error) {
     console.error("[DB] Erreur ensureClientsExtraColumns:", error);
   }

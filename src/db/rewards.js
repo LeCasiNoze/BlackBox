@@ -1,4 +1,5 @@
 const { db, nowUnix } = require("./index");
+const { DEFERRED_BC_PER_CREDIT } = require("../config/bcoins");
 
 const BC_REWARDS = [
   {
@@ -115,56 +116,84 @@ function changeClientPoints(clientId, delta) {
   return nextPoints;
 }
 
-function awardPointsForAppointment(clientId, appointmentId, points = 100) {
-  const appointment = db
-    .prepare(`SELECT bc_points_awarded FROM appointments WHERE id = ? LIMIT 1`)
-    .get(appointmentId);
+// RDV effectue (fondateur uniquement): libere 20 BC par credit consomme, pris
+// dans le pool differe (bc_pending). Remplace l'ancien bonus fixe de 100 BC.
+function awardPointsForAppointment(clientId, appointmentId) {
+  return db.transaction((ownerId, apptId) => {
+    const appointment = db
+      .prepare(
+        `SELECT bc_points_awarded, credits_charged, client_id FROM appointments WHERE id = ? LIMIT 1`,
+      )
+      .get(apptId);
+    if (!appointment || appointment.bc_points_awarded) {
+      return false;
+    }
 
-  if (!appointment || appointment.bc_points_awarded) {
-    return false;
-  }
+    const client = db
+      .prepare(`SELECT is_founder, bc_points, bc_pending FROM clients WHERE id = ? LIMIT 1`)
+      .get(ownerId);
+    if (!client || !client.is_founder) {
+      // Pas de BC pour les non-fondateurs: on marque traite sans rien crediter.
+      db.prepare(`UPDATE appointments SET bc_points_awarded = 1, bc_points_granted = 0, updated_at = ? WHERE id = ?`).run(
+        nowUnix(),
+        apptId,
+      );
+      return false;
+    }
 
-  const nextPoints = changeClientPoints(clientId, points);
-  if (nextPoints == null) {
-    return false;
-  }
+    const consumed = Math.max(0, Number(appointment.credits_charged || 0));
+    const pending = Math.max(0, Number(client.bc_pending || 0));
+    const amount = Math.min(DEFERRED_BC_PER_CREDIT * consumed, pending);
 
-  db.prepare(
-    `
-    UPDATE appointments
-    SET bc_points_awarded = 1,
-        updated_at = ?
-    WHERE id = ?
-  `
-  ).run(nowUnix(), appointmentId);
+    db.prepare(
+      `
+      UPDATE clients
+      SET bc_points = COALESCE(bc_points, 0) + ?,
+          bc_pending = COALESCE(bc_pending, 0) - ?,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    ).run(amount, amount, nowUnix(), ownerId);
 
-  return true;
+    db.prepare(
+      `UPDATE appointments SET bc_points_awarded = 1, bc_points_granted = ?, updated_at = ? WHERE id = ?`,
+    ).run(amount, nowUnix(), apptId);
+
+    return true;
+  })(clientId, appointmentId);
 }
 
-function revokePointsForAppointment(clientId, appointmentId, points = 100) {
-  const appointment = db
-    .prepare(`SELECT bc_points_awarded FROM appointments WHERE id = ? LIMIT 1`)
-    .get(appointmentId);
+// Annulation/deconfirmation d'un RDV effectue: rend les BC differes au pool.
+function revokePointsForAppointment(clientId, appointmentId) {
+  return db.transaction((ownerId, apptId) => {
+    const appointment = db
+      .prepare(`SELECT bc_points_awarded, bc_points_granted FROM appointments WHERE id = ? LIMIT 1`)
+      .get(apptId);
+    if (!appointment || !appointment.bc_points_awarded) {
+      return false;
+    }
 
-  if (!appointment || !appointment.bc_points_awarded) {
-    return false;
-  }
+    const granted = Math.max(0, Number(appointment.bc_points_granted || 0));
+    if (granted > 0) {
+      const client = db.prepare(`SELECT bc_points FROM clients WHERE id = ? LIMIT 1`).get(ownerId);
+      const nextPoints = Math.max(0, Number(client?.bc_points || 0) - granted);
+      db.prepare(
+        `
+        UPDATE clients
+        SET bc_points = ?,
+            bc_pending = COALESCE(bc_pending, 0) + ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      ).run(nextPoints, granted, nowUnix(), ownerId);
+    }
 
-  const nextPoints = changeClientPoints(clientId, -Math.abs(points));
-  if (nextPoints == null) {
-    return false;
-  }
+    db.prepare(
+      `UPDATE appointments SET bc_points_awarded = 0, bc_points_granted = 0, updated_at = ? WHERE id = ?`,
+    ).run(nowUnix(), apptId);
 
-  db.prepare(
-    `
-    UPDATE appointments
-    SET bc_points_awarded = 0,
-        updated_at = ?
-    WHERE id = ?
-  `,
-  ).run(nowUnix(), appointmentId);
-
-  return true;
+    return true;
+  })(clientId, appointmentId);
 }
 
 module.exports = {

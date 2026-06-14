@@ -1,5 +1,6 @@
 const { db, nowUnix } = require("./index");
 const { formulaNameFromTotal, getClientById } = require("./clients");
+const { immediateBcForCredits, deferredBcForCredits } = require("../config/bcoins");
 
 function mapSumupStatusToLocal(status) {
   switch (String(status || "").toUpperCase()) {
@@ -292,6 +293,29 @@ function processPaidTopupOrder(orderId, checkout) {
       nowUnix(),
       client.id,
     );
+
+    // BC'Coins (fondateurs uniquement): +80 BC/credit immediat, +20 BC/credit
+    // en pool differe, et 1 ouverture de case par achat.
+    if (client.is_founder && credits > 0) {
+      const immediateBc = immediateBcForCredits(credits);
+      const deferredBc = deferredBcForCredits(credits);
+      db.prepare(
+        `
+        UPDATE clients
+        SET bc_points = COALESCE(bc_points, 0) + ?,
+            bc_pending = COALESCE(bc_pending, 0) + ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      ).run(immediateBc, deferredBc, nowUnix(), client.id);
+
+      db.prepare(
+        `
+        INSERT INTO case_openings (client_id, credits, source, order_id, status, created_at)
+        VALUES (?, ?, 'credit_purchase', ?, 'pending', ?)
+      `,
+      ).run(client.id, credits, order.id, nowUnix());
+    }
 
     db.prepare(
       `

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS clients (
   formula_recap_sent_at INTEGER,
   welcome_email_sent_at INTEGER,
   bc_points         INTEGER NOT NULL DEFAULT 0,
+  bc_pending        INTEGER NOT NULL DEFAULT 0,
 
   notes             TEXT,
 
@@ -118,6 +119,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   client_price_approved_at INTEGER,
   bc_points_awarded INTEGER NOT NULL DEFAULT 0
                     CHECK (bc_points_awarded IN (0, 1)),
+  bc_points_granted INTEGER NOT NULL DEFAULT 0,
   admin_reminder_24h_sent_at INTEGER,
   client_reminder_24h_sent_at INTEGER,
   is_public   INTEGER NOT NULL DEFAULT 0
@@ -257,6 +259,26 @@ CREATE INDEX IF NOT EXISTS idx_push_subscriptions_role
 
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_client
   ON push_subscriptions(client_id);
+
+-- ============================
+-- TABLE case_openings (BC'Coins - cases style CS:GO, fondateurs)
+-- ============================
+CREATE TABLE IF NOT EXISTS case_openings (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  credits           INTEGER NOT NULL DEFAULT 1,
+  source            TEXT NOT NULL DEFAULT 'credit_purchase',
+  order_id          INTEGER,
+  status            TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'opened')),
+  reward_tier       TEXT,
+  reward_bc         INTEGER,
+  created_at        INTEGER NOT NULL,
+  opened_at         INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_case_openings_client
+  ON case_openings(client_id, status, created_at DESC);
 
 -- ============================
 -- TABLE export_jobs
