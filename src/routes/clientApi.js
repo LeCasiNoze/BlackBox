@@ -1327,6 +1327,15 @@ router.get("/:idOrSlug/rewards", (req, res) => {
     return;
   }
 
+  if (!isBbxClient(client)) {
+    return res.json({
+      ok: true,
+      bcPoints: 0,
+      rewardCatalog: [],
+      rewardRedemptions: [],
+    });
+  }
+
   return res.json({
     ok: true,
     bcPoints: client.bc_points ?? 0,
@@ -1339,6 +1348,10 @@ router.post("/:idOrSlug/rewards/redeem", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
     return;
+  }
+
+  if (!isBbxClient(client)) {
+    return res.status(403).json({ ok: false, error: "bc_disabled_for_client_type" });
   }
 
   const rewardKey = req.body?.rewardKey;
@@ -1379,15 +1392,3 @@ router.post("/:idOrSlug/rewards/redeem", async (req, res) => {
 });
 
 module.exports = router;
-  if (!isBbxClient(client)) {
-    return res.json({
-      ok: true,
-      bcPoints: 0,
-      rewardCatalog: [],
-      rewardRedemptions: [],
-    });
-  }
-
-  if (!isBbxClient(client)) {
-    return res.status(403).json({ ok: false, error: "bc_disabled_for_client_type" });
-  }
