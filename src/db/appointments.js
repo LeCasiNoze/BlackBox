@@ -361,6 +361,41 @@ function refundChargedCreditsInTransaction(appointment) {
   return true;
 }
 
+// Deconfirmation admin: rembourse les credits consommes et repasse le RDV
+// "en attente" (re-validation du tarif), sans le supprimer.
+function revertAppointmentToRequested(id) {
+  return db.transaction((appointmentId) => {
+    const appointment = getAppointmentById(appointmentId);
+    if (!appointment) return { ok: false, error: "appointment_not_found" };
+
+    const refunded = refundChargedCreditsInTransaction(appointment);
+
+    const clientRow = db
+      .prepare(`SELECT client_type FROM clients WHERE id = ? LIMIT 1`)
+      .get(appointment.client_id);
+    const isPro = clientRow && clientRow.client_type === "pro";
+
+    db.prepare(
+      `
+      UPDATE appointments
+      SET status = 'requested',
+          price_status = ?,
+          approved_credits = ?,
+          client_price_approved_at = NULL,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    ).run(
+      isPro ? "not_required" : "pending_admin",
+      isPro ? 0 : null,
+      nowUnix(),
+      appointmentId,
+    );
+
+    return { ok: true, refunded, appointment: getAppointmentById(appointmentId) };
+  })(id);
+}
+
 function chargeAppointmentCreditsInTransaction(appointmentId, credits) {
   const appointment = db
     .prepare(
@@ -967,6 +1002,7 @@ module.exports = {
   normalizeAppointmentSlot,
   normalizeServiceLevel,
   reviewAppointmentPrice,
+  revertAppointmentToRequested,
   sanitizeCleanlinessRating,
   serviceLevelCredits,
   syncAppointmentCleanlinessPenalty,

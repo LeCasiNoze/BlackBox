@@ -35,6 +35,7 @@ const {
   normalizeCleanlinessRating,
   normalizeAppointmentSlot,
   reviewAppointmentPrice,
+  revertAppointmentToRequested,
   syncAppointmentCleanlinessPenalty,
   updateAppointmentAdminWorkspace,
   updateAppointmentStatus,
@@ -712,10 +713,16 @@ router.post("/appointments/:id/status", async (req, res) => {
       });
     }
 
-    updateAppointmentStatus(id, status);
-
     if (appointment.status === "done" && status !== "done") {
       revokePointsForAppointment(appointment.client_id, appointment.id);
+    }
+
+    // Deconfirmation: repasser un RDV "en attente" rembourse les credits
+    // consommes, remet le tarif a revalider, et previent le client.
+    if (status === "requested") {
+      revertAppointmentToRequested(id);
+    } else {
+      updateAppointmentStatus(id, status);
     }
 
     if (status === "done") {
@@ -725,13 +732,21 @@ router.post("/appointments/:id/status", async (req, res) => {
     const updatedAppointment = getAppointmentById(id);
     const client = getClientById(appointment.client_id);
 
-    if (client && updatedAppointment && ["confirmed", "done"].includes(status)) {
+    if (client && updatedAppointment) {
       try {
-        await sendClientAppointmentStatusEmail({
-          client,
-          appointment: updatedAppointment,
-          eventType: status === "done" ? "done" : "confirmed",
-        });
+        if (["confirmed", "done"].includes(status)) {
+          await sendClientAppointmentStatusEmail({
+            client,
+            appointment: updatedAppointment,
+            eventType: status === "done" ? "done" : "confirmed",
+          });
+        } else if (status === "requested" && appointment.status !== "requested") {
+          await sendClientAppointmentStatusEmail({
+            client,
+            appointment: updatedAppointment,
+            eventType: "reverted",
+          });
+        }
       } catch (mailError) {
         console.error("[MAIL] client appointment status:", mailError);
       }

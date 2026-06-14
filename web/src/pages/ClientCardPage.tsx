@@ -3053,7 +3053,10 @@ export function ClientCardPage() {
           </div>
 
           <div className="mt-6 space-y-3">
-            {paymentsReady && topupOffers.length > 0 ? (
+            {/* Fondateur uniquement: packs de credits (remises). */}
+            {clientData.isFounder &&
+              paymentsReady &&
+              topupOffers.length > 0 &&
               topupOffers.map((offer) => (
                 <div
                   className="rounded-[24px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-4"
@@ -3094,28 +3097,14 @@ export function ClientCardPage() {
                     </button>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-lg font-semibold text-white">Recharge a finaliser</p>
-                <p className="mt-2 text-sm leading-6 text-white/58">
-                  Le parcours automatique SumUp est pret a etre branche. En attendant, la recharge
-                  externe reste accessible.
-                </p>
-                <div className="mt-4">
-                  <button className="bb-button-ghost" onClick={openTopupFlow} type="button">
-                    Voir la recharge
-                  </button>
-                </div>
-              </div>
-            )}
+              ))}
 
-            {clientData.clientType !== "bbx" && topupOffers[0] && (
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-lg font-semibold text-white">Achat a l'unite</p>
+            {/* Non-fondateur: achat de credits a l'unite (bbx, data, pro). */}
+            {!clientData.isFounder && paymentsReady && topupOffers[0] && (
+              <div className="rounded-[24px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-4">
+                <p className="text-lg font-semibold text-white">Achat de credits a l&apos;unite</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">
-                  Votre compte {clientData.clientType === "pro" ? "Pro" : "Data"} achete les credits
-                  au tarif unitaire, sans BC&apos;Coins ni packs remises.
+                  Choisissez le nombre de credits a acheter au tarif unitaire.
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {[1, 2, 3, 5, 10].map((quantity) => {
@@ -3138,7 +3127,23 @@ export function ClientCardPage() {
               </div>
             )}
 
-            {topupOffers[0] && (
+            {/* Repli si le paiement en ligne n'est pas encore configure. */}
+            {!paymentsReady && (
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-lg font-semibold text-white">Recharge a finaliser</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Le paiement en ligne n&apos;est pas encore disponible. Contactez Bryan Cars pour
+                  recharger vos credits.
+                </p>
+                <div className="mt-4">
+                  <button className="bb-button-ghost" onClick={openTopupFlow} type="button">
+                    Voir la recharge
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!clientData.isFounder && paymentsReady && topupOffers[0] && (
               <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                 <p className="text-lg font-semibold text-white">Completer un devis personnalise</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">

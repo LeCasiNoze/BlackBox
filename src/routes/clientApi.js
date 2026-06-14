@@ -993,6 +993,20 @@ router.post("/:idOrSlug/appointments/:appointmentId/accept-price", async (req, r
       console.error("[MAIL] client confirmed after price:", error);
     }
 
+    // Prevenir l'admin que le client a accepte le tarif et que le RDV est valide.
+    try {
+      await sendAdminNotification({
+        type: "validated",
+        client: getClientById(client.id),
+        date: updated.date,
+        time: updated.time,
+        location: updated.location,
+        clientNote: updated.client_note,
+      });
+    } catch (error) {
+      console.error("[MAIL] admin price accepted:", error);
+    }
+
     return res.json({
       ok: true,
       appointment: mapClientAppointment(getAppointmentById(appointmentId)),

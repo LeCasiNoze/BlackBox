@@ -474,9 +474,11 @@ async function sendAdminNotification({
       ? "Nouveau rendez-vous reserve"
       : type === "cancel"
         ? "Rendez-vous annule"
-        : type === "test"
-          ? "Test email admin"
-          : "Rendez-vous modifie";
+        : type === "validated"
+          ? "Tarif accepte - rendez-vous valide"
+          : type === "test"
+            ? "Test email admin"
+            : "Rendez-vous modifie";
 
   if (type !== "test") {
     pushAdmin({
@@ -962,24 +964,37 @@ async function sendClientAppointmentStatusEmail({ client, appointment, eventType
   const vehicle = vehicleSummary(appointment);
   const place = locationLabel(appointment.location);
   const isDone = eventType === "done";
+  const isReverted = eventType === "reverted";
 
   pushClient(client, {
-    title: isDone ? "Prestation terminee" : "Rendez-vous confirme",
-    body: isDone
-      ? `Votre passage du ${formattedDate} est cloture. Consultez vos photos et laissez un avis.`
-      : `Votre rendez-vous du ${formattedDate} (${slot}) est confirme.`,
+    title: isReverted
+      ? "Rendez-vous a revalider"
+      : isDone
+        ? "Prestation terminee"
+        : "Rendez-vous confirme",
+    body: isReverted
+      ? `Votre rendez-vous du ${formattedDate} est repasse en attente: le tarif doit etre revalide.`
+      : isDone
+        ? `Votre passage du ${formattedDate} est cloture. Consultez vos photos et laissez un avis.`
+        : `Votre rendez-vous du ${formattedDate} (${slot}) est confirme.`,
     appointmentId: appointment.id,
   });
 
-  const title = isDone
-    ? "Votre prestation est terminee"
-    : "Votre rendez-vous est confirme";
-  const subtitle = isDone
-    ? "Votre passage est maintenant cloture. Vous pouvez consulter vos photos, votre suivi et laisser votre avis."
-    : "Votre creneau vient d'etre valide par l'equipe Bryan Cars. Tout est pret pour votre passage.";
-  const subject = isDone
-    ? `[Bryan Cars] Prestation terminee - ${formattedDate}`
-    : `[Bryan Cars] Rendez-vous confirme - ${formattedDate}`;
+  const title = isReverted
+    ? "Votre rendez-vous est repasse en attente"
+    : isDone
+      ? "Votre prestation est terminee"
+      : "Votre rendez-vous est confirme";
+  const subtitle = isReverted
+    ? "L'equipe Bryan Cars doit revalider le tarif de ce rendez-vous. Les credits eventuellement debites ont ete recredites."
+    : isDone
+      ? "Votre passage est maintenant cloture. Vous pouvez consulter vos photos, votre suivi et laisser votre avis."
+      : "Votre creneau vient d'etre valide par l'equipe Bryan Cars. Tout est pret pour votre passage.";
+  const subject = isReverted
+    ? `[Bryan Cars] Rendez-vous a revalider - ${formattedDate}`
+    : isDone
+      ? `[Bryan Cars] Prestation terminee - ${formattedDate}`
+      : `[Bryan Cars] Rendez-vous confirme - ${formattedDate}`;
 
   const text = `
 Bonjour ${fullName},
@@ -996,10 +1011,10 @@ Espace client : ${portalUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
-    eyebrow: isDone ? "Prestation cloturee" : "Rendez-vous confirme",
+    eyebrow: isReverted ? "Tarif a revalider" : isDone ? "Prestation cloturee" : "Rendez-vous confirme",
     title,
     subtitle,
-    accent: isDone ? "#2ca2ff" : "#f7b955",
+    accent: isReverted ? "#f7b955" : isDone ? "#2ca2ff" : "#f7b955",
     preheader: `${title} · ${formattedDate} · ${slot}`,
     bodyHtml: `
       ${metricRows([
