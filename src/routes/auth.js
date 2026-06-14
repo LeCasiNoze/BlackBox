@@ -181,18 +181,51 @@ function renderLoginPage({ error = null, next = "/admin" } = {}) {
               ? `<div class="error">${error}</div>`
               : ""
           }
-          <form method="POST" action="/login">
+          <form id="admin-login-form" method="POST" action="/login">
             <input name="next" type="hidden" value="${safeNext}" />
             <label>
               <span>Nom d'utilisateur</span>
-              <input name="username" type="text" value="${ADMIN_USERNAME}" autocomplete="username" />
+              <input id="admin-username" name="username" type="text" value="${ADMIN_USERNAME}" autocomplete="username" />
             </label>
             <label>
               <span>Mot de passe</span>
-              <input name="password" type="password" placeholder="Mot de passe admin" autocomplete="current-password" />
+              <input id="admin-password" name="password" type="password" placeholder="Mot de passe admin" autocomplete="current-password" autofocus />
             </label>
             <button type="submit">Entrer dans l'espace admin</button>
           </form>
+          <script>
+            (() => {
+              const form = document.getElementById("admin-login-form");
+              const username = document.getElementById("admin-username");
+              const password = document.getElementById("admin-password");
+              let submitted = false;
+              let timer = null;
+
+              function ready() {
+                return username && password && username.value.trim() && password.value.length >= 6;
+              }
+
+              function submitSoon() {
+                if (submitted || !ready()) return;
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                  if (submitted || !ready()) return;
+                  submitted = true;
+                  form.requestSubmit();
+                }, 260);
+              }
+
+              password?.addEventListener("input", submitSoon);
+              password?.addEventListener("change", submitSoon);
+              window.addEventListener("pageshow", () => {
+                const poll = setInterval(() => {
+                  submitSoon();
+                  if (submitted || ready()) clearInterval(poll);
+                }, 180);
+                setTimeout(() => clearInterval(poll), 1800);
+              });
+            })();
+          </script>
           <div class="hint">
             Redirection apres connexion: <strong>${safeNext}</strong>
           </div>

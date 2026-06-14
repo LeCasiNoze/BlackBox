@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
+import { InstallAppButton } from "../components/InstallAppButton";
 import {
   appointmentDateTime,
   appointmentIsPast,
@@ -681,6 +683,7 @@ export function ClientCardPage() {
   const [reviewText, setReviewText] = React.useState("");
   const [savingReview, setSavingReview] = React.useState(false);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
+  const [lightboxImages, setLightboxImages] = React.useState<LightboxImage[]>([]);
   const [toast, setToast] = React.useState<string | null>(null);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
   const [termsChecked, setTermsChecked] = React.useState(false);
@@ -1201,6 +1204,11 @@ export function ClientCardPage() {
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [contactModalOpen, lightboxUrl, selectedAppointment, selectedDay, termsModalOpen, vehicleModalOpen]);
+
+  function openLightbox(images: LightboxImage[], url: string) {
+    setLightboxImages(images);
+    setLightboxUrl(url);
+  }
 
   const currentDayAppointment = React.useMemo(() => {
     if (!selectedDay) return null;
@@ -1982,6 +1990,11 @@ export function ClientCardPage() {
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">
+            <InstallAppButton
+              appName="Bryan Cars"
+              className="bb-button-ghost px-4 py-2"
+              startUrl={`/card/${encodeURIComponent(slug)}`}
+            />
             <button
               className="bb-button-ghost px-4 py-2"
               onClick={() => setContactModalOpen(true)}
@@ -3203,7 +3216,16 @@ export function ClientCardPage() {
                             <button
                               className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
                               key={photo.id}
-                              onClick={() => setLightboxUrl(photo.url)}
+                              onClick={() =>
+                                openLightbox(
+                                  item.photos.map((entry) => ({
+                                    id: `community-${item.id}-${entry.id}`,
+                                    url: entry.url,
+                                    label: entry.label,
+                                  })),
+                                  photo.url,
+                                )
+                              }
                               type="button"
                             >
                               <img
@@ -3925,7 +3947,16 @@ export function ClientCardPage() {
                       <button
                         className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
                         key={photo.id}
-                        onClick={() => setLightboxUrl(photo.url)}
+                        onClick={() =>
+                          openLightbox(
+                            appointmentPhotos.map((entry) => ({
+                              id: entry.id,
+                              url: entry.url,
+                              label: entry.label,
+                            })),
+                            photo.url,
+                          )
+                        }
                         type="button"
                       >
                         <img
@@ -4293,27 +4324,12 @@ export function ClientCardPage() {
         </div>
       )}
 
-      {lightboxUrl && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 px-4"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <div className="relative max-h-[90vh] max-w-5xl" onClick={(event) => event.stopPropagation()}>
-            <button
-              className="bb-button-ghost absolute right-3 top-3 z-10"
-              onClick={() => setLightboxUrl(null)}
-              type="button"
-            >
-              Fermer
-            </button>
-            <img
-              alt="Photo prestation"
-              className="max-h-[90vh] rounded-[28px] border border-white/10 object-contain"
-              src={lightboxUrl}
-            />
-          </div>
-        </div>
-      )}
+      <ImageLightbox
+        currentUrl={lightboxUrl}
+        images={lightboxImages}
+        onChange={setLightboxUrl}
+        onClose={() => setLightboxUrl(null)}
+      />
 
       {toast && (
         <div className="fixed inset-x-0 bottom-24 z-[70] flex justify-center px-4 md:bottom-5">

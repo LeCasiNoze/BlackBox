@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
+import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
+import { InstallAppButton } from "../components/InstallAppButton";
 import {
   appointmentDateTime,
   appointmentStatusClasses,
@@ -585,6 +587,8 @@ export function AdminDashboardPage() {
   const [photoFormCaption, setPhotoFormCaption] = React.useState("");
   const [currentPhotos, setCurrentPhotos] = React.useState<AdminAppointmentPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = React.useState(false);
+  const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
+  const [lightboxImages, setLightboxImages] = React.useState<LightboxImage[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const appointmentWorkspaceRef = React.useRef<HTMLElement | null>(null);
 
@@ -870,6 +874,11 @@ export function AdminDashboardPage() {
 
   function showToast(message: string) {
     setToast(message);
+  }
+
+  function openLightbox(images: LightboxImage[], url: string) {
+    setLightboxImages(images);
+    setLightboxUrl(url);
   }
 
   async function copyClientCardLink(client: AdminClient) {
@@ -1372,6 +1381,10 @@ export function AdminDashboardPage() {
     () => sortAppointments(globalAppointments, "asc"),
     [globalAppointments],
   );
+  const sortedGlobalDesc = React.useMemo(
+    () => sortAppointments(globalAppointments, "desc"),
+    [globalAppointments],
+  );
 
   const pendingRequests = React.useMemo(
     () =>
@@ -1418,7 +1431,7 @@ export function AdminDashboardPage() {
   const filteredAgendaAppointments = React.useMemo(() => {
     const query = deferredAppointmentQuery.trim().toLowerCase();
 
-    return sortedGlobalAsc.filter((appointment) => {
+    return sortedGlobalDesc.filter((appointment) => {
       if (
         appointmentFilter === "client" &&
         selectedClientData &&
@@ -1438,7 +1451,7 @@ export function AdminDashboardPage() {
       if (!query) return true;
       return appointmentSearchText(appointment).includes(query);
     });
-  }, [appointmentFilter, deferredAppointmentQuery, selectedClientData, sortedGlobalAsc]);
+  }, [appointmentFilter, deferredAppointmentQuery, selectedClientData, sortedGlobalDesc]);
 
   const agendaSections = React.useMemo(
     () => groupAppointmentsByDate(filteredAgendaAppointments),
@@ -2136,18 +2149,26 @@ export function AdminDashboardPage() {
 
                           {clientRequestPhotos.map((photo) => (
                             <div className="space-y-2" key={photo.id}>
-                              <a
+                              <button
                                 className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                                href={photo.url}
-                                rel="noreferrer"
-                                target="_blank"
+                                onClick={() =>
+                                  openLightbox(
+                                    clientRequestPhotos.map((entry) => ({
+                                      id: `request-${entry.id}`,
+                                      url: entry.url,
+                                      label: entry.caption,
+                                    })),
+                                    photo.url,
+                                  )
+                                }
+                                type="button"
                               >
                                 <img
                                   alt={photo.caption || "Photo client"}
                                   className="h-28 w-full object-cover transition duration-300 hover:scale-[1.04]"
                                   src={photo.url}
                                 />
-                              </a>
+                              </button>
                               <p className="min-w-0 text-xs text-white/45">
                                 {photo.caption || "Photo envoyee par le client"}
                               </p>
@@ -2317,18 +2338,26 @@ export function AdminDashboardPage() {
 
                       {publicAppointmentPhotos.map((photo) => (
                         <div className="space-y-2" key={photo.id}>
-                          <a
+                          <button
                             className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                            href={photo.url}
-                            rel="noreferrer"
-                            target="_blank"
+                            onClick={() =>
+                              openLightbox(
+                                publicAppointmentPhotos.map((entry) => ({
+                                  id: `public-${entry.id}`,
+                                  url: entry.url,
+                                  label: entry.caption,
+                                })),
+                                photo.url,
+                              )
+                            }
+                            type="button"
                           >
                             <img
                               alt={photo.caption || "Photo rendez-vous"}
                               className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
                               src={photo.url}
                             />
-                          </a>
+                          </button>
                           <p className="min-w-0 text-xs text-white/45">
                             {photo.caption || "Sans legende"}
                           </p>
@@ -3081,6 +3110,11 @@ export function AdminDashboardPage() {
                 <Sparkles className="h-3.5 w-3.5 text-[#f7b955]" />
                 Admin cockpit
               </div>
+              <InstallAppButton
+                appName="Bryan Cars Admin"
+                className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]"
+                startUrl="/admin"
+              />
               <a className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]" href="/logout">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sortir
@@ -3649,6 +3683,13 @@ export function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      <ImageLightbox
+        currentUrl={lightboxUrl}
+        images={lightboxImages}
+        onChange={setLightboxUrl}
+        onClose={() => setLightboxUrl(null)}
+      />
     </div>
   );
 }

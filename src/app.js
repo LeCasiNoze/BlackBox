@@ -46,6 +46,46 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", requireAdminApiAuth, adminApiRoutes);
 app.use("/", authRoutes);
 
+function pwaManifest(req, res) {
+  const rawStartUrl = typeof req.query.startUrl === "string" ? req.query.startUrl : "/";
+  const startUrl = rawStartUrl.startsWith("/") && !rawStartUrl.startsWith("//")
+    ? rawStartUrl
+    : "/";
+  const rawName = typeof req.query.name === "string" ? req.query.name.trim() : "";
+  const rawShortName =
+    typeof req.query.shortName === "string" ? req.query.shortName.trim() : rawName;
+  const name = rawName || "Bryan Cars";
+  const shortName = rawShortName || "Bryan Cars";
+
+  res.type("application/manifest+json");
+  res.json({
+    name,
+    short_name: shortName,
+    start_url: startUrl,
+    scope: "/",
+    display: "standalone",
+    background_color: "#05070b",
+    theme_color: "#05070b",
+    icons: [
+      {
+        src: "/bryan-cars-logo.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any maskable",
+      },
+      {
+        src: "/bryan-cars-logo.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any maskable",
+      },
+    ],
+  });
+}
+
+app.get("/api/pwa/manifest", pwaManifest);
+app.get("/manifest.webmanifest", pwaManifest);
+
 app.use(express.static(distDir));
 
 app.get("/", (req, res) => {
