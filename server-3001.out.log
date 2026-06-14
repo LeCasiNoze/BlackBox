@@ -1,0 +1,3 @@
+[dotenv@17.2.3] injecting env (0) from src\.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[DB] SQLite initialisee: C:\Users\Lucas\OneDrive\Bureau\BlackBox\data\blackbox.db
+Server listening on port 3000

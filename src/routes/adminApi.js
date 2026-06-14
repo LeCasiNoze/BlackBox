@@ -25,6 +25,7 @@ const {
 } = require("../db/clients");
 const {
   cancelAppointmentForClientOnDate,
+  cancelAppointmentAndRefund,
   getAllAppointmentsWithClient,
   getAppointmentById,
   getAppointmentPhotos,
@@ -33,6 +34,7 @@ const {
   insertAppointmentPhoto,
   normalizeCleanlinessRating,
   normalizeAppointmentSlot,
+  reviewAppointmentPrice,
   syncAppointmentCleanlinessPenalty,
   updateAppointmentAdminWorkspace,
   updateAppointmentStatus,
@@ -54,6 +56,8 @@ const {
   sendAdminDataExportEmail,
   sendAdminNotification,
   sendClientAppointmentStatusEmail,
+  sendClientPhotosRequestedEmail,
+  sendClientPriceApprovalEmail,
   sendClientFormulaRecap,
   sendClientWelcomeEmail,
 } = require("../email");
@@ -108,7 +112,7 @@ function parseInteger(value, fallback = 0) {
 }
 
 function parseClientType(value) {
-  return value === "data" ? "data" : "bbx";
+  return ["bbx", "data", "pro"].includes(value) ? value : "bbx";
 }
 
 function founderMediaUrlFromFile(file) {
@@ -182,6 +186,14 @@ function mapAppointmentRow(row) {
     userRating: row.user_rating ?? null,
     userReview: row.user_review ?? null,
     cleanlinessRating: normalizeCleanlinessRating(row.cleanliness_rating),
+    clientCleanlinessEstimate: row.client_cleanliness_estimate || null,
+    adminCleanlinessEstimate: row.admin_cleanliness_estimate || null,
+    requestedCredits: row.requested_credits ?? 1,
+    approvedCredits: row.approved_credits ?? null,
+    creditsCharged: row.credits_charged ?? 0,
+    priceStatus: row.price_status || "pending_admin",
+    photosRequestedAt: row.photos_requested_at ?? null,
+    photosRequestMessage: row.photos_request_message || null,
     bcPointsAwarded: !!row.bc_points_awarded,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -268,7 +280,14 @@ async function maybeSendWelcomeEmail(client, enabled) {
 
 router.get("/clients", (req, res) => {
   try {
-    const filter = req.query.filter === "all" ? "all" : req.query.filter === "data" ? "data" : "bbx";
+    const filter =
+      req.query.filter === "all"
+        ? "all"
+        : req.query.filter === "data"
+          ? "data"
+          : req.query.filter === "pro"
+            ? "pro"
+            : "bbx";
     const clients = listClients(filter).map(mapClientRow);
     return res.json({ ok: true, clients });
   } catch (error) {
@@ -639,26 +658,45 @@ router.post("/appointments/:id/status", async (req, res) => {
     }
 
     if (status === "cancelled") {
-      if (["requested", "confirmed"].includes(appointment.status)) {
-        cancelAppointmentForClientOnDate(
-          appointment.client_id,
-          appointment.date,
-          appointment.slot || null,
-        );
-        incrementFormulaRemaining(appointment.client_id);
-      } else {
-        updateAppointmentStatus(id, "cancelled");
-      }
+      cancelAppointmentAndRefund(id);
 
       if (appointment.status === "done") {
         revokePointsForAppointment(appointment.client_id, appointment.id);
       }
 
-      syncAppointmentCleanlinessPenalty(id);
-
       return res.json({
         ok: true,
         appointment: mapAppointmentRow(getAppointmentById(id)),
+      });
+    }
+
+    if (status === "confirmed") {
+      const result = reviewAppointmentPrice(id, {
+        adminLevel: req.body?.adminCleanlinessEstimate || req.body?.cleanlinessEstimate,
+      });
+      const updatedAppointment = getAppointmentById(id);
+      const client = getClientById(appointment.client_id);
+
+      if (client && updatedAppointment) {
+        try {
+          if (result.requiresClientApproval || updatedAppointment.price_status === "waiting_payment") {
+            await sendClientPriceApprovalEmail({ client, appointment: updatedAppointment });
+          } else if (updatedAppointment.status === "confirmed") {
+            await sendClientAppointmentStatusEmail({
+              client,
+              appointment: updatedAppointment,
+              eventType: "confirmed",
+            });
+          }
+        } catch (mailError) {
+          console.error("[MAIL] client price/confirmed:", mailError);
+        }
+      }
+
+      return res.json({
+        ok: result.ok !== false,
+        appointment: mapAppointmentRow(updatedAppointment),
+        warning: result.error || null,
       });
     }
 
@@ -671,8 +709,6 @@ router.post("/appointments/:id/status", async (req, res) => {
     if (status === "done") {
       awardPointsForAppointment(appointment.client_id, appointment.id);
     }
-
-    syncAppointmentCleanlinessPenalty(id);
 
     const updatedAppointment = getAppointmentById(id);
     const client = getClientById(appointment.client_id);
@@ -695,6 +731,45 @@ router.post("/appointments/:id/status", async (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /appointments/:id/status:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/appointments/:id/request-photos", async (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+
+  try {
+    const appointment = getAppointmentById(id);
+    if (!appointment) {
+      return res.status(404).json({ ok: false, error: "appointment_not_found" });
+    }
+
+    const result = reviewAppointmentPrice(id, {
+      requestPhotos: true,
+      photosMessage: sanitizeString(req.body?.message),
+    });
+    const updatedAppointment = getAppointmentById(id);
+    const client = getClientById(appointment.client_id);
+
+    try {
+      await sendClientPhotosRequestedEmail({
+        client,
+        appointment: updatedAppointment,
+        message: updatedAppointment.photos_request_message,
+      });
+    } catch (mailError) {
+      console.error("[MAIL] client photos requested:", mailError);
+    }
+
+    return res.json({
+      ok: result.ok !== false,
+      appointment: mapAppointmentRow(updatedAppointment),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /appointments/:id/request-photos:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

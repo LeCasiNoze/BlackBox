@@ -38,6 +38,14 @@ function toNonNegativeInteger(value, fallback = 0) {
   return Math.floor(numeric);
 }
 
+function toInteger(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.floor(numeric);
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -129,6 +137,19 @@ function listClients(filter = "all") {
         SELECT *
         FROM clients
         WHERE client_type = 'data'
+        ORDER BY created_at DESC, id DESC
+      `,
+      )
+      .all();
+  }
+
+  if (filter === "pro") {
+    return db
+      .prepare(
+        `
+        SELECT *
+        FROM clients
+        WHERE client_type = 'pro'
         ORDER BY created_at DESC, id DESC
       `,
       )
@@ -237,9 +258,9 @@ function buildFormulaState(input = {}, existing = null) {
       : toNonNegativeInteger(existing?.formula_total, 0);
   const remainingRaw =
     input.formulaRemaining !== undefined
-      ? toNonNegativeInteger(input.formulaRemaining, total)
-      : toNonNegativeInteger(existing?.formula_remaining, total);
-  const remaining = clamp(remainingRaw, 0, total);
+      ? toInteger(input.formulaRemaining, total)
+      : toInteger(existing?.formula_remaining, total);
+  const remaining = remainingRaw;
   const explicitFormulaName =
     input.formulaName !== undefined
       ? sanitizeString(input.formulaName)
@@ -297,8 +318,10 @@ function insertVehiclesForClient(clientId, input = {}) {
 
 function createClient(input = {}) {
   const now = nowUnix();
-  const clientType = input.clientType === "data" ? "data" : "bbx";
-  const isFounder = input.isFounder === true ? 1 : 0;
+  const clientType = ["bbx", "data", "pro"].includes(input.clientType)
+    ? input.clientType
+    : "bbx";
+  const isFounder = clientType === "bbx" && input.isFounder === true ? 1 : 0;
   const identity = buildClientIdentity(input);
   const formula = buildFormulaState(input);
 
@@ -408,16 +431,20 @@ function updateClientProfile(clientId, input = {}) {
   const identity = buildClientIdentity(input, existing);
   const formula = buildFormulaState(input, existing);
   const requestedType =
-    input.clientType !== undefined
-      ? input.clientType === "data"
-        ? "data"
-        : "bbx"
+    input.clientType !== undefined && ["bbx", "data", "pro"].includes(input.clientType)
+      ? input.clientType
       : existing.client_type;
   const shouldBeFounder =
-    input.isFounder !== undefined ? (input.isFounder ? 1 : 0) : existing.is_founder;
+    requestedType === "bbx" && input.isFounder !== undefined
+      ? input.isFounder
+        ? 1
+        : 0
+      : requestedType === "bbx"
+        ? existing.is_founder
+        : 0;
 
   let nextCardCode = existing.card_code;
-  if (requestedType === "data") {
+  if (requestedType !== "bbx") {
     nextCardCode = null;
   } else if (!nextCardCode) {
     nextCardCode = generateNextCardCode();
@@ -545,9 +572,9 @@ function updateClientFormulaBalance(clientId, { total, remaining }) {
 
   const nextTotal = toNonNegativeInteger(total, client.formula_total);
   const nextRemaining = clamp(
-    toNonNegativeInteger(remaining, client.formula_remaining),
-    0,
-    nextTotal,
+    toInteger(remaining, client.formula_remaining),
+    -9999,
+    99999,
   );
   const formulaName = sanitizeString(client.formula_name) || formulaNameFromTotal(nextTotal);
 

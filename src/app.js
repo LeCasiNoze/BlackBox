@@ -68,13 +68,13 @@ function pwaManifest(req, res) {
     theme_color: "#05070b",
     icons: [
       {
-        src: "/bryan-cars-logo.png",
+        src: "/app-icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any maskable",
       },
       {
-        src: "/bryan-cars-logo.png",
+        src: "/app-icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any maskable",

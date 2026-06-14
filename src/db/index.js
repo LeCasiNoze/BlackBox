@@ -81,6 +81,31 @@ function ensureAppointmentsExtraColumns() {
       "cleanliness_penalty_applied INTEGER NOT NULL DEFAULT 0"
     );
     addColumnIfMissing(
+      "client_cleanliness_estimate",
+      "client_cleanliness_estimate TEXT CHECK (client_cleanliness_estimate IN ('clean','correct','dirty'))"
+    );
+    addColumnIfMissing(
+      "admin_cleanliness_estimate",
+      "admin_cleanliness_estimate TEXT CHECK (admin_cleanliness_estimate IN ('clean','correct','dirty'))"
+    );
+    addColumnIfMissing(
+      "requested_credits",
+      "requested_credits INTEGER NOT NULL DEFAULT 1"
+    );
+    addColumnIfMissing("approved_credits", "approved_credits INTEGER");
+    addColumnIfMissing(
+      "credits_charged",
+      "credits_charged INTEGER NOT NULL DEFAULT 0"
+    );
+    addColumnIfMissing("credits_charged_at", "credits_charged_at INTEGER");
+    addColumnIfMissing(
+      "price_status",
+      "price_status TEXT NOT NULL DEFAULT 'pending_admin' CHECK (price_status IN ('pending_admin','waiting_photos','waiting_client_approval','waiting_payment','approved','not_required','declined'))"
+    );
+    addColumnIfMissing("photos_requested_at", "photos_requested_at INTEGER");
+    addColumnIfMissing("photos_request_message", "photos_request_message TEXT");
+    addColumnIfMissing("client_price_approved_at", "client_price_approved_at INTEGER");
+    addColumnIfMissing(
       "bc_points_awarded",
       "bc_points_awarded INTEGER NOT NULL DEFAULT 0 CHECK (bc_points_awarded IN (0, 1))"
     );
@@ -143,7 +168,7 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("formula_recap_sent_at", "formula_recap_sent_at INTEGER");
     addColumnIfMissing(
       "client_type",
-      "client_type TEXT NOT NULL DEFAULT 'bbx' CHECK (client_type IN ('bbx', 'data'))"
+      "client_type TEXT NOT NULL DEFAULT 'bbx' CHECK (client_type IN ('bbx', 'data', 'pro'))"
     );
     addColumnIfMissing(
       "is_founder",
@@ -154,6 +179,103 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("bc_points", "bc_points INTEGER NOT NULL DEFAULT 0");
   } catch (error) {
     console.error("[DB] Erreur ensureClientsExtraColumns:", error);
+  }
+}
+
+function ensureClientsTypeAllowsPro() {
+  try {
+    const table = db
+      .prepare(
+        `
+        SELECT sql
+        FROM sqlite_master
+        WHERE type = 'table' AND name = 'clients'
+      `
+      )
+      .get();
+
+    const createSql = table?.sql || "";
+    if (!createSql || createSql.includes("'pro'")) {
+      return;
+    }
+
+    console.log("[DB] Migration clients.client_type -> bbx/data/pro");
+
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.exec("BEGIN");
+
+    try {
+      db.exec(`
+        DROP TABLE IF EXISTS clients_new;
+
+        CREATE TABLE clients_new (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug              TEXT NOT NULL UNIQUE,
+          card_code         TEXT UNIQUE,
+          first_name        TEXT,
+          last_name         TEXT,
+          full_name         TEXT,
+          email             TEXT,
+          phone             TEXT,
+          company           TEXT,
+          client_type       TEXT NOT NULL DEFAULT 'bbx'
+                            CHECK (client_type IN ('bbx', 'data', 'pro')),
+          is_founder        INTEGER NOT NULL DEFAULT 0
+                            CHECK (is_founder IN (0, 1)),
+          founder_media_url TEXT,
+          address_line1     TEXT,
+          address_line2     TEXT,
+          postal_code       TEXT,
+          city              TEXT,
+          vehicle_model     TEXT,
+          vehicle_plate     TEXT,
+          formula_name      TEXT,
+          formula_total     INTEGER NOT NULL DEFAULT 0,
+          formula_remaining INTEGER NOT NULL DEFAULT 0,
+          formula_purchased_at INTEGER,
+          formula_expires_at INTEGER,
+          terms_accepted_at INTEGER,
+          formula_recap_sent_at INTEGER,
+          welcome_email_sent_at INTEGER,
+          bc_points         INTEGER NOT NULL DEFAULT 0,
+          notes             TEXT,
+          created_at        INTEGER NOT NULL,
+          updated_at        INTEGER NOT NULL
+        );
+
+        INSERT INTO clients_new (
+          id, slug, card_code, first_name, last_name, full_name, email, phone,
+          company, client_type, is_founder, founder_media_url, address_line1,
+          address_line2, postal_code, city, vehicle_model, vehicle_plate,
+          formula_name, formula_total, formula_remaining, formula_purchased_at,
+          formula_expires_at, terms_accepted_at, formula_recap_sent_at,
+          welcome_email_sent_at, bc_points, notes, created_at, updated_at
+        )
+        SELECT
+          id, slug, card_code, first_name, last_name, full_name, email, phone,
+          company, client_type, is_founder, founder_media_url, address_line1,
+          address_line2, postal_code, city, vehicle_model, vehicle_plate,
+          formula_name, formula_total, formula_remaining, formula_purchased_at,
+          formula_expires_at, terms_accepted_at, formula_recap_sent_at,
+          welcome_email_sent_at, bc_points, notes, created_at, updated_at
+        FROM clients;
+
+        DROP TABLE clients;
+        ALTER TABLE clients_new RENAME TO clients;
+
+        CREATE INDEX IF NOT EXISTS idx_clients_card_code ON clients(card_code);
+        CREATE INDEX IF NOT EXISTS idx_clients_type ON clients(client_type);
+      `);
+
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    } finally {
+      db.exec("PRAGMA foreign_keys = ON");
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureClientsTypeAllowsPro:", error);
   }
 }
 
@@ -428,6 +550,7 @@ ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
 ensureAppointmentPhotosExtraColumns();
 ensureClientsExtraColumns();
+ensureClientsTypeAllowsPro();
 applySchema();
 ensureVehiclesFromClients();
 

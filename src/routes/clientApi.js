@@ -6,19 +6,21 @@ const router = express.Router();
 const { APPOINTMENTS_UPLOAD_DIR, ensureDir } = require("../config/storage");
 const {
   getTopupOfferForClient,
+  getUnitTopupOfferForClient,
   isSumupTopupReady,
   listPublicTopupOffersForClient,
 } = require("../config/topupOffers");
 const {
   createClient,
-  decrementFormulaRemaining,
   getClientById,
   getClientBySlugOrCardCode,
-  incrementFormulaRemaining,
+  markWelcomeEmailSent,
   updateClientTermsAcceptance,
 } = require("../db/clients");
 const {
   APPOINTMENT_SLOTS,
+  acceptAppointmentPriceForClient,
+  cancelAppointmentAndRefund,
   createRequestedAppointmentForSlot,
   defaultTimeForSlot,
   getAppointmentByDateAndSlot,
@@ -30,11 +32,13 @@ const {
   getPublicAppointmentsFeed,
   hasAppointmentPhotos,
   insertAppointmentPhoto,
+  markAppointmentClientPhotosAdded,
   normalizeAppointmentSlot,
   updateAppointmentForClientSlot,
   updateAppointmentUserReview,
   cancelAppointmentForClientOnDate,
 } = require("../db/appointments");
+const { createSignupCode, consumeSignupCode } = require("../db/signup_codes");
 const {
   BC_REWARDS,
   createRewardRedemption,
@@ -62,7 +66,10 @@ const {
 const {
   sendAdminNotification,
   sendAdminRewardRedemption,
+  sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
+  sendClientWelcomeEmail,
+  sendSignupVerificationCode,
 } = require("../email");
 const { createHostedCheckout, retrieveCheckout } = require("../services/sumup");
 
@@ -179,6 +186,10 @@ function buildTopupCheckoutReference(client, offer) {
   );
 }
 
+function isBbxClient(client) {
+  return (client.client_type || client.clientType || "bbx") === "bbx";
+}
+
 async function maybeSendTopupRecap(client, applied) {
   if (!applied || !client?.email) {
     return;
@@ -269,6 +280,14 @@ function mapClientAppointment(appointment) {
     vehicleModel: appointment.vehicle_model || null,
     vehiclePlate: appointment.vehicle_plate || null,
     cleanlinessRating: null,
+    clientCleanlinessEstimate: appointment.client_cleanliness_estimate || null,
+    adminCleanlinessEstimate: appointment.admin_cleanliness_estimate || null,
+    requestedCredits: appointment.requested_credits ?? 1,
+    approvedCredits: appointment.approved_credits ?? null,
+    creditsCharged: appointment.credits_charged ?? 0,
+    priceStatus: appointment.price_status || "pending_admin",
+    photosRequestedAt: appointment.photos_requested_at ?? null,
+    photosRequestMessage: appointment.photos_request_message || null,
     hasPhotos: hasAppointmentPhotos(appointment.id),
     location: appointment.location || null,
   };
@@ -446,13 +465,67 @@ function ensurePortalEligible(client, res) {
     return false;
   }
 
-  if ((client.client_type || "bbx") !== "bbx") {
-    res.status(403).json({ ok: false, error: "portal_disabled_for_data_client" });
-    return false;
-  }
-
   return true;
 }
+
+router.post("/signup/request-code", async (req, res) => {
+  const body = req.body || {};
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ ok: false, error: "invalid_email" });
+  }
+
+  const payload = {
+    firstName: body.firstName,
+    lastName: body.lastName,
+    email,
+    phone: body.phone,
+    company: body.company,
+    addressLine1: body.addressLine1,
+    postalCode: body.postalCode,
+    city: body.city,
+    vehicleModel: body.vehicleModel,
+    vehiclePlate: body.vehiclePlate,
+    clientType: "bbx",
+    formulaTotal: 0,
+    formulaRemaining: 0,
+  };
+
+  const signup = createSignupCode({ email, payload });
+  if (!signup) {
+    return res.status(500).json({ ok: false, error: "cannot_create_code" });
+  }
+
+  const fullName = [body.firstName, body.lastName].filter(Boolean).join(" ");
+  await sendSignupVerificationCode({ email, code: signup.code, fullName });
+  return res.json({ ok: true, expiresAt: signup.expiresAt });
+});
+
+router.post("/signup/verify", async (req, res) => {
+  const { email, code } = req.body || {};
+  const payload = consumeSignupCode(email, code);
+  if (!payload) {
+    return res.status(400).json({ ok: false, error: "invalid_or_expired_code" });
+  }
+
+  try {
+    const client = createClient(payload);
+    const welcomeSent = await sendClientWelcomeEmail(client);
+    if (welcomeSent) {
+      markWelcomeEmailSent(client.id);
+    }
+
+    return res.json({
+      ok: true,
+      client: mapClientPayload(getClientById(client.id)),
+      portalUrl: `/card/${encodeURIComponent(client.slug || client.card_code)}`,
+      welcomeSent,
+    });
+  } catch (error) {
+    console.error("[API] signup verify:", error);
+    return res.status(500).json({ ok: false, error: "cannot_create_client" });
+  }
+});
 
 router.get("/:idOrSlug", (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
@@ -469,8 +542,8 @@ router.get("/:idOrSlug", (req, res) => {
     ok: true,
     client: mapClientPayload(client),
     vehicles,
-    rewardCatalog: BC_REWARDS,
-    rewardRedemptions,
+    rewardCatalog: isBbxClient(client) ? BC_REWARDS : [],
+    rewardRedemptions: isBbxClient(client) ? rewardRedemptions : [],
     topupOffers: listPublicTopupOffersForClient(client),
     paymentsReady: isSumupTopupReady(),
     month,
@@ -524,7 +597,11 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
     return res.status(503).json({ ok: false, error: "sumup_not_ready" });
   }
 
-  const offer = getTopupOfferForClient(client, req.body?.offerKey);
+  const requestedQuantity = Number(req.body?.quantity || 1);
+  const offer =
+    req.body?.unitPurchase === true || requestedQuantity > 1
+      ? getUnitTopupOfferForClient(client, requestedQuantity)
+      : getTopupOfferForClient(client, req.body?.offerKey);
   if (!offer) {
     return res.status(400).json({ ok: false, error: "invalid_topup_offer" });
   }
@@ -872,6 +949,102 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
   });
 });
 
+router.post("/:idOrSlug/appointments/:appointmentId/accept-price", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const appointmentId = Number(req.params.appointmentId) || 0;
+  if (!appointmentId) {
+    return res.status(400).json({ ok: false, error: "invalid_appointment_id" });
+  }
+
+  try {
+    const result = acceptAppointmentPriceForClient(appointmentId, client.id);
+    const updated = getAppointmentById(appointmentId);
+
+    if (!result.ok && result.error === "not_enough_credits") {
+      return res.status(402).json({
+        ok: false,
+        error: "not_enough_credits",
+        appointment: mapClientAppointment(updated),
+        client: mapClientPayload(getClientById(client.id)),
+      });
+    }
+
+    if (!result.ok) {
+      return res.status(400).json({ ok: false, error: result.error || "cannot_accept_price" });
+    }
+
+    try {
+      await sendClientAppointmentStatusEmail({
+        client: getClientById(client.id),
+        appointment: updated,
+        eventType: "confirmed",
+      });
+    } catch (error) {
+      console.error("[MAIL] client confirmed after price:", error);
+    }
+
+    return res.json({
+      ok: true,
+      appointment: mapClientAppointment(getAppointmentById(appointmentId)),
+      client: mapClientPayload(getClientById(client.id)),
+    });
+  } catch (error) {
+    console.error("[API] accept price:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post(
+  "/:idOrSlug/appointments/:appointmentId/photos",
+  handleBookingUpload,
+  async (req, res) => {
+    const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+    if (!ensurePortalEligible(client, res)) {
+      return;
+    }
+
+    const appointmentId = Number(req.params.appointmentId) || 0;
+    if (!appointmentId) {
+      return res.status(400).json({ ok: false, error: "invalid_appointment_id" });
+    }
+
+    const appointment = getAppointmentById(appointmentId);
+    if (!appointment || appointment.client_id !== client.id) {
+      return res.status(404).json({ ok: false, error: "appointment_not_found" });
+    }
+
+    const files = Array.isArray(req.files) ? req.files : [];
+    const count = attachClientBookingImages(appointmentId, files);
+    if (count > 0) {
+      markAppointmentClientPhotosAdded(appointmentId);
+    }
+
+    try {
+      await sendAdminNotification({
+        type: "update",
+        client,
+        date: appointment.date,
+        time: appointment.time || defaultTimeForSlot(appointment.slot),
+        location: appointment.location || null,
+        clientNote: appointment.client_note || null,
+        clientImageCount: count,
+      });
+    } catch (error) {
+      console.error("[MAIL] notif photos added:", error);
+    }
+
+    return res.json({
+      ok: true,
+      clientImageCount: count,
+      appointment: mapClientAppointment(getAppointmentById(appointmentId)),
+    });
+  },
+);
+
 router.get("/appointments/:date", (req, res) => {
   const date = req.params.date;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -928,6 +1101,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   }
 
   const { date, time, location, slot: rawSlot, clientNote } = req.body || {};
+  const serviceLevel = req.body?.serviceLevel || req.body?.cleanlinessEstimate || "clean";
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
   const normalizedClientNote =
     typeof clientNote === "string" && clientNote.trim() !== "" ? clientNote.trim() : null;
@@ -983,6 +1157,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         time: normalizedTime,
         clientNote: normalizedClientNote,
         location: loc,
+        serviceLevel,
       });
 
       if (!changed) {
@@ -1023,21 +1198,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
     return res.status(412).json({ ok: false, error: "terms_not_accepted" });
   }
 
-  if (clientFormulaHasExpired(client)) {
-    return res.status(400).json({ ok: false, error: "formula_expired" });
-  }
-
-  if (client.formula_remaining <= 0) {
-    return res.status(400).json({ ok: false, error: "no_credits_left" });
-  }
-
   try {
-    const changed = decrementFormulaRemaining(client.id);
-    if (!changed) {
-      return res.status(400).json({ ok: false, error: "no_credits_left" });
-    }
-
     let appointmentId = null;
+    const isPro = (client.client_type || "bbx") === "pro";
 
     try {
       appointmentId = createRequestedAppointmentForSlot({
@@ -1048,10 +1211,14 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         time: normalizedTime,
         clientNote: normalizedClientNote,
         location: loc,
+        serviceLevel,
+        status: isPro ? "confirmed" : "requested",
+        priceStatus: isPro ? "not_required" : "pending_admin",
+        approvedCredits: isPro ? 0 : null,
+        creditsCharged: 0,
       });
     } catch (error) {
       console.error("[BOOK] createRequestedAppointmentForSlot:", error);
-      incrementFormulaRemaining(client.id);
 
       if (error && error.code === "SQLITE_CONSTRAINT") {
         return res.status(409).json({ ok: false, error: "slot_taken" });
@@ -1078,6 +1245,18 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       });
     } catch (error) {
       console.error("[MAIL] notif book:", error);
+    }
+
+    if (isPro) {
+      try {
+        await sendClientAppointmentStatusEmail({
+          client,
+          appointment: getAppointmentById(appointmentId),
+          eventType: "confirmed",
+        });
+      } catch (error) {
+        console.error("[MAIL] notif pro confirmed:", error);
+      }
     }
 
     return res.json({ ok: true, created: true, clientImageCount });
@@ -1124,8 +1303,7 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
     return res.status(400).json({ ok: false, error: "slot_already_passed" });
   }
 
-  cancelAppointmentForClientOnDate(client.id, date, slot);
-  incrementFormulaRemaining(client.id);
+  cancelAppointmentAndRefund(appointment.id);
 
   try {
     await sendAdminNotification({
@@ -1201,3 +1379,15 @@ router.post("/:idOrSlug/rewards/redeem", async (req, res) => {
 });
 
 module.exports = router;
+  if (!isBbxClient(client)) {
+    return res.json({
+      ok: true,
+      bcPoints: 0,
+      rewardCatalog: [],
+      rewardRedemptions: [],
+    });
+  }
+
+  if (!isBbxClient(client)) {
+    return res.status(403).json({ ok: false, error: "bc_disabled_for_client_type" });
+  }

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS clients (
   phone             TEXT,
   company           TEXT,
   client_type       TEXT NOT NULL DEFAULT 'bbx'
-                    CHECK (client_type IN ('bbx', 'data')),
+                    CHECK (client_type IN ('bbx', 'data', 'pro')),
   is_founder        INTEGER NOT NULL DEFAULT 0
                     CHECK (is_founder IN (0, 1)),
   founder_media_url TEXT,
@@ -94,6 +94,27 @@ CREATE TABLE IF NOT EXISTS appointments (
                       'reset_recommended'
                     )),
   cleanliness_penalty_applied INTEGER NOT NULL DEFAULT 0,
+  client_cleanliness_estimate TEXT
+                    CHECK (client_cleanliness_estimate IN ('clean', 'correct', 'dirty')),
+  admin_cleanliness_estimate TEXT
+                    CHECK (admin_cleanliness_estimate IN ('clean', 'correct', 'dirty')),
+  requested_credits INTEGER NOT NULL DEFAULT 1,
+  approved_credits INTEGER,
+  credits_charged INTEGER NOT NULL DEFAULT 0,
+  credits_charged_at INTEGER,
+  price_status TEXT NOT NULL DEFAULT 'pending_admin'
+                    CHECK (price_status IN (
+                      'pending_admin',
+                      'waiting_photos',
+                      'waiting_client_approval',
+                      'waiting_payment',
+                      'approved',
+                      'not_required',
+                      'declined'
+                    )),
+  photos_requested_at INTEGER,
+  photos_request_message TEXT,
+  client_price_approved_at INTEGER,
   bc_points_awarded INTEGER NOT NULL DEFAULT 0
                     CHECK (bc_points_awarded IN (0, 1)),
   admin_reminder_24h_sent_at INTEGER,
@@ -195,6 +216,24 @@ CREATE INDEX IF NOT EXISTS idx_topup_orders_client
 
 CREATE INDEX IF NOT EXISTS idx_topup_orders_checkout_id
   ON topup_orders(checkout_id);
+
+-- ============================
+-- TABLE signup_codes
+-- ============================
+CREATE TABLE IF NOT EXISTS signup_codes (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  email             TEXT NOT NULL,
+  code              TEXT NOT NULL,
+  payload_json      TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'used', 'expired')),
+  expires_at        INTEGER NOT NULL,
+  created_at        INTEGER NOT NULL,
+  used_at           INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_signup_codes_email_status
+  ON signup_codes(email, status, created_at DESC);
 
 -- ============================
 -- TABLE export_jobs

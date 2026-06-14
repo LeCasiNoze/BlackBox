@@ -46,7 +46,7 @@ function normalizeOffer(rawOffer, index) {
   const clientTypes = Array.isArray(rawOffer.clientTypes)
     ? rawOffer.clientTypes
         .map((value) => (typeof value === "string" ? value.trim().toLowerCase() : ""))
-        .filter((value) => value === "bbx" || value === "data")
+        .filter((value) => value === "bbx" || value === "data" || value === "pro")
     : ["bbx"];
 
   return {
@@ -135,6 +135,33 @@ function getTopupOfferForClient(client, offerKey) {
   );
 }
 
+function getUnitTopupOfferForClient(client, quantity = 1) {
+  const qty = Math.max(1, Math.min(20, Math.floor(Number(quantity) || 1)));
+  const unitOffer =
+    listTopupOffersForClient(client).find((offer) => offer.credits === 1 && offer.applyMode === "add") ||
+    null;
+
+  if (!unitOffer) {
+    return null;
+  }
+
+  return {
+    ...unitOffer,
+    key: `${unitOffer.key}-x${qty}`,
+    label:
+      qty === 1
+        ? unitOffer.label
+        : `${qty} credits a l'unite`,
+    description:
+      qty === 1
+        ? unitOffer.description
+        : `Achat de ${qty} credit${qty > 1 ? "s" : ""} au tarif unitaire.`,
+    credits: qty,
+    priceCents: unitOffer.priceCents * qty,
+    durationDays: unitOffer.durationDays,
+  };
+}
+
 function listPublicTopupOffersForClient(client) {
   return listTopupOffersForClient(client).map((offer) => ({
     key: offer.key,
@@ -158,6 +185,7 @@ function isSumupTopupReady() {
 
 module.exports = {
   getTopupOfferForClient,
+  getUnitTopupOfferForClient,
   isSumupTopupReady,
   listPublicTopupOffersForClient,
   listTopupOffersForClient,

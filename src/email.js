@@ -107,11 +107,15 @@ function basePortalUrl() {
 function clientPortalUrl(client) {
   const slug = client.slug || client.card_code || client.cardCode;
   const clientType = client.client_type || client.clientType || "bbx";
-  if (clientType === "data") return "";
-
   const base = basePortalUrl();
   if (!base || !slug) return "";
   return `${base}/card/${encodeURIComponent(slug)}`;
+}
+
+function serviceLevelLabel(level) {
+  if (level === "dirty") return "Sale";
+  if (level === "correct") return "Correct";
+  return "Propre";
 }
 
 function clientTermsUrl(client) {
@@ -516,6 +520,127 @@ Admin : ${adminUrl}
 
   return sendBrevoEmail({
     to: [{ email: adminEmail }],
+    subject,
+    html,
+    text,
+  });
+}
+
+async function sendSignupVerificationCode({ email, code, fullName }) {
+  if (!email || !code) return false;
+
+  const subject = "[Bryan Cars] Votre code de validation";
+  const text = `
+Bonjour ${fullName || ""},
+
+Votre code de validation Bryan Cars est : ${code}
+
+Il est valable quelques minutes. Si vous n'etes pas a l'origine de cette demande, ignorez cet email.
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Validation email",
+    title: "Votre code Bryan Cars",
+    subtitle: "Entrez ce code sur le site pour finaliser la creation de votre espace client.",
+    preheader: `Code de validation ${code}`,
+    bodyHtml: `
+      ${metricRows([{ label: "Code", value: code }])}
+      ${panelCard({
+        title: "Creation de compte",
+        description:
+          "Ce code confirme que l'adresse email vous appartient. Il expire rapidement pour proteger votre acces.",
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email, name: fullName || email }],
+    subject,
+    html,
+    text,
+  });
+}
+
+async function sendClientPhotosRequestedEmail({ client, appointment, message }) {
+  if (!client?.email || !appointment) return false;
+
+  const portalUrl = clientPortalUrl(client);
+  const fullName = fallbackClientName(client);
+  const formattedDate = formatDateFr(appointment.date);
+  const subject = `[Bryan Cars] Photos demandees pour votre rendez-vous`;
+  const text = `
+Bonjour ${fullName},
+
+L'equipe Bryan Cars a besoin de photos de votre vehicule pour valider le tarif du rendez-vous du ${formattedDate}.
+
+Message : ${message || "-"}
+Espace client : ${portalUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Action requise",
+    title: "Ajoutez des photos du vehicule",
+    subtitle:
+      "L'admin souhaite verifier l'etat du vehicule avant de confirmer le rendez-vous.",
+    preheader: `Photos demandees · ${formattedDate}`,
+    bodyHtml: `
+      ${panelCard({
+        title: "Demande admin",
+        description: message || "Ajoutez quelques photos claires du vehicule depuis votre espace client.",
+        bodyHtml: actionButtons([
+          portalUrl ? { label: "Ouvrir mon rendez-vous", href: portalUrl, tone: "primary" } : null,
+        ]),
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
+async function sendClientPriceApprovalEmail({ client, appointment }) {
+  if (!client?.email || !appointment) return false;
+
+  const portalUrl = clientPortalUrl(client);
+  const fullName = fallbackClientName(client);
+  const formattedDate = formatDateFr(appointment.date);
+  const requested = Number(appointment.requested_credits || 1);
+  const approved = Number(appointment.approved_credits || requested);
+  const subject = `[Bryan Cars] Validation tarif rendez-vous`;
+  const text = `
+Bonjour ${fullName},
+
+Votre rendez-vous du ${formattedDate} necessite une validation tarif.
+
+Estimation initiale : ${requested} credit(s)
+Tarif confirme par l'admin : ${approved} credit(s)
+
+Espace client : ${portalUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Validation tarif",
+    title: "Un tarif est a confirmer",
+    subtitle:
+      "L'etat du vehicule demande plus de credits que l'estimation initiale. Vous pouvez accepter ou annuler depuis votre espace.",
+    preheader: `${approved} credits a valider · ${formattedDate}`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Estimation client", value: `${requested} credit${requested > 1 ? "s" : ""}` },
+        { label: "Tarif admin", value: `${approved} credit${approved > 1 ? "s" : ""}` },
+      ])}
+      ${actionButtons([
+        portalUrl ? { label: "Accepter ou annuler", href: portalUrl, tone: "primary" } : null,
+      ])}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
     subject,
     html,
     text,
@@ -995,8 +1120,11 @@ module.exports = {
   sendAdminAppointmentReminderEmail,
   sendAdminNotification,
   sendAdminRewardRedemption,
+  sendClientPhotosRequestedEmail,
+  sendClientPriceApprovalEmail,
   sendClientAppointmentReminderEmail,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
+  sendSignupVerificationCode,
   sendClientWelcomeEmail,
 };

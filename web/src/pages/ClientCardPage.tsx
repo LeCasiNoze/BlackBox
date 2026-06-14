@@ -96,7 +96,7 @@ type ApiClient = {
   fullName: string | null;
   phone: string | null;
   email: string | null;
-  clientType: "bbx" | "data";
+  clientType: "bbx" | "data" | "pro";
   isFounder: boolean;
   founderMediaUrl: string | null;
   addressLine1: string | null;
@@ -190,9 +190,37 @@ type ClientAppointment = {
   vehicleLabel: string | null;
   vehicleModel: string | null;
   vehiclePlate: string | null;
+  clientCleanlinessEstimate: ServiceLevel | null;
+  adminCleanlinessEstimate: ServiceLevel | null;
+  requestedCredits: number;
+  approvedCredits: number | null;
+  creditsCharged: number;
+  priceStatus:
+    | "pending_admin"
+    | "waiting_photos"
+    | "waiting_client_approval"
+    | "waiting_payment"
+    | "approved"
+    | "not_required"
+    | "declined";
+  photosRequestedAt: number | null;
+  photosRequestMessage: string | null;
   hasPhotos: boolean;
   location: AppointmentLocation | null;
 };
+
+type ServiceLevel = "clean" | "correct" | "dirty";
+
+const SERVICE_LEVEL_OPTIONS: Array<{
+  value: ServiceLevel;
+  label: string;
+  credits: number;
+  copy: string;
+}> = [
+  { value: "clean", label: "Propre", credits: 1, copy: "Entretien simple, vehicule deja suivi." },
+  { value: "correct", label: "Correct", credits: 2, copy: "Traces visibles, nettoyage plus complet." },
+  { value: "dirty", label: "Sale", credits: 3, copy: "Remise a niveau plus exigeante." },
+];
 
 type ListClientAppointmentsResponse = {
   ok: boolean;
@@ -672,6 +700,7 @@ export function ClientCardPage() {
   const [selectedTime, setSelectedTime] = React.useState(defaultTimeForSlot("morning"));
   const [appointmentLocation, setAppointmentLocation] =
     React.useState<AppointmentLocation>("atelier");
+  const [serviceLevel, setServiceLevel] = React.useState<ServiceLevel>("clean");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
 
@@ -1027,8 +1056,8 @@ export function ClientCardPage() {
   const month = data?.month ?? null;
   const monthDays = month?.days ?? [];
   const termsAccepted = !!client?.termsAcceptedAt;
-  const formulaExpired = formulaHasExpired(client?.formulaExpiresAt);
-  const formulaDaysRemaining = daysUntilExpiry(client?.formulaExpiresAt);
+  const formulaExpired = false;
+  const formulaDaysRemaining = null;
 
   const deferredVehicleQuery = React.useDeferredValue(vehicleQuery);
   const deferredBookingVehicleQuery = React.useDeferredValue(bookingVehicleQuery);
@@ -1305,11 +1334,6 @@ export function ClientCardPage() {
     if (!client) return;
     const slot = preferredSlot ?? pickDefaultSlot(day);
 
-    if (day.slots[slot].status === "free" && client.formulaRemaining <= 0) {
-      redirectToTopupView(client.formulaRemaining);
-      return;
-    }
-
     syncDaySelection(day, slot);
     setClientBookingNote("");
     clearBookingImages();
@@ -1552,14 +1576,19 @@ export function ClientCardPage() {
     }
   }
 
-  async function startTopupCheckout(offer: TopupOffer) {
-    setBusyTopupKey(offer.key);
+  async function startTopupCheckout(offer: TopupOffer, quantity = 1) {
+    const busyKey = quantity > 1 ? `${offer.key}-x${quantity}` : offer.key;
+    setBusyTopupKey(busyKey);
 
     try {
       const response = await fetch(`/api/client/${encodeURIComponent(slug)}/topup/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offerKey: offer.key }),
+        body: JSON.stringify({
+          offerKey: offer.key,
+          quantity,
+          unitPurchase: quantity > 1 || client?.clientType !== "bbx",
+        }),
       });
 
       const json = (await response.json()) as TopupCheckoutResponse;
@@ -1633,16 +1662,6 @@ export function ClientCardPage() {
       return;
     }
 
-    if (formulaExpired) {
-      showToast("Votre formule est expiree. Rechargez-la pour reserver un nouveau passage.");
-      return;
-    }
-
-    if (data.client.formulaRemaining <= 0) {
-      redirectToTopupView(data.client.formulaRemaining);
-      return;
-    }
-
     setBusyAction(true);
 
     try {
@@ -1651,6 +1670,7 @@ export function ClientCardPage() {
       formData.set("slot", slot);
       formData.set("time", time);
       formData.set("location", appointmentLocation);
+      formData.set("serviceLevel", serviceLevel);
       if (activeVehicleId) {
         formData.set("vehicleId", String(activeVehicleId));
       }
@@ -1670,10 +1690,6 @@ export function ClientCardPage() {
       if (!response.ok || !json.ok) {
         if (json?.error === "terms_not_accepted") {
           openTermsModal({ type: "book", date, slot, time });
-          return;
-        }
-        if (json?.error === "formula_expired") {
-          showToast("Votre formule est expiree. Rechargez-la avant de reserver.");
           return;
         }
         if (json?.error === "too_many_images") {
@@ -1796,6 +1812,74 @@ export function ClientCardPage() {
     }
   }
 
+  async function acceptSelectedAppointmentPrice() {
+    if (!selectedAppointment) return;
+    setBusyAction(true);
+    try {
+      const response = await fetch(
+        `/api/client/${encodeURIComponent(slug)}/appointments/${selectedAppointment.id}/accept-price`,
+        { method: "POST", headers: { "Content-Type": "application/json" } },
+      );
+      const json = await response.json().catch(() => ({}));
+
+      if (!response.ok || !json.ok) {
+        if (json?.error === "not_enough_credits") {
+          showToast("Credits insuffisants. Rechargez puis validez le tarif.");
+          navigateView("shop");
+          return;
+        }
+        showToast("Impossible de valider le tarif.");
+        return;
+      }
+
+      setSelectedAppointment(json.appointment ?? null);
+      if (json.client) {
+        setData((current) => (current ? { ...current, client: json.client } : current));
+      }
+      setReloadToken((value) => value + 1);
+      showToast("Tarif valide. Le rendez-vous est confirme.");
+    } catch (error) {
+      showToast("Erreur reseau pendant la validation.");
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function uploadSelectedAppointmentPhotos() {
+    if (!selectedAppointment) return;
+    if (bookingImageDrafts.length === 0) {
+      showToast("Ajoutez au moins une photo.");
+      return;
+    }
+
+    setBusyAction(true);
+    try {
+      const formData = new FormData();
+      bookingImageDrafts.forEach((draft) => {
+        formData.append("images", draft.file);
+      });
+
+      const response = await fetch(
+        `/api/client/${encodeURIComponent(slug)}/appointments/${selectedAppointment.id}/photos`,
+        { method: "POST", body: formData },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast("Impossible d'envoyer les photos.");
+        return;
+      }
+
+      clearBookingImages();
+      setSelectedAppointment(json.appointment ?? selectedAppointment);
+      setReloadToken((value) => value + 1);
+      showToast("Photos envoyees a l'admin.");
+    } catch (error) {
+      showToast("Erreur reseau pendant l'envoi des photos.");
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
   async function updateTime(date: string, slot: AppointmentSlot, newTime: string) {
     setBusyAction(true);
 
@@ -1900,7 +1984,7 @@ export function ClientCardPage() {
     appointments.some((appointment) => appointment.id === selectedAppointment.id);
   const creditsExhausted = (client?.formulaRemaining ?? 0) <= 0;
   const creditsTopupNeed = creditsNeededToBook(client?.formulaRemaining ?? 0);
-  const bookingLocked = creditsExhausted || formulaExpired || !termsAccepted;
+  const bookingLocked = !termsAccepted;
 
   if (loading) {
     return (
@@ -2925,7 +3009,7 @@ export function ClientCardPage() {
                           </div>
                         )}
                         <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                          {offer.applyMode === "replace" ? "Nouvelle formule" : "Ajout de credits"}
+                          Ajout de credits
                         </div>
                       </div>
                     </div>
@@ -2959,6 +3043,35 @@ export function ClientCardPage() {
               </div>
             )}
 
+            {clientData.clientType !== "bbx" && topupOffers[0] && (
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-lg font-semibold text-white">Achat a l'unite</p>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Votre compte {clientData.clientType === "pro" ? "Pro" : "Data"} achete les credits
+                  au tarif unitaire, sans BC&apos;Coins ni packs remises.
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {[1, 2, 3, 5, 10].map((quantity) => {
+                    const key = `${topupOffers[0].key}-x${quantity}`;
+                    return (
+                      <button
+                        className="bb-button-ghost justify-center px-3 py-2"
+                        disabled={busyTopupKey === key}
+                        key={quantity}
+                        onClick={() => {
+                          void startTopupCheckout(topupOffers[0], quantity);
+                        }}
+                        type="button"
+                      >
+                        {quantity} credit{quantity > 1 ? "s" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {clientData.clientType === "bbx" && (
             <div className="mt-8 border-t border-white/10 pt-6">
               <div className="bb-section-head">
                 <div>
@@ -3004,6 +3117,7 @@ export function ClientCardPage() {
             })}
               </div>
             </div>
+            )}
           </div>
         </article>
 
@@ -3287,6 +3401,14 @@ export function ClientCardPage() {
 
   return (
     <div className="bb-shell pb-24 md:pb-16">
+      <input
+        accept="image/*"
+        className="hidden"
+        multiple
+        onChange={handleBookingImageSelection}
+        ref={bookingImageInputRef}
+        type="file"
+      />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-[#f7b955]/12 blur-3xl" />
         <div className="absolute right-[-7rem] top-0 h-80 w-80 rounded-full bg-sky-400/12 blur-3xl" />
@@ -3573,6 +3695,41 @@ export function ClientCardPage() {
                       ))}
                     </div>
                   </div>
+
+                  {clientData.clientType !== "pro" && (
+                    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Etat estime du vehicule
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-white/60">
+                        Cette estimation aide l&apos;admin a valider plus vite. Aucun credit n&apos;est
+                        consomme tant que le tarif n&apos;est pas confirme.
+                      </p>
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        {SERVICE_LEVEL_OPTIONS.map((option) => (
+                          <button
+                            className={cn(
+                              "rounded-[22px] border px-4 py-4 text-left transition duration-200",
+                              serviceLevel === option.value
+                                ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                                : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
+                            )}
+                            key={option.value}
+                            onClick={() => setServiceLevel(option.value)}
+                            type="button"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-base font-semibold text-white">{option.label}</span>
+                              <span className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                                {option.credits} credit{option.credits > 1 ? "s" : ""}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-sm leading-6 text-white/58">{option.copy}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid gap-4">
                     <ChoiceField
@@ -3881,6 +4038,93 @@ export function ClientCardPage() {
                 Fermer
               </button>
             </div>
+
+            {clientData.clientType !== "pro" && (
+              <div className="mt-6 rounded-[26px] border border-[#f7b955]/25 bg-[#f7b955]/10 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-[#ffe8a8]">
+                      Validation tarif
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-white">
+                      {selectedAppointment.priceStatus === "waiting_photos"
+                        ? "L'admin demande des photos"
+                        : selectedAppointment.priceStatus === "waiting_client_approval"
+                          ? "Tarif a accepter"
+                          : selectedAppointment.priceStatus === "waiting_payment"
+                            ? "Recharge necessaire"
+                            : selectedAppointment.priceStatus === "approved"
+                              ? "Credits consommes"
+                              : "Analyse admin en cours"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/68">
+                      Estimation: {selectedAppointment.requestedCredits || 1} credit
+                      {(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}
+                      {selectedAppointment.approvedCredits != null
+                        ? ` · Tarif admin: ${selectedAppointment.approvedCredits} credit${
+                            selectedAppointment.approvedCredits > 1 ? "s" : ""
+                          }`
+                        : ""}
+                      {selectedAppointment.photosRequestMessage
+                        ? ` · ${selectedAppointment.photosRequestMessage}`
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[320px]">
+                    {(selectedAppointment.priceStatus === "waiting_client_approval" ||
+                      selectedAppointment.priceStatus === "waiting_payment") && (
+                      <button
+                        className="bb-button-brand justify-center"
+                        disabled={busyAction}
+                        onClick={() => {
+                          void acceptSelectedAppointmentPrice();
+                        }}
+                        type="button"
+                      >
+                        Accepter le tarif
+                      </button>
+                    )}
+                    {selectedAppointment.priceStatus === "waiting_payment" && (
+                      <button className="bb-button-ghost justify-center" onClick={() => navigateView("shop")} type="button">
+                        Recharger
+                      </button>
+                    )}
+                    {selectedAppointment.priceStatus === "waiting_photos" && (
+                      <>
+                        <button
+                          className="bb-button-ghost justify-center"
+                          onClick={() => bookingImageInputRef.current?.click()}
+                          type="button"
+                        >
+                          Ajouter photos
+                        </button>
+                        <button
+                          className="bb-button-brand justify-center"
+                          disabled={busyAction || bookingImageDrafts.length === 0}
+                          onClick={() => {
+                            void uploadSelectedAppointmentPhotos();
+                          }}
+                          type="button"
+                        >
+                          Envoyer
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {selectedAppointment.priceStatus === "waiting_photos" && bookingImageDrafts.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {bookingImageDrafts.map((draft) => (
+                      <div className="overflow-hidden rounded-[18px] border border-white/10 bg-black/30" key={draft.id}>
+                        <img alt={draft.file.name} className="h-24 w-full object-cover" src={draft.previewUrl} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <section className="space-y-4">
