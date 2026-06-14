@@ -546,6 +546,61 @@ function ensureAppointmentsSlotModel() {
   }
 }
 
+// Migre la table push_subscriptions (creee avec un role limite a 'admin') vers
+// le support des notifications client: ajoute client_id et autorise role 'client'.
+function ensurePushSubscriptionsSchema() {
+  try {
+    const info = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='push_subscriptions'")
+      .get();
+    if (!info) {
+      return;
+    }
+    const needsMigration =
+      !/client_id/.test(info.sql) || /IN\s*\(\s*'admin'\s*\)/.test(info.sql);
+    if (!needsMigration) {
+      return;
+    }
+
+    console.log("[DB] Migration push_subscriptions -> client + client_id");
+    db.exec("PRAGMA foreign_keys = OFF");
+    try {
+      db.exec("ALTER TABLE push_subscriptions RENAME TO push_subscriptions_old");
+      db.exec(`
+        CREATE TABLE push_subscriptions (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          role              TEXT NOT NULL DEFAULT 'admin'
+                            CHECK (role IN ('admin', 'client')),
+          client_id         INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+          endpoint          TEXT NOT NULL UNIQUE,
+          p256dh            TEXT NOT NULL,
+          auth              TEXT NOT NULL,
+          user_agent        TEXT,
+          created_at        INTEGER NOT NULL,
+          updated_at        INTEGER NOT NULL
+        )
+      `);
+      db.exec(`
+        INSERT INTO push_subscriptions
+          (id, role, client_id, endpoint, p256dh, auth, user_agent, created_at, updated_at)
+        SELECT id, role, NULL, endpoint, p256dh, auth, user_agent, created_at, updated_at
+        FROM push_subscriptions_old
+      `);
+      db.exec("DROP TABLE push_subscriptions_old");
+      db.exec(
+        "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_role ON push_subscriptions(role, created_at DESC)",
+      );
+      db.exec(
+        "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_client ON push_subscriptions(client_id)",
+      );
+    } finally {
+      db.exec("PRAGMA foreign_keys = ON");
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensurePushSubscriptionsSchema:", error);
+  }
+}
+
 ensureAppointmentsTimeColumn();
 ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
@@ -553,6 +608,7 @@ ensureAppointmentPhotosExtraColumns();
 ensureClientsExtraColumns();
 ensureClientsTypeAllowsPro();
 applySchema();
+ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
 
 module.exports = {

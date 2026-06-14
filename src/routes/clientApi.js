@@ -72,7 +72,11 @@ const {
   sendSignupVerificationCode,
 } = require("../email");
 const { createHostedCheckout, retrieveCheckout } = require("../services/sumup");
-const { sendAdminPush } = require("../services/webPush");
+const { getVapidPublicKey, isPushConfigured } = require("../services/webPush");
+const {
+  saveSubscription,
+  deleteSubscriptionByEndpoint,
+} = require("../db/pushSubscriptions");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
@@ -1249,22 +1253,6 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       console.error("[MAIL] notif book:", error);
     }
 
-    try {
-      const clientName =
-        client.full_name ||
-        [client.first_name, client.last_name].filter(Boolean).join(" ") ||
-        "Un client";
-      const slotName = slot === "afternoon" ? "apres-midi" : "matin";
-      await sendAdminPush({
-        title: "Nouveau rendez-vous",
-        body: `${clientName} · ${date} (${slotName}${normalizedTime ? ` ${normalizedTime}` : ""})`,
-        url: `/admin/appointments?appointmentId=${appointmentId}`,
-        tag: `booking-${appointmentId}`,
-      });
-    } catch (error) {
-      console.error("[PUSH] notif book:", error);
-    }
-
     if (isPro) {
       try {
         await sendClientAppointmentStatusEmail({
@@ -1405,6 +1393,72 @@ router.post("/:idOrSlug/rewards/redeem", async (req, res) => {
     });
   } catch (error) {
     console.error("[API] redeem reward:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ============================
+// Web Push (notifications client)
+// ============================
+router.get("/:idOrSlug/push/public-key", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  return res.json({
+    ok: true,
+    configured: isPushConfigured(),
+    publicKey: getVapidPublicKey(),
+  });
+});
+
+router.post("/:idOrSlug/push/subscribe", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const subscription = req.body?.subscription || req.body || {};
+  const endpoint = subscription.endpoint;
+  const keys = subscription.keys || {};
+
+  if (!endpoint || !keys.p256dh || !keys.auth) {
+    return res.status(400).json({ ok: false, error: "invalid_subscription" });
+  }
+
+  try {
+    const saved = saveSubscription({
+      role: "client",
+      clientId: client.id,
+      endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+      userAgent: req.headers["user-agent"] || null,
+    });
+    if (!saved) {
+      return res.status(400).json({ ok: false, error: "invalid_subscription" });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[API] client push subscribe:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/:idOrSlug/push/unsubscribe", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  const endpoint = req.body?.endpoint || req.body?.subscription?.endpoint;
+  if (!endpoint) {
+    return res.status(400).json({ ok: false, error: "missing_endpoint" });
+  }
+  try {
+    deleteSubscriptionByEndpoint(endpoint);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[API] client push unsubscribe:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

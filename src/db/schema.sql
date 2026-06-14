@@ -242,7 +242,8 @@ CREATE INDEX IF NOT EXISTS idx_signup_codes_email_status
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   role              TEXT NOT NULL DEFAULT 'admin'
-                    CHECK (role IN ('admin')),
+                    CHECK (role IN ('admin', 'client')),
+  client_id         INTEGER REFERENCES clients(id) ON DELETE CASCADE,
   endpoint          TEXT NOT NULL UNIQUE,
   p256dh            TEXT NOT NULL,
   auth              TEXT NOT NULL,
@@ -253,6 +254,9 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_role
   ON push_subscriptions(role, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_client
+  ON push_subscriptions(client_id);
 
 -- ============================
 -- TABLE export_jobs

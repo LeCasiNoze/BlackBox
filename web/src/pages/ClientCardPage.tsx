@@ -2,6 +2,7 @@ import * as React from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Bell,
   CalendarClock,
   CarFront,
   CheckCircle2,
@@ -58,6 +59,11 @@ import {
   TERMS_SECTIONS,
   TERMS_UPDATED_LABEL,
 } from "../lib/terms";
+import {
+  clientPushPermission,
+  clientPushSupported,
+  enableClientPush,
+} from "../lib/clientPush";
 
 const SUMUP_TOPUP_URL =
   import.meta.env.VITE_SUMUP_TOPUP_URL || "https://www.sumupbookings.com/bryan-cars";
@@ -672,6 +678,7 @@ export function ClientCardPage() {
   const requestedDayParam = query.get("d");
   const launchTopupParam = query.get("launchTopup") === "1";
   const topupRefParam = query.get("topupRef");
+  const appointmentIdParam = query.get("appointmentId");
 
   const [data, setData] = React.useState<ApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -711,6 +718,11 @@ export function ClientCardPage() {
   const [termsCheckboxAttention, setTermsCheckboxAttention] = React.useState(false);
   const [contactModalOpen, setContactModalOpen] = React.useState(false);
   const [founderModalOpen, setFounderModalOpen] = React.useState(false);
+  const [pushPermission, setPushPermission] = React.useState<NotificationPermission | "unsupported">(
+    () => clientPushPermission(),
+  );
+  const [pushBusy, setPushBusy] = React.useState(false);
+  const lastOpenedAppointmentIdRef = React.useRef<number | null>(null);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
   const [vehicleQuery, setVehicleQuery] = React.useState("");
   const [bookingVehicleQuery, setBookingVehicleQuery] = React.useState("");
@@ -894,6 +906,28 @@ export function ClientCardPage() {
     setToast(message);
   }
 
+  async function handleEnablePush() {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      const result = await enableClientPush(slug);
+      setPushPermission(clientPushPermission());
+      if (result.ok) {
+        showToast("Notifications activees.");
+      } else if (result.reason === "denied") {
+        showToast("Notifications refusees. Autorisez-les dans les reglages.");
+      } else if (result.reason === "not_configured") {
+        showToast("Notifications indisponibles pour le moment.");
+      } else if (result.reason === "unsupported") {
+        showToast("Notifications non supportees sur cet appareil.");
+      } else {
+        showToast("Impossible d'activer les notifications.");
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
   function clearBookingImages() {
     bookingImagesRef.current.forEach((draft) => {
       URL.revokeObjectURL(draft.previewUrl);
@@ -1045,6 +1079,26 @@ export function ClientCardPage() {
       openTopupFlow();
     }, 0);
   }, [client, launchTopupParam, navigate, paymentsReady, query, slug, topupOffers]);
+
+  // Re-synchronise l'abonnement push si la permission a deja ete accordee.
+  React.useEffect(() => {
+    if (!slug || clientPushPermission() !== "granted") return;
+    void enableClientPush(slug);
+  }, [slug]);
+
+  // Ouvre automatiquement la modale d'un rendez-vous transmis via ?appointmentId=N.
+  React.useEffect(() => {
+    if (!appointmentIdParam || appointmentsLoading || selectedAppointment) return;
+    const targetId = Number(appointmentIdParam);
+    if (lastOpenedAppointmentIdRef.current === targetId) return;
+    const found = appointments.find((a) => a.id === targetId);
+    if (!found) return;
+    lastOpenedAppointmentIdRef.current = targetId;
+    void openAppointmentModal(found);
+  // openAppointmentModal est stable (definie dans le meme composant, pas de deps changeantes)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentIdParam, appointments, appointmentsLoading, selectedAppointment]);
+
   const month = data?.month ?? null;
   const monthDays = month?.days ?? [];
   const termsAccepted = !!client?.termsAcceptedAt;
@@ -2108,6 +2162,19 @@ export function ClientCardPage() {
               <Phone className="mr-2 h-4 w-4" />
               Contact
             </button>
+            {clientPushSupported() && pushPermission !== "granted" && (
+              <button
+                className="bb-button-ghost px-4 py-2"
+                disabled={pushBusy}
+                onClick={() => {
+                  void handleEnablePush();
+                }}
+                type="button"
+              >
+                <Bell className="mr-2 h-4 w-4" />
+                Notifications
+              </button>
+            )}
             {clientData.clientType !== "pro" && (
               <button className="bb-button-brand px-4 py-2" onClick={openTopupFlow} type="button">
                 Recharger
@@ -4074,27 +4141,48 @@ export function ClientCardPage() {
 
                   <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[320px]">
                     {(selectedAppointment.priceStatus === "waiting_client_approval" ||
-                      selectedAppointment.priceStatus === "waiting_payment") && (
-                      <button
-                        className="bb-button-brand justify-center"
-                        disabled={busyAction}
-                        onClick={() => {
-                          void acceptSelectedAppointmentPrice();
-                        }}
-                        type="button"
-                      >
-                        Accepter le tarif
-                      </button>
-                    )}
-                    {selectedAppointment.priceStatus === "waiting_payment" && (
-                      <button
-                        className="bb-button-ghost justify-center"
-                        onClick={() => startCreditPurchaseForAppointment(selectedAppointment)}
-                        type="button"
-                      >
-                        Recharger
-                      </button>
-                    )}
+                      selectedAppointment.priceStatus === "waiting_payment") && (() => {
+                        const approvedNeeded =
+                          selectedAppointment.approvedCredits ??
+                          selectedAppointment.requestedCredits ??
+                          1;
+                        const lacksCredits =
+                          (clientData.formulaRemaining ?? 0) < approvedNeeded;
+                        return lacksCredits ? (
+                          <>
+                            <button
+                              className="bb-button-brand justify-center"
+                              onClick={() =>
+                                startCreditPurchaseForAppointment(selectedAppointment)
+                              }
+                              type="button"
+                            >
+                              Recharger {creditsNeededForAppointment(selectedAppointment)} credit(s)
+                            </button>
+                            <button
+                              className="bb-button-ghost justify-center"
+                              disabled={busyAction}
+                              onClick={() => {
+                                void acceptSelectedAppointmentPrice();
+                              }}
+                              type="button"
+                            >
+                              Accepter le tarif
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="bb-button-brand justify-center"
+                            disabled={busyAction}
+                            onClick={() => {
+                              void acceptSelectedAppointmentPrice();
+                            }}
+                            type="button"
+                          >
+                            Accepter le tarif
+                          </button>
+                        );
+                      })()}
                     {selectedAppointment.priceStatus === "waiting_photos" && (
                       <>
                         <button

@@ -1,6 +1,7 @@
 const webpush = require("web-push");
 const {
   listSubscriptions,
+  listSubscriptionsByClient,
   deleteSubscriptionByEndpoint,
 } = require("../db/pushSubscriptions");
 
@@ -30,23 +31,21 @@ function getVapidPublicKey() {
   return configured ? VAPID_PUBLIC_KEY : null;
 }
 
-// Envoie une notification a tous les appareils admin abonnes.
+// Envoie une notification a une liste d'abonnements.
 // Les abonnements expires (404/410) sont supprimes automatiquement.
-async function sendAdminPush({ title, body, url = "/admin/appointments", tag = "bbx-admin" } = {}) {
+async function dispatchPush(subscriptions, { title, body, url, tag }) {
   if (!configured) {
     return { ok: false, reason: "not_configured", sent: 0 };
   }
-
-  const subscriptions = listSubscriptions("admin");
-  if (subscriptions.length === 0) {
+  if (!subscriptions || subscriptions.length === 0) {
     return { ok: true, sent: 0, reason: "no_subscription" };
   }
 
   const payload = JSON.stringify({
     title: title || "Bryan Cars",
     body: body || "",
-    url,
-    tag,
+    url: url || "/",
+    tag: tag || "bbx",
   });
 
   let sent = 0;
@@ -76,8 +75,28 @@ async function sendAdminPush({ title, body, url = "/admin/appointments", tag = "
   return { ok: true, sent };
 }
 
+// Notification a tous les appareils admin abonnes.
+async function sendAdminPush({ title, body, url = "/admin/appointments", tag = "bbx-admin" } = {}) {
+  return dispatchPush(listSubscriptions("admin"), { title, body, url, tag });
+}
+
+// Notification a tous les appareils d'un client donne.
+async function sendClientPush(clientId, { title, body, url = "/", tag = "bbx-client" } = {}) {
+  const id = Number(clientId) || 0;
+  if (!id) {
+    return { ok: false, reason: "no_client", sent: 0 };
+  }
+  return dispatchPush(listSubscriptionsByClient(id), {
+    title,
+    body,
+    url,
+    tag: `${tag}-${id}`,
+  });
+}
+
 module.exports = {
   isPushConfigured,
   getVapidPublicKey,
   sendAdminPush,
+  sendClientPush,
 };

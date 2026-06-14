@@ -7,6 +7,23 @@ const {
   CLIENT_PORTAL_BASE_URL,
 } = process.env;
 
+const { sendClientPush, sendAdminPush } = require("./services/webPush");
+
+// Notification push couplee a un email client (deep-link vers le RDV si fourni).
+function pushClient(client, { title, body, appointmentId = null } = {}) {
+  if (!client?.id) return;
+  let url = clientPortalUrl(client) || "/";
+  if (appointmentId) {
+    url += `${url.includes("?") ? "&" : "?"}appointmentId=${appointmentId}`;
+  }
+  void sendClientPush(client.id, { title, body, url }).catch(() => {});
+}
+
+// Notification push couplee a un email admin.
+function pushAdmin({ title, body, url = "/admin/appointments" } = {}) {
+  void sendAdminPush({ title, body, url }).catch(() => {});
+}
+
 function normalizePhoneForTel(phone) {
   return phone ? String(phone).replace(/\s+/g, "") : "";
 }
@@ -461,6 +478,14 @@ async function sendAdminNotification({
           ? "Test email admin"
           : "Rendez-vous modifie";
 
+  if (type !== "test") {
+    pushAdmin({
+      title: action,
+      body: `${fullName} · ${formattedDate} ${safeTime}`,
+      url: adminUrl,
+    });
+  }
+
   const subject = `[Bryan Cars] ${action} - ${formattedDate} ${safeTime}`;
   const text = `
 ${action}
@@ -567,6 +592,13 @@ async function sendClientPhotosRequestedEmail({ client, appointment, message }) 
   const portalUrl = clientPortalUrl(client);
   const fullName = fallbackClientName(client);
   const formattedDate = formatDateFr(appointment.date);
+
+  pushClient(client, {
+    title: "Photos demandees",
+    body: `Ajoutez des photos de votre vehicule pour valider le tarif du ${formattedDate}.`,
+    appointmentId: appointment.id,
+  });
+
   const subject = `[Bryan Cars] Photos demandees pour votre rendez-vous`;
   const text = `
 Bonjour ${fullName},
@@ -611,6 +643,15 @@ async function sendClientPriceApprovalEmail({ client, appointment }) {
   const requested = Number(appointment.requested_credits || 1);
   const approved = Number(appointment.approved_credits || requested);
   const priceComment = appointment.price_comment || appointment.priceComment || null;
+
+  pushClient(client, {
+    title: "Validez le nouveau tarif",
+    body: `Tarif propose: ${approved} credit${approved > 1 ? "s" : ""} pour le ${formattedDate}.${
+      priceComment ? ` ${priceComment}` : ""
+    }`,
+    appointmentId: appointment.id,
+  });
+
   const subject = `[Bryan Cars] Validation tarif rendez-vous`;
   const text = `
 Bonjour ${fullName},
@@ -676,6 +717,12 @@ async function sendAdminAppointmentReminderEmail({ appointment, client }) {
   const place = locationLabel(appointment.location);
   const clientNote = appointment.client_note || appointment.clientNote || null;
   const adminUrl = `${ADMIN_DASHBOARD_URL}?clientId=${client.id}&appointmentId=${appointment.id}`;
+
+  pushAdmin({
+    title: "Rappel: rendez-vous demain",
+    body: `${fullName} · ${formattedDate} ${safeTime} · ${vehicle}`,
+    url: adminUrl,
+  });
 
   const subject = `[Bryan Cars] Rappel demain - ${safeTime} - ${fullName}`;
   const text = `
@@ -752,6 +799,11 @@ async function sendClientFormulaRecap(client) {
     client.formula_total ?? client.formulaTotal ?? 0
   }`;
 
+  pushClient(client, {
+    title: "Votre formule est a jour",
+    body: `${formulaLabel} · ${credits} credits disponibles.`,
+  });
+
   const subject = `[Bryan Cars] Votre formule ${formulaLabel}`;
   const text = `
 Bonjour ${fullName},
@@ -820,6 +872,11 @@ async function sendClientWelcomeEmail(client) {
   const credits = `${client.formula_remaining ?? client.formulaRemaining ?? 0} / ${
     client.formula_total ?? client.formulaTotal ?? 0
   }`;
+
+  pushClient(client, {
+    title: "Bienvenue chez Bryan Cars",
+    body: "Votre espace client est pret. Activez les notifications pour suivre vos rendez-vous.",
+  });
 
   const title = founder
     ? "Bienvenue dans l'espace Fondateur Bryan Cars"
@@ -906,6 +963,14 @@ async function sendClientAppointmentStatusEmail({ client, appointment, eventType
   const place = locationLabel(appointment.location);
   const isDone = eventType === "done";
 
+  pushClient(client, {
+    title: isDone ? "Prestation terminee" : "Rendez-vous confirme",
+    body: isDone
+      ? `Votre passage du ${formattedDate} est cloture. Consultez vos photos et laissez un avis.`
+      : `Votre rendez-vous du ${formattedDate} (${slot}) est confirme.`,
+    appointmentId: appointment.id,
+  });
+
   const title = isDone
     ? "Votre prestation est terminee"
     : "Votre rendez-vous est confirme";
@@ -990,6 +1055,12 @@ async function sendClientAppointmentReminderEmail({ client, appointment }) {
   const vehicle = vehicleSummary(appointment);
   const place = locationLabel(appointment.location);
 
+  pushClient(client, {
+    title: "Rappel: rendez-vous demain",
+    body: `Demain ${formattedDate} - ${slot} (${safeTime}) - ${place}.`,
+    appointmentId: appointment.id,
+  });
+
   const subject = `[Bryan Cars] Rappel de rendez-vous demain - ${formattedDate}`;
   const text = `
 Bonjour ${fullName},
@@ -1049,6 +1120,13 @@ async function sendAdminRewardRedemption({ client, reward }) {
   }
 
   const fullName = fallbackClientName(client);
+
+  pushAdmin({
+    title: "Demande BC'Coins",
+    body: `${fullName} · ${reward.label} (${reward.pointsCost} pts)`,
+    url: `${ADMIN_DASHBOARD_URL || "/admin"}?clientId=${client.id}`,
+  });
+
   const subject = `[Bryan Cars] Nouvelle redemption BC'Coins - ${fullName}`;
   const text = `
 Nouvelle redemption BC'Coins
