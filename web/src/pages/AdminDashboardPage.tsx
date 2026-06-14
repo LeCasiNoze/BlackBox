@@ -223,20 +223,7 @@ type ProfileDraft = {
   notes: string;
 };
 
-type AppointmentFilterKey = "all" | AppointmentStatus | "client";
 type AdminSection = "home" | "appointments" | "clients";
-
-const APPOINTMENT_FILTERS: Array<{
-  key: AppointmentFilterKey;
-  label: string;
-}> = [
-  { key: "all", label: "Tout" },
-  { key: "requested", label: "En attente" },
-  { key: "confirmed", label: "Confirmes" },
-  { key: "done", label: "Effectues" },
-  { key: "cancelled", label: "Annules" },
-  { key: "client", label: "Client actif" },
-];
 
 const ADMIN_NAV_ITEMS: Array<{
   key: AdminSection;
@@ -598,8 +585,8 @@ export function AdminDashboardPage() {
 
   const [appointmentQuery, setAppointmentQuery] = React.useState("");
   const deferredAppointmentQuery = React.useDeferredValue(appointmentQuery);
-  const [appointmentFilter, setAppointmentFilter] =
-    React.useState<AppointmentFilterKey>("all");
+
+  const [boardTab, setBoardTab] = React.useState<"agenda" | "livraison">("agenda");
 
   const [selectedAppointmentId, setSelectedAppointmentId] =
     React.useState<number | null>(null);
@@ -622,6 +609,7 @@ export function AdminDashboardPage() {
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const appointmentWorkspaceRef = React.useRef<HTMLElement | null>(null);
   const appointmentListRef = React.useRef<HTMLElement | null>(null);
+  const pendingRef = React.useRef<HTMLDivElement | null>(null);
   const isFirstLoad = React.useRef(true);
 
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
@@ -877,6 +865,7 @@ export function AdminDashboardPage() {
 
     setSelectedAppointmentId(match.id);
     setHighlightAppointmentId(match.id);
+    setBoardTab(match.status === "requested" ? "agenda" : "livraison");
   }, [deepLink, selectedClient]);
 
   React.useEffect(() => {
@@ -912,6 +901,15 @@ export function AdminDashboardPage() {
     }, 45000);
     return () => window.clearInterval(interval);
   }, []);
+
+  // Quand on change d'onglet, selectionne le premier rendez-vous du nouvel onglet
+  React.useEffect(() => {
+    if (boardAppointments.length === 0) {
+      setSelectedAppointmentId(null);
+      return;
+    }
+    setSelectedAppointmentId(boardAppointments[0].id);
+  }, [boardTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Si l'admin a deja autorise les notifications, on re-synchronise silencieusement
   // l'abonnement push cote serveur (utile apres un nouveau deploiement).
@@ -1515,6 +1513,16 @@ export function AdminDashboardPage() {
     [sortedGlobalAsc],
   );
 
+  const boardAppointments = React.useMemo(
+    () =>
+      sortedGlobalDesc.filter((appointment) =>
+        boardTab === "agenda"
+          ? appointment.status === "requested"
+          : appointment.status === "confirmed" || appointment.status === "done",
+      ),
+    [boardTab, sortedGlobalDesc],
+  );
+
   const upcomingAppointments = React.useMemo(
     () =>
       sortedGlobalAsc.filter((appointment) => {
@@ -1554,27 +1562,11 @@ export function AdminDashboardPage() {
   const filteredAgendaAppointments = React.useMemo(() => {
     const query = deferredAppointmentQuery.trim().toLowerCase();
 
-    return sortedGlobalDesc.filter((appointment) => {
-      if (
-        appointmentFilter === "client" &&
-        selectedClientData &&
-        appointment.clientId !== selectedClientData.id
-      ) {
-        return false;
-      }
-
-      if (
-        appointmentFilter !== "all" &&
-        appointmentFilter !== "client" &&
-        appointment.status !== appointmentFilter
-      ) {
-        return false;
-      }
-
+    return boardAppointments.filter((appointment) => {
       if (!query) return true;
       return appointmentSearchText(appointment).includes(query);
     });
-  }, [appointmentFilter, deferredAppointmentQuery, selectedClientData, sortedGlobalDesc]);
+  }, [boardAppointments, deferredAppointmentQuery]);
 
   const agendaSections = React.useMemo(
     () => groupAppointmentsByDate(filteredAgendaAppointments),
@@ -1821,9 +1813,46 @@ export function AdminDashboardPage() {
       pendingRequests.length - visiblePendingRequests.length,
       0,
     );
+    const agendaCount = pendingRequests.length;
+    const livraisonCount = sortedGlobalDesc.filter(
+      (a) => a.status === "confirmed" || a.status === "done",
+    ).length;
     return (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
           <div className="order-2 space-y-4 xl:order-none">
+
+            <div className="flex gap-2">
+              <button
+                className={cn(
+                  "rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                  boardTab === "agenda"
+                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                    : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
+                )}
+                onClick={() => setBoardTab("agenda")}
+                type="button"
+              >
+                Agenda
+                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
+                  {agendaCount}
+                </span>
+              </button>
+              <button
+                className={cn(
+                  "rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                  boardTab === "livraison"
+                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                    : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
+                )}
+                onClick={() => setBoardTab("livraison")}
+                type="button"
+              >
+                Livraison
+                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
+                  {livraisonCount}
+                </span>
+              </button>
+            </div>
             <article className="bb-surface p-6">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1842,8 +1871,11 @@ export function AdminDashboardPage() {
                     <button
                       className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left w-full transition duration-200 hover:bg-white/[0.06] hover:border-[#f7b955]/30"
                       onClick={() => {
-                        setAppointmentFilter("requested");
-                        appointmentListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        setBoardTab("agenda");
+                        (pendingRef.current ?? appointmentListRef.current)?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
                       }}
                       type="button"
                     >
@@ -1870,8 +1902,8 @@ export function AdminDashboardPage() {
                     <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
                     Chargement des rendez-vous...
                   </div>
-                ) : pendingRequests.length > 0 ? (
-                  <div className="rounded-[28px] border border-amber-300/20 bg-[#f7b955]/8 p-5">
+                ) : boardTab === "agenda" && pendingRequests.length > 0 ? (
+                  <div ref={pendingRef} className="scroll-mt-4 rounded-[28px] border border-amber-300/20 bg-[#f7b955]/8 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
@@ -1948,7 +1980,7 @@ export function AdminDashboardPage() {
                       </p>
                     )}
                   </div>
-                ) : (
+                ) : boardTab === "agenda" ? (
                   <div className="rounded-[28px] border border-emerald-300/20 bg-emerald-300/10 p-5">
                     <p className="text-lg font-semibold text-white">
                       Rien en attente pour le moment
@@ -1957,7 +1989,7 @@ export function AdminDashboardPage() {
                       La liste ci-dessous contient maintenant uniquement le planning a suivre.
                     </p>
                   </div>
-                )}
+                ) : null}
               </div>
             </article>
 
@@ -1968,10 +2000,10 @@ export function AdminDashboardPage() {
                     Liste complete
                   </p>
                   <h3 className="mt-2 text-xl font-semibold text-white">
-                    Tous les rendez-vous
+                    {boardTab === "agenda" ? "Rendez-vous en attente" : "Rendez-vous confirmes"}
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
-                    Recherchez un client ou filtrez un statut pour retrouver rapidement le bon dossier.
+                    Recherchez un client pour retrouver rapidement le bon dossier.
                   </p>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
@@ -1979,7 +2011,7 @@ export function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]">
+              <div className="mt-5">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <input
@@ -1988,23 +2020,6 @@ export function AdminDashboardPage() {
                     placeholder="Client, vehicule, note, date..."
                     value={appointmentQuery}
                   />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {APPOINTMENT_FILTERS.map((filter) => (
-                    <button
-                      className={cn(
-                        "rounded-full border px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                        appointmentFilter === filter.key
-                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
-                          : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
-                      )}
-                      key={filter.key}
-                      onClick={() => setAppointmentFilter(filter.key)}
-                      type="button"
-                    >
-                      {filter.label}
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -2017,10 +2032,12 @@ export function AdminDashboardPage() {
                 ) : agendaSections.length === 0 ? (
                   <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
                     <p className="text-lg font-semibold text-white">
-                      Aucun rendez-vous sur ce filtre
+                      {boardTab === "agenda" ? "Aucune demande en attente" : "Aucun rendez-vous confirme"}
                     </p>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
-                      Elargissez le filtre ou la recherche pour retrouver un autre dossier.
+                      {boardTab === "agenda"
+                        ? "Toutes les demandes ont ete traitees ou annulees."
+                        : "Confirmez un rendez-vous depuis l'onglet Agenda pour le retrouver ici."}
                     </p>
                   </div>
                 ) : (
@@ -2303,6 +2320,7 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
+                  {selectedAppointment.status === "requested" && (
                   <div className="mt-4 rounded-[28px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -2428,7 +2446,7 @@ export function AdminDashboardPage() {
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <button
                         className="bb-button-brand justify-center"
-                        disabled={busyAction || selectedAppointment.status === "done"}
+                        disabled={busyAction}
                         onClick={() => {
                           void changeStatus(selectedAppointment.id, "confirmed");
                         }}
@@ -2438,7 +2456,7 @@ export function AdminDashboardPage() {
                       </button>
                       <button
                         className="bb-button-ghost justify-center"
-                        disabled={busyAction || selectedAppointment.status === "done"}
+                        disabled={busyAction}
                         onClick={() => {
                           void requestClientPhotos(selectedAppointment.id);
                         }}
@@ -2448,6 +2466,7 @@ export function AdminDashboardPage() {
                       </button>
                     </div>
                   </div>
+                  )}
 
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
@@ -2490,12 +2509,14 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
+                  {(selectedAppointment.status === "confirmed" || selectedAppointment.status === "done") && (
+                  <>
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Compte-rendu interne
+                    <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
+                      Compte-rendu (visible par le client)
                     </p>
                     <p className="mt-3 text-sm leading-6 text-white/58">
-                      Note interne sur le dossier (compte-rendu, particularites du vehicule).
+                      Ce commentaire est affiche au client sur son rendez-vous (compte-rendu, conseils, particularites).
                     </p>
                     <textarea
                       className="bb-textarea mt-4"
@@ -2606,6 +2627,8 @@ export function AdminDashboardPage() {
                       ))}
                     </div>
                   </div>
+                  </>
+                  )}
                 </>
               )}
             </article>

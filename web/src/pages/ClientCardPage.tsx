@@ -2419,10 +2419,14 @@ export function ClientCardPage() {
                   <h1 className="bb-title mt-3">
                     Bonjour {clientData.firstName || clientData.fullName || "fondateur"},
                   </h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/68 md:text-base">
-                    Votre espace fondateur rassemble vos credits, vos vehicules,
-                    vos rendez-vous et l&apos;univers visuel Bryan Cars dans une seule carte signature.
-                  </p>
+                  <button
+                    className="bb-button-brand mt-4"
+                    onClick={() => navigateView("booking")}
+                    type="button"
+                  >
+                    <CalendarClock className="mr-2 h-4 w-4" />
+                    Prendre rendez-vous
+                  </button>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -2454,14 +2458,6 @@ export function ClientCardPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <button
-                    className="bb-button-brand"
-                    onClick={() => navigateView("booking")}
-                    type="button"
-                  >
-                    <CalendarClock className="mr-2 h-4 w-4" />
-                    Prendre rendez-vous
-                  </button>
                   <button
                     className="bb-button-ghost"
                     onClick={() => setContactModalOpen(true)}
@@ -4232,11 +4228,16 @@ export function ClientCardPage() {
                       <Clock3 className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-white">Resume prestation</p>
-                      <p className="mt-1 text-sm text-white/55">
+                      <p className="text-sm font-semibold text-white">Commentaire de Bryan Cars</p>
+                      <p
+                        className={cn(
+                          "mt-1 text-sm",
+                          selectedAppointment.adminNote ? "leading-6 text-white/80" : "text-white/55",
+                        )}
+                      >
                         {selectedAppointment.adminNote
                           ? selectedAppointment.adminNote
-                          : "Le centre n'a pas encore laisse de note detaillee pour cette fiche."}
+                          : "Aucun commentaire laisse par le centre pour cette prestation."}
                       </p>
                     </div>
                   </div>

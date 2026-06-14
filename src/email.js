@@ -456,6 +456,7 @@ async function sendAdminNotification({
   location,
   clientNote = null,
   clientImageCount = 0,
+  appointmentId = null,
 }) {
   const adminEmail = adminInboxEmail();
   if (!adminEmail) {
@@ -465,7 +466,11 @@ async function sendAdminNotification({
 
   const formattedDate = formatDateFr(date);
   const safeTime = time || "heure non renseignee";
-  const adminUrl = `${ADMIN_DASHBOARD_URL}?clientId=${client.id}&date=${date}`;
+  // Pointe vers l'agenda admin avec le RDV ouvert (deep-link).
+  const adminBase = `${ADMIN_DASHBOARD_URL}/appointments`;
+  const adminUrl = appointmentId
+    ? `${adminBase}?appointmentId=${appointmentId}&clientId=${client.id}`
+    : `${ADMIN_DASHBOARD_URL}?clientId=${client.id}&date=${date}`;
   const fullName = fallbackClientName(client);
   const vehicle = vehicleSummary(client);
 
@@ -476,9 +481,11 @@ async function sendAdminNotification({
         ? "Rendez-vous annule"
         : type === "validated"
           ? "Tarif accepte - rendez-vous valide"
-          : type === "test"
-            ? "Test email admin"
-            : "Rendez-vous modifie";
+          : type === "review"
+            ? "Nouvel avis client"
+            : type === "test"
+              ? "Test email admin"
+              : "Rendez-vous modifie";
 
   if (type !== "test") {
     pushAdmin({

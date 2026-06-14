@@ -949,6 +949,18 @@ router.post("/:idOrSlug/appointments/:appointmentId/review", (req, res) => {
   }
 
   const updated = getAppointmentById(appointmentId);
+
+  // Prevenir l'admin qu'un avis client vient d'etre laisse.
+  void sendAdminNotification({
+    type: "review",
+    client,
+    date: updated.date,
+    time: updated.time,
+    location: updated.location,
+    clientNote: `Note ${numericRating}/5${updated.user_review ? ` - ${updated.user_review}` : ""}`,
+    appointmentId,
+  }).catch((error) => console.error("[MAIL] admin review notif:", error));
+
   return res.json({
     ok: true,
     appointment: mapClientAppointment(updated),
@@ -1002,6 +1014,7 @@ router.post("/:idOrSlug/appointments/:appointmentId/accept-price", async (req, r
         time: updated.time,
         location: updated.location,
         clientNote: updated.client_note,
+        appointmentId,
       });
     } catch (error) {
       console.error("[MAIL] admin price accepted:", error);
@@ -1262,6 +1275,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         location: loc,
         clientNote: normalizedClientNote,
         clientImageCount,
+        appointmentId,
       });
     } catch (error) {
       console.error("[MAIL] notif book:", error);
