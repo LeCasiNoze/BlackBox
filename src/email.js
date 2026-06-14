@@ -466,8 +466,11 @@ async function sendAdminNotification({
 
   const formattedDate = formatDateFr(date);
   const safeTime = time || "heure non renseignee";
-  // Pointe vers l'agenda admin avec le RDV ouvert (deep-link).
-  const adminBase = `${ADMIN_DASHBOARD_URL}/appointments`;
+  // Deep-link vers la bonne section admin: les RDV confirmes/avis vont en
+  // Livraison, les nouvelles demandes restent en Agenda.
+  const adminSectionPath =
+    type === "validated" || type === "review" ? "/delivery" : "/appointments";
+  const adminBase = `${ADMIN_DASHBOARD_URL}${adminSectionPath}`;
   const adminUrl = appointmentId
     ? `${adminBase}?appointmentId=${appointmentId}&clientId=${client.id}`
     : `${ADMIN_DASHBOARD_URL}?clientId=${client.id}&date=${date}`;

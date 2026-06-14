@@ -20,6 +20,7 @@ import {
   Save,
   Search,
   Sparkles,
+  Truck,
   Users,
   XCircle,
 } from "lucide-react";
@@ -223,7 +224,7 @@ type ProfileDraft = {
   notes: string;
 };
 
-type AdminSection = "home" | "appointments" | "clients";
+type AdminSection = "home" | "appointments" | "delivery" | "clients";
 
 const ADMIN_NAV_ITEMS: Array<{
   key: AdminSection;
@@ -233,6 +234,7 @@ const ADMIN_NAV_ITEMS: Array<{
 }> = [
   { key: "home", label: "Hall principal", shortLabel: "Hall", icon: Sparkles },
   { key: "appointments", label: "Agenda admin", shortLabel: "Agenda", icon: CalendarClock },
+  { key: "delivery", label: "Livraison", shortLabel: "Livraison", icon: Truck },
   { key: "clients", label: "Clients", shortLabel: "Clients", icon: Users },
 ];
 
@@ -586,7 +588,10 @@ export function AdminDashboardPage() {
   const [appointmentQuery, setAppointmentQuery] = React.useState("");
   const deferredAppointmentQuery = React.useDeferredValue(appointmentQuery);
 
-  const [boardTab, setBoardTab] = React.useState<"agenda" | "livraison">("agenda");
+  // L'onglet agenda/livraison est pilote par la section de navigation (URL).
+  const boardTab: "agenda" | "livraison" = location.pathname.startsWith("/admin/delivery")
+    ? "livraison"
+    : "agenda";
 
   const [selectedAppointmentId, setSelectedAppointmentId] =
     React.useState<number | null>(null);
@@ -831,6 +836,7 @@ export function AdminDashboardPage() {
     return {
       home: "/admin",
       appointments: `/admin/appointments${appointmentQuery}`,
+      delivery: `/admin/delivery${appointmentQuery}`,
       clients: `/admin/clients${clientQuery}`,
     };
   }, [selectedAppointment, selectedClientId]);
@@ -865,7 +871,6 @@ export function AdminDashboardPage() {
 
     setSelectedAppointmentId(match.id);
     setHighlightAppointmentId(match.id);
-    setBoardTab(match.status === "requested" ? "agenda" : "livraison");
   }, [deepLink, selectedClient]);
 
   React.useEffect(() => {
@@ -1613,9 +1618,11 @@ export function AdminDashboardPage() {
   const firstUpcomingAppointment = upcomingAppointments[0] ?? null;
   const adminSection: AdminSection = location.pathname.startsWith("/admin/appointments")
     ? "appointments"
-    : location.pathname.startsWith("/admin/clients")
-      ? "clients"
-      : "home";
+    : location.pathname.startsWith("/admin/delivery")
+      ? "delivery"
+      : location.pathname.startsWith("/admin/clients")
+        ? "clients"
+        : "home";
   const selectedAppointmentActions = selectedAppointment
     ? appointmentWorkflowActions(selectedAppointment.status)
     : null;
@@ -1625,15 +1632,19 @@ export function AdminDashboardPage() {
   const sectionTitle =
     adminSection === "appointments"
       ? "Agenda"
-      : adminSection === "clients"
-        ? "Clients"
-        : "Hall principal";
+      : adminSection === "delivery"
+        ? "Livraison"
+        : adminSection === "clients"
+          ? "Clients"
+          : "Hall principal";
   const sectionSubtitle =
     adminSection === "appointments"
-      ? "Demandes, planning et actions de validation sur un seul flux."
-      : adminSection === "clients"
-        ? "Fiches, formules, 🪙 BC'Coins et historique client."
-        : "Trois zones claires: hall, agenda et clients.";
+      ? "Demandes en attente: validez le tarif et planifiez."
+      : adminSection === "delivery"
+        ? "Rendez-vous confirmes: compte-rendu, photos et passage en effectue."
+        : adminSection === "clients"
+          ? "Fiches, formules, 🪙 BC'Coins et historique client."
+          : "Hall, agenda, livraison et clients.";
 
   function appointmentAdminLink(appointment: AdminAppointment) {
     return `/admin/appointments?clientId=${appointment.clientId}&appointmentId=${appointment.id}`;
@@ -1813,46 +1824,9 @@ export function AdminDashboardPage() {
       pendingRequests.length - visiblePendingRequests.length,
       0,
     );
-    const agendaCount = pendingRequests.length;
-    const livraisonCount = sortedGlobalDesc.filter(
-      (a) => a.status === "confirmed" || a.status === "done",
-    ).length;
     return (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
           <div className="order-2 space-y-4 xl:order-none">
-
-            <div className="flex gap-2">
-              <button
-                className={cn(
-                  "rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                  boardTab === "agenda"
-                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
-                    : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
-                )}
-                onClick={() => setBoardTab("agenda")}
-                type="button"
-              >
-                Agenda
-                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
-                  {agendaCount}
-                </span>
-              </button>
-              <button
-                className={cn(
-                  "rounded-full border px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                  boardTab === "livraison"
-                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
-                    : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
-                )}
-                onClick={() => setBoardTab("livraison")}
-                type="button"
-              >
-                Livraison
-                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
-                  {livraisonCount}
-                </span>
-              </button>
-            </div>
             <article className="bb-surface p-6">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1871,7 +1845,6 @@ export function AdminDashboardPage() {
                     <button
                       className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left w-full transition duration-200 hover:bg-white/[0.06] hover:border-[#f7b955]/30"
                       onClick={() => {
-                        setBoardTab("agenda");
                         (pendingRef.current ?? appointmentListRef.current)?.scrollIntoView({
                           behavior: "smooth",
                           block: "start",
@@ -3407,7 +3380,7 @@ export function AdminDashboardPage() {
               <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 md:hidden">
+            <div className="grid grid-cols-2 gap-2 md:hidden">
               {ADMIN_NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = adminSection === item.key;
@@ -3429,7 +3402,7 @@ export function AdminDashboardPage() {
               })}
             </div>
 
-            <div className="hidden gap-3 md:grid md:grid-cols-3">
+            <div className="hidden gap-3 md:grid md:grid-cols-4">
               <Link
                 className={cn(
                   "rounded-[28px] border p-5 transition duration-200",
@@ -3458,7 +3431,23 @@ export function AdminDashboardPage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
                 <h2 className="mt-3 text-2xl font-semibold text-white">Agenda</h2>
                 <p className="mt-3 text-sm leading-6 text-white/62">
-                  Inbox, planning, validation et suivi des dossiers actifs.
+                  Demandes en attente: validez le tarif et planifiez.
+                </p>
+              </Link>
+
+              <Link
+                className={cn(
+                  "rounded-[28px] border p-5 transition duration-200",
+                  adminSection === "delivery"
+                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                )}
+                to={adminSectionHrefs.delivery}
+              >
+                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Livraison</h2>
+                <p className="mt-3 text-sm leading-6 text-white/62">
+                  Rendez-vous confirmes: compte-rendu, photos et passage en effectue.
                 </p>
               </Link>
 
@@ -3481,7 +3470,7 @@ export function AdminDashboardPage() {
           </div>
         </section>
 
-        {adminSection === "appointments"
+        {adminSection === "appointments" || adminSection === "delivery"
           ? renderAppointmentsPage()
           : adminSection === "clients"
             ? renderClientsPage()
@@ -3489,7 +3478,7 @@ export function AdminDashboardPage() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-3 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
+        <div className="mx-auto grid max-w-xl grid-cols-4 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
           {ADMIN_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = adminSection === item.key;
