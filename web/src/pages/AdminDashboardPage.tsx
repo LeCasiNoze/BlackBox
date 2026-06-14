@@ -803,6 +803,13 @@ export function AdminDashboardPage() {
     );
   }, [globalAppointments, selectedAppointmentId, selectedClient]);
 
+  // Le rendez-vous selectionne appartient-il a l'onglet courant (agenda/livraison)?
+  const selectedOnBoard =
+    !!selectedAppointment &&
+    (boardTab === "agenda"
+      ? selectedAppointment.status === "requested"
+      : selectedAppointment.status === "confirmed" || selectedAppointment.status === "done");
+
   const clientRequestPhotos = React.useMemo(
     () => currentPhotos.filter((photo) => !photo.isPublic),
     [currentPhotos],
@@ -840,17 +847,6 @@ export function AdminDashboardPage() {
       clients: `/admin/clients${clientQuery}`,
     };
   }, [selectedAppointment, selectedClientId]);
-
-  React.useEffect(() => {
-    const fallback = pickDefaultAdminAppointment(globalAppointments);
-
-    if (selectedAppointmentId == null && fallback) {
-      setSelectedAppointmentId(fallback.id);
-      if (selectedClientId == null) {
-        setSelectedClientId(fallback.clientId);
-      }
-    }
-  }, [globalAppointments, selectedAppointmentId, selectedClientId]);
 
   React.useEffect(() => {
     if (!selectedClient?.appointments?.length) return;
@@ -907,14 +903,6 @@ export function AdminDashboardPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  // Quand on change d'onglet, selectionne le premier rendez-vous du nouvel onglet
-  React.useEffect(() => {
-    if (boardAppointments.length === 0) {
-      setSelectedAppointmentId(null);
-      return;
-    }
-    setSelectedAppointmentId(boardAppointments[0].id);
-  }, [boardTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Si l'admin a deja autorise les notifications, on re-synchronise silencieusement
   // l'abonnement push cote serveur (utile apres un nouveau deploiement).
@@ -1646,6 +1634,23 @@ export function AdminDashboardPage() {
           ? "Fiches, formules, 🪙 BC'Coins et historique client."
           : "Hall, agenda, livraison et clients.";
 
+  // Garde le rendez-vous selectionne coherent avec l'onglet agenda/livraison:
+  // un RDV confirme quitte l'agenda, un RDV en attente quitte la livraison.
+  React.useEffect(() => {
+    if (adminSection !== "appointments" && adminSection !== "delivery") return;
+    if (boardAppointments.length === 0) {
+      if (selectedAppointmentId !== null) setSelectedAppointmentId(null);
+      return;
+    }
+    if (!boardAppointments.some((appointment) => appointment.id === selectedAppointmentId)) {
+      const fallback = pickDefaultAdminAppointment(boardAppointments) ?? boardAppointments[0];
+      setSelectedAppointmentId(fallback.id);
+      if (selectedClientId == null) {
+        setSelectedClientId(fallback.clientId);
+      }
+    }
+  }, [adminSection, boardAppointments, selectedAppointmentId, selectedClientId]);
+
   function appointmentAdminLink(appointment: AdminAppointment) {
     return `/admin/appointments?clientId=${appointment.clientId}&appointmentId=${appointment.id}`;
   }
@@ -2133,11 +2138,13 @@ export function AdminDashboardPage() {
                 )}
               </div>
 
-              {!selectedAppointment ? (
+              {!selectedAppointment || !selectedOnBoard ? (
                 <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
                   <p className="text-lg font-semibold text-white">Aucun rendez-vous selectionne</p>
                   <p className="mt-2 text-sm leading-6 text-white/62">
-                    Choisissez une ligne a gauche. La fiche de traitement s'ouvre ici automatiquement.
+                    {boardTab === "agenda"
+                      ? "Choisissez une demande en attente a gauche."
+                      : "Choisissez un rendez-vous confirme a gauche pour le traiter."}
                   </p>
                 </div>
               ) : (
