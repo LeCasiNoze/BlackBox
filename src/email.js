@@ -610,6 +610,7 @@ async function sendClientPriceApprovalEmail({ client, appointment }) {
   const formattedDate = formatDateFr(appointment.date);
   const requested = Number(appointment.requested_credits || 1);
   const approved = Number(appointment.approved_credits || requested);
+  const priceComment = appointment.price_comment || appointment.priceComment || null;
   const subject = `[Bryan Cars] Validation tarif rendez-vous`;
   const text = `
 Bonjour ${fullName},
@@ -617,7 +618,9 @@ Bonjour ${fullName},
 Votre rendez-vous du ${formattedDate} necessite une validation tarif.
 
 Estimation initiale : ${requested} credit(s)
-Tarif confirme par l'admin : ${approved} credit(s)
+Tarif confirme par l'admin : ${approved} credit(s)${
+    priceComment ? `\nNote de l'admin : ${priceComment}` : ""
+  }
 
 Espace client : ${portalUrl || "Lien indisponible"}
   `.trim();
@@ -633,6 +636,17 @@ Espace client : ${portalUrl || "Lien indisponible"}
         { label: "Estimation client", value: `${requested} credit${requested > 1 ? "s" : ""}` },
         { label: "Tarif admin", value: `${approved} credit${approved > 1 ? "s" : ""}` },
       ])}
+      ${
+        priceComment
+          ? panelCard({
+              title: "Note de l'admin",
+              description: "Justification du tarif propose pour ce rendez-vous.",
+              bodyHtml: `<p style="margin:0;font-size:14px;line-height:22px;color:#cbd5f5;">${escapeHtml(
+                priceComment,
+              )}</p>`,
+            })
+          : ""
+      }
       ${actionButtons([
         portalUrl ? { label: "Accepter ou annuler", href: portalUrl, tone: "primary" } : null,
       ])}

@@ -190,7 +190,6 @@ export function LandingPage() {
                       ["phone", "Telephone"],
                       ["company", "Societe"],
                       ["vehicleModel", "Vehicule"],
-                      ["vehiclePlate", "Plaque"],
                       ["addressLine1", "Adresse"],
                       ["postalCode", "Code postal"],
                       ["city", "Ville"],

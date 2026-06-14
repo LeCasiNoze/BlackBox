@@ -72,6 +72,7 @@ const {
   sendSignupVerificationCode,
 } = require("../email");
 const { createHostedCheckout, retrieveCheckout } = require("../services/sumup");
+const { sendAdminPush } = require("../services/webPush");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
@@ -288,6 +289,7 @@ function mapClientAppointment(appointment) {
     priceStatus: appointment.price_status || "pending_admin",
     photosRequestedAt: appointment.photos_requested_at ?? null,
     photosRequestMessage: appointment.photos_request_message || null,
+    priceComment: appointment.price_comment || null,
     hasPhotos: hasAppointmentPhotos(appointment.id),
     location: appointment.location || null,
   };
@@ -1245,6 +1247,22 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       });
     } catch (error) {
       console.error("[MAIL] notif book:", error);
+    }
+
+    try {
+      const clientName =
+        client.full_name ||
+        [client.first_name, client.last_name].filter(Boolean).join(" ") ||
+        "Un client";
+      const slotName = slot === "afternoon" ? "apres-midi" : "matin";
+      await sendAdminPush({
+        title: "Nouveau rendez-vous",
+        body: `${clientName} · ${date} (${slotName}${normalizedTime ? ` ${normalizedTime}` : ""})`,
+        url: `/admin/appointments?appointmentId=${appointmentId}`,
+        tag: `booking-${appointmentId}`,
+      });
+    } catch (error) {
+      console.error("[PUSH] notif book:", error);
     }
 
     if (isPro) {

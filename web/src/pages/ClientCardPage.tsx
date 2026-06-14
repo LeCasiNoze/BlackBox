@@ -6,6 +6,7 @@ import {
   CarFront,
   CheckCircle2,
   Clock3,
+  CreditCard,
   Crown,
   ExternalLink,
   Gift,
@@ -204,6 +205,7 @@ type ClientAppointment = {
     | "declined";
   photosRequestedAt: number | null;
   photosRequestMessage: string | null;
+  priceComment: string | null;
   hasPhotos: boolean;
   location: AppointmentLocation | null;
 };
@@ -343,6 +345,33 @@ const GOOGLE_REVIEWS_FALLBACK = [
   },
 ];
 
+const FOUNDER_PERKS: Array<{
+  title: string;
+  copy: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  {
+    title: "🪙 BC'Coins",
+    copy: "Cumulez des BC'Coins sur vos passages et echangez-les contre des recompenses dans la boutique fidelite.",
+    icon: Gift,
+  },
+  {
+    title: "Carte premium signature",
+    copy: "Une carte fondateur personnalisee avec votre univers visuel Bryan Cars.",
+    icon: Crown,
+  },
+  {
+    title: "Avantages tarifaires",
+    copy: "Acces a des formules et recharges reservees aux membres fondateurs.",
+    icon: Sparkles,
+  },
+  {
+    title: "Annulation le jour meme",
+    copy: "Plus de souplesse: annulez ou deplacez un rendez-vous le jour meme.",
+    icon: ShieldCheck,
+  },
+];
+
 function useQuery() {
   const { search } = useLocation();
   return React.useMemo(() => new URLSearchParams(search), [search]);
@@ -434,7 +463,7 @@ function vehicleSubtitle(vehicle: {
   model?: string | null;
   plate?: string | null;
 }) {
-  const parts = [vehicle.model, vehicle.plate].filter(Boolean);
+  const parts = [vehicle.model].filter(Boolean);
   return parts.length > 0 ? parts.join(" / ") : "Aucun detail vehicule";
 }
 
@@ -681,6 +710,7 @@ export function ClientCardPage() {
   const [termsPanelAttention, setTermsPanelAttention] = React.useState(false);
   const [termsCheckboxAttention, setTermsCheckboxAttention] = React.useState(false);
   const [contactModalOpen, setContactModalOpen] = React.useState(false);
+  const [founderModalOpen, setFounderModalOpen] = React.useState(false);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
   const [vehicleQuery, setVehicleQuery] = React.useState("");
   const [bookingVehicleQuery, setBookingVehicleQuery] = React.useState("");
@@ -1599,6 +1629,44 @@ export function ClientCardPage() {
     window.open(SUMUP_TOPUP_URL, "_blank", "noopener,noreferrer");
   }
 
+  // Nombre exact de credits manquants pour valider le tarif d'un rendez-vous.
+  function creditsNeededForAppointment(appointment: ClientAppointment) {
+    const price = Number(appointment.approvedCredits ?? appointment.requestedCredits ?? 1);
+    const owned = Number(client?.formulaRemaining ?? 0);
+    return Math.max(1, price - owned);
+  }
+
+  // Recharge ciblee depuis la validation de tarif: on ferme la modale puis on
+  // propose directement l'achat du nombre exact de credits manquants.
+  function startCreditPurchaseForAppointment(appointment: ClientAppointment) {
+    const needed = creditsNeededForAppointment(appointment);
+    closeAppointmentModal();
+
+    if (!termsAccepted) {
+      openTermsModal({ type: "topup" });
+      return;
+    }
+
+    // Fondateur: pas d'achat a l'unite, on l'oriente vers sa boutique/formule.
+    if (client?.isFounder) {
+      navigateView("shop");
+      showToast(
+        `Il manque ${needed} credit${needed > 1 ? "s" : ""} pour ce tarif. Rechargez votre formule.`,
+      );
+      return;
+    }
+
+    // BBX / Data / Pro: achat direct du nombre exact de credits a l'unite.
+    if (paymentsReady && topupOffers[0]) {
+      showToast(`Achat de ${needed} credit${needed > 1 ? "s" : ""} pour valider ce tarif.`);
+      void startTopupCheckout(topupOffers[0], needed);
+      return;
+    }
+
+    // Paiement en ligne indisponible: repli sur la recharge classique.
+    openTopupFlow();
+  }
+
   async function submitBooking(
     date: string,
     slot: AppointmentSlot,
@@ -1778,8 +1846,7 @@ export function ClientCardPage() {
 
       if (!response.ok || !json.ok) {
         if (json?.error === "not_enough_credits") {
-          showToast("Credits insuffisants. Rechargez puis validez le tarif.");
-          navigateView("shop");
+          startCreditPurchaseForAppointment(selectedAppointment);
           return;
         }
         showToast("Impossible de valider le tarif.");
@@ -1936,8 +2003,6 @@ export function ClientCardPage() {
     !!selectedAppointment &&
     selectedAppointment.status === "done" &&
     appointments.some((appointment) => appointment.id === selectedAppointment.id);
-  const creditsExhausted = (client?.formulaRemaining ?? 0) <= 0;
-  const creditsTopupNeed = creditsNeededToBook(client?.formulaRemaining ?? 0);
   const bookingLocked = !termsAccepted;
 
   if (loading) {
@@ -2015,6 +2080,16 @@ export function ClientCardPage() {
     },
   ];
 
+  // L'accueil non-fondateur n'expose pas la boutique BC'Coins (reservee aux fondateurs).
+  const homeQuickCards = quickCards.filter((card) => card.view !== "shop");
+
+  // Pour les non-fondateurs, la "Boutique" devient une simple recharge de credits.
+  const navItems: NavItem[] = PORTAL_NAV_ITEMS.map((item) =>
+    item.view === "shop" && !clientData.isFounder
+      ? { ...item, label: "Credits", icon: CreditCard }
+      : item,
+  );
+
   function renderHeader() {
     return (
       <>
@@ -2041,7 +2116,7 @@ export function ClientCardPage() {
         </header>
 
         <nav className="hidden grid-cols-5 gap-2 rounded-[28px] border border-white/10 bg-white/[0.03] p-2 backdrop-blur-xl md:grid">
-          {PORTAL_NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
             return (
@@ -2115,7 +2190,6 @@ export function ClientCardPage() {
               <p className="mt-2 text-sm text-white/60">
                 {slotWindowLabel(appointment.slot)} · {formatTimeHHMM(appointment.time)} -{" "}
                 {appointment.vehicleModel || clientData.vehicleModel || "Vehicule"}
-                {appointment.vehiclePlate ? ` / ${appointment.vehiclePlate}` : ""}
               </p>
             </div>
 
@@ -2206,7 +2280,8 @@ export function ClientCardPage() {
                     onClick={() => navigateView("booking")}
                     type="button"
                   >
-                    Ouvrir l&apos;agenda
+                    <CalendarClock className="mr-2 h-4 w-4" />
+                    Prendre rendez-vous
                   </button>
                   <button
                     className="bb-button-ghost"
@@ -2238,7 +2313,7 @@ export function ClientCardPage() {
                       {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
                     </p>
                     <p className="mt-2 text-sm text-white/56">
-                      {activeVehicle ? vehicleSubtitle(activeVehicle) : clientData.vehiclePlate || "Aucun detail"}
+                      {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
@@ -2275,51 +2350,55 @@ export function ClientCardPage() {
     }
 
     return (
-      <section className="grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
+      <section className="space-y-4">
         <article className="bb-surface-strong relative overflow-hidden p-6 md:p-8">
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-[#f7b955]/12 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
           <img
             alt=""
             aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 right-0 hidden w-[26rem] opacity-[0.12] mix-blend-screen md:block"
+            className="pointer-events-none absolute bottom-0 right-0 hidden w-[22rem] opacity-[0.10] mix-blend-screen md:block"
             src="/bryan-cars-logo.png"
           />
 
           <div className="relative z-10 space-y-6">
-            <div className="max-w-3xl">
-              <p className="bb-eyebrow">Bryan Cars client portal</p>
-              <h1 className="bb-title mt-3">
-                Bonjour {clientData.firstName || clientData.fullName || "client"},
-              </h1>
-              <p className="bb-subtitle mt-3 max-w-2xl">
-                {clientData.isFounder
-                  ? "Votre espace fondateur va droit au but: formule, vehicules, rendez-vous et historique premium sans surcharge."
-                  : "Votre espace client est maintenant separe par usages pour aller plus vite sur mobile comme sur ordinateur."}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {clientData.isFounder && (
-                <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
-                  <Crown className="h-3.5 w-3.5" />
-                  Membre fondateur
-                </div>
-              )}
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                🪙 BC&apos;Coins: {clientData.bcPoints}
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-2xl">
+                <p className="bb-eyebrow">Bryan Cars client portal</p>
+                <h1 className="bb-title mt-3">
+                  Bonjour {clientData.firstName || clientData.fullName || "client"},
+                </h1>
+                {upcomingAppointment && (
+                  <p className="mt-3 text-sm text-white/62">
+                    Prochain rendez-vous le {formatDateFR(upcomingAppointment.date, {
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </p>
+                )}
               </div>
-              {upcomingAppointment && (
-                <div className="bb-pill border-sky-400/35 bg-sky-300/10 text-sky-100">
-                  Prochain rendez-vous le {formatDateFR(upcomingAppointment.date, {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </div>
-              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="bb-button-brand"
+                  onClick={() => navigateView("booking")}
+                  type="button"
+                >
+                  <CalendarClock className="mr-2 h-4 w-4" />
+                  Prendre rendez-vous
+                </button>
+                <button
+                  className="bb-button-ghost"
+                  onClick={() => setContactModalOpen(true)}
+                  type="button"
+                >
+                  <Phone className="mr-2 h-4 w-4" />
+                  Contact
+                </button>
+              </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               {renderMetricCard(
                 "Credits",
                 `${clientData.formulaRemaining}`,
@@ -2346,8 +2425,8 @@ export function ClientCardPage() {
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {quickCards.map((card) => {
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {homeQuickCards.map((card) => {
                 const Icon = card.icon;
                 return (
                   <button
@@ -2366,111 +2445,26 @@ export function ClientCardPage() {
               })}
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <button className="bb-button-brand" onClick={() => navigateView("booking")} type="button">
-                Prendre rendez-vous
-              </button>
-              <button
-                className="bb-button-ghost"
-                onClick={() => setContactModalOpen(true)}
-                type="button"
-              >
-                <Phone className="mr-2 h-4 w-4" />
-                Contact
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <aside
-          className={cn(
-            "bb-surface relative overflow-hidden p-5 md:p-6",
-            clientData.isFounder &&
-              "border-[#f7b955]/28 bg-[radial-gradient(circle_at_top,rgba(247,185,85,0.16),transparent_42%),linear-gradient(180deg,rgba(255,227,160,0.06),rgba(255,255,255,0.02))]",
-          )}
-        >
-          <div className="pointer-events-none absolute -right-10 top-2 h-28 w-28 rounded-full bg-sky-400/10 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 left-0 hidden md:block">
-            <div className="ml-5 mt-auto overflow-hidden rounded-[26px] border border-white/10 bg-black/30 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
-              {clientData.isFounder && clientData.founderMediaUrl ? (
-                <img
-                  alt="Visuel fondateur"
-                  className="h-36 w-44 object-cover"
-                  src={clientData.founderMediaUrl}
-                />
-              ) : (
-                <img
-                  alt="Bryan Cars Detailing"
-                  className="h-36 w-44 object-contain px-4 py-3"
-                  src="/bryan-cars-logo.png"
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="relative z-10 space-y-5 md:pl-52">
-            <div className="flex items-start justify-between gap-4">
+            <button
+              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-[#f7b955]/25 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-[#f7b955]/45"
+              onClick={() => setFounderModalOpen(true)}
+              type="button"
+            >
               <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "rounded-2xl border p-3",
-                    clientData.isFounder
-                      ? "border-[#f7b955]/35 bg-[#f7b955]/12 text-[#ffe8a8]"
-                      : "border-white/10 bg-white/[0.05] text-[#f7b955]",
-                  )}
-                >
-                  {clientData.isFounder ? (
-                    <Crown className="h-5 w-5" />
-                  ) : (
-                    <Sparkles className="h-5 w-5" />
-                  )}
+                <div className="rounded-2xl border border-[#f7b955]/35 bg-[#f7b955]/12 p-3 text-[#ffe8a8]">
+                  <Crown className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/45">
-                    {clientData.isFounder ? "Acces fondateur" : "Credits actifs"}
+                  <p className="text-base font-semibold text-white">Devenir fondateur</p>
+                  <p className="mt-1 text-sm leading-6 text-white/62">
+                    Carte premium, 🪙 BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
                   </p>
-                  <p className="mt-1 text-xl font-semibold text-white">{clientData.formulaRemaining} credit{Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}</p>
                 </div>
               </div>
-
-              <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-2 md:hidden">
-                <img
-                  alt="Bryan Cars Detailing"
-                  className="h-16 w-24 object-contain"
-                  src={
-                    clientData.isFounder && clientData.founderMediaUrl
-                      ? clientData.founderMediaUrl
-                      : "/bryan-cars-logo.png"
-                  }
-                />
-              </div>
-            </div>
-
-            <p className="text-sm leading-6 text-white/62">
-              {clientData.isFounder
-                ? "Le visuel fondateur est integre dans la carte premium, avec les credits au premier plan."
-                : "Cette carte resume l'essentiel: credits, points et acces rapide vers les bonnes sections."}
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Credits</p>
-                <p className="mt-2 text-sm font-semibold text-white">{clientData.formulaRemaining}</p>
-              </div>
-              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">🪙 BC&apos;Coins</p>
-                <p className="mt-2 text-sm font-semibold text-white">{clientData.bcPoints} points</p>
-              </div>
-            </div>
-
-            <div className="h-2 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#f7b955] to-[#ff7a18]"
-                style={{ width: `${creditsRatio * 100}%` }}
-              />
-            </div>
+              <ArrowRight className="h-5 w-5 shrink-0 text-[#f7b955] transition group-hover:translate-x-1" />
+            </button>
           </div>
-        </aside>
+        </article>
       </section>
     );
   }
@@ -2706,7 +2700,7 @@ export function ClientCardPage() {
               <input
                 className="bb-input pl-11"
                 onChange={(event) => setVehicleQuery(event.target.value)}
-                placeholder="Rechercher par modele ou plaque"
+                placeholder="Rechercher par modele"
                 value={vehicleQuery}
               />
             </div>
@@ -2823,17 +2817,11 @@ export function ClientCardPage() {
 
           {activeVehicle ? (
             <div className="mt-6 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/40">Modele</p>
                   <p className="mt-2 text-sm font-semibold text-white">
                     {activeVehicle.model || "Non renseigne"}
-                  </p>
-                </div>
-                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">Plaque</p>
-                  <p className="mt-2 text-sm font-semibold text-white">
-                    {activeVehicle.plate || "Non renseignee"}
                   </p>
                 </div>
                 <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
@@ -2866,11 +2854,14 @@ export function ClientCardPage() {
         <article className="bb-surface p-6">
           <div className="bb-section-head">
             <div>
-              <p className="bb-eyebrow">🪙 BC&apos;Coins</p>
-              <h1 className="mt-2 text-2xl font-semibold text-white">Boutique client</h1>
+              <p className="bb-eyebrow">{clientData.isFounder ? "🪙 BC'Coins" : "Credits"}</p>
+              <h1 className="mt-2 text-2xl font-semibold text-white">
+                {clientData.isFounder ? "Boutique fondateur" : "Recharger des credits"}
+              </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                Recharges Bryan Cars et BC&apos;Coins sont regroupes ici pour garder un parcours
-                simple et direct.
+                {clientData.isFounder
+                  ? "Recharges Bryan Cars et BC'Coins sont regroupes ici pour garder un parcours simple et direct."
+                  : "Achetez vos credits Bryan Cars en quelques secondes pour reserver vos prochains passages."}
               </p>
             </div>
             <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
@@ -2996,7 +2987,7 @@ export function ClientCardPage() {
               </div>
             )}
 
-            {clientData.clientType === "bbx" && (
+            {clientData.isFounder && (
             <div className="mt-8 border-t border-white/10 pt-6">
               <div className="bb-section-head">
                 <div>
@@ -3352,7 +3343,7 @@ export function ClientCardPage() {
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
         <div className="mx-auto grid max-w-xl grid-cols-5 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
-          {PORTAL_NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
             return (
@@ -3497,26 +3488,6 @@ export function ClientCardPage() {
                     </div>
                   )}
 
-                  {termsAccepted && creditsExhausted && (
-                    <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">
-                        {clientData.formulaRemaining < 0
-                          ? `Solde negatif (${creditsTopupNeed} credit${creditsTopupNeed > 1 ? "s" : ""} minimum)`
-                          : "Aucun credit disponible"}
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-white/70">
-                        {creditAvailabilityCopy(clientData.formulaRemaining)}
-                      </p>
-                      <button
-                        className="bb-button-ghost mt-4 justify-center"
-                        onClick={openTopupFlow}
-                        type="button"
-                      >
-                        Voir la recharge
-                      </button>
-                    </div>
-                  )}
-
                   {vehicles.length > 0 && (
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-white/40">
@@ -3529,7 +3500,7 @@ export function ClientCardPage() {
                           <input
                             className="bb-input pl-11"
                             onChange={(event) => setBookingVehicleQuery(event.target.value)}
-                            placeholder="Rechercher par modele ou plaque"
+                            placeholder="Rechercher par modele"
                             value={bookingVehicleQuery}
                           />
                         </div>
@@ -3935,7 +3906,6 @@ export function ClientCardPage() {
                     selectedAppointment.time,
                   )} -{" "}
                   {selectedAppointment.vehicleModel || clientData.vehicleModel || "Vehicule"}
-                  {selectedAppointment.vehiclePlate ? ` / ${selectedAppointment.vehiclePlate}` : ""}
                 </p>
               </div>
 
@@ -3974,6 +3944,16 @@ export function ClientCardPage() {
                         ? ` · ${selectedAppointment.photosRequestMessage}`
                         : ""}
                     </p>
+                    {selectedAppointment.priceComment && (
+                      <div className="mt-3 rounded-[18px] border border-white/12 bg-black/25 p-3">
+                        <p className="text-xs uppercase tracking-[0.16em] text-[#ffe8a8]">
+                          Note de l&apos;admin
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-white/72">
+                          {selectedAppointment.priceComment}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[320px]">
@@ -3991,7 +3971,11 @@ export function ClientCardPage() {
                       </button>
                     )}
                     {selectedAppointment.priceStatus === "waiting_payment" && (
-                      <button className="bb-button-ghost justify-center" onClick={() => navigateView("shop")} type="button">
+                      <button
+                        className="bb-button-ghost justify-center"
+                        onClick={() => startCreditPurchaseForAppointment(selectedAppointment)}
+                        type="button"
+                      >
                         Recharger
                       </button>
                     )}
@@ -4251,17 +4235,6 @@ export function ClientCardPage() {
                   value={vehicleDraft.model}
                 />
               </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Plaque</span>
-                <input
-                  className="bb-input"
-                  onChange={(event) =>
-                    setVehicleDraft((current) => ({ ...current, plate: event.target.value }))
-                  }
-                  placeholder="AB-123-CD"
-                  value={vehicleDraft.plate}
-                />
-              </label>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -4468,6 +4441,71 @@ export function ClientCardPage() {
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Voir le reglement
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {founderModalOpen && (
+        <div
+          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center"
+          onClick={() => setFounderModalOpen(false)}
+        >
+          <div
+            className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="bb-eyebrow">Programme fondateur</p>
+                <h3 className="mt-3 text-2xl font-semibold text-white">
+                  Devenir fondateur Bryan Cars
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-white/65">
+                  Le statut fondateur debloque une carte premium et des avantages reserves.
+                </p>
+              </div>
+              <button
+                className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                onClick={() => setFounderModalOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3">
+              {FOUNDER_PERKS.map((perk) => {
+                const PerkIcon = perk.icon;
+                return (
+                  <div
+                    className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4"
+                    key={perk.title}
+                  >
+                    <div className="shrink-0 rounded-xl border border-[#f7b955]/30 bg-[#f7b955]/12 p-2 text-[#ffe8a8]">
+                      <PerkIcon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{perk.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-white/62">{perk.copy}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6">
+              <button
+                className="bb-button-brand w-full justify-center"
+                onClick={() => {
+                  setFounderModalOpen(false);
+                  setContactModalOpen(true);
+                }}
+                type="button"
+              >
+                <Crown className="mr-2 h-4 w-4" />
+                Je veux devenir fondateur
+              </button>
             </div>
           </div>
         </div>

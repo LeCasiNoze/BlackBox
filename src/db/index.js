@@ -104,6 +104,7 @@ function ensureAppointmentsExtraColumns() {
     );
     addColumnIfMissing("photos_requested_at", "photos_requested_at INTEGER");
     addColumnIfMissing("photos_request_message", "photos_request_message TEXT");
+    addColumnIfMissing("price_comment", "price_comment TEXT");
     addColumnIfMissing("client_price_approved_at", "client_price_approved_at INTEGER");
     addColumnIfMissing(
       "bc_points_awarded",

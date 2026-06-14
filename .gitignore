@@ -1,0 +1,23 @@
+node_modules/
+web/node_modules/
+
+# Secrets / env
+.env
+.env.*
+src/.env
+src/.env.*
+
+# Local SQLite data
+data/
+src/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
+server-*.out.log
+server-*.err.log
+
+# Build output
+web/dist/

@@ -1,6 +1,8 @@
 import * as React from "react";
 import {
   ArrowLeft,
+  Bell,
+  BellRing,
   CalendarClock,
   Camera,
   CarFront,
@@ -26,6 +28,11 @@ import { Link, useLocation } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
+import {
+  adminPushPermission,
+  adminPushSupported,
+  enableAdminPush,
+} from "../lib/adminPush";
 import {
   appointmentDateTime,
   appointmentStatusClasses,
@@ -107,6 +114,7 @@ type AdminAppointment = {
     | "approved"
     | "not_required"
     | "declined";
+  priceComment: string | null;
   photosRequestedAt: number | null;
   photosRequestMessage: string | null;
   bcPointsAwarded: boolean;
@@ -581,6 +589,10 @@ export function AdminDashboardPage() {
   const [clientTypeFilter, setClientTypeFilter] = React.useState<"bbx" | "data" | "pro" | "all">("bbx");
   const [exportingData, setExportingData] = React.useState(false);
   const [pointsDeltaDraft, setPointsDeltaDraft] = React.useState("100");
+  const [pushPermission, setPushPermission] = React.useState<
+    NotificationPermission | "unsupported"
+  >(() => adminPushPermission());
+  const [pushBusy, setPushBusy] = React.useState(false);
 
   const [filterClientQuery, setFilterClientQuery] = React.useState("");
   const deferredClientQuery = React.useDeferredValue(filterClientQuery);
@@ -600,6 +612,7 @@ export function AdminDashboardPage() {
   >({});
   const [customCreditDrafts, setCustomCreditDrafts] = React.useState<Record<number, string>>({});
   const [photoRequestDrafts, setPhotoRequestDrafts] = React.useState<Record<number, string>>({});
+  const [priceCommentDrafts, setPriceCommentDrafts] = React.useState<Record<number, string>>({});
 
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [photoFormCaption, setPhotoFormCaption] = React.useState("");
@@ -609,6 +622,8 @@ export function AdminDashboardPage() {
   const [lightboxImages, setLightboxImages] = React.useState<LightboxImage[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const appointmentWorkspaceRef = React.useRef<HTMLElement | null>(null);
+  const appointmentListRef = React.useRef<HTMLElement | null>(null);
+  const isFirstLoad = React.useRef(true);
 
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [profileMode, setProfileMode] = React.useState<"edit" | "new">("edit");
@@ -654,7 +669,7 @@ export function AdminDashboardPage() {
 
     async function loadClients() {
       try {
-        setClientsLoading(true);
+        if (isFirstLoad.current) setClientsLoading(true);
         setClientsError(null);
 
         const response = await fetch(`/api/admin/clients?filter=${clientTypeFilter}`);
@@ -676,6 +691,7 @@ export function AdminDashboardPage() {
       } finally {
         if (active) {
           setClientsLoading(false);
+          isFirstLoad.current = false;
         }
       }
     }
@@ -692,7 +708,7 @@ export function AdminDashboardPage() {
 
     async function loadAppointments() {
       try {
-        setGlobalAppointmentsLoading(true);
+        if (isFirstLoad.current) setGlobalAppointmentsLoading(true);
 
         const response = await fetch("/api/admin/appointments?limit=300");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -890,8 +906,53 @@ export function AdminDashboardPage() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  // Silent periodic auto-refresh — does not trigger loading skeletons after first load
+  React.useEffect(() => {
+    const interval = window.setInterval(() => {
+      setRefreshToken((v) => v + 1);
+    }, 45000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  // Si l'admin a deja autorise les notifications, on re-synchronise silencieusement
+  // l'abonnement push cote serveur (utile apres un nouveau deploiement).
+  React.useEffect(() => {
+    if (adminPushPermission() === "granted") {
+      void enableAdminPush().then((result) => {
+        if (result.ok) {
+          setPushPermission("granted");
+        }
+      });
+    }
+  }, []);
+
   function showToast(message: string) {
     setToast(message);
+  }
+
+  async function handleEnablePush() {
+    if (!adminPushSupported()) {
+      showToast("Notifications non supportees sur cet appareil/navigateur.");
+      return;
+    }
+    setPushBusy(true);
+    try {
+      const result = await enableAdminPush();
+      setPushPermission(adminPushPermission());
+      if (result.ok) {
+        showToast("Notifications activees sur cet appareil.");
+      } else if (result.reason === "denied") {
+        showToast("Notifications refusees. Autorisez-les dans les reglages du navigateur.");
+      } else if (result.reason === "not_configured") {
+        showToast("Notifications pas encore configurees cote serveur.");
+      } else if (result.reason === "unsupported") {
+        showToast("Notifications non supportees sur cet appareil.");
+      } else {
+        showToast("Impossible d'activer les notifications.");
+      }
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   function openLightbox(images: LightboxImage[], url: string) {
@@ -900,7 +961,7 @@ export function AdminDashboardPage() {
   }
 
   async function copyClientCardLink(client: AdminClient) {
-    if (client.clientType !== "bbx" || !client.slug) {
+    if ((client.clientType !== "bbx" && client.clientType !== "pro") || !client.slug) {
       showToast("Aucun lien de carte disponible pour ce client.");
       return;
     }
@@ -1021,6 +1082,9 @@ export function AdminDashboardPage() {
             : cleanlinessDrafts[appointmentId] === "correct"
               ? "correct"
               : "clean",
+          priceComment: priceCommentDrafts[appointmentId]?.trim()
+            ? priceCommentDrafts[appointmentId].trim()
+            : undefined,
         }),
       });
 
@@ -1771,14 +1835,21 @@ export function AdminDashboardPage() {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <button
+                      className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left w-full transition duration-200 hover:bg-white/[0.06] hover:border-[#f7b955]/30"
+                      onClick={() => {
+                        setAppointmentFilter("requested");
+                        appointmentListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      type="button"
+                    >
                       <p className="text-xs uppercase tracking-[0.16em] text-white/35">
                         En attente
                       </p>
                       <p className="mt-2 text-2xl font-semibold text-white">
                         {pendingRequests.length}
                       </p>
-                    </div>
+                    </button>
                     <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-white/35">
                         Visibles
@@ -1855,9 +1926,6 @@ export function AdminDashboardPage() {
                                 </p>
                                 <p className="mt-2 text-sm text-white/58">
                                   {appointment.vehicleModel || "Vehicule non renseigne"}
-                                  {appointment.vehiclePlate
-                                    ? ` / ${appointment.vehiclePlate}`
-                                    : ""}
                                 </p>
                               </div>
 
@@ -1889,7 +1957,7 @@ export function AdminDashboardPage() {
               </div>
             </article>
 
-            <section className="bb-surface p-6">
+            <section className="bb-surface p-6" ref={appointmentListRef}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-white/35">
@@ -1913,7 +1981,7 @@ export function AdminDashboardPage() {
                   <input
                     className="bb-input pl-11"
                     onChange={(event) => setAppointmentQuery(event.target.value)}
-                    placeholder="Client, vehicule, plaque, note, date..."
+                    placeholder="Client, vehicule, note, date..."
                     value={appointmentQuery}
                   />
                 </div>
@@ -2018,9 +2086,6 @@ export function AdminDashboardPage() {
                                     </h4>
                                     <p className="mt-1 text-sm text-white/58">
                                       {appointment.vehicleModel || "Vehicule"}
-                                      {appointment.vehiclePlate
-                                        ? ` / ${appointment.vehiclePlate}`
-                                        : ""}
                                     </p>
                                   </div>
 
@@ -2155,6 +2220,85 @@ export function AdminDashboardPage() {
                     )}
                   </div>
 
+                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
+                          Demande client
+                        </p>
+                        <h3 className="mt-2 text-xl font-semibold text-white">
+                          A lire avant validation
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-white/58">
+                          Retrouvez ici le message laisse par le client et les photos jointes au moment
+                          de la reservation.
+                        </p>
+                      </div>
+                      <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                        {clientRequestPhotos.length} photo
+                        {clientRequestPhotos.length > 1 ? "s" : ""} client
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3">
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                          Commentaire client
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-white/70">
+                          {selectedAppointment.clientNote || "Aucun commentaire client."}
+                        </p>
+                      </div>
+
+                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+                            Photos envoyees a la demande
+                          </p>
+                          {photosLoading && (
+                            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {!photosLoading && clientRequestPhotos.length === 0 && (
+                            <div className="sm:col-span-3 rounded-[20px] border border-dashed border-white/10 bg-black/15 px-4 py-6 text-sm text-white/45">
+                              Aucune photo client jointe a cette demande.
+                            </div>
+                          )}
+
+                          {clientRequestPhotos.map((photo) => (
+                            <div className="space-y-2" key={photo.id}>
+                              <button
+                                className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                                onClick={() =>
+                                  openLightbox(
+                                    clientRequestPhotos.map((entry) => ({
+                                      id: `request-${entry.id}`,
+                                      url: entry.url,
+                                      label: entry.caption,
+                                    })),
+                                    photo.url,
+                                  )
+                                }
+                                type="button"
+                              >
+                                <img
+                                  alt={photo.caption || "Photo client"}
+                                  className="h-28 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                                  src={photo.url}
+                                />
+                              </button>
+                              <p className="min-w-0 text-xs text-white/45">
+                                {photo.caption || "Photo envoyee par le client"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="mt-4 rounded-[28px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -2255,6 +2399,28 @@ export function AdminDashboardPage() {
                       </label>
                     </div>
 
+                    <label className="mt-4 block space-y-2">
+                      <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Commentaire / justification du tarif
+                      </span>
+                      <textarea
+                        className="bb-textarea"
+                        onChange={(event) =>
+                          setPriceCommentDrafts((current) => ({
+                            ...current,
+                            [selectedAppointment.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Explique au client pourquoi ce tarif (etat du vehicule, prestation...)"
+                        value={priceCommentDrafts[selectedAppointment.id] ?? ""}
+                      />
+                    </label>
+                    {selectedAppointment.priceComment && (
+                      <p className="mt-2 text-xs text-white/45">
+                        Note enregistree: {selectedAppointment.priceComment}
+                      </p>
+                    )}
+
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <button
                         className="bb-button-brand justify-center"
@@ -2279,85 +2445,6 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-[#f7b955]">
-                          Demande client
-                        </p>
-                        <h3 className="mt-2 text-xl font-semibold text-white">
-                          A lire avant validation
-                        </h3>
-                        <p className="mt-2 text-sm leading-6 text-white/58">
-                          Retrouvez ici le message laisse par le client et les photos jointes au moment
-                          de la reservation.
-                        </p>
-                      </div>
-                      <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                        {clientRequestPhotos.length} photo
-                        {clientRequestPhotos.length > 1 ? "s" : ""} client
-                      </div>
-                    </div>
-
-                    <div className="mt-5 grid gap-3">
-                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Commentaire client
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/70">
-                          {selectedAppointment.clientNote || "Aucun commentaire client."}
-                        </p>
-                      </div>
-
-                      <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Photos envoyees a la demande
-                          </p>
-                          {photosLoading && (
-                            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
-                          )}
-                        </div>
-
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                          {!photosLoading && clientRequestPhotos.length === 0 && (
-                            <div className="sm:col-span-3 rounded-[20px] border border-dashed border-white/10 bg-black/15 px-4 py-6 text-sm text-white/45">
-                              Aucune photo client jointe a cette demande.
-                            </div>
-                          )}
-
-                          {clientRequestPhotos.map((photo) => (
-                            <div className="space-y-2" key={photo.id}>
-                              <button
-                                className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                                onClick={() =>
-                                  openLightbox(
-                                    clientRequestPhotos.map((entry) => ({
-                                      id: `request-${entry.id}`,
-                                      url: entry.url,
-                                      label: entry.caption,
-                                    })),
-                                    photo.url,
-                                  )
-                                }
-                                type="button"
-                              >
-                                <img
-                                  alt={photo.caption || "Photo client"}
-                                  className="h-28 w-full object-cover transition duration-300 hover:scale-[1.04]"
-                                  src={photo.url}
-                                />
-                              </button>
-                              <p className="min-w-0 text-xs text-white/45">
-                                {photo.caption || "Photo envoyee par le client"}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                       Infos utiles
@@ -2369,9 +2456,6 @@ export function AdminDashboardPage() {
                         </p>
                         <p className="mt-2 text-sm font-semibold text-white">
                           {selectedAppointment.vehicleModel || "Vehicule non renseigne"}
-                          {selectedAppointment.vehiclePlate
-                            ? ` / ${selectedAppointment.vehiclePlate}`
-                            : ""}
                         </p>
                       </div>
                       <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
@@ -2583,9 +2667,6 @@ export function AdminDashboardPage() {
                         </h3>
                         <p className="mt-2 text-sm text-white/58">
                           {activeClientContext.vehicleModel || "Vehicule non renseigne"}
-                          {activeClientContext.vehiclePlate
-                            ? ` / ${activeClientContext.vehiclePlate}`
-                            : ""}
                         </p>
                       </div>
                       <div className="w-full rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 sm:w-auto sm:text-right">
@@ -2773,7 +2854,7 @@ export function AdminDashboardPage() {
                 <input
                   className="bb-input pl-11"
                   onChange={(event) => setFilterClientQuery(event.target.value)}
-                  placeholder="Nom, slug, plaque, ville..."
+                  placeholder="Nom, slug, ville..."
                   value={filterClientQuery}
                 />
               </div>
@@ -2816,7 +2897,6 @@ export function AdminDashboardPage() {
                           </p>
                           <p className="mt-1 text-sm text-white/55">
                             {client.vehicleModel || "Vehicule non renseigne"}
-                            {client.vehiclePlate ? ` / ${client.vehiclePlate}` : ""}
                           </p>
                         </div>
                         <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/65">
@@ -2903,9 +2983,6 @@ export function AdminDashboardPage() {
                         </h3>
                         <p className="mt-2 text-sm text-white/58">
                           {managedClient.vehicleModel || "Vehicule non renseigne"}
-                          {managedClient.vehiclePlate
-                            ? ` / ${managedClient.vehiclePlate}`
-                            : ""}
                         </p>
                       </div>
                       <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
@@ -2942,7 +3019,7 @@ export function AdminDashboardPage() {
                         <PencilLine className="mr-2 h-4 w-4" />
                         Modifier le profil
                       </button>
-                      {managedClient.clientType === "bbx" ? (
+                      {managedClient.clientType === "bbx" || managedClient.clientType === "pro" ? (
                         <>
                           <Link className="bb-button-ghost" to={`/card/${managedClient.slug}`}>
                             <ExternalLink className="mr-2 h-4 w-4" />
@@ -3297,6 +3374,30 @@ export function AdminDashboardPage() {
                 className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]"
                 startUrl="/admin"
               />
+              {pushPermission !== "unsupported" && (
+                <button
+                  className={cn(
+                    "bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]",
+                    pushPermission === "granted" && "border-emerald-300/35 text-emerald-100",
+                  )}
+                  disabled={pushBusy || pushPermission === "granted"}
+                  onClick={() => {
+                    void handleEnablePush();
+                  }}
+                  type="button"
+                >
+                  {pushPermission === "granted" ? (
+                    <BellRing className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Bell className="mr-2 h-4 w-4" />
+                  )}
+                  {pushBusy
+                    ? "Activation..."
+                    : pushPermission === "granted"
+                      ? "Notifications ON"
+                      : "Activer notifications"}
+                </button>
+              )}
               <a className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]" href="/logout">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sortir
@@ -3649,18 +3750,6 @@ export function AdminDashboardPage() {
                     updateProfileDraft("vehicleModel", event.target.value)
                   }
                   value={profileDraft.vehicleModel}
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Plaque
-                </span>
-                <input
-                  className="bb-input"
-                  onChange={(event) =>
-                    updateProfileDraft("vehiclePlate", event.target.value)
-                  }
-                  value={profileDraft.vehiclePlate}
                 />
               </label>
               <label className="space-y-2 md:col-span-2">

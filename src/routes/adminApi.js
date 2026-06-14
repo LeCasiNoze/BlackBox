@@ -65,6 +65,11 @@ const {
   createDataExportFile,
   markExportJobEmailSent,
 } = require("../services/dataExport");
+const { getVapidPublicKey, isPushConfigured } = require("../services/webPush");
+const {
+  saveSubscription,
+  deleteSubscriptionByEndpoint,
+} = require("../db/pushSubscriptions");
 
 ensureDir(APPOINTMENTS_UPLOAD_DIR);
 ensureDir(FOUNDERS_UPLOAD_DIR);
@@ -194,6 +199,7 @@ function mapAppointmentRow(row) {
     priceStatus: row.price_status || "pending_admin",
     photosRequestedAt: row.photos_requested_at ?? null,
     photosRequestMessage: row.photos_request_message || null,
+    priceComment: row.price_comment || null,
     bcPointsAwarded: !!row.bc_points_awarded,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -674,6 +680,7 @@ router.post("/appointments/:id/status", async (req, res) => {
       const result = reviewAppointmentPrice(id, {
         adminLevel: req.body?.adminCleanlinessEstimate || req.body?.cleanlinessEstimate,
         customCredits: req.body?.customCredits,
+        priceComment: sanitizeString(req.body?.priceComment),
       });
       const updatedAppointment = getAppointmentById(id);
       const client = getClientById(appointment.client_id);
@@ -938,6 +945,61 @@ router.post("/exports", async (_req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /exports:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ============================
+// Web Push (notifications admin)
+// ============================
+router.get("/push/public-key", (req, res) => {
+  return res.json({
+    ok: true,
+    configured: isPushConfigured(),
+    publicKey: getVapidPublicKey(),
+  });
+});
+
+router.post("/push/subscribe", (req, res) => {
+  const subscription = req.body?.subscription || req.body || {};
+  const endpoint = subscription.endpoint;
+  const keys = subscription.keys || {};
+
+  if (!endpoint || !keys.p256dh || !keys.auth) {
+    return res.status(400).json({ ok: false, error: "invalid_subscription" });
+  }
+
+  try {
+    const saved = saveSubscription({
+      role: "admin",
+      endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+      userAgent: req.headers["user-agent"] || null,
+    });
+
+    if (!saved) {
+      return res.status(400).json({ ok: false, error: "invalid_subscription" });
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminApi] POST /push/subscribe:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/push/unsubscribe", (req, res) => {
+  const endpoint = req.body?.endpoint || req.body?.subscription?.endpoint;
+  if (!endpoint) {
+    return res.status(400).json({ ok: false, error: "missing_endpoint" });
+  }
+
+  try {
+    deleteSubscriptionByEndpoint(endpoint);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminApi] POST /push/unsubscribe:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

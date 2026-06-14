@@ -440,8 +440,10 @@ function chargeAppointmentCreditsInTransaction(appointmentId, credits) {
 
 function reviewAppointmentPrice(
   id,
-  { adminLevel, customCredits = null, requestPhotos = false, photosMessage = null } = {},
+  { adminLevel, customCredits = null, requestPhotos = false, photosMessage = null, priceComment = null } = {},
 ) {
+  const normalizedPriceComment =
+    typeof priceComment === "string" && priceComment.trim() !== "" ? priceComment.trim() : null;
   return db.transaction((appointmentId) => {
     const appointment = getAppointmentById(appointmentId);
     if (!appointment) return { ok: false, error: "appointment_not_found" };
@@ -481,10 +483,11 @@ function reviewAppointmentPrice(
       UPDATE appointments
       SET admin_cleanliness_estimate = ?,
           approved_credits = ?,
+          price_comment = COALESCE(?, price_comment),
           updated_at = ?
       WHERE id = ?
     `,
-    ).run(normalizedAdminLevel, approvedCredits, nowUnix(), appointmentId);
+    ).run(normalizedAdminLevel, approvedCredits, normalizedPriceComment, nowUnix(), appointmentId);
 
     if (approvedCredits > requestedCredits) {
       db.prepare(
