@@ -1848,10 +1848,6 @@ export function AdminDashboardPage() {
                     <h2 className="mt-2 text-2xl font-semibold text-white">
                       Choisir un rendez-vous
                     </h2>
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
-                      Commencez par ouvrir un dossier. Les demandes en attente sont
-                      affichees en premier, puis la liste complete juste en dessous.
-                    </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1988,9 +1984,6 @@ export function AdminDashboardPage() {
                   <h3 className="mt-2 text-xl font-semibold text-white">
                     {boardTab === "agenda" ? "Rendez-vous en attente" : "Rendez-vous confirmes"}
                   </h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-white/62">
-                    Recherchez un client pour retrouver rapidement le bon dossier.
-                  </p>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
                   {filteredAgendaAppointments.length} resultat(s)
@@ -2156,9 +2149,6 @@ export function AdminDashboardPage() {
                   <h2 className="mt-2 text-2xl font-semibold text-white">
                     {selectedAppointment ? "Traiter ce rendez-vous" : "Traiter ce rendez-vous"}
                   </h2>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-white/62">
-                    Toute l'action se fait ici: changer le statut, garder une note interne et ajouter des photos.
-                  </p>
                 </div>
                 {selectedAppointment && (
                   <div
@@ -2264,10 +2254,6 @@ export function AdminDashboardPage() {
                         <h3 className="mt-2 text-xl font-semibold text-white">
                           A lire avant validation
                         </h3>
-                        <p className="mt-2 text-sm leading-6 text-white/58">
-                          Retrouvez ici le message laisse par le client et les photos jointes au moment
-                          de la reservation.
-                        </p>
                       </div>
                       <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
                         {clientRequestPhotos.length} photo
@@ -2592,10 +2578,6 @@ export function AdminDashboardPage() {
                         placeholder="Legende optionnelle"
                         value={photoFormCaption}
                       />
-                      <div className="rounded-[22px] border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100/85">
-                        Les photos ajoutees ici seront visibles par tous les clients. Les photos
-                        envoyees par le client apparaissent plus haut dans la demande.
-                      </div>
                     </div>
 
                     <div className="mt-5 grid gap-3 sm:grid-cols-3">

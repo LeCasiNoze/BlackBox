@@ -3,18 +3,13 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
-  MessageCircle,
-  Phone,
   ShieldCheck,
   Sparkles,
-  Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const GOOGLE_MAPS_URL = "https://maps.app.goo.gl/SNXz7PaTRSWWMxLa8";
 const WHATSAPP_URL = "https://wa.me/message/FSJMNKNGPVTTK1";
-const PHONE_DISPLAY = "06 03 12 51 86";
-const PHONE_HREF = "tel:+33603125186";
 
 type SignupForm = {
   firstName: string;
@@ -108,16 +103,12 @@ export function LandingPage() {
       <main className="bb-content space-y-6 md:space-y-8">
         <section className="bb-surface-strong relative overflow-hidden p-6 md:p-8 xl:p-10">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(247,185,85,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(44,162,255,0.12),transparent_28%)]" />
-          <div className="relative z-10 grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="relative z-10 grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">
             <div className="space-y-6">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="bb-pill border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
                   <Sparkles className="h-3.5 w-3.5" />
                   Bryan Cars Detailing
-                </div>
-                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/72">
-                  <Star className="h-3.5 w-3.5 text-[#f7b955]" />
-                  4,9/5 sur Google
                 </div>
               </div>
 
@@ -126,44 +117,15 @@ export function LandingPage() {
                   Creez votre espace client Bryan Cars en quelques instants.
                 </h1>
                 <p className="bb-subtitle mt-4 max-w-2xl text-base">
-                  Renseignez vos informations, confirmez votre email avec un code a 6 chiffres,
-                  puis accedez directement a votre agenda, vos credits et votre suivi.
+                  Trois etapes simples pour acceder a votre agenda, vos credits et votre suivi.
                 </p>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                {[
-                  ["1", "Infos", "Nom, contact et vehicule."],
-                  ["2", "Code email", "Validation simple et rapide."],
-                  ["3", "Espace actif", "Lien client envoye par mail."],
-                ].map(([num, title, copy]) => (
-                  <article className="rounded-[26px] border border-white/10 bg-black/20 p-4" key={title}>
-                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-sm font-bold text-[#ffe8a8]">
-                      {num}
-                    </div>
-                    <p className="text-lg font-semibold text-white">{title}</p>
-                    <p className="mt-2 text-sm leading-6 text-white/58">{copy}</p>
-                  </article>
-                ))}
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <a className="bb-button-ghost justify-center" href={WHATSAPP_URL} rel="noreferrer" target="_blank">
-                  <MessageCircle className="mr-2 h-4 w-4" />
-                  WhatsApp
-                </a>
-                <a className="bb-button-ghost justify-center" href={PHONE_HREF}>
-                  <Phone className="mr-2 h-4 w-4" />
-                  {PHONE_DISPLAY}
-                </a>
               </div>
             </div>
 
             <article className="bb-surface relative p-5 md:p-6">
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <p className="bb-eyebrow">Creation client</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                  <h2 className="text-2xl font-semibold text-white">
                     {step === "ready"
                       ? "Votre compte est pret"
                       : step === "code"
@@ -171,7 +133,7 @@ export function LandingPage() {
                         : "Vos informations"}
                   </h2>
                 </div>
-                <img alt="BC" className="h-14 w-14 rounded-2xl object-cover" src="/app-icon-192.png" />
+                <img alt="" className="h-14 w-14 rounded-2xl object-cover" src="/app-icon-192.png" />
               </div>
 
               {error && (

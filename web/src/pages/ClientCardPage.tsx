@@ -628,7 +628,7 @@ function CaseOpeningModal({
               onClick={onClose}
               type="button"
             >
-              {isLegendaire ? "Genial !" : "Genial !"}
+              {isLegendaire ? "Legendaire !" : "Genial !"}
             </button>
           </div>
         )}
@@ -760,29 +760,6 @@ function vehicleSubtitle(vehicle: {
 
 function vehicleSearchText(vehicle: ClientVehicle) {
   return [vehicle.label, vehicle.model, vehicle.plate].filter(Boolean).join(" ").toLowerCase();
-}
-
-function creditsNeededToBook(remaining: number) {
-  return remaining >= 1 ? 0 : 1 - remaining;
-}
-
-function creditAvailabilityCopy(remaining: number) {
-  if (remaining > 1) {
-    return `${remaining} passages disponibles.`;
-  }
-
-  if (remaining === 1) {
-    return "1 passage disponible.";
-  }
-
-  if (remaining === 0) {
-    return "Aucun credit disponible. Rechargez 1 credit pour reprendre les reservations.";
-  }
-
-  const needed = creditsNeededToBook(remaining);
-  return `Solde negatif de ${Math.abs(remaining)} credit${
-    Math.abs(remaining) > 1 ? "s" : ""
-  }. Rechargez au moins ${needed} credit${needed > 1 ? "s" : ""} pour reprendre les reservations.`;
 }
 
 function rewardStatusLabel(status: RewardRedemption["status"]) {
@@ -2625,7 +2602,7 @@ export function ClientCardPage() {
           <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-100">
+                <div className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-200">
                   <Sparkles className="h-3.5 w-3.5" />
                   Acces pro
                 </div>
@@ -2679,7 +2656,7 @@ export function ClientCardPage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="rounded-[24px] border border-sky-400/15 bg-sky-400/[0.05] p-4">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
                 <p className="mt-2 text-lg font-semibold text-white">
                   {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
@@ -2692,7 +2669,7 @@ export function ClientCardPage() {
           </div>
         </article>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {homeQuickCards.map((card) => {
             const Icon = card.icon;
             return (
@@ -2702,7 +2679,7 @@ export function ClientCardPage() {
                 onClick={() => navigateView(card.view)}
                 type="button"
               >
-                <div className="mb-4 inline-flex rounded-2xl border border-sky-400/20 bg-sky-400/[0.08] p-3 text-sky-300">
+                <div className="mb-4 inline-flex rounded-2xl border border-sky-400/20 bg-sky-400/[0.08] p-3 text-sky-400">
                   <Icon className="h-5 w-5" />
                 </div>
                 <h2 className="text-lg font-semibold text-white">{card.title}</h2>
@@ -2789,21 +2766,14 @@ export function ClientCardPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
-                    </p>
-                    <p className="mt-2 text-sm text-white/56">
-                      {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
-                    </p>
-                  </div>
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
-                    <p className="mt-2 text-lg font-semibold text-white">{clientData.formulaRemaining}</p>
-                    <p className="mt-2 text-sm text-white/56">{creditAvailabilityCopy(clientData.formulaRemaining)}</p>
-                  </div>
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+                  </p>
+                  <p className="mt-2 text-sm text-white/56">
+                    {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -3513,7 +3483,7 @@ export function ClientCardPage() {
                         key={pc.id}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="shrink-0 rounded-xl border border-[#f7b955]/30 bg-[#f7b955]/12 p-2 text-[#ffe8a8]">
+                          <div className="shrink-0 rounded-xl border border-[#f7b955]/50 bg-[#f7b955]/18 p-2 text-[#ffe8a8]">
                             <Gift className="h-4 w-4" />
                           </div>
                           <div>
@@ -5048,7 +5018,7 @@ export function ClientCardPage() {
                     className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4"
                     key={perk.title}
                   >
-                    <div className="shrink-0 rounded-xl border border-[#f7b955]/30 bg-[#f7b955]/12 p-2 text-[#ffe8a8]">
+                    <div className="shrink-0 rounded-xl border border-[#f7b955]/50 bg-[#f7b955]/18 p-2 text-[#ffe8a8]">
                       <PerkIcon className="h-4 w-4" />
                     </div>
                     <div>
