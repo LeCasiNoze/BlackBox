@@ -1327,7 +1327,7 @@ export function AdminDashboardPage() {
 
     const delta = Math.trunc(Number(deltaOverride ?? pointsDeltaDraft));
     if (!Number.isFinite(delta) || delta === 0) {
-      showToast("Entrez un montant positif ou negatif pour les 🪙 BC'Coins.");
+      showToast("Entrez un montant positif ou negatif pour les BC'Coins.");
       return;
     }
 
@@ -1344,8 +1344,8 @@ export function AdminDashboardPage() {
       if (!response.ok || !json.ok || !json.client) {
         showToast(
           json?.error === "not_enough_points"
-            ? "Impossible de retirer plus de 🪙 BC'Coins que le solde disponible."
-            : "La mise a jour des 🪙 BC'Coins a echoue.",
+            ? "Impossible de retirer plus de BC'Coins que le solde disponible."
+            : "La mise a jour des BC'Coins a echoue.",
         );
         return;
       }
@@ -1353,11 +1353,11 @@ export function AdminDashboardPage() {
       syncManagedClient(json.client as AdminClient);
       showToast(
         delta > 0
-          ? `${Math.abs(delta)} 🪙 BC'Coins ajoutes.`
-          : `${Math.abs(delta)} 🪙 BC'Coins retires.`,
+          ? `${Math.abs(delta)} BC'Coins ajoutes.`
+          : `${Math.abs(delta)} BC'Coins retires.`,
       );
     } catch (error) {
-      showToast("Erreur reseau pendant la mise a jour des 🪙 BC'Coins.");
+      showToast("Erreur reseau pendant la mise a jour des BC'Coins.");
     } finally {
       setBusyPoints(false);
     }
@@ -1639,7 +1639,7 @@ export function AdminDashboardPage() {
       : adminSection === "delivery"
         ? "Rendez-vous confirmes: compte-rendu, photos et passage en effectue."
         : adminSection === "clients"
-          ? "Fiches, formules, 🪙 BC'Coins et historique client."
+          ? "Fiches, formules, BC'Coins et historique client."
           : "Hall, agenda, livraison et clients.";
 
   // Garde le rendez-vous selectionne coherent avec l'onglet agenda/livraison:
@@ -3002,7 +3002,7 @@ export function AdminDashboardPage() {
                       </div>
                       <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Credits / 🪙 BC'Coins
+                          Credits / BC'Coins
                         </p>
                         <p className="mt-2 text-xl font-semibold text-white">
                           {managedClient.formulaRemaining}
@@ -3197,7 +3197,7 @@ export function AdminDashboardPage() {
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                            🪙 BC&apos;Coins
+                            BC&apos;Coins
                           </p>
                           <p className="mt-2 text-lg font-semibold text-white">
                             Ajuster le solde ou suivre les demandes
@@ -3257,7 +3257,7 @@ export function AdminDashboardPage() {
 
                       <div className="mt-6 border-t border-white/10 pt-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Dernieres demandes 🪙 BC&apos;Coins
+                          Dernieres demandes BC&apos;Coins
                         </p>
                         <div className="mt-3 space-y-2">
                           {selectedClient?.rewardRedemptions.length ? (

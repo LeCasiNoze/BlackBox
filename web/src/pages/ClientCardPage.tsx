@@ -374,7 +374,7 @@ const FOUNDER_PERKS: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   {
-    title: "🪙 BC'Coins",
+    title: "BC'Coins",
     copy: "Cumulez des BC'Coins sur vos passages et echangez-les contre des recompenses dans la boutique fidelite.",
     icon: Gift,
   },
@@ -1886,7 +1886,7 @@ export function ClientCardPage() {
 
       const json = (await response.json()) as RewardRedeemResponse;
       if (!response.ok || !json.ok) {
-        showToast("Impossible d'utiliser vos 🪙 BC'Coins pour le moment.");
+        showToast("Impossible d'utiliser vos BC'Coins pour le moment.");
         return;
       }
 
@@ -1904,7 +1904,7 @@ export function ClientCardPage() {
       );
       showToast("Demande envoyee a Bryan Cars. L'equipe reprend contact avec vous.");
     } catch (saveError) {
-      showToast("Erreur reseau pendant l'utilisation des 🪙 BC'Coins.");
+      showToast("Erreur reseau pendant l'utilisation des BC'Coins.");
     } finally {
       setRedeemingRewardKey(null);
     }
@@ -2441,7 +2441,7 @@ export function ClientCardPage() {
     },
     {
       view: "shop" as const,
-      title: "Boutique 🪙 BC'Coins",
+      title: "Boutique BC'Coins",
       copy: `${clientData.bcPoints} point${clientData.bcPoints > 1 ? "s" : ""} disponibles`,
       icon: Gift,
     },
@@ -2616,7 +2616,7 @@ export function ClientCardPage() {
   function renderProHomeView() {
     return (
       <section className="space-y-4">
-        <article className="bb-surface-strong relative overflow-hidden p-5 md:p-7">
+        <article className="bb-rise bb-surface-strong relative overflow-hidden p-5 md:p-7">
           {/* Orbes de fond — palette steel/blue */}
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-cyan-400/12 blur-3xl" />
@@ -2665,14 +2665,6 @@ export function ClientCardPage() {
                   <CalendarClock className="mr-2 h-4 w-4" />
                   Prendre rendez-vous
                 </button>
-                <button
-                  className="bb-button-ghost"
-                  onClick={() => setContactModalOpen(true)}
-                  type="button"
-                >
-                  <Phone className="mr-2 h-4 w-4" />
-                  Contact
-                </button>
               </div>
             </div>
 
@@ -2705,7 +2697,7 @@ export function ClientCardPage() {
             const Icon = card.icon;
             return (
               <button
-                className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-sky-400/40 hover:bg-sky-400/[0.08]"
+                className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-sky-400/40 hover:bg-sky-400/[0.08]"
                 key={card.view}
                 onClick={() => navigateView(card.view)}
                 type="button"
@@ -2727,7 +2719,7 @@ export function ClientCardPage() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
-          <article className="bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+          <article className="bb-rise bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
             <div className="bb-founder-orb bb-founder-orb-blue" />
             <div className="bb-founder-orb bb-founder-orb-ember" />
@@ -2764,7 +2756,7 @@ export function ClientCardPage() {
                     </p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">🪙 BC&apos;Coins</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">BC&apos;Coins</p>
                     <p className="mt-2 text-2xl font-semibold text-white">{clientData.bcPoints}</p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
@@ -2782,17 +2774,6 @@ export function ClientCardPage() {
                     className="h-2 rounded-full bg-gradient-to-r from-[#f7b955] via-[#ffd06b] to-[#ff7a18]"
                     style={{ width: `${creditsRatio * 100}%` }}
                   />
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    className="bb-button-ghost"
-                    onClick={() => setContactModalOpen(true)}
-                    type="button"
-                  >
-                    <Phone className="mr-2 h-4 w-4" />
-                    Contact
-                  </button>
                 </div>
               </div>
 
@@ -2857,7 +2838,7 @@ export function ClientCardPage() {
 
     return (
       <section className="space-y-4">
-        <article className="bb-surface-strong relative overflow-hidden p-6 md:p-8">
+        <article className="bb-rise bb-surface-strong relative overflow-hidden p-6 md:p-8">
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-[#f7b955]/12 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
           <img
@@ -2893,14 +2874,6 @@ export function ClientCardPage() {
                   <CalendarClock className="mr-2 h-4 w-4" />
                   Prendre rendez-vous
                 </button>
-                <button
-                  className="bb-button-ghost"
-                  onClick={() => setContactModalOpen(true)}
-                  type="button"
-                >
-                  <Phone className="mr-2 h-4 w-4" />
-                  Contact
-                </button>
               </div>
             </div>
 
@@ -2916,7 +2889,7 @@ export function ClientCardPage() {
                 <div>
                   <p className="text-base font-semibold text-white">Devenir fondateur</p>
                   <p className="mt-1 text-sm leading-6 text-white/62">
-                    Carte premium, 🪙 BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
+                    Carte premium, BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
                   </p>
                 </div>
               </div>
@@ -2953,7 +2926,7 @@ export function ClientCardPage() {
                 const Icon = card.icon;
                 return (
                   <button
-                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
+                    className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
                     key={card.view}
                     onClick={() => navigateView(card.view)}
                     type="button"
@@ -3360,7 +3333,7 @@ export function ClientCardPage() {
         <article className="bb-surface p-6">
           <div className="bb-section-head">
             <div>
-              <p className="bb-eyebrow">{clientData.isFounder ? "🪙 BC'Coins" : "Credits"}</p>
+              <p className="bb-eyebrow">{clientData.isFounder ? "BC'Coins" : "Credits"}</p>
               <h1 className="mt-2 text-2xl font-semibold text-white">
                 {clientData.isFounder ? "Boutique fondateur" : "Recharger des credits"}
               </h1>
@@ -3578,7 +3551,7 @@ export function ClientCardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold text-white">{reward.label}</p>
-                      <p className="mt-2 text-sm text-white/58">{reward.pointsCost} 🪙 BC&apos;Coins</p>
+                      <p className="mt-2 text-sm text-white/58">{reward.pointsCost} BC&apos;Coins</p>
                     </div>
                     <button
                       className={affordable ? "bb-button-brand px-4 py-2" : "bb-button-ghost px-4 py-2"}

@@ -369,6 +369,43 @@ select {
   animation: bb-attention-nudge 0.42s ease 2;
 }
 
+/* Entrée fluide (fade + montée), avec léger échelonnement. */
+@keyframes bb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bb-rise {
+  animation: bb-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+.bb-rise-2 {
+  animation-delay: 0.07s;
+}
+.bb-rise-3 {
+  animation-delay: 0.14s;
+}
+.bb-rise-4 {
+  animation-delay: 0.21s;
+}
+
+/* Survol: légère élévation (transform/opacity uniquement). */
+.bb-hover-lift {
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+.bb-hover-lift:hover {
+  transform: translateY(-3px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
