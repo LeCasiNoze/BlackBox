@@ -763,6 +763,80 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   }
 });
 
+// Acces fondateur: paiement SumUp unique (19,99 EUR). A la confirmation
+// (webhook ou /topup/sync au retour), le compte bbx passe fondateur.
+router.post("/:idOrSlug/founder/checkout", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  if (client.client_type !== "bbx" || client.is_founder) {
+    return res.status(400).json({ ok: false, error: "not_eligible_for_founder" });
+  }
+
+  if (!isSumupTopupReady()) {
+    return res.status(503).json({ ok: false, error: "sumup_not_ready" });
+  }
+
+  const offer = {
+    key: "founder-access",
+    label: "Acces fondateur Bryan Cars",
+    formulaName: null,
+    applyMode: "add",
+    credits: 0,
+    durationDays: null,
+    priceCents: 1999,
+    currency: "EUR",
+  };
+
+  const baseUrl = publicBaseUrl(req);
+  const slugOrCode = client.slug || client.card_code || req.params.idOrSlug;
+  const checkoutReference = `bbx-founder-${client.id}-${Date.now()}-${Math.floor(
+    Math.random() * 1e6,
+  )}`.slice(0, 90);
+  const redirectUrl = `${baseUrl}/card/${encodeURIComponent(
+    slugOrCode,
+  )}?view=home&founderRef=${encodeURIComponent(checkoutReference)}`;
+  const returnUrl = `${baseUrl}/api/payments/sumup/webhook`;
+
+  const order = createTopupOrder({
+    clientId: client.id,
+    offer,
+    checkoutReference,
+    redirectUrl,
+    returnUrl,
+  });
+
+  try {
+    const checkout = await createHostedCheckout({
+      checkoutReference,
+      amountCents: offer.priceCents,
+      currency: offer.currency,
+      description: `Acces fondateur - ${client.full_name || client.card_code || client.slug}`,
+      redirectUrl,
+      returnUrl,
+    });
+
+    const updatedOrder = attachTopupCheckoutSession(order.id, {
+      checkoutId: checkout.id,
+      hostedCheckoutUrl: checkout.hosted_checkout_url,
+      sumupStatus: checkout.status || "PENDING",
+      payload: checkout,
+    });
+
+    return res.json({
+      ok: true,
+      hostedCheckoutUrl: checkout.hosted_checkout_url,
+      checkoutReference,
+      topupOrder: mapTopupOrderRow(updatedOrder),
+    });
+  } catch (error) {
+    console.error("[SUMUP] create founder checkout:", error);
+    return res.status(502).json({ ok: false, error: "sumup_checkout_failed" });
+  }
+});
+
 router.post("/:idOrSlug/topup/sync", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {

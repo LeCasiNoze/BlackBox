@@ -992,6 +992,7 @@ export function ClientCardPage() {
   const requestedDayParam = query.get("d");
   const launchTopupParam = query.get("launchTopup") === "1";
   const topupRefParam = query.get("topupRef");
+  const founderRefParam = query.get("founderRef");
   const appointmentIdParam = query.get("appointmentId");
 
   const [data, setData] = React.useState<ApiResponse | null>(null);
@@ -1065,6 +1066,8 @@ export function ClientCardPage() {
   const bookingImagesRef = React.useRef<BookingImageDraft[]>([]);
   const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const handledTopupRef = React.useRef<string | null>(null);
+  const handledFounderRef = React.useRef<string | null>(null);
+  const [founderCheckoutBusy, setFounderCheckoutBusy] = React.useState(false);
   const handledLaunchTopupRef = React.useRef<string | null>(null);
   const [openingCase, setOpeningCase] = React.useState<PendingCase | null>(null);
   const [caseResult, setCaseResult] = React.useState<CaseOpenResult | null>(null);
@@ -1462,6 +1465,64 @@ export function ClientCardPage() {
       active = false;
     };
   }, [navigate, query, slug, topupRefParam]);
+
+  React.useEffect(() => {
+    if (!founderRefParam || handledFounderRef.current === founderRefParam) {
+      return;
+    }
+
+    handledFounderRef.current = founderRefParam;
+    let active = true;
+
+    async function syncFounderReturn() {
+      try {
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/topup/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reference: founderRefParam }),
+        });
+
+        const json = (await response.json()) as TopupSyncResponse;
+        if (!active || !response.ok || !json.ok) {
+          return;
+        }
+
+        if (json.client) {
+          setData((current) =>
+            current ? { ...current, client: json.client as ApiClient } : current,
+          );
+        }
+
+        if (json.topupOrder?.status === "processed") {
+          showToast("Paiement confirme. Bienvenue parmi les fondateurs !");
+          setReloadToken((value) => value + 1);
+        } else if (json.topupOrder?.status === "pending" || json.topupOrder?.status === "paid") {
+          showToast("Paiement recu, activation du statut fondateur en cours.");
+        } else if (json.topupOrder?.status === "failed" || json.topupOrder?.status === "expired") {
+          showToast("Le paiement fondateur n'a pas ete finalise.");
+        }
+      } catch (_error) {
+        if (active) {
+          showToast("Impossible de verifier le paiement fondateur pour le moment.");
+        }
+      } finally {
+        if (active) {
+          const nextQuery = new URLSearchParams(query.toString());
+          nextQuery.delete("founderRef");
+          const search = nextQuery.toString();
+          navigate(`/card/${encodeURIComponent(slug)}${search ? `?${search}` : ""}`, {
+            replace: true,
+          });
+        }
+      }
+    }
+
+    void syncFounderReturn();
+
+    return () => {
+      active = false;
+    };
+  }, [navigate, query, slug, founderRefParam]);
 
   React.useEffect(() => {
     if (!launchTopupParam || !client || !client.termsAcceptedAt) {
@@ -2087,6 +2148,38 @@ export function ClientCardPage() {
       showToast("Erreur reseau pendant l'ouverture de la recharge.");
     } finally {
       setBusyTopupKey(null);
+    }
+  }
+
+  async function startFounderCheckout() {
+    setFounderCheckoutBusy(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/founder/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = (await response.json()) as {
+        ok?: boolean;
+        hostedCheckoutUrl?: string;
+        error?: string;
+      };
+      if (!response.ok || !json.ok || !json.hostedCheckoutUrl) {
+        if (json?.error === "sumup_not_ready") {
+          showToast("Le paiement en ligne n'est pas encore disponible.");
+          return;
+        }
+        if (json?.error === "not_eligible_for_founder") {
+          showToast("Ce compte ne peut pas passer fondateur.");
+          return;
+        }
+        showToast("Impossible d'ouvrir le paiement fondateur pour le moment.");
+        return;
+      }
+      window.location.href = json.hostedCheckoutUrl;
+    } catch (_error) {
+      showToast("Erreur reseau pendant l'ouverture du paiement.");
+    } finally {
+      setFounderCheckoutBusy(false);
     }
   }
 
@@ -5355,6 +5448,7 @@ export function ClientCardPage() {
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Le statut fondateur debloque une carte premium et des avantages reserves.
+                  Acces a vie pour <span className="font-semibold text-accentSoft">19,99 €</span>.
                 </p>
               </div>
               <button
@@ -5389,15 +5483,18 @@ export function ClientCardPage() {
             <div className="mt-6">
               <button
                 className="bb-button-brand w-full justify-center"
+                disabled={founderCheckoutBusy}
                 onClick={() => {
-                  setFounderModalOpen(false);
-                  setContactModalOpen(true);
+                  void startFounderCheckout();
                 }}
                 type="button"
               >
                 <Crown className="mr-2 h-4 w-4" />
-                Je veux devenir fondateur
+                {founderCheckoutBusy ? "Ouverture du paiement..." : "Devenir fondateur - 19,99 €"}
               </button>
+              <p className="mt-3 text-center text-xs leading-5 text-white/45">
+                Paiement securise SumUp. Le statut est active des la confirmation du paiement.
+              </p>
             </div>
           </div>
         </div>

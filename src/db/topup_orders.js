@@ -294,6 +294,15 @@ function processPaidTopupOrder(orderId, checkout) {
       client.id,
     );
 
+    // Acces fondateur: le paiement (19,99 EUR, 0 credit) fait passer le
+    // compte bbx en fondateur.
+    if (order.offer_key === "founder-access" && !client.is_founder) {
+      db.prepare(`UPDATE clients SET is_founder = 1, updated_at = ? WHERE id = ?`).run(
+        nowUnix(),
+        client.id,
+      );
+    }
+
     // BC'Coins (fondateurs uniquement): +80 BC/credit immediat, +20 BC/credit
     // en pool differe, et 1 ouverture de case par achat.
     if (client.is_founder && credits > 0) {
