@@ -20,7 +20,6 @@ import {
   PencilLine,
   Phone,
   Plus,
-  Save,
   Search,
   Sparkles,
   Truck,
@@ -670,8 +669,7 @@ export function AdminDashboardPage() {
   const [photoRequestDrafts, setPhotoRequestDrafts] = React.useState<Record<number, string>>({});
   const [priceCommentDrafts, setPriceCommentDrafts] = React.useState<Record<number, string>>({});
 
-  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
-  const [photoFormCaption, setPhotoFormCaption] = React.useState("");
+  const [stagedPhotos, setStagedPhotos] = React.useState<Array<{ file: File; url: string }>>([]);
   const [currentPhotos, setCurrentPhotos] = React.useState<AdminAppointmentPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = React.useState(false);
   const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
@@ -948,8 +946,7 @@ export function AdminDashboardPage() {
     }
 
     void loadAppointmentPhotosAdmin(selectedAppointment.id);
-    setPhotoFile(null);
-    setPhotoFormCaption("");
+    clearStagedPhotos();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -1277,6 +1274,12 @@ export function AdminDashboardPage() {
   async function changeStatus(appointmentId: number, status: AppointmentStatus) {
     setBusyAction(true);
 
+    // Passage en "Effectue": on enregistre d'abord le compte-rendu + les photos
+    // en attente (pas de bouton de sauvegarde separe), puis on applique le statut.
+    if (status === "done") {
+      await commitAppointmentWorkspace(appointmentId);
+    }
+
     const previousGlobal = globalAppointments;
     const previousSelectedClient = selectedClient;
 
@@ -1373,77 +1376,67 @@ export function AdminDashboardPage() {
     }
   }
 
-  async function saveAppointmentWorkspace(appointmentId: number) {
+  function clearStagedPhotos() {
+    setStagedPhotos((current) => {
+      current.forEach((entry) => URL.revokeObjectURL(entry.url));
+      return [];
+    });
+  }
+
+  function addStagedPhotos(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    const additions = Array.from(files).map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+    setStagedPhotos((current) => [...current, ...additions]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function removeStagedPhoto(url: string) {
+    setStagedPhotos((current) => {
+      const entry = current.find((item) => item.url === url);
+      if (entry) URL.revokeObjectURL(entry.url);
+      return current.filter((item) => item.url !== url);
+    });
+  }
+
+  // Enregistre le compte-rendu (note) + televerse les photos en attente.
+  // Appele au passage en "Effectue" (pas de bouton de sauvegarde dedie).
+  async function commitAppointmentWorkspace(appointmentId: number) {
     const note = noteDrafts[appointmentId] ?? "";
-    const hasFile = !!photoFile;
-    const captionTrim = photoFormCaption.trim();
-
-    let noteSaved = false;
-    let photoSaved = !hasFile;
-
-    setBusyAction(true);
 
     try {
-      try {
-        const response = await fetch(`/api/admin/appointments/${appointmentId}/workspace`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ adminNote: note, cleanlinessRating: null }),
-        });
+      await fetch(`/api/admin/appointments/${appointmentId}/workspace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminNote: note, cleanlinessRating: null }),
+      });
+    } catch (error) {
+      console.error("[admin] save compte-rendu:", error);
+    }
 
-        const json = await response.json();
-        if (!response.ok || !json.ok || !json.appointment) {
-          showToast("La note admin n'a pas ete enregistree.");
-        } else {
-          noteSaved = true;
-          applyAppointmentUpdate(json.appointment as AdminAppointment);
+    for (const entry of stagedPhotos) {
+      try {
+        const formData = new FormData();
+        formData.append("file", entry.file);
+        formData.append("caption", "");
+        const response = await fetch(
+          `/api/admin/appointments/${appointmentId}/photos/upload`,
+          { method: "POST", body: formData },
+        );
+        const json = (await response.json()) as AdminAppointmentPhotoCreateResponse;
+        if (response.ok && json.ok && json.photo) {
+          setCurrentPhotos((current) => [...current, json.photo as AdminAppointmentPhoto]);
         }
       } catch (error) {
-        showToast("Erreur reseau pendant la sauvegarde de la note.");
+        console.error("[admin] upload photo:", error);
       }
-
-      if (hasFile) {
-        try {
-          const formData = new FormData();
-          formData.append("file", photoFile as File);
-          formData.append("caption", captionTrim);
-
-          const response = await fetch(
-            `/api/admin/appointments/${appointmentId}/photos/upload`,
-            {
-              method: "POST",
-              body: formData,
-            },
-          );
-
-          const json =
-            (await response.json()) as AdminAppointmentPhotoCreateResponse;
-
-          if (!response.ok || !json.ok || !json.photo) {
-            showToast("La photo n'a pas pu etre ajoutee.");
-          } else {
-            photoSaved = true;
-            setCurrentPhotos((current) => [
-              ...current,
-              json.photo as AdminAppointmentPhoto,
-            ]);
-            setPhotoFile(null);
-            setPhotoFormCaption("");
-            if (fileInputRef.current) {
-              fileInputRef.current.value = "";
-            }
-          }
-        } catch (error) {
-          showToast("Erreur reseau pendant l'upload photo.");
-        }
-      }
-
-      if (noteSaved && photoSaved) {
-        showToast("Panneau rendez-vous mis a jour.");
-      }
-    } finally {
-      setBusyAction(false);
     }
+
+    clearStagedPhotos();
   }
 
   async function updateFormula(mode: "reset" | "empty" | "custom") {
@@ -3054,15 +3047,14 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  {(selectedAppointment.status === "confirmed" || selectedAppointment.status === "done") && (
+                  {selectedAppointment.status === "confirmed" && (
                   <>
-                  {/* Compte-rendu */}
+                  {/* Compte-rendu (pas de bouton: applique au passage en Effectue) */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="bb-eyebrow">
-                      Compte-rendu (visible par le client)
-                    </p>
+                    <p className="bb-eyebrow">Compte-rendu (visible par le client)</p>
                     <p className="mt-3 text-sm leading-6 text-white/55">
-                      Ce commentaire est affiche au client sur son rendez-vous (compte-rendu, conseils, particularites).
+                      Commentaire + photos sont enregistres automatiquement au passage en{" "}
+                      <strong className="text-white">Effectue</strong>.
                     </p>
                     <textarea
                       className="bb-textarea mt-4"
@@ -3075,20 +3067,9 @@ export function AdminDashboardPage() {
                       placeholder="Compte-rendu, preparation, particularites du vehicule..."
                       value={noteDrafts[selectedAppointment.id] ?? ""}
                     />
-                    <button
-                      className="bb-button-brand mt-4"
-                      disabled={busyAction}
-                      onClick={() => {
-                        void saveAppointmentWorkspace(selectedAppointment.id);
-                      }}
-                      type="button"
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      {photoFile ? "Enregistrer la note et la photo" : "Enregistrer"}
-                    </button>
                   </div>
 
-                  {/* Photos */}
+                  {/* Photos a ajouter (plusieurs, sans bouton d'upload) */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]">
@@ -3097,7 +3078,7 @@ export function AdminDashboardPage() {
                       <div className="flex-1">
                         <p className="bb-eyebrow">Photos</p>
                         <p className="mt-0.5 text-sm text-white/55">
-                          Ajoute tes visuels directement sur le dossier actif.
+                          Ajoute plusieurs photos: elles partent au passage en Effectue.
                         </p>
                       </div>
                       {photosLoading && (
@@ -3105,47 +3086,55 @@ export function AdminDashboardPage() {
                       )}
                     </div>
 
-                    <div className="mt-4 grid gap-3">
-                      <label className="rounded-[22px] border border-dashed border-white/15 bg-white/[0.03] p-4 text-sm text-white/65">
-                        <div className="flex items-center gap-2">
-                          <Camera className="h-4 w-4 text-[#e8c98a]" />
-                          {photoFile ? photoFile.name : "Choisir une photo"}
-                        </div>
-                        <input
-                          className="sr-only"
-                          onChange={(event) => {
-                            setPhotoFile(event.target.files?.[0] ?? null);
-                          }}
-                          ref={fileInputRef}
-                          type="file"
-                        />
-                      </label>
+                    <label className="mt-4 block rounded-[22px] border border-dashed border-white/15 bg-white/[0.03] p-4 text-sm text-white/65">
+                      <div className="flex items-center gap-2">
+                        <Camera className="h-4 w-4 text-[#e8c98a]" />
+                        Ajouter des photos
+                      </div>
                       <input
-                        className="bb-input"
-                        onChange={(event) => setPhotoFormCaption(event.target.value)}
-                        placeholder="Legende optionnelle"
-                        value={photoFormCaption}
+                        accept="image/*"
+                        className="sr-only"
+                        multiple
+                        onChange={(event) => addStagedPhotos(event.target.files)}
+                        ref={fileInputRef}
+                        type="file"
                       />
-                    </div>
+                    </label>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                      {!photosLoading && publicAppointmentPhotos.length === 0 && (
-                        <>
-                          {Array.from({ length: 3 }).map((_, index) => (
+                    {stagedPhotos.length > 0 && (
+                      <>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {stagedPhotos.map((entry) => (
                             <div
-                              className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-black/15 text-center text-xs uppercase tracking-[0.16em] text-white/30"
-                              key={index}
+                              className="relative overflow-hidden rounded-[22px] border border-[#e8c98a]/30 bg-black/30"
+                              key={entry.url}
                             >
-                              Aucune photo
+                              <img alt="" className="h-24 w-full object-cover" src={entry.url} />
+                              <span className="bb-pill absolute left-2 top-2 border-[#e8c98a]/25 bg-[#e8c98a]/15 text-[10px] text-[#ffe8a8]">
+                                A envoyer
+                              </span>
+                              <button
+                                className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white"
+                                onClick={() => removeStagedPhoto(entry.url)}
+                                type="button"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </button>
                             </div>
                           ))}
-                        </>
-                      )}
+                        </div>
+                        <p className="mt-3 text-xs text-white/45">
+                          {stagedPhotos.length} photo(s) prete(s) — envoyees au passage en Effectue.
+                        </p>
+                      </>
+                    )}
 
-                      {publicAppointmentPhotos.map((photo) => (
-                        <div className="space-y-2" key={photo.id}>
+                    {publicAppointmentPhotos.length > 0 && (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        {publicAppointmentPhotos.map((photo) => (
                           <button
                             className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                            key={photo.id}
                             onClick={() =>
                               openLightbox(
                                 publicAppointmentPhotos.map((entry) => ({
@@ -3164,13 +3153,53 @@ export function AdminDashboardPage() {
                               src={photo.url}
                             />
                           </button>
-                          <p className="min-w-0 text-xs text-white/45">
-                            {photo.caption || "Sans legende"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                  </>
+                  )}
+
+                  {selectedAppointment.status === "done" && (
+                  <>
+                    {selectedAppointment.adminNote && (
+                      <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                        <p className="bb-eyebrow">Compte-rendu</p>
+                        <p className="mt-3 text-sm leading-6 text-white/72">
+                          {selectedAppointment.adminNote}
+                        </p>
+                      </div>
+                    )}
+                    {publicAppointmentPhotos.length > 0 && (
+                      <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                        <p className="bb-eyebrow">Photos</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {publicAppointmentPhotos.map((photo) => (
+                            <button
+                              className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                              key={photo.id}
+                              onClick={() =>
+                                openLightbox(
+                                  publicAppointmentPhotos.map((entry) => ({
+                                    id: `public-${entry.id}`,
+                                    url: entry.url,
+                                    label: entry.caption,
+                                  })),
+                                  photo.url,
+                                )
+                              }
+                              type="button"
+                            >
+                              <img
+                                alt={photo.caption || "Photo rendez-vous"}
+                                className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                                src={photo.url}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                   )}
                 </>
