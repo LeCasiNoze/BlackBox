@@ -70,6 +70,10 @@ import {
 const SUMUP_TOPUP_URL =
   import.meta.env.VITE_SUMUP_TOPUP_URL || "https://www.sumupbookings.com/bryan-cars";
 const GOOGLE_REVIEWS_URL = "https://maps.app.goo.gl/SNXz7PaTRSWWMxLa8";
+const INSTAGRAM_URL =
+  "https://www.instagram.com/bryancarsdetailing?igsh=M3hpZGc4bTY2eHJs&utm_source=qr";
+const TIKTOK_URL = "https://www.tiktok.com/@bryan.cars2";
+const FACEBOOK_URL = "https://www.facebook.com/share/19DTYdaMvJ/?mibextid=wwXIfr";
 const WHATSAPP_URL = "https://wa.me/message/FSJMNKNGPVTTK1";
 const PHONE_URL = "tel:0603125186";
 
@@ -137,6 +141,8 @@ type ApiClient = {
   welcomeEmailSentAt: number | null;
   bcPoints: number;
   bcPending: number;
+  reviewBoxOpenedAt: number | null;
+  reviewBoxReward: string | null;
 };
 
 type ClientVehicle = {
@@ -434,6 +440,12 @@ const TIER_COLORS: Record<string, string> = {
   rare: "#a855f7",
   epique: "#ec4899",
   legendaire: "#e8c98a",
+  // Lots de la box avis Google
+  desodorisant: "#9ca3af",
+  microfibre: "#38bdf8",
+  tapis: "#a855f7",
+  founder_1m: "#e8c98a",
+  credit_1: "#ec4899",
 };
 
 // Largeur d'une carte du reel + gap en px (doit matcher le CSS).
@@ -486,6 +498,12 @@ const WIN_SEQUENCES: Record<string, number[]> = {
   rare: [523.25, 659.25, 783.99, 1046.5],
   epique: [523.25, 659.25, 783.99, 1046.5, 1318.5],
   legendaire: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98],
+  // Lots de la box avis (par rarete croissante)
+  desodorisant: [523.25, 659.25],
+  microfibre: [523.25, 659.25, 783.99],
+  tapis: [523.25, 659.25, 783.99, 1046.5],
+  founder_1m: [523.25, 659.25, 783.99, 1046.5, 1318.5],
+  credit_1: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98],
 };
 
 function playWinSound(tier: string) {
@@ -514,6 +532,11 @@ const CONFETTI_BY_TIER: Record<string, number> = {
   rare: 50,
   epique: 72,
   legendaire: 110,
+  desodorisant: 22,
+  microfibre: 34,
+  tapis: 55,
+  founder_1m: 85,
+  credit_1: 110,
 };
 
 const CONFETTI_COLORS = ["#e8c98a", "#4cc6ff", "#ffffff", "#43d79d", "#ff7d89", "#a855f7"];
@@ -549,6 +572,9 @@ type CaseOpeningModalProps = {
   reelRef: React.RefObject<HTMLDivElement | null>;
   onClose: () => void;
   onSpinEnd: () => void;
+  rewardUnit?: "bc" | "goodie";
+  title?: string;
+  eyebrow?: string;
 };
 
 function CaseOpeningModal({
@@ -557,7 +583,11 @@ function CaseOpeningModal({
   reelRef,
   onClose,
   onSpinEnd,
+  rewardUnit = "bc",
+  title,
+  eyebrow,
 }: CaseOpeningModalProps) {
+  const isGoodie = rewardUnit === "goodie";
   const [reelItems, setReelItems] = React.useState<
     Array<{ tier: CaseTier; isWinner: boolean }>
   >([]);
@@ -620,7 +650,10 @@ function CaseOpeningModal({
   }, [reelItems]);
 
   const wonTierColor = result ? (TIER_COLORS[result.reward.tier] ?? "#e8c98a") : "#e8c98a";
-  const isLegendaire = result?.reward.tier === "legendaire";
+  const highlightWin =
+    result?.reward.tier === "legendaire" ||
+    result?.reward.tier === "founder_1m" ||
+    result?.reward.tier === "credit_1";
 
   return (
     <div
@@ -655,9 +688,10 @@ function CaseOpeningModal({
         {/* En-tete */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="bb-eyebrow">BC&apos;Coins</p>
+            <p className="bb-eyebrow">{eyebrow ?? "BC'Coins"}</p>
             <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
-              Ouverture de case &middot; {caseItem.credits} credit{caseItem.credits > 1 ? "s" : ""}
+              {title ??
+                `Ouverture de case · ${caseItem.credits} credit${caseItem.credits > 1 ? "s" : ""}`}
             </h3>
           </div>
           {revealed && (
@@ -715,9 +749,11 @@ function CaseOpeningModal({
                     >
                       <Gift className="h-6 w-6" style={{ color }} />
                       <p className="mt-2 text-xs font-semibold text-white">{item.tier.label}</p>
-                      <p className="mt-1 text-[11px]" style={{ color }}>
-                        +{item.tier.bc} BC
-                      </p>
+                      {!isGoodie && (
+                        <p className="mt-1 text-[11px]" style={{ color }}>
+                          +{item.tier.bc} BC
+                        </p>
+                      )}
                     </div>
                   );
                 })
@@ -739,37 +775,57 @@ function CaseOpeningModal({
           <div
             className={cn(
               "flex flex-col items-center gap-4 rounded-[24px] border p-6 text-center",
-              isLegendaire
+              highlightWin
                 ? "border-accent/50 bg-accent/10 shadow-[0_0_48px_rgb(var(--bb-accent-rgb)/0.25)]"
                 : "border-white/10 bg-white/[0.04]",
             )}
           >
-            <div
-              className="text-5xl font-bold"
-              style={{
-                color: wonTierColor,
-                textShadow: isLegendaire ? `0 0 24px ${wonTierColor}` : undefined,
-              }}
-            >
-              +{result.reward.bc} BC
-            </div>
-            <div>
-              <p
-                className="text-lg font-semibold"
-                style={{ color: wonTierColor }}
-              >
-                {result.reward.label}
-              </p>
-              <p className="mt-1 text-sm text-white/55">
-                BC&apos;Coins credites sur votre compte fondateur
-              </p>
-            </div>
+            {isGoodie ? (
+              <>
+                <div
+                  className="text-3xl font-bold md:text-4xl"
+                  style={{
+                    color: wonTierColor,
+                    textShadow: highlightWin ? `0 0 24px ${wonTierColor}` : undefined,
+                  }}
+                >
+                  {result.reward.label}
+                </div>
+                <p className="text-sm text-white/60">
+                  {result.reward.tier === "credit_1"
+                    ? "1 credit ajoute a ton compte !"
+                    : result.reward.tier === "founder_1m"
+                      ? "1 mois Fondateur offert — on l'active pour toi."
+                      : "A recuperer a ton prochain passage a l'atelier."}
+                </p>
+              </>
+            ) : (
+              <>
+                <div
+                  className="text-5xl font-bold"
+                  style={{
+                    color: wonTierColor,
+                    textShadow: highlightWin ? `0 0 24px ${wonTierColor}` : undefined,
+                  }}
+                >
+                  +{result.reward.bc} BC
+                </div>
+                <div>
+                  <p className="text-lg font-semibold" style={{ color: wonTierColor }}>
+                    {result.reward.label}
+                  </p>
+                  <p className="mt-1 text-sm text-white/55">
+                    BC&apos;Coins credites sur votre compte fondateur
+                  </p>
+                </div>
+              </>
+            )}
             <button
               className="bb-button-brand mt-2 px-8 py-3"
               onClick={onClose}
               type="button"
             >
-              {isLegendaire ? "Legendaire !" : "Genial !"}
+              {highlightWin ? "Incroyable !" : "Genial !"}
             </button>
           </div>
         )}
@@ -792,7 +848,7 @@ function CaseOpeningModal({
                   <p className="font-semibold" style={{ color }}>
                     {tier.label}
                   </p>
-                  <p className="mt-1 text-white/48">{tier.bc} BC</p>
+                  {!isGoodie && <p className="mt-1 text-white/48">{tier.bc} BC</p>}
                   <p className="mt-0.5 text-white/35">{Math.round(tier.proba * 100)}%</p>
                 </div>
               );
@@ -1241,6 +1297,10 @@ export function ClientCardPage() {
   const [caseResult, setCaseResult] = React.useState<CaseOpenResult | null>(null);
   const [caseSpinning, setCaseSpinning] = React.useState(false);
   const caseReelRef = React.useRef<HTMLDivElement>(null);
+  const [reviewBoxResult, setReviewBoxResult] = React.useState<CaseOpenResult | null>(null);
+  const [reviewBoxOpen, setReviewBoxOpen] = React.useState(false);
+  const [reviewBoxBusy, setReviewBoxBusy] = React.useState(false);
+  const reviewReelRef = React.useRef<HTMLDivElement>(null);
   const [pendingTermsAction, setPendingTermsAction] = React.useState<
     | { type: "topup" }
     | {
@@ -2351,6 +2411,124 @@ export function ClientCardPage() {
     }
   }
 
+  async function openReviewBoxFlow() {
+    // On envoie le client vers l'avis Google (confiance) puis on lance la box.
+    window.open(GOOGLE_REVIEWS_URL, "_blank", "noopener,noreferrer");
+
+    if (clientData.reviewBoxOpenedAt) {
+      return;
+    }
+
+    setReviewBoxBusy(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/review-box/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        reward?: { key: string; label: string };
+        tiers?: Array<{ key: string; label: string; proba: number }>;
+        client?: ApiClient;
+      };
+      if (response.status === 409) {
+        showToast("Tu as deja ouvert ta box.");
+        return;
+      }
+      if (!response.ok || !json.ok || !json.reward || !json.tiers) {
+        showToast("Impossible d'ouvrir la box pour le moment.");
+        return;
+      }
+      if (json.client) {
+        setData((current) => (current ? { ...current, client: json.client as ApiClient } : current));
+      }
+      setReviewBoxResult({
+        reward: { tier: json.reward.key, label: json.reward.label, bc: 0 },
+        tiers: json.tiers.map((tier) => ({
+          key: tier.key,
+          label: tier.label,
+          proba: tier.proba,
+          bc: 0,
+        })),
+      });
+      setReviewBoxOpen(true);
+    } catch (_error) {
+      showToast("Erreur reseau pendant l'ouverture de la box.");
+    } finally {
+      setReviewBoxBusy(false);
+    }
+  }
+
+  function renderSocialSection() {
+    const socials = [
+      { label: "Instagram", href: INSTAGRAM_URL },
+      { label: "TikTok", href: TIKTOK_URL },
+      { label: "Facebook", href: FACEBOOK_URL },
+    ];
+    const boxDone = !!clientData.reviewBoxOpenedAt;
+    return (
+      <article className="bb-surface bb-rise p-5 md:p-6">
+        <div className="bb-section-head">
+          <div>
+            <p className="bb-eyebrow">Reseaux &amp; avis</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Suivez Bryan Cars</h2>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {socials.map((social) => (
+            <a
+              className="bb-hairline bb-hover-lift flex items-center justify-between p-4"
+              href={social.href}
+              key={social.label}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <span className="text-sm font-semibold text-white">{social.label}</span>
+              <ArrowRight className="h-4 w-4 text-accent" />
+            </a>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-[24px] border border-accent/30 bg-accent/[0.06] p-4">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent/12 text-accent">
+              <Gift className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-white">
+                {boxDone
+                  ? "Merci pour votre avis !"
+                  : "Laissez un avis Google, ouvrez une box surprise"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-white/65">
+                {boxDone
+                  ? "Votre box a deja ete ouverte (une seule par compte)."
+                  : "Une seule ouverture par compte, avec de vrais cadeaux a la cle."}
+              </p>
+              <button
+                className="bb-button-brand mt-3"
+                disabled={reviewBoxBusy}
+                onClick={() => {
+                  void openReviewBoxFlow();
+                }}
+                type="button"
+              >
+                <Star className="mr-2 h-4 w-4" />
+                {boxDone
+                  ? "Laisser un avis Google"
+                  : reviewBoxBusy
+                    ? "Ouverture..."
+                    : "Donner un avis + ouvrir ma box"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   function openTopupFlow() {
     if (!client) return;
 
@@ -3082,6 +3260,8 @@ export function ClientCardPage() {
             );
           })}
         </section>
+
+        {renderSocialSection()}
       </section>
     );
   }
@@ -3191,6 +3371,8 @@ export function ClientCardPage() {
               );
             })}
           </section>
+
+          {renderSocialSection()}
         </section>
       );
     }
@@ -3304,6 +3486,8 @@ export function ClientCardPage() {
             </div>
           </div>
         </article>
+
+        {renderSocialSection()}
       </section>
     );
   }
@@ -5679,6 +5863,30 @@ export function ClientCardPage() {
           onSpinEnd={() => setCaseSpinning(false)}
           reelRef={caseReelRef}
           result={caseResult}
+        />
+      )}
+
+      {reviewBoxOpen && reviewBoxResult && (
+        <CaseOpeningModal
+          caseItem={{
+            id: -2,
+            credits: 1,
+            status: "pending",
+            rewardTier: null,
+            rewardBc: null,
+            createdAt: 0,
+            openedAt: null,
+          }}
+          eyebrow="Avis Google"
+          onClose={() => {
+            setReviewBoxOpen(false);
+            setReviewBoxResult(null);
+          }}
+          onSpinEnd={() => undefined}
+          reelRef={reviewReelRef}
+          result={reviewBoxResult}
+          rewardUnit="goodie"
+          title="Box merci"
         />
       )}
 

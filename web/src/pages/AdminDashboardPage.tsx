@@ -85,6 +85,7 @@ type AdminClient = {
   formulaRecapSentAt: number | null;
   welcomeEmailSentAt: number | null;
   bcPoints: number;
+  reviewBoxRewardLabel: string | null;
   notes: string | null;
   createdAt: number;
   updatedAt: number;
@@ -3153,6 +3154,12 @@ export function AdminDashboardPage() {
                           : ""}
                         .
                       </p>
+                      {managedClient.reviewBoxRewardLabel && (
+                        <p className="mt-3 rounded-[16px] border border-accent/25 bg-accent/[0.06] px-3 py-2 text-sm text-white/75">
+                          <span className="font-semibold text-accentSoft">Box avis gagnee :</span>{" "}
+                          {managedClient.reviewBoxRewardLabel} — a remettre au prochain passage.
+                        </p>
+                      )}
                     </div>
 
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">

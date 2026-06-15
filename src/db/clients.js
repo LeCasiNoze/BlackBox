@@ -5,6 +5,7 @@ const {
   listVehiclesByClient,
   syncClientPrimaryVehicleSnapshot,
 } = require("./vehicles");
+const { rollReviewBoxGoodie } = require("../config/reviewBox");
 
 function sanitizeString(value) {
   if (typeof value !== "string") {
@@ -221,6 +222,41 @@ function generateNextCardCode() {
 // creation (le plus ancien = 001). Deterministe et idempotent: ne met a jour
 // que les codes qui different deja de leur valeur canonique, donc apres la
 // premiere passe c'est un no-op. Les comptes Data/Pro ne sont pas concernes.
+// Ouvre la box "avis Google" (1 fois par compte). Tire un lot, l'enregistre,
+// applique le credit si gagne; les lots physiques + mois fondateur restent
+// "a honorer" cote admin.
+function openReviewBox(clientId) {
+  const client = getClientById(clientId);
+  if (!client) {
+    return { ok: false, error: "client_not_found" };
+  }
+  if (client.review_box_opened_at) {
+    return { ok: false, error: "already_opened", rewardKey: client.review_box_reward || null };
+  }
+
+  const goodie = rollReviewBoxGoodie();
+  const now = nowUnix();
+
+  const apply = db.transaction(() => {
+    db.prepare(
+      `UPDATE clients SET review_box_opened_at = ?, review_box_reward = ?, updated_at = ? WHERE id = ?`,
+    ).run(now, goodie.key, now, clientId);
+
+    if (goodie.kind === "credit") {
+      db.prepare(
+        `UPDATE clients
+         SET formula_total = COALESCE(formula_total, 0) + 1,
+             formula_remaining = COALESCE(formula_remaining, 0) + 1,
+             updated_at = ?
+         WHERE id = ?`,
+      ).run(now, clientId);
+    }
+  });
+  apply();
+
+  return { ok: true, reward: goodie };
+}
+
 function renumberCardCodes() {
   const rows = db
     .prepare(
@@ -737,6 +773,7 @@ function ensureDemoClient() {
 module.exports = {
   createClient,
   decrementFormulaRemaining,
+  openReviewBox,
   renumberCardCodes,
   ensureDemoClient,
   formulaNameFromTotal,

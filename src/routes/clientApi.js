@@ -15,8 +15,10 @@ const {
   getClientById,
   getClientBySlugOrCardCode,
   markWelcomeEmailSent,
+  openReviewBox,
   updateClientTermsAcceptance,
 } = require("../db/clients");
+const { REVIEW_BOX_GOODIES } = require("../config/reviewBox");
 const {
   APPOINTMENT_SLOTS,
   acceptAppointmentPriceForClient,
@@ -348,6 +350,8 @@ function mapClientPayload(client) {
     welcomeEmailSentAt: client.welcome_email_sent_at ?? null,
     bcPoints: client.bc_points ?? 0,
     bcPending: client.bc_pending ?? 0,
+    reviewBoxOpenedAt: client.review_box_opened_at ?? null,
+    reviewBoxReward: client.review_box_reward ?? null,
   };
 }
 
@@ -835,6 +839,35 @@ router.post("/:idOrSlug/founder/checkout", async (req, res) => {
     console.error("[SUMUP] create founder checkout:", error);
     return res.status(502).json({ ok: false, error: "sumup_checkout_failed" });
   }
+});
+
+// Box "avis Google": 1 ouverture par compte. Le clic se fait apres avoir
+// envoye le client vers l'avis (confiance). Tire un lot et l'enregistre.
+router.post("/:idOrSlug/review-box/open", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const result = openReviewBox(client.id);
+  if (!result.ok && result.error === "already_opened") {
+    return res.status(409).json({ ok: false, error: "already_opened" });
+  }
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.error || "review_box_failed" });
+  }
+
+  const updated = getClientById(client.id);
+  return res.json({
+    ok: true,
+    reward: { key: result.reward.key, label: result.reward.label, kind: result.reward.kind },
+    tiers: REVIEW_BOX_GOODIES.map((goodie) => ({
+      key: goodie.key,
+      label: goodie.label,
+      proba: goodie.proba,
+    })),
+    client: mapClientPayload(updated),
+  });
 });
 
 router.post("/:idOrSlug/topup/sync", async (req, res) => {

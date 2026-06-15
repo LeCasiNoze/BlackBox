@@ -23,6 +23,7 @@ const {
   updateClientFormulaBalance,
   updateClientProfile,
 } = require("../db/clients");
+const { getReviewBoxGoodie } = require("../config/reviewBox");
 const {
   cancelAppointmentForClientOnDate,
   cancelAppointmentAndRefund,
@@ -171,6 +172,11 @@ function mapClientRow(row) {
     formulaRecapSentAt: row.formula_recap_sent_at ?? null,
     welcomeEmailSentAt: row.welcome_email_sent_at ?? null,
     bcPoints: row.bc_points ?? 0,
+    reviewBoxOpenedAt: row.review_box_opened_at ?? null,
+    reviewBoxReward: row.review_box_reward || null,
+    reviewBoxRewardLabel: row.review_box_reward
+      ? getReviewBoxGoodie(row.review_box_reward)?.label ?? row.review_box_reward
+      : null,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
