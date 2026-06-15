@@ -143,6 +143,7 @@ type ApiClient = {
   bcPending: number;
   reviewBoxOpenedAt: number | null;
   reviewBoxReward: string | null;
+  founderUntil: number | null;
 };
 
 type ClientVehicle = {
@@ -3573,6 +3574,15 @@ export function ClientCardPage() {
                     <Crown className="h-3.5 w-3.5" />
                     Acces fondateur
                   </div>
+                  {clientData.founderUntil && (
+                    <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
+                      Jusqu'au{" "}
+                      {formatDateFR(toIsoDate(new Date(clientData.founderUntil * 1000)), {
+                        day: "numeric",
+                        month: "long",
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="max-w-3xl">

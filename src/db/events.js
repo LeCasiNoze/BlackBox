@@ -1,5 +1,6 @@
 const { db, nowUnix } = require("./index");
-const { getClientById } = require("./clients");
+const { getClientById, grantTemporaryFounder } = require("./clients");
+const { recordGoodieWin } = require("./goodieWins");
 const { rollConsolationGoodie } = require("../config/eventRewards");
 
 function mapEventRow(row) {
@@ -106,6 +107,11 @@ function participate(eventId, client) {
     `INSERT INTO event_participations (event_id, client_id, consolation_reward, created_at)
      VALUES (?, ?, ?, ?)`,
   ).run(eventId, client.id, goodie ? goodie.key : null, now);
+
+  // Lot de consolation physique -> a remettre au prochain passage.
+  if (goodie) {
+    recordGoodieWin(client.id, "event_consolation", goodie.key, goodie.label);
+  }
 
   return { ok: true, consolation: goodie };
 }
@@ -224,7 +230,7 @@ function applyInappPrize(client, event) {
       `UPDATE clients SET formula_total = COALESCE(formula_total,0) + ?, formula_remaining = COALESCE(formula_remaining,0) + ?, updated_at = ? WHERE id = ?`,
     ).run(amount, amount, now, client.id);
   } else if (event.prize_inapp_type === "founder_month") {
-    db.prepare(`UPDATE clients SET is_founder = 1, updated_at = ? WHERE id = ?`).run(now, client.id);
+    grantTemporaryFounder(client.id, 30);
   }
 }
 

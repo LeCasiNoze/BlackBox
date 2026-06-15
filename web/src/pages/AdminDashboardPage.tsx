@@ -85,6 +85,7 @@ type AdminClient = {
   formulaRecapSentAt: number | null;
   welcomeEmailSentAt: number | null;
   bcPoints: number;
+  founderUntil: number | null;
   reviewBoxRewardLabel: string | null;
   notes: string | null;
   createdAt: number;
@@ -131,6 +132,19 @@ type EventDraft = {
   prizeInappAmount: string;
   isActive: boolean;
   consolationEnabled: boolean;
+};
+
+type AdminGoodie = {
+  id: number;
+  clientId: number;
+  clientName: string | null;
+  clientSlug: string | null;
+  source: string;
+  rewardKey: string;
+  rewardLabel: string;
+  status: string;
+  createdAt: number;
+  honoredAt: number | null;
 };
 
 function emptyEventDraft(): EventDraft {
@@ -677,6 +691,9 @@ export function AdminDashboardPage() {
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [eventDraft, setEventDraft] = React.useState<EventDraft | null>(null);
   const [eventBusy, setEventBusy] = React.useState(false);
+  const [goodies, setGoodies] = React.useState<AdminGoodie[]>([]);
+  const [goodieFilter, setGoodieFilter] = React.useState<"pending" | "honored">("pending");
+  const [goodiePending, setGoodiePending] = React.useState(0);
 
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
@@ -1003,6 +1020,38 @@ export function AdminDashboardPage() {
       active = false;
     };
   }, [refreshToken]);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/admin/goodies?status=${goodieFilter}`);
+        const json = await response.json();
+        if (active && response.ok && json.ok) {
+          setGoodies(json.goodies as AdminGoodie[]);
+          setGoodiePending(json.pendingCount ?? 0);
+        }
+      } catch (_error) {
+        // silencieux
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshToken, goodieFilter]);
+
+  async function honorGoodie(id: number, honored: boolean) {
+    try {
+      await fetch(`/api/admin/goodies/${id}/honor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ honored }),
+      });
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    }
+  }
 
   function openCreateEvent() {
     setEventDraft(emptyEventDraft());
@@ -1851,6 +1900,91 @@ export function AdminDashboardPage() {
     return `/admin/clients?clientId=${client.id}`;
   }
 
+  function renderGoodiesPanel() {
+    const sourceLabel: Record<string, string> = {
+      review_box: "Box avis",
+      event_consolation: "Consolation event",
+    };
+    return (
+      <article className="bb-surface p-6">
+        <div className="bb-section-head">
+          <div>
+            <p className="bb-eyebrow">Lots a remettre</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Cadeaux gagnes</h2>
+          </div>
+          {goodiePending > 0 && (
+            <span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-200">
+              {goodiePending} a remettre
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(["pending", "honored"] as const).map((filter) => (
+            <button
+              className={cn(
+                "bb-button-ghost px-4 py-2",
+                goodieFilter === filter && "border-accent/40 bg-accent/10 text-white",
+              )}
+              key={filter}
+              onClick={() => setGoodieFilter(filter)}
+              type="button"
+            >
+              {filter === "pending" ? "A remettre" : "Remis"}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-2">
+          {goodies.length === 0 ? (
+            <p className="text-sm text-white/45">
+              {goodieFilter === "pending" ? "Aucun lot a remettre." : "Aucun lot remis."}
+            </p>
+          ) : (
+            goodies.map((goodie) => (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.03] p-4"
+                key={goodie.id}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    {goodie.clientName ?? "Client"} —{" "}
+                    <span className="text-accentSoft">{goodie.rewardLabel}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/45">
+                    {sourceLabel[goodie.source] ?? goodie.source} ·{" "}
+                    {formatUnixDateTimeFR(goodie.createdAt)}
+                  </p>
+                </div>
+                {goodie.status === "pending" ? (
+                  <button
+                    className="bb-button-brand px-4 py-2"
+                    onClick={() => {
+                      void honorGoodie(goodie.id, true);
+                    }}
+                    type="button"
+                  >
+                    Marquer remis
+                  </button>
+                ) : (
+                  <button
+                    className="bb-button-ghost px-4 py-2"
+                    onClick={() => {
+                      void honorGoodie(goodie.id, false);
+                    }}
+                    type="button"
+                  >
+                    Annuler
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </article>
+    );
+  }
+
   function renderEventsPanel() {
     const audienceLabel: Record<string, string> = {
       global: "Global",
@@ -2228,6 +2362,7 @@ export function AdminDashboardPage() {
         </section>
 
         {renderEventsPanel()}
+        {renderGoodiesPanel()}
       </>
     );
   }

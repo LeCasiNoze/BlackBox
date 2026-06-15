@@ -183,6 +183,7 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("bc_pending", "bc_pending INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing("review_box_opened_at", "review_box_opened_at INTEGER");
     addColumnIfMissing("review_box_reward", "review_box_reward TEXT");
+    addColumnIfMissing("founder_until", "founder_until INTEGER");
   } catch (error) {
     console.error("[DB] Erreur ensureClientsExtraColumns:", error);
   }

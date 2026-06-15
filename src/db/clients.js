@@ -6,6 +6,7 @@ const {
   syncClientPrimaryVehicleSnapshot,
 } = require("./vehicles");
 const { rollReviewBoxGoodie } = require("../config/reviewBox");
+const { recordGoodieWin } = require("./goodieWins");
 
 function sanitizeString(value) {
   if (typeof value !== "string") {
@@ -250,11 +251,37 @@ function openReviewBox(clientId) {
              updated_at = ?
          WHERE id = ?`,
       ).run(now, clientId);
+    } else if (goodie.kind === "founder_month") {
+      grantTemporaryFounder(clientId, 30);
+    } else {
+      // Lot physique -> a remettre au prochain passage.
+      recordGoodieWin(clientId, "review_box", goodie.key, goodie.label);
     }
   });
   apply();
 
   return { ok: true, reward: goodie };
+}
+
+// Passe le compte fondateur pour `days` jours (expiration auto ensuite).
+function grantTemporaryFounder(clientId, days = 30) {
+  const until = nowUnix() + days * 24 * 60 * 60;
+  db.prepare(
+    `UPDATE clients SET is_founder = 1, founder_until = ?, updated_at = ? WHERE id = ?`,
+  ).run(until, nowUnix(), clientId);
+  return until;
+}
+
+// Repasse en BBX les comptes dont l'acces fondateur temporaire a expire.
+function expireTemporaryFounders() {
+  const now = nowUnix();
+  const info = db
+    .prepare(
+      `UPDATE clients SET is_founder = 0, founder_until = NULL, updated_at = ?
+       WHERE founder_until IS NOT NULL AND founder_until < ?`,
+    )
+    .run(now, now);
+  return info.changes;
 }
 
 function renumberCardCodes() {
@@ -773,6 +800,8 @@ function ensureDemoClient() {
 module.exports = {
   createClient,
   decrementFormulaRemaining,
+  expireTemporaryFounders,
+  grantTemporaryFounder,
   openReviewBox,
   renumberCardCodes,
   ensureDemoClient,

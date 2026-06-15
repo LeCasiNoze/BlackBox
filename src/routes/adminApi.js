@@ -73,7 +73,13 @@ const {
   sendClientPriceApprovalEmail,
   sendClientFormulaRecap,
   sendClientWelcomeEmail,
+  sendEventWinnerEmail,
 } = require("../email");
+const {
+  countPendingGoodieWins,
+  listGoodieWins,
+  markGoodieWinHonored,
+} = require("../db/goodieWins");
 const {
   createDataExportFile,
   markExportJobEmailSent,
@@ -183,6 +189,7 @@ function mapClientRow(row) {
     formulaRecapSentAt: row.formula_recap_sent_at ?? null,
     welcomeEmailSentAt: row.welcome_email_sent_at ?? null,
     bcPoints: row.bc_points ?? 0,
+    founderUntil: row.founder_until ?? null,
     reviewBoxOpenedAt: row.review_box_opened_at ?? null,
     reviewBoxReward: row.review_box_reward || null,
     reviewBoxRewardLabel: row.review_box_reward
@@ -1124,17 +1131,49 @@ router.post("/events/:id/active", (req, res) => {
 
 router.post("/events/:id/draw", (req, res) => {
   try {
-    const result = drawWinner(Number(req.params.id || 0));
+    const id = Number(req.params.id || 0);
+    const result = drawWinner(id);
     if (!result.ok) {
       return res.status(400).json({ ok: false, error: result.error });
     }
+    // Notifie le gagnant (push + email), best-effort.
+    const eventRow = getEventById(id);
+    if (result.winner && eventRow) {
+      void sendEventWinnerEmail({ client: result.winner, event: eventRow }).catch((error) => {
+        console.error("[adminApi] sendEventWinnerEmail:", error);
+      });
+    }
     return res.json({
       ok: true,
-      event: eventView(getEventById(Number(req.params.id || 0))),
+      event: eventView(eventRow),
       winnerName: clientDisplayName(result.winner),
     });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.get("/goodies", (req, res) => {
+  try {
+    const status = req.query.status === "honored" ? "honored" : "pending";
+    return res.json({
+      ok: true,
+      goodies: listGoodieWins(status),
+      pendingCount: countPendingGoodieWins(),
+    });
+  } catch (error) {
+    console.error("[adminApi] GET /goodies:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/goodies/:id/honor", (req, res) => {
+  try {
+    markGoodieWinHonored(Number(req.params.id || 0), req.body?.honored !== false);
+    return res.json({ ok: true, pendingCount: countPendingGoodieWins() });
+  } catch (error) {
+    console.error("[adminApi] POST /goodies/:id/honor:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

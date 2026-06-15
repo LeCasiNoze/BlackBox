@@ -1231,8 +1231,57 @@ async function sendAdminDataExportEmail({ fileName, buffer, triggerType = "weekl
   });
 }
 
+async function sendEventWinnerEmail({ client, event }) {
+  if (!event) return false;
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const prize = event.prize_text || event.prizeText || "votre lot";
+  const eventTitle = event.title || "Jeu concours";
+
+  // Notification push (best-effort).
+  pushClient(client, {
+    title: "Felicitations, vous avez gagne !",
+    body: `${eventTitle} : vous remportez ${prize}.`,
+  });
+
+  if (!client?.email) return false;
+
+  const subject = "[Bryan Cars] Vous avez gagne !";
+  const text = `
+Bonjour ${fullName},
+
+Bonne nouvelle : vous avez ete tire au sort pour l'evenement "${eventTitle}".
+Votre lot : ${prize}.
+
+Nous vous recontactons rapidement pour la remise.
+Espace client : ${portalUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Tirage au sort",
+    title: "Felicitations, vous avez gagne !",
+    subtitle: `Vous etes le gagnant de "${escapeHtml(eventTitle)}".`,
+    preheader: `Vous remportez ${prize}`,
+    bodyHtml: `
+      ${panelCard({
+        title: "Votre lot",
+        description: "Bryan Cars vous recontacte pour la remise.",
+        bodyHtml: `<p style="margin:0;font-size:16px;line-height:24px;color:#e8c98a;font-weight:700;">${escapeHtml(
+          prize,
+        )}</p>`,
+      })}
+      ${actionButtons([
+        portalUrl ? { label: "Ouvrir mon espace", href: portalUrl, tone: "primary" } : null,
+      ])}
+    `,
+  });
+
+  return sendBrevoEmail({ to: [{ email: client.email, name: fullName }], subject, text, html });
+}
+
 module.exports = {
   normalizePhoneForTel,
+  sendEventWinnerEmail,
   sendAdminDataExportEmail,
   sendAdminAppointmentReminderEmail,
   sendAdminNotification,

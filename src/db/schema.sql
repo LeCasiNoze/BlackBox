@@ -361,6 +361,24 @@ CREATE INDEX IF NOT EXISTS idx_event_participations_event
   ON event_participations(event_id, created_at DESC);
 
 -- ============================
+-- TABLE goodie_wins (lots a remettre)
+-- ============================
+CREATE TABLE IF NOT EXISTS goodie_wins (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  source        TEXT NOT NULL DEFAULT 'review_box',
+  reward_key    TEXT NOT NULL,
+  reward_label  TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'honored')),
+  created_at    INTEGER NOT NULL,
+  honored_at    INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_goodie_wins_status
+  ON goodie_wins(status, created_at DESC);
+
+-- ============================
 -- TABLE export_jobs
 -- ============================
 CREATE TABLE IF NOT EXISTS export_jobs (

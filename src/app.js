@@ -20,7 +20,7 @@ const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
 const adminApiRoutes = require("./routes/adminApi");
 const paymentRoutes = require("./routes/payments");
-const { ensureDemoClient, renumberCardCodes } = require("./db/clients");
+const { ensureDemoClient, renumberCardCodes, expireTemporaryFounders } = require("./db/clients");
 const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 
@@ -43,6 +43,13 @@ try {
   require("./db/events").ensureTestEvent();
 } catch (error) {
   console.warn("[DB] ensureTestEvent ignore:", error.message);
+}
+
+// Expire les acces fondateur temporaires arrives a terme.
+try {
+  expireTemporaryFounders();
+} catch (error) {
+  console.warn("[DB] expireTemporaryFounders ignore:", error.message);
 }
 
 const app = express();

@@ -12,6 +12,7 @@ const {
 } = require("../config/topupOffers");
 const {
   createClient,
+  expireTemporaryFounders,
   getClientById,
   getClientBySlugOrCardCode,
   markWelcomeEmailSent,
@@ -359,6 +360,7 @@ function mapClientPayload(client) {
     bcPending: client.bc_pending ?? 0,
     reviewBoxOpenedAt: client.review_box_opened_at ?? null,
     reviewBoxReward: client.review_box_reward ?? null,
+    founderUntil: client.founder_until ?? null,
   };
 }
 
@@ -578,6 +580,12 @@ router.post("/signup/verify", async (req, res) => {
 });
 
 router.get("/:idOrSlug", (req, res) => {
+  // Expire les acces fondateur temporaires arrives a terme avant de repondre.
+  try {
+    expireTemporaryFounders();
+  } catch (_error) {
+    // best-effort
+  }
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
     return;
