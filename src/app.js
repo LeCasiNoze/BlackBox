@@ -20,7 +20,7 @@ const authRoutes = require("./routes/auth");
 const clientApiRoutes = require("./routes/clientApi");
 const adminApiRoutes = require("./routes/adminApi");
 const paymentRoutes = require("./routes/payments");
-const { ensureDemoClient, backfillCardCodes } = require("./db/clients");
+const { ensureDemoClient, renumberCardCodes } = require("./db/clients");
 const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 
@@ -28,14 +28,14 @@ if (process.env.SEED_DEMO_CLIENT === "true") {
   ensureDemoClient();
 }
 
-// Attribue un code carte aux comptes BBX historiques qui n'en ont pas.
+// Renumerote les codes carte BBX dans l'ordre de creation (canonique).
 try {
-  const assigned = backfillCardCodes();
-  if (assigned > 0) {
-    console.log(`[DB] Codes carte attribues a ${assigned} compte(s) BBX.`);
+  const changed = renumberCardCodes();
+  if (changed > 0) {
+    console.log(`[DB] Codes carte renumerotes pour ${changed} compte(s) BBX.`);
   }
 } catch (error) {
-  console.warn("[DB] Backfill codes carte ignore:", error.message);
+  console.warn("[DB] Renumerotation codes carte ignoree:", error.message);
 }
 
 const app = express();

@@ -217,28 +217,36 @@ function generateNextCardCode() {
   return `BBX-${String(nextNum).padStart(3, "0")}`;
 }
 
-// Attribue un code carte (BBX-NNN) aux comptes BBX historiques qui n'en ont
-// pas encore, dans l'ordre de creation. Idempotent: ne touche que les NULL.
-function backfillCardCodes() {
-  const missing = db
+// Renumerote TOUS les comptes BBX en BBX-001, BBX-002, ... dans l'ordre de
+// creation (le plus ancien = 001). Deterministe et idempotent: ne met a jour
+// que les codes qui different deja de leur valeur canonique, donc apres la
+// premiere passe c'est un no-op. Les comptes Data/Pro ne sont pas concernes.
+function renumberCardCodes() {
+  const rows = db
     .prepare(
       `
-      SELECT id
+      SELECT id, card_code
       FROM clients
       WHERE client_type = 'bbx'
-        AND (card_code IS NULL OR card_code = '')
-      ORDER BY id ASC
+      ORDER BY created_at ASC, id ASC
     `,
     )
     .all();
 
   const update = db.prepare(`UPDATE clients SET card_code = ? WHERE id = ?`);
-  let assigned = 0;
-  for (const row of missing) {
-    update.run(generateNextCardCode(), row.id);
-    assigned += 1;
-  }
-  return assigned;
+  const apply = db.transaction(() => {
+    let changed = 0;
+    rows.forEach((row, index) => {
+      const code = `BBX-${String(index + 1).padStart(3, "0")}`;
+      if (row.card_code !== code) {
+        update.run(code, row.id);
+        changed += 1;
+      }
+    });
+    return changed;
+  });
+
+  return apply();
 }
 
 function generateNextDataSlug() {
@@ -727,9 +735,9 @@ function ensureDemoClient() {
 }
 
 module.exports = {
-  backfillCardCodes,
   createClient,
   decrementFormulaRemaining,
+  renumberCardCodes,
   ensureDemoClient,
   formulaNameFromTotal,
   generateNextCardCode,
