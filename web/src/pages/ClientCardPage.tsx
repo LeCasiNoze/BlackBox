@@ -1308,6 +1308,7 @@ export function ClientCardPage() {
     () => clientPushPermission(),
   );
   const [pushBusy, setPushBusy] = React.useState(false);
+  const [notifPromptOpen, setNotifPromptOpen] = React.useState(false);
   const lastOpenedAppointmentIdRef = React.useRef<number | null>(null);
   const appointmentsEverLoadedRef = React.useRef(false);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
@@ -1601,6 +1602,17 @@ export function ClientCardPage() {
     setToast(message);
   }
 
+  function dismissNotifPrompt() {
+    if (slug) {
+      try {
+        window.sessionStorage.setItem(`bb-notif-prompt:${slug}`, "1");
+      } catch {
+        /* sessionStorage indisponible */
+      }
+    }
+    setNotifPromptOpen(false);
+  }
+
   async function handleEnablePush() {
     if (pushBusy) return;
     setPushBusy(true);
@@ -1838,6 +1850,22 @@ export function ClientCardPage() {
   React.useEffect(() => {
     if (!slug || clientPushPermission() !== "granted") return;
     void enableClientPush(slug);
+  }, [slug]);
+
+  // Une fois l'application installee et lancee (mode standalone), propose une
+  // seule fois d'activer les notifications (tant que l'utilisateur n'a pas choisi).
+  React.useEffect(() => {
+    if (!slug || !clientPushSupported() || clientPushPermission() !== "default") return;
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as { standalone?: boolean }).standalone === true;
+    if (!standalone) return;
+    try {
+      if (window.sessionStorage.getItem(`bb-notif-prompt:${slug}`)) return;
+    } catch {
+      /* sessionStorage indisponible */
+    }
+    setNotifPromptOpen(true);
   }, [slug]);
 
   // Ouvre automatiquement la modale d'un rendez-vous transmis via ?appointmentId=N.
@@ -6104,6 +6132,48 @@ export function ClientCardPage() {
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Voir le reglement
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notifPromptOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
+          onClick={dismissNotifPrompt}
+        >
+          <div
+            className="bb-surface-strong w-full max-w-md overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-accent/50 bg-accent/18 text-accentSoft">
+              <Bell className="h-6 w-6" />
+            </div>
+            <h3 className="bb-display mt-4 text-2xl font-semibold text-white">
+              Active les notifications
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-white/65">
+              Sois prevenu en temps reel : confirmation de rendez-vous, prestation terminee, avis a
+              laisser et evenements. Tu peux les desactiver a tout moment.
+            </p>
+            <div className="mt-6 grid gap-3">
+              <button
+                className="bb-button-brand justify-center"
+                disabled={pushBusy}
+                onClick={() => {
+                  void (async () => {
+                    await handleEnablePush();
+                    dismissNotifPrompt();
+                  })();
+                }}
+                type="button"
+              >
+                <Bell className="mr-2 h-4 w-4" />
+                {pushBusy ? "Activation..." : "Activer les notifications"}
+              </button>
+              <button className="bb-button-ghost justify-center" onClick={dismissNotifPrompt} type="button">
+                Plus tard
+              </button>
             </div>
           </div>
         </div>

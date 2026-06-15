@@ -1,13 +1,16 @@
 import * as React from "react";
 import {
   ArrowRight,
+  Bell,
   CheckCircle2,
   Loader2,
   MessageCircle,
   ShieldCheck,
+  Smartphone,
   Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { InstallAppButton } from "../components/InstallAppButton";
 
 const GOOGLE_MAPS_URL = "https://maps.app.goo.gl/SNXz7PaTRSWWMxLa8";
 const WHATSAPP_URL = "https://wa.me/message/FSJMNKNGPVTTK1";
@@ -223,6 +226,29 @@ export function LandingPage() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   )}
+                  <div className="rounded-[26px] border border-[#e8c98a]/25 bg-[#e8c98a]/[0.06] p-5">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="h-5 w-5 text-[#e8c98a]" />
+                      <p className="text-base font-semibold text-white">Installe l&apos;application</p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-white/65">
+                      Ajoute Bryan Cars a ton ecran d&apos;accueil pour un acces direct, puis active les
+                      <span className="inline-flex items-center gap-1 font-semibold text-white">
+                        {" "}
+                        <Bell className="h-3.5 w-3.5" /> notifications
+                      </span>{" "}
+                      depuis ton espace pour suivre tes rendez-vous.
+                    </p>
+                    <InstallAppButton
+                      appName="Bryan Cars"
+                      startUrl={portalUrl || "/"}
+                      className="bb-button-brand mt-4 w-full justify-center"
+                    />
+                    <p className="mt-3 text-xs leading-5 text-white/45">
+                      iPhone : bouton Partager puis « Sur l&apos;ecran d&apos;accueil ». Android : menu ⋮ puis
+                      « Installer l&apos;application ».
+                    </p>
+                  </div>
                 </div>
               )}
             </article>
