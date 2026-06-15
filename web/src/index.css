@@ -18,11 +18,51 @@
   --bb-accent: #e8c98a;
   --bb-accent-soft: #ffd87a;
   --bb-accent-strong: #d99a4e;
+  /* Canaux RGB de l'accent (pilotent la couleur Tailwind `accent`,
+     bascules par type de compte via [data-theme]). */
+  --bb-accent-rgb: 232 201 138;
+  --bb-accent-soft-rgb: 255 232 168;
   --bb-steel: #4cc6ff;
   --bb-steel-strong: #1f8fd6;
   --bb-success: #43d79d;
   --bb-danger: #ff7d89;
   --bb-ring-gold: rgba(232, 201, 138, 0.55);
+}
+
+/* Theme par type de compte: Pro = identite acier sur TOUTES les pages.
+   BBX et Fondateur gardent l'or (valeurs par defaut de :root). */
+[data-theme="pro"] {
+  --bb-accent: #4cc6ff;
+  --bb-accent-soft: #cdeeff;
+  --bb-accent-strong: #1f8fd6;
+  --bb-accent-rgb: 76 198 255;
+  --bb-accent-soft-rgb: 205 238 255;
+  --bb-ring-gold: rgba(76, 198, 255, 0.55);
+}
+
+[data-theme="pro"] .bb-button-brand {
+  background: linear-gradient(135deg, #8fdcff 2%, var(--bb-accent) 42%, var(--bb-accent-strong) 100%);
+  box-shadow:
+    0 16px 36px -8px rgba(31, 143, 214, 0.5),
+    0 2px 8px rgba(31, 143, 214, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  color: #031420;
+}
+
+[data-theme="pro"] .bb-text-gold {
+  background: linear-gradient(120deg, #cdeeff 6%, var(--bb-accent) 48%, var(--bb-accent-strong) 96%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+[data-theme="pro"] .bb-gold-frame::after {
+  background: linear-gradient(
+    135deg,
+    rgba(76, 198, 255, 0.55),
+    rgba(76, 198, 255, 0) 42%,
+    rgba(31, 143, 214, 0.32)
+  );
 }
 
 html {
@@ -286,12 +326,12 @@ select {
     position: absolute;
     inset: 0 0 auto 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(232, 201, 138, 0.5), transparent);
+    background: linear-gradient(90deg, transparent, rgb(var(--bb-accent-rgb) / 0.5), transparent);
     opacity: 0.6;
   }
 
   .bb-input {
-    @apply w-full rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-white/35 focus:border-[#e8c98a]/55 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#e8c98a]/25;
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-white/35 focus:border-accent/55 focus:bg-white/[0.05] focus:ring-2 focus:ring-accent/25;
   }
 
   .bb-textarea {

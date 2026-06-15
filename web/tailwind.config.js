@@ -3,6 +3,10 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
     extend: {
+      colors: {
+        accent: "rgb(var(--bb-accent-rgb) / <alpha-value>)",
+        accentSoft: "rgb(var(--bb-accent-soft-rgb) / <alpha-value>)",
+      },
       keyframes: {
         globalShine: {
           "0%": { transform: "translate(-20%, -20%)" },

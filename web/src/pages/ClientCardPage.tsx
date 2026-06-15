@@ -8,11 +8,13 @@ import {
   CarFront,
   CheckCircle2,
   Clock3,
+  Copy,
   CreditCard,
   Crown,
   ExternalLink,
   Gift,
   House,
+  Link2,
   Loader2,
   MapPin,
   MessageCircle,
@@ -182,6 +184,36 @@ type TopupOrder = {
   offerLabel: string;
   status: string;
   checkoutReference: string;
+};
+
+type PartnerForfait = {
+  key: string;
+  label: string;
+  priceCents: number;
+  currency: string;
+  tagline: string;
+  features: string[];
+};
+
+type PartnerOrder = {
+  id: number;
+  forfaitKey: string;
+  forfaitLabel: string;
+  amountCents: number;
+  currency: string;
+  checkoutReference: string;
+  status: "pending" | "paid" | "failed" | "expired" | "cancelled" | "refunded";
+  customerName: string | null;
+  customerEmail: string | null;
+  paidAt: number | null;
+  createdAt: number;
+};
+
+type ForfaitApiResponse = {
+  ok: boolean;
+  paymentsReady: boolean;
+  forfaits: PartnerForfait[];
+  orders: PartnerOrder[];
 };
 
 type ApiResponse = {
@@ -588,7 +620,7 @@ function CaseOpeningModal({
         {/* Etat : en cours */}
         {!revealed && (
           <div className="flex items-center justify-center gap-3 py-2 text-sm text-white/60">
-            <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
+            <Loader2 className="h-4 w-4 animate-spin text-accent" />
             {result ? "Ouverture en cours..." : "Connexion au serveur..."}
           </div>
         )}
@@ -599,7 +631,7 @@ function CaseOpeningModal({
             className={cn(
               "flex flex-col items-center gap-4 rounded-[24px] border p-6 text-center",
               isLegendaire
-                ? "border-[#e8c98a]/50 bg-[#e8c98a]/10 shadow-[0_0_48px_rgba(232,201,138,0.25)]"
+                ? "border-accent/50 bg-accent/10 shadow-[0_0_48px_rgb(var(--bb-accent-rgb)/0.25)]"
                 : "border-white/10 bg-white/[0.04]",
             )}
           >
@@ -688,6 +720,38 @@ function formatMoneyCents(amountCents: number, currency = "EUR") {
     style: "currency",
     currency,
   }).format(amountCents / 100);
+}
+
+function forfaitStatusLabel(status: string) {
+  switch (status) {
+    case "paid":
+      return "Paye";
+    case "pending":
+      return "En attente";
+    case "failed":
+      return "Echoue";
+    case "expired":
+      return "Expire";
+    case "cancelled":
+      return "Annule";
+    case "refunded":
+      return "Rembourse";
+    default:
+      return status;
+  }
+}
+
+function forfaitStatusClasses(status: string) {
+  switch (status) {
+    case "paid":
+      return "border-[#43d79d]/30 bg-[#43d79d]/10 text-[#7ce7c0]";
+    case "failed":
+    case "expired":
+    case "cancelled":
+      return "border-[#ff7d89]/30 bg-[#ff7d89]/10 text-[#ffb3ba]";
+    default:
+      return "border-white/15 bg-white/[0.05] text-white/70";
+  }
 }
 
 function addDaysIso(dateStr: string, delta: number) {
@@ -845,7 +909,7 @@ function nextAppointment(appointments: ClientAppointment[]) {
 function AppointmentsEmpty({ copy }: { copy: string }) {
   return (
     <div className="bb-surface flex flex-col items-start gap-3 p-6">
-      <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[#e8c98a]">
+      <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-accent">
         <CalendarClock className="h-5 w-5" />
       </div>
       <div>
@@ -883,7 +947,7 @@ function ChoiceField({
             className={cn(
               "rounded-[18px] border px-3 py-3 text-sm font-semibold transition duration-200",
               option.value === value
-                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white shadow-[0_12px_28px_rgba(232,201,138,0.12)]"
+                ? "border-accent/45 bg-accent/10 text-white shadow-[0_12px_28px_rgb(var(--bb-accent-rgb)/0.12)]"
                 : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]",
             )}
             key={option.value}
@@ -907,7 +971,7 @@ function RatingStars({ rating }: { rating: number }) {
           <Star
             className={cn(
               "h-4 w-4",
-              active ? "fill-[#e8c98a] text-[#e8c98a]" : "text-white/20",
+              active ? "fill-accent text-accent" : "text-white/20",
             )}
             key={index}
           />
@@ -994,6 +1058,10 @@ export function ClientCardPage() {
   const [redeemingRewardKey, setRedeemingRewardKey] = React.useState<string | null>(null);
   const [busyTopupKey, setBusyTopupKey] = React.useState<string | null>(null);
   const [customTopupQuantity, setCustomTopupQuantity] = React.useState("6");
+  const [forfaitData, setForfaitData] = React.useState<ForfaitApiResponse | null>(null);
+  const [forfaitBusyKey, setForfaitBusyKey] = React.useState<string | null>(null);
+  const [generatedLinks, setGeneratedLinks] = React.useState<Record<string, string>>({});
+  const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
   const bookingImagesRef = React.useRef<BookingImageDraft[]>([]);
   const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const handledTopupRef = React.useRef<string | null>(null);
@@ -1051,6 +1119,37 @@ export function ClientCardPage() {
       active = false;
     };
   }, [slug, monthParam, reloadToken]);
+
+  // Forfaits partenaire (comptes pro): charge la grille + le suivi des
+  // paiements et rafraichit toutes les 15s tant que la vue est ouverte.
+  React.useEffect(() => {
+    if (!data || data.client.clientType !== "pro" || requestedView !== "shop") {
+      return;
+    }
+
+    let active = true;
+
+    async function loadForfaits() {
+      try {
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/forfaits`);
+        if (!response.ok) return;
+        const json = (await response.json()) as ForfaitApiResponse;
+        if (active && json.ok) {
+          setForfaitData(json);
+        }
+      } catch {
+        // suivi best-effort: on garde les donnees precedentes
+      }
+    }
+
+    void loadForfaits();
+    const interval = window.setInterval(() => void loadForfaits(), 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [data, requestedView, slug]);
 
   React.useEffect(() => {
     let active = true;
@@ -2391,7 +2490,7 @@ export function ClientCardPage() {
       <div className="bb-shell">
         <div className="bb-content flex min-h-[70vh] items-center justify-center">
           <div className="bb-surface flex items-center gap-3 px-6 py-4 text-sm text-white/70">
-            <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
+            <Loader2 className="h-4 w-4 animate-spin text-accent" />
             Chargement de votre espace client...
           </div>
         </div>
@@ -2461,15 +2560,21 @@ export function ClientCardPage() {
   // L'accueil non-fondateur n'expose pas la boutique BC'Coins (reservee aux fondateurs).
   const homeQuickCards = quickCards.filter((card) => card.view !== "shop");
 
-  // Pour les pros, la boutique/credits est masquee entierement.
+  // Pour les pros (dispenses de credits), la "Boutique" devient l'espace
+  // Forfaits partenaire: generation de liens de paiement + suivi.
   // Pour les non-fondateurs standard, la "Boutique" devient une simple recharge de credits.
-  const navItems: NavItem[] = PORTAL_NAV_ITEMS.filter(
-    (item) => !(item.view === "shop" && clientData.clientType === "pro"),
-  ).map((item) =>
-    item.view === "shop" && !clientData.isFounder
-      ? { ...item, label: "Credits", icon: CreditCard }
-      : item,
-  );
+  const navItems: NavItem[] = PORTAL_NAV_ITEMS.map((item) => {
+    if (item.view !== "shop") {
+      return item;
+    }
+    if (clientData.clientType === "pro") {
+      return { ...item, label: "Forfaits", icon: Sparkles };
+    }
+    if (!clientData.isFounder) {
+      return { ...item, label: "Credits", icon: CreditCard };
+    }
+    return item;
+  });
 
   function renderHeader() {
     return (
@@ -2520,7 +2625,7 @@ export function ClientCardPage() {
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-[22px] px-4 py-3 text-sm font-semibold transition duration-200",
                   active
-                    ? "bg-[#e8c98a]/12 text-white shadow-[0_12px_28px_rgba(232,201,138,0.12)]"
+                    ? "bg-accent/12 text-white shadow-[0_12px_28px_rgb(var(--bb-accent-rgb)/0.12)]"
                     : "text-white/68 hover:bg-white/[0.05]",
                 )}
                 key={item.view}
@@ -2690,7 +2795,15 @@ export function ClientCardPage() {
         </article>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {homeQuickCards.map((card) => {
+          {[
+            {
+              view: "shop" as const,
+              title: "Forfaits partenaire",
+              copy: "Generez un lien de paiement a envoyer a vos clients",
+              icon: Sparkles,
+            },
+            ...homeQuickCards,
+          ].map((card) => {
             const Icon = card.icon;
             return (
               <button
@@ -2724,7 +2837,7 @@ export function ClientCardPage() {
             <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="bb-pill border-[#e8c98a]/30 bg-[#e8c98a]/10 text-[#ffe8a8]">
+                  <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
                     <Crown className="h-3.5 w-3.5" />
                     Acces fondateur
                   </div>
@@ -2745,7 +2858,7 @@ export function ClientCardPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-[24px] border border-[#e8c98a]/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <div className="rounded-[24px] border border-accent/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
                     <p className="mt-2 text-2xl font-semibold text-white">
                       {clientData.formulaRemaining}
@@ -2767,14 +2880,14 @@ export function ClientCardPage() {
 
                 <div className="overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-2 rounded-full bg-gradient-to-r from-[#e8c98a] via-[#f0d28a] to-[#d99a4e]"
+                    className="h-2 rounded-full bg-gradient-to-r from-accent via-[#f0d28a] to-[#d99a4e]"
                     style={{ width: `${creditsRatio * 100}%` }}
                   />
                 </div>
               </div>
 
               <div className="grid gap-4">
-                <div className="bb-founder-media relative overflow-hidden rounded-[30px] border border-[#e8c98a]/22 bg-[radial-gradient(circle_at_top,rgba(232,201,138,0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
+                <div className="bb-founder-media relative overflow-hidden rounded-[30px] border border-accent/22 bg-[radial-gradient(circle_at_top,rgb(var(--bb-accent-rgb)/0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
                   <div className="bb-founder-shimmer" />
                   <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/35">
                     <img
@@ -2803,12 +2916,12 @@ export function ClientCardPage() {
               const Icon = card.icon;
               return (
                 <button
-                  className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#e8c98a]/40 hover:bg-[#e8c98a]/[0.08]"
+                  className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.08]"
                   key={card.view}
                   onClick={() => navigateView(card.view)}
                   type="button"
                 >
-                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
+                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
                     <Icon className="h-5 w-5" />
                   </div>
                   <h2 className="text-lg font-semibold text-white">{card.title}</h2>
@@ -2828,7 +2941,7 @@ export function ClientCardPage() {
     return (
       <section className="space-y-4">
         <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
-          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-[#e8c98a]/12 blur-3xl" />
+          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-accent/12 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
           <img
             alt=""
@@ -2866,12 +2979,12 @@ export function ClientCardPage() {
             </div>
 
             <button
-              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-[#e8c98a]/25 bg-[linear-gradient(180deg,rgba(232,201,138,0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-[#e8c98a]/45"
+              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-accent/45"
               onClick={() => setFounderModalOpen(true)}
               type="button"
             >
               <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-[#e8c98a]/35 bg-[#e8c98a]/12 p-3 text-[#ffe8a8]">
+                <div className="rounded-2xl border border-accent/35 bg-accent/12 p-3 text-accentSoft">
                   <Crown className="h-5 w-5" />
                 </div>
                 <div>
@@ -2881,7 +2994,7 @@ export function ClientCardPage() {
                   </p>
                 </div>
               </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-[#e8c98a] transition group-hover:translate-x-1" />
+              <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
             </button>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -2914,12 +3027,12 @@ export function ClientCardPage() {
                 const Icon = card.icon;
                 return (
                   <button
-                    className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#e8c98a]/40 hover:bg-[#e8c98a]/[0.08]"
+                    className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.08]"
                     key={card.view}
                     onClick={() => navigateView(card.view)}
                     type="button"
                   >
-                    <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
+                    <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
                       <Icon className="h-5 w-5" />
                     </div>
                     <h2 className="text-lg font-semibold text-white">{card.title}</h2>
@@ -2943,14 +3056,14 @@ export function ClientCardPage() {
               Agenda
             </div>
             {clientData.clientType !== "pro" && (
-              <div className="bb-pill border-[#e8c98a]/30 bg-[#e8c98a]/10 text-white">
+              <div className="bb-pill border-accent/30 bg-accent/10 text-white">
                 {clientData.formulaRemaining} credit
                 {Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}
               </div>
             )}
             {activeVehicle && (
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                <CarFront className="h-3.5 w-3.5 text-[#e8c98a]" />
+                <CarFront className="h-3.5 w-3.5 text-accent" />
                 {vehicleTitle(activeVehicle)}
               </div>
             )}
@@ -3007,7 +3120,7 @@ export function ClientCardPage() {
                   </button>
                 </div>
 
-                <div className="w-full rounded-[28px] border border-[#e8c98a]/45 bg-[#e8c98a]/10 p-4 shadow-[0_18px_48px_rgba(232,201,138,0.12)]">
+                <div className="w-full rounded-[28px] border border-accent/45 bg-accent/10 p-4 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-white/45">
@@ -3064,7 +3177,7 @@ export function ClientCardPage() {
                     className={cn(
                       "rounded-[26px] border p-4 transition duration-200",
                       focusedDay?.date === day.date
-                        ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
+                        ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
                         : "border-white/10 bg-white/[0.03]",
                     )}
                     key={day.date}
@@ -3166,7 +3279,7 @@ export function ClientCardPage() {
                   className={cn(
                     "rounded-[24px] border p-4 transition duration-200",
                     active
-                      ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.1)]"
+                      ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.1)]"
                       : "border-white/10 bg-white/[0.03]",
                   )}
                   key={vehicle.id}
@@ -3300,6 +3413,212 @@ export function ClientCardPage() {
     );
   }
 
+  async function copyForfaitLink(link: string, key: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedKey(key);
+      window.setTimeout(() => {
+        setCopiedKey((current) => (current === key ? null : current));
+      }, 2000);
+    } catch {
+      // presse-papiers indisponible: le lien reste affiche pour copie manuelle
+    }
+  }
+
+  async function handleGenerateForfaitLink(forfait: PartnerForfait) {
+    if (forfaitBusyKey) return;
+    setForfaitBusyKey(forfait.key);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/forfaits/link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forfaitKey: forfait.key }),
+      });
+      const json = await response.json();
+      if (json.ok && json.link) {
+        setGeneratedLinks((current) => ({ ...current, [forfait.key]: json.link as string }));
+        setForfaitData((current) =>
+          current
+            ? { ...current, orders: [json.order as PartnerOrder, ...current.orders] }
+            : current,
+        );
+        await copyForfaitLink(json.link as string, forfait.key);
+        showToast("Lien de paiement genere et copie.");
+      } else if (json.error === "sumup_not_ready") {
+        showToast("Le paiement en ligne n'est pas encore configure.");
+      } else {
+        showToast("Impossible de generer le lien pour le moment.");
+      }
+    } catch {
+      showToast("Erreur reseau pendant la generation du lien.");
+    } finally {
+      setForfaitBusyKey(null);
+    }
+  }
+
+  function renderForfaitsView() {
+    const forfaits = forfaitData?.forfaits ?? [];
+    const orders = forfaitData?.orders ?? [];
+    const paymentsReady = forfaitData ? forfaitData.paymentsReady : data?.paymentsReady ?? false;
+    const paidCount = orders.filter((order) => order.status === "paid").length;
+
+    return (
+      <section className="space-y-4">
+        <article className="bb-surface-strong bb-steel-frame relative overflow-hidden p-5 md:p-7">
+          <div className="bb-pro-orb bb-pro-orb-steel" />
+          <div className="relative z-10 space-y-3">
+            <span className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-200">
+              <Sparkles className="h-3.5 w-3.5" />
+              Forfaits partenaire
+            </span>
+            <h2 className="bb-display text-2xl font-semibold text-white">
+              Generez un lien de paiement pour vos clients
+            </h2>
+            <p className="max-w-2xl text-sm leading-7 text-white/68">
+              Choisissez un forfait, generez le lien de paiement et envoyez-le a votre client. Le
+              suivi se met a jour automatiquement des que le client a paye.
+            </p>
+            {!paymentsReady && (
+              <p className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">
+                Le paiement en ligne n'est pas encore configure cote Bryan Cars.
+              </p>
+            )}
+          </div>
+        </article>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {forfaits.map((forfait) => {
+            const link = generatedLinks[forfait.key];
+            const busy = forfaitBusyKey === forfait.key;
+            return (
+              <article className="bb-surface flex flex-col p-5" key={forfait.key}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{forfait.label}</h3>
+                    <p className="mt-1 text-sm text-white/55">{forfait.tagline}</p>
+                  </div>
+                  <p className="bb-text-gold shrink-0 text-2xl font-semibold">
+                    {formatMoneyCents(forfait.priceCents, forfait.currency)}
+                  </p>
+                </div>
+
+                <ul className="mt-4 space-y-1.5">
+                  {forfait.features.map((feature) => (
+                    <li className="flex items-start gap-2 text-sm text-white/72" key={feature}>
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-5">
+                  <button
+                    className="bb-button-steel w-full justify-center disabled:opacity-60"
+                    disabled={busy || !paymentsReady}
+                    onClick={() => void handleGenerateForfaitLink(forfait)}
+                    type="button"
+                  >
+                    {busy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generation...
+                      </>
+                    ) : (
+                      <>
+                        <Link2 className="mr-2 h-4 w-4" />
+                        Generer le lien de paiement
+                      </>
+                    )}
+                  </button>
+
+                  {link && (
+                    <div className="mt-3 rounded-2xl border border-white/12 bg-black/30 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
+                        Lien a envoyer au client
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          className="min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/80 outline-none"
+                          onFocus={(event) => event.currentTarget.select()}
+                          readOnly
+                          value={link}
+                        />
+                        <button
+                          className="bb-button-ghost shrink-0 px-3 py-2"
+                          onClick={() => void copyForfaitLink(link, forfait.key)}
+                          type="button"
+                        >
+                          {copiedKey === forfait.key ? (
+                            <>
+                              <CheckCircle2 className="mr-1.5 h-4 w-4 text-[#43d79d]" />
+                              Copie
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="mr-1.5 h-4 w-4" />
+                              Copier
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        <article className="bb-surface p-5 md:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="bb-eyebrow">Suivi des paiements</p>
+              <h3 className="bb-display mt-1 text-xl font-semibold text-white">Forfaits regles</h3>
+            </div>
+            <span className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+              {paidCount} paye{paidCount > 1 ? "s" : ""} / {orders.length} lien
+              {orders.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {orders.length === 0 ? (
+            <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55">
+              Aucun lien genere pour l'instant. Generez un lien ci-dessus pour demarrer le suivi.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {orders.map((order) => (
+                <li
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                  key={order.id}
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">{order.forfaitLabel}</p>
+                    <p className="mt-0.5 text-xs text-white/50">
+                      {order.status === "paid"
+                        ? `${order.customerName || "Client"} a paye le ${formatUnixDateTimeFR(
+                            order.paidAt,
+                          )}`
+                        : `Lien genere le ${formatUnixDateTimeFR(order.createdAt)}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-white">
+                      {formatMoneyCents(order.amountCents, order.currency)}
+                    </span>
+                    <span className={cn("bb-pill", forfaitStatusClasses(order.status))}>
+                      {forfaitStatusLabel(order.status)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      </section>
+    );
+  }
+
   function renderShopView() {
     return (
       <section className="grid gap-4 xl:grid-cols-[1.06fr_0.94fr]">
@@ -3328,7 +3647,7 @@ export function ClientCardPage() {
               topupOffers.length > 0 &&
               topupOffers.map((offer) => (
                 <div
-                  className="rounded-[24px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.10),rgba(255,255,255,0.03))] p-4"
+                  className="rounded-[24px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))] p-4"
                   key={offer.key}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -3370,7 +3689,7 @@ export function ClientCardPage() {
 
             {/* Non-fondateur: achat de credits a l'unite (bbx, data, pro). */}
             {!clientData.isFounder && paymentsReady && topupOffers[0] && (
-              <div className="rounded-[24px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.10),rgba(255,255,255,0.03))] p-4">
+              <div className="rounded-[24px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))] p-4">
                 <p className="text-lg font-semibold text-white">Achat de credits a l&apos;unite</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">
                   Choisissez le nombre de credits a acheter au tarif unitaire.
@@ -3452,7 +3771,7 @@ export function ClientCardPage() {
                   <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Boutique fidelite</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                  <Gift className="h-3.5 w-3.5 text-[#e8c98a]" />
+                  <Gift className="h-3.5 w-3.5 text-accent" />
                   {clientData.bcPoints} points
                 </div>
               </div>
@@ -3464,7 +3783,7 @@ export function ClientCardPage() {
                 <div>
                   <p className="text-sm font-semibold text-white">
                     BC en attente :{" "}
-                    <span className="text-[#e8c98a]">{clientData.bcPending} BC</span>
+                    <span className="text-accent">{clientData.bcPending} BC</span>
                   </p>
                   <p className="mt-1 text-xs leading-5 text-white/48">
                     Debloques au fur et a mesure de vos passages.
@@ -3482,11 +3801,11 @@ export function ClientCardPage() {
                   <div className="mt-3 grid gap-3">
                     {pendingCases.map((pc) => (
                       <div
-                        className="flex items-center justify-between gap-3 rounded-[20px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.08),rgba(255,255,255,0.02))] p-4"
+                        className="flex items-center justify-between gap-3 rounded-[20px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.08),rgba(255,255,255,0.02))] p-4"
                         key={pc.id}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="shrink-0 rounded-xl border border-[#e8c98a]/50 bg-[#e8c98a]/18 p-2 text-[#ffe8a8]">
+                          <div className="shrink-0 rounded-xl border border-accent/50 bg-accent/18 p-2 text-accentSoft">
                             <Gift className="h-4 w-4" />
                           </div>
                           <div>
@@ -3610,7 +3929,7 @@ export function ClientCardPage() {
               <button
                 className={cn(
                   "bb-button-ghost px-4 py-2",
-                  historyTab === "mine" && "border-[#e8c98a]/35 bg-[#e8c98a]/10 text-white",
+                  historyTab === "mine" && "border-accent/35 bg-accent/10 text-white",
                 )}
                 onClick={() => setHistoryTab("mine")}
                 type="button"
@@ -3620,7 +3939,7 @@ export function ClientCardPage() {
               <button
                 className={cn(
                   "bb-button-ghost px-4 py-2",
-                  historyTab === "community" && "border-[#e8c98a]/35 bg-[#e8c98a]/10 text-white",
+                  historyTab === "community" && "border-accent/35 bg-accent/10 text-white",
                 )}
                 onClick={() => setHistoryTab("community")}
                 type="button"
@@ -3659,7 +3978,7 @@ export function ClientCardPage() {
                   className={cn(
                     "bb-button-ghost px-4 py-2",
                     historyFilter === filter.key &&
-                      "border-[#e8c98a]/40 bg-[#e8c98a]/10 text-white",
+                      "border-accent/40 bg-accent/10 text-white",
                   )}
                   key={filter.key}
                   onClick={() => setHistoryFilter(filter.key)}
@@ -3673,7 +3992,7 @@ export function ClientCardPage() {
             <div className="mt-6 grid gap-3">
               {appointmentsLoading ? (
                 <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
                   Chargement des rendez-vous...
                 </div>
               ) : filteredHistoryAppointments.length === 0 ? (
@@ -3701,7 +4020,7 @@ export function ClientCardPage() {
               <div className="mt-6 grid gap-4">
                 {communityLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-accent" />
                     Chargement des retours clients...
                   </div>
                 ) : communityItems.length === 0 ? (
@@ -3813,7 +4132,7 @@ export function ClientCardPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-white">{review.author}</p>
-                      <div className="flex items-center gap-1 text-[#e8c98a]">
+                      <div className="flex items-center gap-1 text-accent">
                         {Array.from({ length: review.rating }).map((_, index) => (
                           <Star className="h-4 w-4 fill-current" key={index} />
                         ))}
@@ -3831,7 +4150,10 @@ export function ClientCardPage() {
   }
 
   return (
-    <div className="bb-shell pb-24 md:pb-16">
+    <div
+      className="bb-shell pb-24 md:pb-16"
+      data-theme={clientData.clientType === "pro" ? "pro" : undefined}
+    >
       <input
         accept="image/*"
         className="hidden"
@@ -3841,7 +4163,7 @@ export function ClientCardPage() {
         type="file"
       />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-[#e8c98a]/12 blur-3xl" />
+        <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-accent/12 blur-3xl" />
         <div className="absolute right-[-7rem] top-0 h-80 w-80 rounded-full bg-sky-400/12 blur-3xl" />
         <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#d99a4e]/10 blur-3xl" />
       </div>
@@ -3852,7 +4174,8 @@ export function ClientCardPage() {
         {requestedView === "home" && renderHomeView()}
         {requestedView === "booking" && renderBookingView()}
         {requestedView === "vehicles" && renderVehiclesView()}
-        {requestedView === "shop" && renderShopView()}
+        {requestedView === "shop" &&
+          (clientData.clientType === "pro" ? renderForfaitsView() : renderShopView())}
         {requestedView === "history" && renderHistoryView()}
       </main>
 
@@ -3866,13 +4189,13 @@ export function ClientCardPage() {
                 className={cn(
                   "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
                   active
-                    ? "bg-gradient-to-b from-[#e8c98a]/18 to-[#d99a4e]/12 text-white shadow-[0_10px_24px_rgba(232,201,138,0.12)]"
+                    ? "bg-gradient-to-b from-accent/18 to-[#d99a4e]/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.12)]"
                     : "text-white/54",
                 )}
                 key={item.view}
                 to={portalHref(item.view)}
               >
-                <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
+                <Icon className={cn("h-4 w-4", active && "text-accent")} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -3937,7 +4260,7 @@ export function ClientCardPage() {
                       className={cn(
                         "rounded-[24px] border p-4 text-left transition duration-200",
                         dayStatusClasses(slotInfo.status),
-                        selectedSlot === slot && "shadow-[0_0_0_1px_rgba(232,201,138,0.45)]",
+                        selectedSlot === slot && "shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.45)]",
                       )}
                       key={slot}
                       onClick={() => selectDaySlot(slot)}
@@ -4027,7 +4350,7 @@ export function ClientCardPage() {
                             className={cn(
                               "rounded-[20px] border px-4 py-4 text-left transition duration-200",
                               activeVehicleId === vehicle.id
-                                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
+                                ? "border-accent/45 bg-accent/10 text-white"
                                 : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                             )}
                             key={vehicle.id}
@@ -4081,7 +4404,7 @@ export function ClientCardPage() {
                           className={cn(
                             "rounded-[22px] border px-4 py-4 text-left transition duration-200",
                             appointmentLocation === option.value
-                              ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
+                              ? "border-accent/45 bg-accent/10 text-white"
                               : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                           )}
                           key={option.value}
@@ -4091,7 +4414,7 @@ export function ClientCardPage() {
                           <div className="flex items-center justify-between">
                             <span className="text-base font-semibold text-white">{option.label}</span>
                             {appointmentLocation === option.value && (
-                              <CheckCircle2 className="h-4 w-4 text-[#e8c98a]" />
+                              <CheckCircle2 className="h-4 w-4 text-accent" />
                             )}
                           </div>
                           <p className="mt-2 text-sm leading-6 text-white/60">{option.copy}</p>
@@ -4115,7 +4438,7 @@ export function ClientCardPage() {
                             className={cn(
                               "rounded-[22px] border px-4 py-4 text-left transition duration-200",
                               serviceLevel === option.value
-                                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
+                                ? "border-accent/45 bg-accent/10 text-white"
                                 : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                             )}
                             key={option.value}
@@ -4158,9 +4481,9 @@ export function ClientCardPage() {
                     />
                   </div>
 
-                  <div className="rounded-[24px] border border-[#e8c98a]/30 bg-[linear-gradient(180deg,rgba(232,201,138,0.09),rgba(255,255,255,0.02))] p-4">
+                  <div className="rounded-[24px] border border-accent/30 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.09),rgba(255,255,255,0.02))] p-4">
                     <div className="flex items-start gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#e8c98a]/35 bg-[#e8c98a]/12 text-[#e8c98a]">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent/12 text-accent">
                         <MessageCircle className="h-5 w-5" />
                       </span>
                       <label className="block min-w-0 flex-1">
@@ -4169,7 +4492,7 @@ export function ClientCardPage() {
                         </span>
                         <p className="mt-1 text-sm leading-6 text-white/70">
                           Indiquez un acces (portail, etage, code...) ou demandez un
-                          <span className="font-semibold text-[#ffe8a8]"> extra</span> : ceramique,
+                          <span className="font-semibold text-accentSoft"> extra</span> : ceramique,
                           siege a nettoyer en priorite, traitement cuir, taches tenaces...
                         </p>
                         <textarea
@@ -4183,9 +4506,9 @@ export function ClientCardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-[#e8c98a]/30 bg-[linear-gradient(180deg,rgba(232,201,138,0.09),rgba(255,255,255,0.02))] p-4">
+                  <div className="rounded-[24px] border border-accent/30 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.09),rgba(255,255,255,0.02))] p-4">
                     <div className="flex items-start gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#e8c98a]/35 bg-[#e8c98a]/12 text-[#e8c98a]">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent/12 text-accent">
                         <Camera className="h-5 w-5" />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -4197,7 +4520,7 @@ export function ClientCardPage() {
                               juste (jusqu'a 4 photos).
                             </p>
                           </div>
-                          <div className="bb-pill shrink-0 border-[#e8c98a]/25 bg-[#e8c98a]/12 text-[#ffe8a8]">
+                          <div className="bb-pill shrink-0 border-accent/25 bg-accent/12 text-accentSoft">
                             {bookingImageDrafts.length}/4
                           </div>
                         </div>
@@ -4298,7 +4621,7 @@ export function ClientCardPage() {
                           className={cn(
                             "rounded-[20px] border px-4 py-3 text-sm font-semibold transition duration-200",
                             appointmentLocation === option.value
-                              ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
+                              ? "border-accent/45 bg-accent/10 text-white"
                               : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                           )}
                           key={option.value}
@@ -4467,10 +4790,10 @@ export function ClientCardPage() {
             </div>
 
             {clientData.clientType !== "pro" && (
-              <div className="mt-6 rounded-[26px] border border-[#e8c98a]/25 bg-[#e8c98a]/10 p-5">
+              <div className="mt-6 rounded-[26px] border border-accent/25 bg-accent/10 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-[#ffe8a8]">
+                    <p className="text-xs uppercase tracking-[0.16em] text-accentSoft">
                       Validation tarif
                     </p>
                     <p className="mt-2 text-lg font-semibold text-white">
@@ -4498,7 +4821,7 @@ export function ClientCardPage() {
                     </p>
                     {selectedAppointment.priceComment && (
                       <div className="mt-3 rounded-[18px] border border-white/12 bg-black/25 p-3">
-                        <p className="text-xs uppercase tracking-[0.16em] text-[#ffe8a8]">
+                        <p className="text-xs uppercase tracking-[0.16em] text-accentSoft">
                           Note de l&apos;admin
                         </p>
                         <p className="mt-1 text-sm leading-6 text-white/72">
@@ -4592,7 +4915,7 @@ export function ClientCardPage() {
               <section className="space-y-4">
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
                       <Clock3 className="h-5 w-5" />
                     </div>
                     <div>
@@ -4637,7 +4960,7 @@ export function ClientCardPage() {
                       </p>
                     </div>
                     {appointmentPhotosLoading && (
-                      <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
+                      <Loader2 className="h-4 w-4 animate-spin text-accent" />
                     )}
                   </div>
 
@@ -4672,7 +4995,7 @@ export function ClientCardPage() {
                 {selectedAppointment.status === "done" && (
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
                       <Star className="h-5 w-5" />
                     </div>
                     <div>
@@ -4703,7 +5026,7 @@ export function ClientCardPage() {
                           <Star
                             className={cn(
                               "h-5 w-5",
-                              active ? "fill-[#e8c98a] text-[#e8c98a]" : "text-white/20",
+                              active ? "fill-accent text-accent" : "text-white/20",
                             )}
                           />
                         </button>
@@ -4879,7 +5202,7 @@ export function ClientCardPage() {
                       : "border-amber-300/25 bg-amber-300/10",
                     termsPanelAttention &&
                       !termsAccepted &&
-                      "bb-attention-ring bb-attention-nudge border-[#e8c98a]/60 bg-[#e8c98a]/12",
+                      "bb-attention-ring bb-attention-nudge border-accent/60 bg-accent/12",
                   )}
                 >
                   <p className="text-sm font-semibold text-white">
@@ -4930,12 +5253,12 @@ export function ClientCardPage() {
                     className={cn(
                       "flex min-w-[280px] flex-1 items-start gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm text-white/72 transition duration-200",
                       termsCheckboxAttention &&
-                        "bb-attention-ring bb-attention-nudge border-[#e8c98a]/55 bg-[#e8c98a]/10 text-white",
+                        "bb-attention-ring bb-attention-nudge border-accent/55 bg-accent/10 text-white",
                     )}
                   >
                     <input
                       checked={termsChecked}
-                      className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-[#e8c98a] accent-[#e8c98a]"
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-accent accent-[rgb(var(--bb-accent-rgb))]"
                       onChange={(event) => setTermsChecked(event.target.checked)}
                       type="checkbox"
                     />
@@ -5051,7 +5374,7 @@ export function ClientCardPage() {
                     className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4"
                     key={perk.title}
                   >
-                    <div className="shrink-0 rounded-xl border border-[#e8c98a]/50 bg-[#e8c98a]/18 p-2 text-[#ffe8a8]">
+                    <div className="shrink-0 rounded-xl border border-accent/50 bg-accent/18 p-2 text-accentSoft">
                       <PerkIcon className="h-4 w-4" />
                     </div>
                     <div>
