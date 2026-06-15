@@ -1358,6 +1358,7 @@ export function ClientCardPage() {
     tiktok: false,
     facebook: false,
     review: false,
+    condition: false,
   });
   const [pendingTermsAction, setPendingTermsAction] = React.useState<
     | { type: "topup" }
@@ -2684,7 +2685,7 @@ export function ClientCardPage() {
     const activeEvent = data?.event;
     if (!activeEvent || !eventModalOpen) return null;
 
-    const prereqRows = [
+    const ticketActions = [
       activeEvent.requireFacebook && {
         key: "facebook" as const,
         label: "Suivre sur Facebook",
@@ -2709,14 +2710,21 @@ export function ClientCardPage() {
         href: GOOGLE_REVIEWS_URL,
         done: activeEvent.reviewDone || eventPrereqs.review,
       },
+      activeEvent.conditionsText && {
+        key: "condition" as const,
+        label: activeEvent.conditionsText,
+        href: activeEvent.conditionsLink || "",
+        done: eventPrereqs.condition,
+      },
     ].filter(Boolean) as Array<{
-      key: "facebook" | "instagram" | "tiktok" | "review";
+      key: "facebook" | "instagram" | "tiktok" | "review" | "condition";
       label: string;
       href: string;
       done: boolean;
     }>;
 
-    const allDone = prereqRows.every((row) => row.done);
+    const ticketCount = ticketActions.filter((action) => action.done).length;
+    const canParticipate = ticketCount >= 1;
 
     return (
       <div
@@ -2767,65 +2775,53 @@ export function ClientCardPage() {
             </div>
           ) : (
             <>
-              <div className="mt-5 grid gap-2">
-                {prereqRows.map((row, index) => (
+              <p className="mt-5 text-sm leading-6 text-white/65">
+                Gagne des tickets : chaque action te donne <strong className="text-accentSoft">+1 ticket</strong>.
+                Fais-en autant que tu peux — pas besoin de tout faire !
+              </p>
+              <div className="mt-3 grid gap-2">
+                {ticketActions.map((action) => (
                   <button
                     className={cn(
                       "flex items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition duration-200",
-                      row.done
+                      action.done
                         ? "border-emerald-300/30 bg-emerald-300/[0.07]"
                         : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
                     )}
-                    key={row.key}
+                    disabled={action.done}
+                    key={action.key}
                     onClick={() => {
-                      window.open(row.href, "_blank", "noopener,noreferrer");
-                      setEventPrereqs((prev) => ({ ...prev, [row.key]: true }));
+                      if (action.href) {
+                        window.open(action.href, "_blank", "noopener,noreferrer");
+                      }
+                      setEventPrereqs((prev) => ({ ...prev, [action.key]: true }));
                     }}
                     type="button"
                   >
-                    <span className="flex items-center gap-3">
-                      <span
-                        className={cn(
-                          "grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold",
-                          row.done
-                            ? "bg-emerald-300/20 text-emerald-100"
-                            : "bg-white/10 text-white/70",
-                        )}
-                      >
-                        {row.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-                      </span>
-                      <span className="text-sm font-semibold text-white">{row.label}</span>
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="text-lg">🎟️</span>
+                      <span className="truncate text-sm font-semibold text-white">{action.label}</span>
                     </span>
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-                      {row.done ? "Valide" : "Rejoindre"}
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs font-bold uppercase tracking-[0.12em]",
+                        action.done ? "text-emerald-200" : "text-accent",
+                      )}
+                    >
+                      {action.done ? "+1 ✓" : "+1 🎟️"}
                     </span>
                   </button>
                 ))}
               </div>
 
-              {activeEvent.conditionsText && (
-                <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Condition de participation
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-white/72">{activeEvent.conditionsText}</p>
-                  {activeEvent.conditionsLink && (
-                    <a
-                      className="bb-button-ghost mt-3"
-                      href={activeEvent.conditionsLink}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      Ouvrir le lien
-                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                    </a>
-                  )}
-                </div>
-              )}
+              <div className="mt-4 flex items-center justify-between rounded-[18px] border border-accent/25 bg-accent/[0.06] px-4 py-3">
+                <span className="text-sm text-white/70">Tes tickets</span>
+                <span className="text-lg font-bold text-accentSoft">🎟️ {ticketCount}</span>
+              </div>
 
               <button
-                className="bb-button-brand mt-5 w-full justify-center py-4 text-base"
-                disabled={!allDone || participateBusy}
+                className="bb-button-brand mt-4 w-full justify-center py-4 text-base"
+                disabled={!canParticipate || participateBusy}
                 onClick={() => {
                   void participateEvent();
                 }}
@@ -2834,9 +2830,9 @@ export function ClientCardPage() {
                 <Sparkles className="mr-2 h-4 w-4" />
                 {participateBusy
                   ? "Participation..."
-                  : allDone
+                  : canParticipate
                     ? "Participer"
-                    : "Valide les etapes pour participer"}
+                    : "Fais au moins une action"}
               </button>
             </>
           )}

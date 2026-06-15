@@ -66,9 +66,11 @@ function getActiveEvent() {
 
 function clientMatchesAudience(audience, client) {
   if (!client) return false;
-  if (audience === "global") return true;
+  // Les comptes Pro (et Data) n'ont jamais acces aux evenements.
+  if (client.client_type !== "bbx") return false;
+  if (audience === "global") return true; // tous les bbx (fondateurs inclus)
   if (audience === "founder") return !!client.is_founder;
-  if (audience === "bbx") return client.client_type === "bbx" && !client.is_founder;
+  if (audience === "bbx") return !client.is_founder;
   return false;
 }
 
@@ -101,7 +103,9 @@ function participate(eventId, client) {
     return { ok: false, error: "already_participated", consolationKey: existing.consolation_reward };
   }
 
-  const goodie = event.consolation_enabled ? rollConsolationGoodie() : null;
+  // Box de consolation reservee aux fondateurs (les BBX n'en ont pas).
+  const goodie =
+    event.consolation_enabled && client.is_founder ? rollConsolationGoodie() : null;
   const now = nowUnix();
   db.prepare(
     `INSERT INTO event_participations (event_id, client_id, consolation_reward, created_at)
