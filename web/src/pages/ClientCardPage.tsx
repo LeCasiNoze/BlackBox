@@ -222,6 +222,25 @@ type ForfaitApiResponse = {
   orders: PartnerOrder[];
 };
 
+type ApiEvent = {
+  id: number;
+  title: string;
+  description: string | null;
+  audience: string;
+  endsAt: number | null;
+  requireInstagram: boolean;
+  requireTiktok: boolean;
+  requireFacebook: boolean;
+  requireReview: boolean;
+  conditionsText: string | null;
+  conditionsLink: string | null;
+  prizeKind: string;
+  prizeText: string | null;
+  participated: boolean;
+  consolationReward: string | null;
+  reviewDone: boolean;
+};
+
 type ApiResponse = {
   ok: boolean;
   client: ApiClient;
@@ -232,6 +251,7 @@ type ApiResponse = {
   paymentsReady: boolean;
   month: ApiMonth;
   pendingCases: PendingCase[];
+  event: ApiEvent | null;
 };
 
 type ModalMode = "book" | "manage" | "past";
@@ -446,6 +466,7 @@ const TIER_COLORS: Record<string, string> = {
   tapis: "#a855f7",
   founder_1m: "#e8c98a",
   credit_1: "#ec4899",
+  pack3: "#e8c98a",
 };
 
 // Largeur d'une carte du reel + gap en px (doit matcher le CSS).
@@ -504,6 +525,7 @@ const WIN_SEQUENCES: Record<string, number[]> = {
   tapis: [523.25, 659.25, 783.99, 1046.5],
   founder_1m: [523.25, 659.25, 783.99, 1046.5, 1318.5],
   credit_1: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98],
+  pack3: [523.25, 659.25, 783.99, 1046.5, 1318.5],
 };
 
 function playWinSound(tier: string) {
@@ -537,6 +559,7 @@ const CONFETTI_BY_TIER: Record<string, number> = {
   tapis: 55,
   founder_1m: 85,
   credit_1: 110,
+  pack3: 95,
 };
 
 const CONFETTI_COLORS = ["#e8c98a", "#4cc6ff", "#ffffff", "#43d79d", "#ff7d89", "#a855f7"];
@@ -1301,6 +1324,16 @@ export function ClientCardPage() {
   const [reviewBoxOpen, setReviewBoxOpen] = React.useState(false);
   const [reviewBoxBusy, setReviewBoxBusy] = React.useState(false);
   const reviewReelRef = React.useRef<HTMLDivElement>(null);
+  const [eventBoxResult, setEventBoxResult] = React.useState<CaseOpenResult | null>(null);
+  const [eventBoxOpen, setEventBoxOpen] = React.useState(false);
+  const [participateBusy, setParticipateBusy] = React.useState(false);
+  const eventReelRef = React.useRef<HTMLDivElement>(null);
+  const [eventPrereqs, setEventPrereqs] = React.useState({
+    instagram: false,
+    tiktok: false,
+    facebook: false,
+    review: false,
+  });
   const [pendingTermsAction, setPendingTermsAction] = React.useState<
     | { type: "topup" }
     | {
@@ -2529,6 +2562,196 @@ export function ClientCardPage() {
     );
   }
 
+  async function participateEvent() {
+    const activeEvent = data?.event;
+    if (!activeEvent) return;
+    setParticipateBusy(true);
+    try {
+      const response = await fetch(
+        `/api/client/${encodeURIComponent(slug)}/event/${activeEvent.id}/participate`,
+        { method: "POST", headers: { "Content-Type": "application/json" } },
+      );
+      const json = (await response.json()) as {
+        ok?: boolean;
+        consolation?: { key: string; label: string } | null;
+        tiers?: Array<{ key: string; label: string; proba: number }>;
+      };
+      if (response.status === 409) {
+        showToast("Tu as deja participe a cet evenement.");
+        setReloadToken((value) => value + 1);
+        return;
+      }
+      if (!response.ok || !json.ok) {
+        showToast("Participation impossible pour le moment.");
+        return;
+      }
+      showToast("Participation confirmee. Bonne chance !");
+      if (json.consolation && json.tiers) {
+        setEventBoxResult({
+          reward: { tier: json.consolation.key, label: json.consolation.label, bc: 0 },
+          tiers: json.tiers.map((tier) => ({
+            key: tier.key,
+            label: tier.label,
+            proba: tier.proba,
+            bc: 0,
+          })),
+        });
+        setEventBoxOpen(true);
+      }
+      setReloadToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau pendant la participation.");
+    } finally {
+      setParticipateBusy(false);
+    }
+  }
+
+  function renderEventCard() {
+    const activeEvent = data?.event;
+    if (!activeEvent) return null;
+
+    const prereqRows = [
+      activeEvent.requireFacebook && {
+        key: "facebook" as const,
+        label: "Suivre sur Facebook",
+        href: FACEBOOK_URL,
+        done: eventPrereqs.facebook,
+      },
+      activeEvent.requireInstagram && {
+        key: "instagram" as const,
+        label: "Suivre sur Instagram",
+        href: INSTAGRAM_URL,
+        done: eventPrereqs.instagram,
+      },
+      activeEvent.requireTiktok && {
+        key: "tiktok" as const,
+        label: "Suivre sur TikTok",
+        href: TIKTOK_URL,
+        done: eventPrereqs.tiktok,
+      },
+      activeEvent.requireReview && {
+        key: "review" as const,
+        label: "Laisser un avis Google",
+        href: GOOGLE_REVIEWS_URL,
+        done: activeEvent.reviewDone || eventPrereqs.review,
+      },
+    ].filter(Boolean) as Array<{
+      key: "facebook" | "instagram" | "tiktok" | "review";
+      label: string;
+      href: string;
+      done: boolean;
+    }>;
+
+    const allDone = prereqRows.every((row) => row.done);
+
+    return (
+      <article className="bb-surface bb-rise bb-gold-frame relative overflow-hidden p-5 md:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent/10 blur-3xl" />
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+              <Sparkles className="h-3.5 w-3.5" />
+              Evenement
+            </span>
+            {activeEvent.prizeKind === "text" && activeEvent.prizeText && (
+              <span className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
+                A gagner : {activeEvent.prizeText}
+              </span>
+            )}
+          </div>
+          <h2 className="bb-title-xl mt-3">{activeEvent.title}</h2>
+          {activeEvent.description && (
+            <p className="bb-subtitle mt-3 max-w-2xl">{activeEvent.description}</p>
+          )}
+
+          {activeEvent.participated ? (
+            <div className="mt-5 rounded-[22px] border border-emerald-300/25 bg-emerald-300/10 p-5 text-center">
+              <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-200" />
+              <p className="mt-3 text-lg font-semibold text-white">Participation confirmee !</p>
+              <p className="mt-1 text-sm text-white/65">
+                Merci et bonne chance — le tirage au sort aura lieu a la fin de l'evenement.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mt-5 grid gap-2">
+                {prereqRows.map((row, index) => (
+                  <button
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition duration-200",
+                      row.done
+                        ? "border-emerald-300/30 bg-emerald-300/[0.07]"
+                        : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
+                    )}
+                    key={row.key}
+                    onClick={() => {
+                      window.open(row.href, "_blank", "noopener,noreferrer");
+                      setEventPrereqs((prev) => ({ ...prev, [row.key]: true }));
+                    }}
+                    type="button"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span
+                        className={cn(
+                          "grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold",
+                          row.done
+                            ? "bg-emerald-300/20 text-emerald-100"
+                            : "bg-white/10 text-white/70",
+                        )}
+                      >
+                        {row.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                      </span>
+                      <span className="text-sm font-semibold text-white">{row.label}</span>
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+                      {row.done ? "Valide" : "Rejoindre"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {activeEvent.conditionsText && (
+                <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                    Condition de participation
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-white/72">{activeEvent.conditionsText}</p>
+                  {activeEvent.conditionsLink && (
+                    <a
+                      className="bb-button-ghost mt-3"
+                      href={activeEvent.conditionsLink}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Ouvrir le lien
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <button
+                className="bb-button-brand mt-5 w-full justify-center py-4 text-base"
+                disabled={!allDone || participateBusy}
+                onClick={() => {
+                  void participateEvent();
+                }}
+                type="button"
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {participateBusy
+                  ? "Participation..."
+                  : allDone
+                    ? "Participer"
+                    : "Valide les etapes pour participer"}
+              </button>
+            </>
+          )}
+        </div>
+      </article>
+    );
+  }
+
   function openTopupFlow() {
     if (!client) return;
 
@@ -3160,6 +3383,7 @@ export function ClientCardPage() {
   function renderProHomeView() {
     return (
       <section className="space-y-4">
+        {renderEventCard()}
         <article className="bb-rise bb-steel-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
           <div className="bb-pro-orb bb-pro-orb-indigo" />
@@ -3270,6 +3494,7 @@ export function ClientCardPage() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
+          {renderEventCard()}
           <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
             <div className="bb-founder-orb bb-founder-orb-blue" />
@@ -3383,6 +3608,7 @@ export function ClientCardPage() {
 
     return (
       <section className="space-y-4">
+        {renderEventCard()}
         <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-accent/12 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
@@ -5887,6 +6113,30 @@ export function ClientCardPage() {
           result={reviewBoxResult}
           rewardUnit="goodie"
           title="Box merci"
+        />
+      )}
+
+      {eventBoxOpen && eventBoxResult && (
+        <CaseOpeningModal
+          caseItem={{
+            id: -3,
+            credits: 1,
+            status: "pending",
+            rewardTier: null,
+            rewardBc: null,
+            createdAt: 0,
+            openedAt: null,
+          }}
+          eyebrow="Participation"
+          onClose={() => {
+            setEventBoxOpen(false);
+            setEventBoxResult(null);
+          }}
+          onSpinEnd={() => undefined}
+          reelRef={eventReelRef}
+          result={eventBoxResult}
+          rewardUnit="goodie"
+          title="Box de consolation"
         />
       )}
 

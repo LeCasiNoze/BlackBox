@@ -319,6 +319,48 @@ CREATE INDEX IF NOT EXISTS idx_case_openings_client
   ON case_openings(client_id, status, created_at DESC);
 
 -- ============================
+-- TABLE events (jeux concours)
+-- ============================
+CREATE TABLE IF NOT EXISTS events (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  title               TEXT NOT NULL,
+  description         TEXT,
+  audience            TEXT NOT NULL DEFAULT 'global'
+                      CHECK (audience IN ('global', 'founder', 'bbx')),
+  starts_at           INTEGER,
+  ends_at             INTEGER,
+  is_active           INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+  require_instagram   INTEGER NOT NULL DEFAULT 1,
+  require_tiktok      INTEGER NOT NULL DEFAULT 1,
+  require_facebook    INTEGER NOT NULL DEFAULT 1,
+  require_review      INTEGER NOT NULL DEFAULT 1,
+  conditions_text     TEXT,
+  conditions_link     TEXT,
+  prize_kind          TEXT NOT NULL DEFAULT 'text'
+                      CHECK (prize_kind IN ('text', 'inapp')),
+  prize_text          TEXT,
+  prize_inapp_type    TEXT,
+  prize_inapp_amount  INTEGER,
+  consolation_enabled INTEGER NOT NULL DEFAULT 1 CHECK (consolation_enabled IN (0, 1)),
+  winner_client_id    INTEGER,
+  drawn_at            INTEGER,
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS event_participations (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  client_id           INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  consolation_reward  TEXT,
+  created_at          INTEGER NOT NULL,
+  UNIQUE (event_id, client_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_participations_event
+  ON event_participations(event_id, created_at DESC);
+
+-- ============================
 -- TABLE export_jobs
 -- ============================
 CREATE TABLE IF NOT EXISTS export_jobs (

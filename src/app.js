@@ -38,6 +38,13 @@ try {
   console.warn("[DB] Renumerotation codes carte ignoree:", error.message);
 }
 
+// Evenement de test (visible) si aucun evenement n'existe encore.
+try {
+  require("./db/events").ensureTestEvent();
+} catch (error) {
+  console.warn("[DB] ensureTestEvent ignore:", error.message);
+}
+
 const app = express();
 const distDir = path.join(__dirname, "../web/dist");
 ensureDir(UPLOADS_DIR);

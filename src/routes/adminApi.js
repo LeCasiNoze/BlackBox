@@ -25,6 +25,17 @@ const {
 } = require("../db/clients");
 const { getReviewBoxGoodie } = require("../config/reviewBox");
 const {
+  countParticipants,
+  createEvent,
+  deleteEvent,
+  drawWinner,
+  getEventById,
+  listEvents,
+  mapEventRow,
+  setActive,
+  updateEvent,
+} = require("../db/events");
+const {
   cancelAppointmentForClientOnDate,
   cancelAppointmentAndRefund,
   getAllAppointmentsWithClient,
@@ -1027,6 +1038,113 @@ router.post("/push/unsubscribe", (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     console.error("[adminApi] POST /push/unsubscribe:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// --- Evenements (jeux concours) ---------------------------------------------
+function parseEventBody(body) {
+  const out = {};
+  if (typeof body?.title === "string") out.title = body.title.trim();
+  if (typeof body?.description === "string") out.description = body.description;
+  if (["global", "founder", "bbx"].includes(body?.audience)) out.audience = body.audience;
+  if (body?.startsAt !== undefined) out.startsAt = body.startsAt ? Number(body.startsAt) : null;
+  if (body?.endsAt !== undefined) out.endsAt = body.endsAt ? Number(body.endsAt) : null;
+  if (typeof body?.isActive === "boolean") out.isActive = body.isActive;
+  if (typeof body?.requireInstagram === "boolean") out.requireInstagram = body.requireInstagram;
+  if (typeof body?.requireTiktok === "boolean") out.requireTiktok = body.requireTiktok;
+  if (typeof body?.requireFacebook === "boolean") out.requireFacebook = body.requireFacebook;
+  if (typeof body?.requireReview === "boolean") out.requireReview = body.requireReview;
+  if (typeof body?.conditionsText === "string") out.conditionsText = body.conditionsText;
+  if (typeof body?.conditionsLink === "string") out.conditionsLink = body.conditionsLink;
+  if (["text", "inapp"].includes(body?.prizeKind)) out.prizeKind = body.prizeKind;
+  if (typeof body?.prizeText === "string") out.prizeText = body.prizeText;
+  if (typeof body?.prizeInappType === "string") out.prizeInappType = body.prizeInappType;
+  if (body?.prizeInappAmount !== undefined)
+    out.prizeInappAmount = body.prizeInappAmount ? Number(body.prizeInappAmount) : 0;
+  if (typeof body?.consolationEnabled === "boolean") out.consolationEnabled = body.consolationEnabled;
+  return out;
+}
+
+function clientDisplayName(client) {
+  if (!client) return null;
+  return client.full_name || `${client.first_name || ""} ${client.last_name || ""}`.trim() || null;
+}
+
+function eventView(row) {
+  const event = mapEventRow(row);
+  if (!event) return null;
+  event.participants = countParticipants(event.id);
+  event.winnerName = event.winnerClientId
+    ? clientDisplayName(getClientById(event.winnerClientId))
+    : null;
+  return event;
+}
+
+router.get("/events", (_req, res) => {
+  try {
+    return res.json({ ok: true, events: listEvents().map(eventView) });
+  } catch (error) {
+    console.error("[adminApi] GET /events:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/events", (req, res) => {
+  try {
+    const event = createEvent(parseEventBody(req.body));
+    return res.json({ ok: true, event: eventView(event) });
+  } catch (error) {
+    console.error("[adminApi] POST /events:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/events/:id", (req, res) => {
+  try {
+    const event = updateEvent(Number(req.params.id || 0), parseEventBody(req.body));
+    if (!event) return res.status(404).json({ ok: false, error: "event_not_found" });
+    return res.json({ ok: true, event: eventView(event) });
+  } catch (error) {
+    console.error("[adminApi] POST /events/:id:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/events/:id/active", (req, res) => {
+  try {
+    const event = setActive(Number(req.params.id || 0), req.body?.active === true);
+    if (!event) return res.status(404).json({ ok: false, error: "event_not_found" });
+    return res.json({ ok: true, event: eventView(event) });
+  } catch (error) {
+    console.error("[adminApi] POST /events/:id/active:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/events/:id/draw", (req, res) => {
+  try {
+    const result = drawWinner(Number(req.params.id || 0));
+    if (!result.ok) {
+      return res.status(400).json({ ok: false, error: result.error });
+    }
+    return res.json({
+      ok: true,
+      event: eventView(getEventById(Number(req.params.id || 0))),
+      winnerName: clientDisplayName(result.winner),
+    });
+  } catch (error) {
+    console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.delete("/events/:id", (req, res) => {
+  try {
+    deleteEvent(Number(req.params.id || 0));
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminApi] DELETE /events/:id:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

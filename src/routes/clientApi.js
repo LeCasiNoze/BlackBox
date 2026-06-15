@@ -20,6 +20,13 @@ const {
 } = require("../db/clients");
 const { REVIEW_BOX_GOODIES } = require("../config/reviewBox");
 const {
+  getActiveEventForClient,
+  getParticipation,
+  mapEventRow,
+  participate,
+} = require("../db/events");
+const { CONSOLATION_GOODIES } = require("../config/eventRewards");
+const {
   APPOINTMENT_SLOTS,
   acceptAppointmentPriceForClient,
   cancelAppointmentAndRefund,
@@ -581,6 +588,19 @@ router.get("/:idOrSlug", (req, res) => {
   const vehicles = listVehiclesByClient(client.id).map(mapVehicleRow);
   const rewardRedemptions = listRewardRedemptionsByClient(client.id).map(mapRewardRow);
 
+  const activeEventRow = getActiveEventForClient(client);
+  let eventPayload = null;
+  if (activeEventRow) {
+    const participation = getParticipation(activeEventRow.id, client.id);
+    eventPayload = {
+      ...mapEventRow(activeEventRow),
+      participated: !!participation,
+      consolationReward: participation?.consolation_reward ?? null,
+      // Pre-validation de l'avis si la box avis a deja ete ouverte.
+      reviewDone: !!client.review_box_opened_at,
+    };
+  }
+
   return res.json({
     ok: true,
     client: mapClientPayload(client),
@@ -590,6 +610,7 @@ router.get("/:idOrSlug", (req, res) => {
     topupOffers: listPublicTopupOffersForClient(client),
     paymentsReady: isSumupTopupReady(),
     pendingCases: client.is_founder ? listPendingCaseOpenings(client.id) : [],
+    event: eventPayload,
     month,
   });
 });
@@ -867,6 +888,36 @@ router.post("/:idOrSlug/review-box/open", (req, res) => {
       proba: goodie.proba,
     })),
     client: mapClientPayload(updated),
+  });
+});
+
+// Participation a un evenement: prerequis valides cote client (confiance).
+// Enregistre la participation et tire la box de consolation.
+router.post("/:idOrSlug/event/:eventId/participate", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const eventId = Number(req.params.eventId || 0);
+  const result = participate(eventId, client);
+  if (!result.ok && result.error === "already_participated") {
+    return res.status(409).json({ ok: false, error: "already_participated" });
+  }
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.error || "participate_failed" });
+  }
+
+  return res.json({
+    ok: true,
+    consolation: result.consolation
+      ? { key: result.consolation.key, label: result.consolation.label }
+      : null,
+    tiers: CONSOLATION_GOODIES.map((goodie) => ({
+      key: goodie.key,
+      label: goodie.label,
+      proba: goodie.proba,
+    })),
   });
 });
 

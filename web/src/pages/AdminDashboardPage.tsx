@@ -91,6 +91,67 @@ type AdminClient = {
   updatedAt: number;
 };
 
+type AdminEvent = {
+  id: number;
+  title: string;
+  description: string | null;
+  audience: string;
+  startsAt: number | null;
+  endsAt: number | null;
+  isActive: boolean;
+  requireInstagram: boolean;
+  requireTiktok: boolean;
+  requireFacebook: boolean;
+  requireReview: boolean;
+  conditionsText: string | null;
+  conditionsLink: string | null;
+  prizeKind: string;
+  prizeText: string | null;
+  prizeInappType: string | null;
+  prizeInappAmount: number | null;
+  consolationEnabled: boolean;
+  winnerClientId: number | null;
+  winnerName: string | null;
+  drawnAt: number | null;
+  participants: number;
+};
+
+type EventDraft = {
+  id: number | null;
+  title: string;
+  description: string;
+  audience: string;
+  startsAt: string;
+  endsAt: string;
+  conditionsText: string;
+  conditionsLink: string;
+  prizeKind: string;
+  prizeText: string;
+  prizeInappType: string;
+  prizeInappAmount: string;
+  isActive: boolean;
+  consolationEnabled: boolean;
+};
+
+function emptyEventDraft(): EventDraft {
+  return {
+    id: null,
+    title: "",
+    description: "",
+    audience: "global",
+    startsAt: "",
+    endsAt: "",
+    conditionsText: "",
+    conditionsLink: "",
+    prizeKind: "text",
+    prizeText: "",
+    prizeInappType: "credit",
+    prizeInappAmount: "1",
+    isActive: true,
+    consolationEnabled: true,
+  };
+}
+
 type AdminAppointment = {
   id: number;
   clientId: number;
@@ -613,6 +674,10 @@ export function AdminDashboardPage() {
   const [profileDraft, setProfileDraft] = React.useState<ProfileDraft | null>(null);
   const [founderMediaFile, setFounderMediaFile] = React.useState<File | null>(null);
 
+  const [events, setEvents] = React.useState<AdminEvent[]>([]);
+  const [eventDraft, setEventDraft] = React.useState<EventDraft | null>(null);
+  const [eventBusy, setEventBusy] = React.useState(false);
+
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
     null,
@@ -919,6 +984,130 @@ export function AdminDashboardPage() {
 
   function showToast(message: string) {
     setToast(message);
+  }
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/events");
+        const json = await response.json();
+        if (active && response.ok && json.ok) {
+          setEvents(json.events as AdminEvent[]);
+        }
+      } catch (_error) {
+        // silencieux
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshToken]);
+
+  function openCreateEvent() {
+    setEventDraft(emptyEventDraft());
+  }
+
+  function openEditEvent(event: AdminEvent) {
+    setEventDraft({
+      id: event.id,
+      title: event.title,
+      description: event.description ?? "",
+      audience: event.audience,
+      startsAt: unixToDateInputValue(event.startsAt),
+      endsAt: unixToDateInputValue(event.endsAt),
+      conditionsText: event.conditionsText ?? "",
+      conditionsLink: event.conditionsLink ?? "",
+      prizeKind: event.prizeKind,
+      prizeText: event.prizeText ?? "",
+      prizeInappType: event.prizeInappType ?? "credit",
+      prizeInappAmount: String(event.prizeInappAmount ?? 1),
+      isActive: event.isActive,
+      consolationEnabled: event.consolationEnabled,
+    });
+  }
+
+  function dateInputToUnix(value: string) {
+    if (!value) return null;
+    const ms = new Date(`${value}T00:00:00`).getTime();
+    return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+  }
+
+  async function saveEvent() {
+    if (!eventDraft) return;
+    setEventBusy(true);
+    try {
+      const payload = {
+        title: eventDraft.title,
+        description: eventDraft.description,
+        audience: eventDraft.audience,
+        startsAt: dateInputToUnix(eventDraft.startsAt),
+        endsAt: dateInputToUnix(eventDraft.endsAt),
+        conditionsText: eventDraft.conditionsText,
+        conditionsLink: eventDraft.conditionsLink,
+        prizeKind: eventDraft.prizeKind,
+        prizeText: eventDraft.prizeText,
+        prizeInappType: eventDraft.prizeInappType,
+        prizeInappAmount: Number(eventDraft.prizeInappAmount || 0),
+        isActive: eventDraft.isActive,
+        consolationEnabled: eventDraft.consolationEnabled,
+      };
+      const url = eventDraft.id ? `/api/admin/events/${eventDraft.id}` : "/api/admin/events";
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        showToast("Impossible d'enregistrer l'evenement.");
+        return;
+      }
+      showToast("Evenement enregistre.");
+      setEventDraft(null);
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau pendant l'enregistrement.");
+    } finally {
+      setEventBusy(false);
+    }
+  }
+
+  async function eventAction(id: number, path: string, body?: unknown) {
+    setEventBusy(true);
+    try {
+      const response = await fetch(`/api/admin/events/${id}${path}`, {
+        method: path === "" ? "POST" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.ok === false) {
+        showToast(json.error === "no_participants" ? "Aucun participant a tirer." : "Action impossible.");
+        return;
+      }
+      if (json.winnerName) {
+        showToast(`Gagnant tire : ${json.winnerName}`);
+      }
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setEventBusy(false);
+    }
+  }
+
+  async function deleteEvent(id: number) {
+    setEventBusy(true);
+    try {
+      await fetch(`/api/admin/events/${id}`, { method: "DELETE" });
+      showToast("Evenement supprime.");
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setEventBusy(false);
+    }
   }
 
   async function handleEnablePush() {
@@ -1662,6 +1851,269 @@ export function AdminDashboardPage() {
     return `/admin/clients?clientId=${client.id}`;
   }
 
+  function renderEventsPanel() {
+    const audienceLabel: Record<string, string> = {
+      global: "Global",
+      founder: "Fondateurs",
+      bbx: "BBX",
+    };
+    return (
+      <article className="bb-surface p-6">
+        <div className="bb-section-head">
+          <div>
+            <p className="bb-eyebrow">Evenements</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Jeux concours</h2>
+          </div>
+          <button className="bb-button-brand" onClick={openCreateEvent} type="button">
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvel evenement
+          </button>
+        </div>
+
+        {eventDraft && (
+          <div className="mt-5 rounded-[24px] border border-accent/25 bg-accent/[0.05] p-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Titre</span>
+                <input
+                  className="bb-input"
+                  onChange={(e) => setEventDraft((d) => (d ? { ...d, title: e.target.value } : d))}
+                  value={eventDraft.title}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Description</span>
+                <textarea
+                  className="bb-textarea"
+                  onChange={(e) =>
+                    setEventDraft((d) => (d ? { ...d, description: e.target.value } : d))
+                  }
+                  value={eventDraft.description}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Audience</span>
+                <select
+                  className="bb-select"
+                  onChange={(e) => setEventDraft((d) => (d ? { ...d, audience: e.target.value } : d))}
+                  value={eventDraft.audience}
+                >
+                  <option value="global">Global (tous)</option>
+                  <option value="founder">Fondateurs</option>
+                  <option value="bbx">BBX (non-fondateurs)</option>
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.16em] text-white/40">Debut</span>
+                  <input
+                    className="bb-input"
+                    onChange={(e) => setEventDraft((d) => (d ? { ...d, startsAt: e.target.value } : d))}
+                    type="date"
+                    value={eventDraft.startsAt}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.16em] text-white/40">Fin</span>
+                  <input
+                    className="bb-input"
+                    onChange={(e) => setEventDraft((d) => (d ? { ...d, endsAt: e.target.value } : d))}
+                    type="date"
+                    value={eventDraft.endsAt}
+                  />
+                </label>
+              </div>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Condition de participation
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(e) =>
+                    setEventDraft((d) => (d ? { ...d, conditionsText: e.target.value } : d))
+                  }
+                  placeholder="Ex: Liker et commenter ce post"
+                  value={eventDraft.conditionsText}
+                />
+              </label>
+              <label className="space-y-2 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Lien condition</span>
+                <input
+                  className="bb-input"
+                  onChange={(e) =>
+                    setEventDraft((d) => (d ? { ...d, conditionsLink: e.target.value } : d))
+                  }
+                  placeholder="https://..."
+                  value={eventDraft.conditionsLink}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Type de lot</span>
+                <select
+                  className="bb-select"
+                  onChange={(e) => setEventDraft((d) => (d ? { ...d, prizeKind: e.target.value } : d))}
+                  value={eventDraft.prizeKind}
+                >
+                  <option value="text">Texte libre (honore manuellement)</option>
+                  <option value="inapp">In-app automatique</option>
+                </select>
+              </label>
+              {eventDraft.prizeKind === "text" ? (
+                <label className="space-y-2">
+                  <span className="text-xs uppercase tracking-[0.16em] text-white/40">Lot</span>
+                  <input
+                    className="bb-input"
+                    onChange={(e) =>
+                      setEventDraft((d) => (d ? { ...d, prizeText: e.target.value } : d))
+                    }
+                    placeholder="Ex: 1 detailing complet"
+                    value={eventDraft.prizeText}
+                  />
+                </label>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-white/40">Recompense</span>
+                    <select
+                      className="bb-select"
+                      onChange={(e) =>
+                        setEventDraft((d) => (d ? { ...d, prizeInappType: e.target.value } : d))
+                      }
+                      value={eventDraft.prizeInappType}
+                    >
+                      <option value="credit">Credits</option>
+                      <option value="bc">BC'Coins</option>
+                      <option value="founder_month">Mois fondateur</option>
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-xs uppercase tracking-[0.16em] text-white/40">Quantite</span>
+                    <input
+                      className="bb-input"
+                      min={0}
+                      onChange={(e) =>
+                        setEventDraft((d) => (d ? { ...d, prizeInappAmount: e.target.value } : d))
+                      }
+                      type="number"
+                      value={eventDraft.prizeInappAmount}
+                    />
+                  </label>
+                </div>
+              )}
+              <label className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                <input
+                  checked={eventDraft.isActive}
+                  onChange={(e) => setEventDraft((d) => (d ? { ...d, isActive: e.target.checked } : d))}
+                  type="checkbox"
+                />
+                <span>Actif (1 seul a la fois)</span>
+              </label>
+              <label className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+                <input
+                  checked={eventDraft.consolationEnabled}
+                  onChange={(e) =>
+                    setEventDraft((d) => (d ? { ...d, consolationEnabled: e.target.checked } : d))
+                  }
+                  type="checkbox"
+                />
+                <span>Box de consolation</span>
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                className="bb-button-brand"
+                disabled={eventBusy}
+                onClick={() => {
+                  void saveEvent();
+                }}
+                type="button"
+              >
+                {eventBusy ? "Enregistrement..." : "Enregistrer"}
+              </button>
+              <button className="bb-button-ghost" onClick={() => setEventDraft(null)} type="button">
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-3">
+          {events.length === 0 ? (
+            <p className="text-sm text-white/45">Aucun evenement pour le moment.</p>
+          ) : (
+            events.map((event) => (
+              <div
+                className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4"
+                key={event.id}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-base font-semibold text-white">{event.title}</span>
+                  <span className="bb-pill border-white/10 bg-white/[0.04] text-white/60">
+                    {audienceLabel[event.audience] ?? event.audience}
+                  </span>
+                  {event.isActive ? (
+                    <span className="bb-pill border-emerald-300/30 bg-emerald-300/10 text-emerald-100">
+                      Actif
+                    </span>
+                  ) : (
+                    <span className="bb-pill border-white/10 bg-white/[0.04] text-white/45">Inactif</span>
+                  )}
+                  <span className="bb-pill border-white/10 bg-white/[0.04] text-white/60">
+                    {event.participants} participant(s)
+                  </span>
+                  {event.winnerName && (
+                    <span className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+                      Gagnant : {event.winnerName}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    className="bb-button-ghost px-3 py-2"
+                    disabled={eventBusy}
+                    onClick={() => {
+                      void eventAction(event.id, "/active", { active: !event.isActive });
+                    }}
+                    type="button"
+                  >
+                    {event.isActive ? "Desactiver" : "Activer"}
+                  </button>
+                  <button
+                    className="bb-button-ghost px-3 py-2"
+                    disabled={eventBusy || !!event.drawnAt}
+                    onClick={() => {
+                      void eventAction(event.id, "/draw");
+                    }}
+                    type="button"
+                  >
+                    {event.drawnAt ? "Tirage fait" : "Tirer au sort"}
+                  </button>
+                  <button
+                    className="bb-button-ghost px-3 py-2"
+                    onClick={() => openEditEvent(event)}
+                    type="button"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    className="bb-button-ghost px-3 py-2 text-rose-100"
+                    disabled={eventBusy}
+                    onClick={() => {
+                      void deleteEvent(event.id);
+                    }}
+                    type="button"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </article>
+    );
+  }
+
   function renderHomePage() {
     return (
       <>
@@ -1774,6 +2226,8 @@ export function AdminDashboardPage() {
             );
           })}
         </section>
+
+        {renderEventsPanel()}
       </>
     );
   }
