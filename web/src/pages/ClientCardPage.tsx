@@ -1293,6 +1293,15 @@ export function ClientCardPage() {
   const [appointmentsLoading, setAppointmentsLoading] = React.useState(true);
   const [communityItems, setCommunityItems] = React.useState<PublicShowcaseItem[]>([]);
   const [communityLoading, setCommunityLoading] = React.useState(true);
+  // Section avis: uniquement les retours avec une note etoilee et/ou un
+  // commentaire ecrit (on n'affiche plus les photos).
+  const communityReviews = React.useMemo(
+    () =>
+      communityItems.filter(
+        (item) => item.userRating || (item.userReview && item.userReview.trim() !== ""),
+      ),
+    [communityItems],
+  );
   const [busyAction, setBusyAction] = React.useState(false);
   const [reloadToken, setReloadToken] = React.useState(0);
   const [focusedDayDate, setFocusedDayDate] = React.useState<string | null>(null);
@@ -1375,6 +1384,7 @@ export function ClientCardPage() {
   const [eventBoxDeliveryNote, setEventBoxDeliveryNote] = React.useState<string | null>(null);
   const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [participateBusy, setParticipateBusy] = React.useState(false);
+  const eventParticipationStartedRef = React.useRef(false);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
     instagram: false,
@@ -2524,13 +2534,12 @@ export function ClientCardPage() {
   }
 
   async function openReviewBoxFlow() {
-    unlockAudio();
-    // On envoie le client vers l'avis Google (confiance) puis on lance la box.
-    window.open(GOOGLE_REVIEWS_URL, "_blank", "noopener,noreferrer");
-
+    // Consommation explicite de la box: uniquement quand le client clique sur
+    // "Ouvrir ma box". Tant qu'elle n'est pas ouverte, elle reste disponible.
     if (clientData.reviewBoxOpenedAt) {
       return;
     }
+    unlockAudio();
 
     setReviewBoxBusy(true);
     try {
@@ -2615,28 +2624,37 @@ export function ClientCardPage() {
               <p className="text-base font-semibold text-white">
                 {boxDone
                   ? "Merci pour votre avis !"
-                  : "Laissez un avis Google, ouvrez une box surprise"}
+                  : "Laissez un avis Google, puis ouvrez votre box"}
               </p>
               <p className="mt-1 text-sm leading-6 text-white/65">
                 {boxDone
                   ? "Votre box a deja ete ouverte (une seule par compte)."
-                  : "Une seule ouverture par compte, avec de vrais cadeaux a la cle."}
+                  : "Laissez votre avis, puis ouvrez votre box surprise. Elle vous attend ici tant que vous ne l'avez pas ouverte — une seule par compte."}
               </p>
-              <button
-                className="bb-button-brand mt-3"
-                disabled={reviewBoxBusy}
-                onClick={() => {
-                  void openReviewBoxFlow();
-                }}
-                type="button"
-              >
-                <Star className="mr-2 h-4 w-4" />
-                {boxDone
-                  ? "Laisser un avis Google"
-                  : reviewBoxBusy
-                    ? "Ouverture..."
-                    : "Donner un avis + ouvrir ma box"}
-              </button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  className="bb-button-ghost"
+                  href={GOOGLE_REVIEWS_URL}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <Star className="mr-2 h-4 w-4" />
+                  Laisser un avis Google
+                </a>
+                {!boxDone && (
+                  <button
+                    className="bb-button-brand"
+                    disabled={reviewBoxBusy}
+                    onClick={() => {
+                      void openReviewBoxFlow();
+                    }}
+                    type="button"
+                  >
+                    <Gift className="mr-2 h-4 w-4" />
+                    {reviewBoxBusy ? "Ouverture..." : "Ouvrir ma box"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2661,12 +2679,15 @@ export function ClientCardPage() {
         deliveryAppointment?: { date: string; slot: string } | null;
       };
       if (response.status === 409) {
-        showToast("Tu as deja participe a cet evenement.");
+        // Deja participe (cote serveur): on garde le verrou et on resynchronise.
+        eventParticipationStartedRef.current = true;
         setReloadToken((value) => value + 1);
         return;
       }
       if (!response.ok || !json.ok) {
         showToast("Participation impossible pour le moment.");
+        // Echec: on relache le verrou pour permettre une nouvelle tentative.
+        eventParticipationStartedRef.current = false;
         return;
       }
       showToast("Participation confirmee. Bonne chance !");
@@ -2686,6 +2707,8 @@ export function ClientCardPage() {
       setReloadToken((value) => value + 1);
     } catch (_error) {
       showToast("Erreur reseau pendant la participation.");
+      // Echec reseau: on relache le verrou pour permettre une nouvelle tentative.
+      eventParticipationStartedRef.current = false;
     } finally {
       setParticipateBusy(false);
     }
@@ -2720,7 +2743,7 @@ export function ClientCardPage() {
               type="button"
             >
               <CheckCircle2 className="mr-1.5 h-4 w-4 text-emerald-200" />
-              Participation confirmee
+              Gagner plus de tickets
             </button>
           ) : (
             <button
@@ -2780,7 +2803,6 @@ export function ClientCardPage() {
     }>;
 
     const ticketCount = ticketActions.filter((action) => action.done).length;
-    const canParticipate = ticketCount >= 1;
 
     return (
       <div
@@ -2821,77 +2843,66 @@ export function ClientCardPage() {
             <p className="bb-subtitle mt-3">{activeEvent.description}</p>
           )}
 
-          {activeEvent.participated ? (
-            <div className="mt-5 rounded-[22px] border border-emerald-300/25 bg-emerald-300/10 p-5 text-center">
-              <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-200" />
-              <p className="mt-3 text-lg font-semibold text-white">Participation confirmee !</p>
-              <p className="mt-1 text-sm text-white/65">
-                Merci et bonne chance — le tirage au sort aura lieu a la fin de l'evenement.
+          <p className="mt-5 text-sm leading-6 text-white/65">
+            Gagne des tickets : chaque action te donne <strong className="text-accentSoft">+1 ticket</strong>.
+            Tu participes automatiquement des ta premiere action — continue ensuite pour gagner plus de tickets !
+          </p>
+
+          {activeEvent.participated && (
+            <div className="mt-3 flex items-center gap-3 rounded-[18px] border border-emerald-300/25 bg-emerald-300/10 px-4 py-3">
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-200" />
+              <p className="text-sm leading-6 text-white/80">
+                <span className="font-semibold text-white">Participation confirmee !</span> Bonne chance —
+                le tirage aura lieu a la fin de l'evenement. Tu peux continuer a gagner des tickets ci-dessous.
               </p>
             </div>
-          ) : (
-            <>
-              <p className="mt-5 text-sm leading-6 text-white/65">
-                Gagne des tickets : chaque action te donne <strong className="text-accentSoft">+1 ticket</strong>.
-                Fais-en autant que tu peux — pas besoin de tout faire !
-              </p>
-              <div className="mt-3 grid gap-2">
-                {ticketActions.map((action) => (
-                  <button
-                    className={cn(
-                      "flex items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition duration-200",
-                      action.done
-                        ? "border-emerald-300/30 bg-emerald-300/[0.07]"
-                        : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
-                    )}
-                    disabled={action.done}
-                    key={action.key}
-                    onClick={() => {
-                      if (action.href) {
-                        window.open(action.href, "_blank", "noopener,noreferrer");
-                      }
-                      setEventPrereqs((prev) => ({ ...prev, [action.key]: true }));
-                    }}
-                    type="button"
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span className="text-lg">🎟️</span>
-                      <span className="truncate text-sm font-semibold text-white">{action.label}</span>
-                    </span>
-                    <span
-                      className={cn(
-                        "shrink-0 text-xs font-bold uppercase tracking-[0.12em]",
-                        action.done ? "text-emerald-200" : "text-accent",
-                      )}
-                    >
-                      {action.done ? "+1 ✓" : "+1 🎟️"}
-                    </span>
-                  </button>
-                ))}
-              </div>
+          )}
 
-              <div className="mt-4 flex items-center justify-between rounded-[18px] border border-accent/25 bg-accent/[0.06] px-4 py-3">
-                <span className="text-sm text-white/70">Tes tickets</span>
-                <span className="text-lg font-bold text-accentSoft">🎟️ {ticketCount}</span>
-              </div>
-
+          <div className="mt-3 grid gap-2">
+            {ticketActions.map((action) => (
               <button
-                className="bb-button-brand mt-4 w-full justify-center py-4 text-base"
-                disabled={!canParticipate || participateBusy}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition duration-200",
+                  action.done
+                    ? "border-emerald-300/30 bg-emerald-300/[0.07]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
+                )}
+                disabled={action.done || participateBusy}
+                key={action.key}
                 onClick={() => {
-                  void participateEvent();
+                  if (action.done) return;
+                  if (action.href) {
+                    window.open(action.href, "_blank", "noopener,noreferrer");
+                  }
+                  setEventPrereqs((prev) => ({ ...prev, [action.key]: true }));
+                  // Premiere action => participation automatique (une seule fois).
+                  if (!activeEvent.participated && !eventParticipationStartedRef.current) {
+                    eventParticipationStartedRef.current = true;
+                    void participateEvent();
+                  }
                 }}
                 type="button"
               >
-                <Sparkles className="mr-2 h-4 w-4" />
-                {participateBusy
-                  ? "Participation..."
-                  : canParticipate
-                    ? "Participer"
-                    : "Fais au moins une action"}
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="text-lg">🎟️</span>
+                  <span className="truncate text-sm font-semibold text-white">{action.label}</span>
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 text-xs font-bold uppercase tracking-[0.12em]",
+                    action.done ? "text-emerald-200" : "text-accent",
+                  )}
+                >
+                  {action.done ? "+1 ✓" : "+1 🎟️"}
+                </span>
               </button>
-            </>
-          )}
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between rounded-[18px] border border-accent/25 bg-accent/[0.06] px-4 py-3">
+            <span className="text-sm text-white/70">Tes tickets</span>
+            <span className="text-lg font-bold text-accentSoft">🎟️ {ticketCount}</span>
+          </div>
         </div>
       </div>
     );
@@ -4841,11 +4852,11 @@ export function ClientCardPage() {
             <article className="bb-surface p-6">
               <div className="bb-section-head">
                 <div>
-                  <p className="bb-eyebrow">Galerie publique</p>
-                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Photos et avis partages</h2>
+                  <p className="bb-eyebrow">Avis clients</p>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Avis partages</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                  {communityItems.length} retour{communityItems.length > 1 ? "s" : ""}
+                  {communityReviews.length} avis
                 </div>
               </div>
 
@@ -4853,12 +4864,12 @@ export function ClientCardPage() {
                 {communityLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
                     <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                    Chargement des retours clients...
+                    Chargement des avis clients...
                   </div>
-                ) : communityItems.length === 0 ? (
-                  <AppointmentsEmpty copy="Des qu'une prestation terminee contient des photos ou un avis client, elle apparait ici." />
+                ) : communityReviews.length === 0 ? (
+                  <AppointmentsEmpty copy="Des qu'une prestation terminee contient une note ou un avis client, elle apparait ici." />
                 ) : (
-                  communityItems.map((item) => (
+                  communityReviews.map((item) => (
                     <article
                       className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
                       key={item.id}
@@ -4897,42 +4908,11 @@ export function ClientCardPage() {
                         </div>
                       )}
 
-                      <p className="mt-4 text-sm leading-6 text-white/68">
-                        {item.userReview ||
-                          "Le client n'a pas laisse de commentaire ecrit, mais des photos sont disponibles."}
-                      </p>
-
-                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                        {item.photos.length === 0 ? (
-                          <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-black/15 text-center text-xs uppercase tracking-[0.16em] text-white/30 sm:col-span-3">
-                            Aucune photo visible
-                          </div>
-                        ) : (
-                          item.photos.map((photo) => (
-                            <button
-                              className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                              key={photo.id}
-                              onClick={() =>
-                                openLightbox(
-                                  item.photos.map((entry) => ({
-                                    id: `community-${item.id}-${entry.id}`,
-                                    url: entry.url,
-                                    label: entry.label,
-                                  })),
-                                  photo.url,
-                                )
-                              }
-                              type="button"
-                            >
-                              <img
-                                alt={photo.label || "Photo client"}
-                                className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
-                                src={photo.url}
-                              />
-                            </button>
-                          ))
-                        )}
-                      </div>
+                      {item.userReview && item.userReview.trim() !== "" && (
+                        <p className="mt-4 text-sm leading-6 text-white/68">
+                          &laquo; {item.userReview} &raquo;
+                        </p>
+                      )}
                     </article>
                   ))
                 )}

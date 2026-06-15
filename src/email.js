@@ -129,6 +129,15 @@ function clientPortalUrl(client) {
   return `${base}/card/${encodeURIComponent(slug)}`;
 }
 
+// Lien profond vers le contexte d'un rendez-vous: ouvre directement la fiche
+// du RDV (modale) dans l'espace client au lieu de la page d'accueil.
+function clientAppointmentUrl(client, appointmentId) {
+  const portalUrl = clientPortalUrl(client);
+  if (!portalUrl) return "";
+  if (!appointmentId) return portalUrl;
+  return `${portalUrl}?appointmentId=${appointmentId}`;
+}
+
 function serviceLevelLabel(level) {
   if (level === "dirty") return "Sale";
   if (level === "correct") return "Correct";
@@ -632,7 +641,13 @@ Espace client : ${portalUrl || "Lien indisponible"}
         title: "Demande admin",
         description: message || "Ajoutez quelques photos claires du vehicule depuis votre espace client.",
         bodyHtml: actionButtons([
-          portalUrl ? { label: "Ouvrir mon rendez-vous", href: portalUrl, tone: "primary" } : null,
+          portalUrl
+            ? {
+                label: "Ouvrir mon rendez-vous",
+                href: clientAppointmentUrl(client, appointment.id),
+                tone: "primary",
+              }
+            : null,
         ]),
       })}
     `,
@@ -701,7 +716,13 @@ Espace client : ${portalUrl || "Lien indisponible"}
           : ""
       }
       ${actionButtons([
-        portalUrl ? { label: "Accepter ou annuler", href: portalUrl, tone: "primary" } : null,
+        portalUrl
+          ? {
+              label: "Accepter ou annuler",
+              href: clientAppointmentUrl(client, appointment.id),
+              tone: "primary",
+            }
+          : null,
       ])}
     `,
   });
@@ -1046,8 +1067,8 @@ Espace client : ${portalUrl || "Lien indisponible"}
           ${actionButtons([
             portalUrl
               ? {
-                  label: isDone ? "Voir mon suivi et laisser mon avis" : "Ouvrir mon espace client",
-                  href: portalUrl,
+                  label: isDone ? "Voir mon suivi et laisser mon avis" : "Ouvrir mon rendez-vous",
+                  href: clientAppointmentUrl(client, appointment.id),
                   tone: "primary",
                 }
               : null,
@@ -1122,7 +1143,11 @@ Espace client : ${portalUrl || "Lien indisponible"}
           ])}
           ${actionButtons([
             portalUrl
-              ? { label: "Ouvrir mon espace client", href: portalUrl, tone: "primary" }
+              ? {
+                  label: "Ouvrir mon rendez-vous",
+                  href: clientAppointmentUrl(client, appointment.id),
+                  tone: "primary",
+                }
               : null,
           ])}
         `,
