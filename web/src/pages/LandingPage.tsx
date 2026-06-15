@@ -1,15 +1,10 @@
 import * as React from "react";
 import {
   ArrowRight,
-  CalendarCheck,
-  Camera,
   CheckCircle2,
-  CreditCard,
   Loader2,
   MessageCircle,
   ShieldCheck,
-  Smartphone,
-  Sparkles,
   Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -109,55 +104,8 @@ export function LandingPage() {
       <main className="bb-content space-y-6 md:space-y-8">
         <section className="bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8 xl:p-10">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,201,138,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(44,162,255,0.12),transparent_28%)]" />
-          <div className="relative z-10 grid gap-10 xl:grid-cols-[1fr_1.05fr] xl:items-center">
-            <div className="space-y-7">
-              <div className="bb-rise flex flex-wrap items-center gap-2.5">
-                <div className="bb-pill border-[#e8c98a]/30 bg-[#e8c98a]/10 text-[#ffe8a8]">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Bryan Cars Detailing
-                </div>
-                <div className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
-                  <Star className="h-3.5 w-3.5 fill-[#e8c98a] text-[#e8c98a]" />
-                  4,9 / 5 sur Google
-                </div>
-              </div>
-
-              <div className="bb-rise bb-rise-2">
-                <h1 className="bb-title-xl max-w-3xl">
-                  Votre voiture,
-                  <br />
-                  <span className="bb-text-gold">sublimee</span> et suivie.
-                </h1>
-                <p className="bb-subtitle mt-5 max-w-xl text-base md:text-lg">
-                  Creez votre espace client en deux minutes : agenda, credits prepayes,
-                  historique et suivi photo de chaque prestation.
-                </p>
-              </div>
-
-              <ul className="bb-rise bb-rise-3 grid gap-3 sm:grid-cols-2">
-                {[
-                  [CalendarCheck, "Reservation en ligne", "Choisissez votre creneau."],
-                  [CreditCard, "Credits prepayes", "Payez une fois, profitez."],
-                  [Camera, "Suivi photo", "Avant / apres de chaque soin."],
-                  [ShieldCheck, "Espace securise", "Acces par code email."],
-                ].map(([Icon, label, copy]) => {
-                  const FeatureIcon = Icon as typeof CalendarCheck;
-                  return (
-                    <li className="bb-hairline bb-hover-lift flex items-start gap-3 p-3.5" key={label as string}>
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8c98a]/12 text-[#e8c98a]">
-                        <FeatureIcon className="h-4 w-4" />
-                      </span>
-                      <span>
-                        <span className="block text-sm font-semibold text-white">{label as string}</span>
-                        <span className="block text-xs leading-5 text-white/55">{copy as string}</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            <article className="bb-surface bb-rise bb-rise-2 relative overflow-hidden p-5 md:p-6">
+          <div className="relative z-10 mx-auto w-full max-w-2xl">
+            <article className="bb-surface bb-rise relative overflow-hidden p-5 md:p-6">
               <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[#e8c98a]/10 blur-3xl" />
               <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div>
@@ -259,11 +207,10 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2">
           {[
             [Star, "Avis Google", "4,9 / 5", "Consultez les avis clients publics.", GOOGLE_MAPS_URL],
             [MessageCircle, "Contact rapide", "WhatsApp", "Envoyez une question ou une photo.", WHATSAPP_URL],
-            [Smartphone, "Application", "iPhone & Android", "Ajoutez l'espace a votre ecran d'accueil.", ""],
           ].map(([Icon, label, value, copy, href], index) => {
             const CardIcon = Icon as typeof Star;
             return (
