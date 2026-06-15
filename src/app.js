@@ -114,4 +114,8 @@ app.get(/^\/forfait(\/.*)?$/, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
+app.get(/^\/demo(\/.*)?$/, (req, res) => {
+  res.sendFile(path.join(distDir, "index.html"));
+});
+
 module.exports = app;
