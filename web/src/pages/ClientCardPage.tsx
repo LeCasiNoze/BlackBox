@@ -401,7 +401,7 @@ const TIER_COLORS: Record<string, string> = {
   peu_commun: "#38bdf8",
   rare: "#a855f7",
   epique: "#ec4899",
-  legendaire: "#f7b955",
+  legendaire: "#e8c98a",
 };
 
 // Largeur d'une carte du reel + gap en px (doit matcher le CSS).
@@ -499,7 +499,7 @@ function CaseOpeningModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reelItems]);
 
-  const wonTierColor = result ? (TIER_COLORS[result.reward.tier] ?? "#f7b955") : "#f7b955";
+  const wonTierColor = result ? (TIER_COLORS[result.reward.tier] ?? "#e8c98a") : "#e8c98a";
   const isLegendaire = result?.reward.tier === "legendaire";
 
   return (
@@ -588,7 +588,7 @@ function CaseOpeningModal({
         {/* Etat : en cours */}
         {!revealed && (
           <div className="flex items-center justify-center gap-3 py-2 text-sm text-white/60">
-            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+            <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
             {result ? "Ouverture en cours..." : "Connexion au serveur..."}
           </div>
         )}
@@ -599,7 +599,7 @@ function CaseOpeningModal({
             className={cn(
               "flex flex-col items-center gap-4 rounded-[24px] border p-6 text-center",
               isLegendaire
-                ? "border-[#f7b955]/50 bg-[#f7b955]/10 shadow-[0_0_48px_rgba(247,185,85,0.25)]"
+                ? "border-[#e8c98a]/50 bg-[#e8c98a]/10 shadow-[0_0_48px_rgba(232,201,138,0.25)]"
                 : "border-white/10 bg-white/[0.04]",
             )}
           >
@@ -857,7 +857,7 @@ function nextAppointment(appointments: ClientAppointment[]) {
 function AppointmentsEmpty({ copy }: { copy: string }) {
   return (
     <div className="bb-surface flex flex-col items-start gap-3 p-6">
-      <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[#f7b955]">
+      <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[#e8c98a]">
         <CalendarClock className="h-5 w-5" />
       </div>
       <div>
@@ -895,7 +895,7 @@ function ChoiceField({
             className={cn(
               "rounded-[18px] border px-3 py-3 text-sm font-semibold transition duration-200",
               option.value === value
-                ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white shadow-[0_12px_28px_rgba(247,185,85,0.12)]"
+                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white shadow-[0_12px_28px_rgba(232,201,138,0.12)]"
                 : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]",
             )}
             key={option.value}
@@ -919,7 +919,7 @@ function RatingStars({ rating }: { rating: number }) {
           <Star
             className={cn(
               "h-4 w-4",
-              active ? "fill-[#f7b955] text-[#f7b955]" : "text-white/20",
+              active ? "fill-[#e8c98a] text-[#e8c98a]" : "text-white/20",
             )}
             key={index}
           />
@@ -2363,12 +2363,16 @@ export function ClientCardPage() {
     appointments.some((appointment) => appointment.id === selectedAppointment.id);
   const bookingLocked = !termsAccepted;
 
-  if (loading) {
+  // N'affiche le plein-ecran de chargement qu'au tout premier chargement
+  // (quand aucune donnee n'est encore disponible). Les rechargements en
+  // arriere-plan (changement de mois, refresh) gardent la page affichee
+  // pour eviter le flash de chargement entre les pages.
+  if (loading && !client) {
     return (
       <div className="bb-shell">
         <div className="bb-content flex min-h-[70vh] items-center justify-center">
           <div className="bb-surface flex items-center gap-3 px-6 py-4 text-sm text-white/70">
-            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+            <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
             Chargement de votre espace client...
           </div>
         </div>
@@ -2497,7 +2501,7 @@ export function ClientCardPage() {
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-[22px] px-4 py-3 text-sm font-semibold transition duration-200",
                   active
-                    ? "bg-[#f7b955]/12 text-white shadow-[0_12px_28px_rgba(247,185,85,0.12)]"
+                    ? "bg-[#e8c98a]/12 text-white shadow-[0_12px_28px_rgba(232,201,138,0.12)]"
                     : "text-white/68 hover:bg-white/[0.05]",
                 )}
                 key={item.view}
@@ -2593,7 +2597,7 @@ export function ClientCardPage() {
   function renderProHomeView() {
     return (
       <section className="space-y-4">
-        <article className="bb-rise bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+        <article className="bb-rise bb-steel-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
           <div className="bb-pro-orb bb-pro-orb-indigo" />
           <div className="bb-pro-orb bb-pro-orb-cyan" />
@@ -2608,8 +2612,7 @@ export function ClientCardPage() {
               </div>
 
               <div className="max-w-3xl">
-                <p className="bb-eyebrow-steel">Bryan Cars pro portal</p>
-                <h1 className="bb-title-xl mt-3">
+                <h1 className="bb-title-xl">
                   Bonjour <span className="bb-text-steel">{clientData.firstName || clientData.fullName || "client"}</span>,
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-white/68 md:text-base">
@@ -2694,7 +2697,7 @@ export function ClientCardPage() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
-          <article className="bb-rise bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+          <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
             <div className="bb-founder-orb bb-founder-orb-blue" />
             <div className="bb-founder-orb bb-founder-orb-ember" />
@@ -2702,15 +2705,14 @@ export function ClientCardPage() {
             <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
+                  <div className="bb-pill border-[#e8c98a]/30 bg-[#e8c98a]/10 text-[#ffe8a8]">
                     <Crown className="h-3.5 w-3.5" />
                     Acces fondateur
                   </div>
                 </div>
 
                 <div className="max-w-3xl">
-                  <p className="bb-eyebrow">Bryan Cars founder portal</p>
-                  <h1 className="bb-title-xl mt-3">
+                  <h1 className="bb-title-xl">
                     Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "fondateur"}</span>,
                   </h1>
                   <button
@@ -2724,7 +2726,7 @@ export function ClientCardPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-[24px] border border-[#f7b955]/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <div className="rounded-[24px] border border-[#e8c98a]/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
                     <p className="mt-2 text-2xl font-semibold text-white">
                       {clientData.formulaRemaining}
@@ -2746,14 +2748,14 @@ export function ClientCardPage() {
 
                 <div className="overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-2 rounded-full bg-gradient-to-r from-[#f7b955] via-[#ffd06b] to-[#ff7a18]"
+                    className="h-2 rounded-full bg-gradient-to-r from-[#e8c98a] via-[#f0d28a] to-[#d99a4e]"
                     style={{ width: `${creditsRatio * 100}%` }}
                   />
                 </div>
               </div>
 
               <div className="grid gap-4">
-                <div className="bb-founder-media relative overflow-hidden rounded-[30px] border border-[#f7b955]/22 bg-[radial-gradient(circle_at_top,rgba(247,185,85,0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
+                <div className="bb-founder-media relative overflow-hidden rounded-[30px] border border-[#e8c98a]/22 bg-[radial-gradient(circle_at_top,rgba(232,201,138,0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
                   <div className="bb-founder-shimmer" />
                   <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/35">
                     <img
@@ -2782,12 +2784,12 @@ export function ClientCardPage() {
               const Icon = card.icon;
               return (
                 <button
-                  className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
+                  className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#e8c98a]/40 hover:bg-[#e8c98a]/[0.08]"
                   key={card.view}
                   onClick={() => navigateView(card.view)}
                   type="button"
                 >
-                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
                     <Icon className="h-5 w-5" />
                   </div>
                   <h2 className="text-lg font-semibold text-white">{card.title}</h2>
@@ -2806,8 +2808,8 @@ export function ClientCardPage() {
 
     return (
       <section className="space-y-4">
-        <article className="bb-rise bb-surface-strong relative overflow-hidden p-6 md:p-8">
-          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-[#f7b955]/12 blur-3xl" />
+        <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
+          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-[#e8c98a]/12 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
           <img
             alt=""
@@ -2819,8 +2821,7 @@ export function ClientCardPage() {
           <div className="relative z-10 space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="max-w-2xl">
-                <p className="bb-eyebrow">Bryan Cars client portal</p>
-                <h1 className="bb-title-xl mt-3">
+                <h1 className="bb-title-xl">
                   Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
                 </h1>
                 {upcomingAppointment && (
@@ -2846,12 +2847,12 @@ export function ClientCardPage() {
             </div>
 
             <button
-              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-[#f7b955]/25 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-[#f7b955]/45"
+              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-[#e8c98a]/25 bg-[linear-gradient(180deg,rgba(232,201,138,0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-[#e8c98a]/45"
               onClick={() => setFounderModalOpen(true)}
               type="button"
             >
               <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-[#f7b955]/35 bg-[#f7b955]/12 p-3 text-[#ffe8a8]">
+                <div className="rounded-2xl border border-[#e8c98a]/35 bg-[#e8c98a]/12 p-3 text-[#ffe8a8]">
                   <Crown className="h-5 w-5" />
                 </div>
                 <div>
@@ -2861,7 +2862,7 @@ export function ClientCardPage() {
                   </p>
                 </div>
               </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-[#f7b955] transition group-hover:translate-x-1" />
+              <ArrowRight className="h-5 w-5 shrink-0 text-[#e8c98a] transition group-hover:translate-x-1" />
             </button>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -2894,12 +2895,12 @@ export function ClientCardPage() {
                 const Icon = card.icon;
                 return (
                   <button
-                    className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#f7b955]/40 hover:bg-[#f7b955]/[0.08]"
+                    className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-[#e8c98a]/40 hover:bg-[#e8c98a]/[0.08]"
                     key={card.view}
                     onClick={() => navigateView(card.view)}
                     type="button"
                   >
-                    <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                    <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
                       <Icon className="h-5 w-5" />
                     </div>
                     <h2 className="text-lg font-semibold text-white">{card.title}</h2>
@@ -2923,14 +2924,14 @@ export function ClientCardPage() {
               Agenda
             </div>
             {clientData.clientType !== "pro" && (
-              <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-white">
+              <div className="bb-pill border-[#e8c98a]/30 bg-[#e8c98a]/10 text-white">
                 {clientData.formulaRemaining} credit
                 {Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}
               </div>
             )}
             {activeVehicle && (
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                <CarFront className="h-3.5 w-3.5 text-[#f7b955]" />
+                <CarFront className="h-3.5 w-3.5 text-[#e8c98a]" />
                 {vehicleTitle(activeVehicle)}
               </div>
             )}
@@ -3004,7 +3005,7 @@ export function ClientCardPage() {
                 </div>
 
                 <button
-                  className="w-full rounded-[28px] border border-[#f7b955]/45 bg-[#f7b955]/10 p-4 text-left shadow-[0_18px_48px_rgba(247,185,85,0.12)] transition duration-200"
+                  className="w-full rounded-[28px] border border-[#e8c98a]/45 bg-[#e8c98a]/10 p-4 text-left shadow-[0_18px_48px_rgba(232,201,138,0.12)] transition duration-200"
                   onClick={() => {
                     void openDayModal(focusedDay);
                   }}
@@ -3062,7 +3063,7 @@ export function ClientCardPage() {
                     className={cn(
                       "rounded-[26px] border p-4 text-left transition duration-200",
                       focusedDay?.date === day.date
-                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                        ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                         : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                     )}
                     key={day.date}
@@ -3161,7 +3162,7 @@ export function ClientCardPage() {
                   className={cn(
                     "rounded-[24px] border p-4 transition duration-200",
                     active
-                      ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.1)]"
+                      ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.1)]"
                       : "border-white/10 bg-white/[0.03]",
                   )}
                   key={vehicle.id}
@@ -3323,7 +3324,7 @@ export function ClientCardPage() {
               topupOffers.length > 0 &&
               topupOffers.map((offer) => (
                 <div
-                  className="rounded-[24px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-4"
+                  className="rounded-[24px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.10),rgba(255,255,255,0.03))] p-4"
                   key={offer.key}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -3365,7 +3366,7 @@ export function ClientCardPage() {
 
             {/* Non-fondateur: achat de credits a l'unite (bbx, data, pro). */}
             {!clientData.isFounder && paymentsReady && topupOffers[0] && (
-              <div className="rounded-[24px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.10),rgba(255,255,255,0.03))] p-4">
+              <div className="rounded-[24px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.10),rgba(255,255,255,0.03))] p-4">
                 <p className="text-lg font-semibold text-white">Achat de credits a l&apos;unite</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">
                   Choisissez le nombre de credits a acheter au tarif unitaire.
@@ -3447,7 +3448,7 @@ export function ClientCardPage() {
                   <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Boutique fidelite</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                  <Gift className="h-3.5 w-3.5 text-[#f7b955]" />
+                  <Gift className="h-3.5 w-3.5 text-[#e8c98a]" />
                   {clientData.bcPoints} points
                 </div>
               </div>
@@ -3459,7 +3460,7 @@ export function ClientCardPage() {
                 <div>
                   <p className="text-sm font-semibold text-white">
                     BC en attente :{" "}
-                    <span className="text-[#f7b955]">{clientData.bcPending} BC</span>
+                    <span className="text-[#e8c98a]">{clientData.bcPending} BC</span>
                   </p>
                   <p className="mt-1 text-xs leading-5 text-white/48">
                     Debloques au fur et a mesure de vos passages.
@@ -3477,11 +3478,11 @@ export function ClientCardPage() {
                   <div className="mt-3 grid gap-3">
                     {pendingCases.map((pc) => (
                       <div
-                        className="flex items-center justify-between gap-3 rounded-[20px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.08),rgba(255,255,255,0.02))] p-4"
+                        className="flex items-center justify-between gap-3 rounded-[20px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.08),rgba(255,255,255,0.02))] p-4"
                         key={pc.id}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="shrink-0 rounded-xl border border-[#f7b955]/50 bg-[#f7b955]/18 p-2 text-[#ffe8a8]">
+                          <div className="shrink-0 rounded-xl border border-[#e8c98a]/50 bg-[#e8c98a]/18 p-2 text-[#ffe8a8]">
                             <Gift className="h-4 w-4" />
                           </div>
                           <div>
@@ -3605,7 +3606,7 @@ export function ClientCardPage() {
               <button
                 className={cn(
                   "bb-button-ghost px-4 py-2",
-                  historyTab === "mine" && "border-[#f7b955]/35 bg-[#f7b955]/10 text-white",
+                  historyTab === "mine" && "border-[#e8c98a]/35 bg-[#e8c98a]/10 text-white",
                 )}
                 onClick={() => setHistoryTab("mine")}
                 type="button"
@@ -3615,7 +3616,7 @@ export function ClientCardPage() {
               <button
                 className={cn(
                   "bb-button-ghost px-4 py-2",
-                  historyTab === "community" && "border-[#f7b955]/35 bg-[#f7b955]/10 text-white",
+                  historyTab === "community" && "border-[#e8c98a]/35 bg-[#e8c98a]/10 text-white",
                 )}
                 onClick={() => setHistoryTab("community")}
                 type="button"
@@ -3642,7 +3643,7 @@ export function ClientCardPage() {
               <div className="mt-6 grid gap-3">
                 {appointmentsLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                     Chargement des rendez-vous...
                   </div>
                 ) : upcomingAppointments.length === 0 ? (
@@ -3667,7 +3668,7 @@ export function ClientCardPage() {
               <div className="mt-6 grid gap-3">
                 {appointmentsLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                     Chargement des rendez-vous...
                   </div>
                 ) : archivedAppointments.length === 0 ? (
@@ -3694,7 +3695,7 @@ export function ClientCardPage() {
               <div className="mt-6 grid gap-4">
                 {communityLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                     Chargement des retours clients...
                   </div>
                 ) : communityItems.length === 0 ? (
@@ -3806,7 +3807,7 @@ export function ClientCardPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-white">{review.author}</p>
-                      <div className="flex items-center gap-1 text-[#f7b955]">
+                      <div className="flex items-center gap-1 text-[#e8c98a]">
                         {Array.from({ length: review.rating }).map((_, index) => (
                           <Star className="h-4 w-4 fill-current" key={index} />
                         ))}
@@ -3834,9 +3835,9 @@ export function ClientCardPage() {
         type="file"
       />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-[#f7b955]/12 blur-3xl" />
+        <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-[#e8c98a]/12 blur-3xl" />
         <div className="absolute right-[-7rem] top-0 h-80 w-80 rounded-full bg-sky-400/12 blur-3xl" />
-        <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#ff7a18]/10 blur-3xl" />
+        <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#d99a4e]/10 blur-3xl" />
       </div>
 
       <main className="bb-content relative z-10 space-y-5 md:space-y-6">
@@ -3850,7 +3851,7 @@ export function ClientCardPage() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className={cn("mx-auto grid max-w-xl rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <div className={cn("mx-auto grid max-w-xl rounded-[28px] border border-white/12 bg-[#14110d]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -3859,13 +3860,13 @@ export function ClientCardPage() {
                 className={cn(
                   "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
                   active
-                    ? "bg-gradient-to-b from-[#f7b955]/18 to-[#ff7a18]/12 text-white shadow-[0_10px_24px_rgba(247,185,85,0.12)]"
+                    ? "bg-gradient-to-b from-[#e8c98a]/18 to-[#d99a4e]/12 text-white shadow-[0_10px_24px_rgba(232,201,138,0.12)]"
                     : "text-white/54",
                 )}
                 key={item.view}
                 to={portalHref(item.view)}
               >
-                <Icon className={cn("h-4 w-4", active && "text-[#f7b955]")} />
+                <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -3930,7 +3931,7 @@ export function ClientCardPage() {
                       className={cn(
                         "rounded-[24px] border p-4 text-left transition duration-200",
                         dayStatusClasses(slotInfo.status),
-                        selectedSlot === slot && "shadow-[0_0_0_1px_rgba(247,185,85,0.45)]",
+                        selectedSlot === slot && "shadow-[0_0_0_1px_rgba(232,201,138,0.45)]",
                       )}
                       key={slot}
                       onClick={() => selectDaySlot(slot)}
@@ -4020,7 +4021,7 @@ export function ClientCardPage() {
                             className={cn(
                               "rounded-[20px] border px-4 py-4 text-left transition duration-200",
                               activeVehicleId === vehicle.id
-                                ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                                 : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                             )}
                             key={vehicle.id}
@@ -4065,7 +4066,7 @@ export function ClientCardPage() {
                           className={cn(
                             "rounded-[22px] border px-4 py-4 text-left transition duration-200",
                             appointmentLocation === option.value
-                              ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                              ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                               : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                           )}
                           key={option.value}
@@ -4075,7 +4076,7 @@ export function ClientCardPage() {
                           <div className="flex items-center justify-between">
                             <span className="text-base font-semibold text-white">{option.label}</span>
                             {appointmentLocation === option.value && (
-                              <CheckCircle2 className="h-4 w-4 text-[#f7b955]" />
+                              <CheckCircle2 className="h-4 w-4 text-[#e8c98a]" />
                             )}
                           </div>
                           <p className="mt-2 text-sm leading-6 text-white/60">{option.copy}</p>
@@ -4099,7 +4100,7 @@ export function ClientCardPage() {
                             className={cn(
                               "rounded-[22px] border px-4 py-4 text-left transition duration-200",
                               serviceLevel === option.value
-                                ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                                 : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                             )}
                             key={option.value}
@@ -4270,7 +4271,7 @@ export function ClientCardPage() {
                           className={cn(
                             "rounded-[20px] border px-4 py-3 text-sm font-semibold transition duration-200",
                             appointmentLocation === option.value
-                              ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                              ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                               : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                           )}
                           key={option.value}
@@ -4423,7 +4424,7 @@ export function ClientCardPage() {
             </div>
 
             {clientData.clientType !== "pro" && (
-              <div className="mt-6 rounded-[26px] border border-[#f7b955]/25 bg-[#f7b955]/10 p-5">
+              <div className="mt-6 rounded-[26px] border border-[#e8c98a]/25 bg-[#e8c98a]/10 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-[#ffe8a8]">
@@ -4548,7 +4549,7 @@ export function ClientCardPage() {
               <section className="space-y-4">
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
                       <Clock3 className="h-5 w-5" />
                     </div>
                     <div>
@@ -4592,7 +4593,7 @@ export function ClientCardPage() {
                       </p>
                     </div>
                     {appointmentPhotosLoading && (
-                      <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                      <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                     )}
                   </div>
 
@@ -4638,7 +4639,7 @@ export function ClientCardPage() {
 
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#f7b955]">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
                       <Star className="h-5 w-5" />
                     </div>
                     <div>
@@ -4669,7 +4670,7 @@ export function ClientCardPage() {
                           <Star
                             className={cn(
                               "h-5 w-5",
-                              active ? "fill-[#f7b955] text-[#f7b955]" : "text-white/20",
+                              active ? "fill-[#e8c98a] text-[#e8c98a]" : "text-white/20",
                             )}
                           />
                         </button>
@@ -4844,7 +4845,7 @@ export function ClientCardPage() {
                       : "border-amber-300/25 bg-amber-300/10",
                     termsPanelAttention &&
                       !termsAccepted &&
-                      "bb-attention-ring bb-attention-nudge border-[#f7b955]/60 bg-[#f7b955]/12",
+                      "bb-attention-ring bb-attention-nudge border-[#e8c98a]/60 bg-[#e8c98a]/12",
                   )}
                 >
                   <p className="text-sm font-semibold text-white">
@@ -4895,12 +4896,12 @@ export function ClientCardPage() {
                     className={cn(
                       "flex min-w-[280px] flex-1 items-start gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm text-white/72 transition duration-200",
                       termsCheckboxAttention &&
-                        "bb-attention-ring bb-attention-nudge border-[#f7b955]/55 bg-[#f7b955]/10 text-white",
+                        "bb-attention-ring bb-attention-nudge border-[#e8c98a]/55 bg-[#e8c98a]/10 text-white",
                     )}
                   >
                     <input
                       checked={termsChecked}
-                      className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-[#f7b955] accent-[#f7b955]"
+                      className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-[#e8c98a] accent-[#e8c98a]"
                       onChange={(event) => setTermsChecked(event.target.checked)}
                       type="checkbox"
                     />
@@ -5016,7 +5017,7 @@ export function ClientCardPage() {
                     className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4"
                     key={perk.title}
                   >
-                    <div className="shrink-0 rounded-xl border border-[#f7b955]/50 bg-[#f7b955]/18 p-2 text-[#ffe8a8]">
+                    <div className="shrink-0 rounded-xl border border-[#e8c98a]/50 bg-[#e8c98a]/18 p-2 text-[#ffe8a8]">
                       <PerkIcon className="h-4 w-4" />
                     </div>
                     <div>

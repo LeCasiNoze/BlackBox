@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,33 +6,59 @@
 
 :root {
   color-scheme: dark;
-  --bb-bg: #04060a;
-  --bb-bg-deep: #080b12;
-  --bb-surface: rgba(13, 16, 24, 0.64);
-  --bb-surface-2: rgba(17, 21, 30, 0.78);
-  --bb-surface-strong: rgba(16, 19, 28, 0.9);
-  --bb-border: rgba(255, 255, 255, 0.09);
-  --bb-border-strong: rgba(255, 255, 255, 0.16);
-  --bb-copy: #eef2fb;
-  --bb-muted: #99a6bd;
-  --bb-accent: #f7b955;
+  --bb-bg: #14110d;
+  --bb-bg-deep: #0c0a07;
+  --bb-surface: rgba(32, 27, 20, 0.6);
+  --bb-surface-2: rgba(40, 34, 25, 0.74);
+  --bb-surface-strong: rgba(26, 21, 15, 0.86);
+  --bb-border: rgba(247, 235, 210, 0.1);
+  --bb-border-strong: rgba(232, 201, 138, 0.22);
+  --bb-copy: #f4ede0;
+  --bb-muted: #b3a48d;
+  --bb-accent: #e8c98a;
   --bb-accent-soft: #ffd87a;
-  --bb-accent-strong: #ff7a18;
+  --bb-accent-strong: #d99a4e;
   --bb-steel: #4cc6ff;
   --bb-steel-strong: #1f8fd6;
   --bb-success: #43d79d;
   --bb-danger: #ff7d89;
-  --bb-ring-gold: rgba(247, 185, 85, 0.55);
+  --bb-ring-gold: rgba(232, 201, 138, 0.55);
 }
 
 html {
   min-height: 100%;
   background:
-    radial-gradient(900px circle at 12% -5%, rgba(247, 185, 85, 0.16), transparent 45%),
-    radial-gradient(820px circle at 92% 8%, rgba(76, 198, 255, 0.13), transparent 46%),
-    radial-gradient(1000px circle at 50% 118%, rgba(255, 122, 24, 0.1), transparent 50%),
-    linear-gradient(180deg, #05070d 0%, #04060a 45%, #070a11 100%);
+    linear-gradient(180deg, #17130d 0%, #100c08 48%, #1a150e 100%);
   background-attachment: fixed;
+}
+
+/* Aurore chaude animée en fond, derrière tout le contenu. */
+html::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 42% at 14% 8%, rgba(232, 201, 138, 0.22), transparent 70%),
+    radial-gradient(34% 40% at 88% 12%, rgba(217, 154, 78, 0.16), transparent 70%),
+    radial-gradient(46% 48% at 50% 116%, rgba(232, 201, 138, 0.12), transparent 72%),
+    radial-gradient(30% 36% at 78% 82%, rgba(76, 198, 255, 0.08), transparent 70%);
+  filter: blur(36px) saturate(118%);
+  animation: bb-aurora 26s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes bb-aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(1.5%, -2.5%, 0) scale(1.1);
+    opacity: 1;
+  }
 }
 
 body {
@@ -40,9 +66,11 @@ body {
   min-height: 100vh;
   color: var(--bb-copy);
   font-family:
+    "Plus Jakarta Sans",
     "Manrope",
     "Segoe UI",
     sans-serif;
+  letter-spacing: -0.006em;
   background: transparent;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -80,7 +108,7 @@ select {
 }
 
 ::selection {
-  background: rgba(247, 185, 85, 0.32);
+  background: rgba(232, 201, 138, 0.32);
   color: white;
 }
 
@@ -139,12 +167,71 @@ select {
     @apply rounded-2xl backdrop-blur-md;
   }
 
+  /* Cadre à bord dégradé champagne, posé en surcouche (ne touche pas le fond verre). */
+  .bb-gold-frame {
+    position: relative;
+  }
+
+  .bb-gold-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(232, 201, 138, 0.6),
+      rgba(232, 201, 138, 0) 42%,
+      rgba(217, 154, 78, 0.32)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Variante acier pour l'univers pro. */
+  .bb-steel-frame {
+    position: relative;
+  }
+
+  .bb-steel-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(76, 198, 255, 0.55),
+      rgba(76, 198, 255, 0) 42%,
+      rgba(31, 143, 214, 0.32)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+
   .bb-display {
     font-family:
-      "Syne",
+      "Plus Jakarta Sans",
+      "Manrope",
       "Segoe UI",
       sans-serif;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.022em;
   }
 
   .bb-eyebrow {
@@ -199,12 +286,12 @@ select {
     position: absolute;
     inset: 0 0 auto 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(247, 185, 85, 0.5), transparent);
+    background: linear-gradient(90deg, transparent, rgba(232, 201, 138, 0.5), transparent);
     opacity: 0.6;
   }
 
   .bb-input {
-    @apply w-full rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-white/35 focus:border-[#f7b955]/55 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#f7b955]/25;
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-white/35 focus:border-[#e8c98a]/55 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#e8c98a]/25;
   }
 
   .bb-textarea {
@@ -225,8 +312,8 @@ select {
     background:
       linear-gradient(135deg, #ffd680 2%, var(--bb-accent) 42%, var(--bb-accent-strong) 100%);
     box-shadow:
-      0 16px 36px -8px rgba(255, 122, 24, 0.5),
-      0 2px 8px rgba(255, 122, 24, 0.25),
+      0 16px 36px -8px rgba(217, 154, 78, 0.5),
+      0 2px 8px rgba(217, 154, 78, 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.45);
     color: #1a0f02;
     @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-bold transition duration-200 hover:-translate-y-0.5 hover:brightness-[1.06];
@@ -289,7 +376,7 @@ select {
 
   .bb-founder-hero {
     background:
-      radial-gradient(circle at top left, rgba(247, 185, 85, 0.2), transparent 26%),
+      radial-gradient(circle at top left, rgba(232, 201, 138, 0.2), transparent 26%),
       radial-gradient(circle at right 20%, rgba(76, 198, 255, 0.12), transparent 28%),
       linear-gradient(180deg, rgba(255, 224, 138, 0.07), rgba(255, 255, 255, 0.02)),
       var(--bb-surface-strong);
@@ -352,7 +439,7 @@ select {
     left: -2rem;
     width: 13rem;
     height: 13rem;
-    background: rgba(247, 185, 85, 0.2);
+    background: rgba(232, 201, 138, 0.2);
   }
 
   .bb-founder-orb-blue {
@@ -369,7 +456,7 @@ select {
     left: 34%;
     width: 11rem;
     height: 11rem;
-    background: rgba(255, 122, 24, 0.12);
+    background: rgba(217, 154, 78, 0.12);
     animation-delay: -6s;
   }
 
@@ -428,23 +515,23 @@ select {
 @keyframes bb-attention-ring {
   0% {
     box-shadow:
-      0 0 0 0 rgba(247, 185, 85, 0),
-      0 0 0 0 rgba(247, 185, 85, 0);
+      0 0 0 0 rgba(232, 201, 138, 0),
+      0 0 0 0 rgba(232, 201, 138, 0);
   }
   35% {
     box-shadow:
-      0 0 0 1px rgba(247, 185, 85, 0.9),
-      0 0 0 10px rgba(247, 185, 85, 0.16);
+      0 0 0 1px rgba(232, 201, 138, 0.9),
+      0 0 0 10px rgba(232, 201, 138, 0.16);
   }
   70% {
     box-shadow:
-      0 0 0 1px rgba(255, 122, 24, 0.75),
-      0 0 0 16px rgba(255, 122, 24, 0.08);
+      0 0 0 1px rgba(217, 154, 78, 0.75),
+      0 0 0 16px rgba(217, 154, 78, 0.08);
   }
   100% {
     box-shadow:
-      0 0 0 0 rgba(255, 122, 24, 0),
-      0 0 0 0 rgba(255, 122, 24, 0);
+      0 0 0 0 rgba(217, 154, 78, 0),
+      0 0 0 0 rgba(217, 154, 78, 0);
   }
 }
 

@@ -107,17 +107,17 @@ export function LandingPage() {
       </div>
 
       <main className="bb-content space-y-6 md:space-y-8">
-        <section className="bb-surface-strong relative overflow-hidden p-6 md:p-8 xl:p-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(247,185,85,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(44,162,255,0.12),transparent_28%)]" />
+        <section className="bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8 xl:p-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,201,138,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(44,162,255,0.12),transparent_28%)]" />
           <div className="relative z-10 grid gap-10 xl:grid-cols-[1fr_1.05fr] xl:items-center">
             <div className="space-y-7">
               <div className="bb-rise flex flex-wrap items-center gap-2.5">
-                <div className="bb-pill border-[#f7b955]/30 bg-[#f7b955]/10 text-[#ffe8a8]">
+                <div className="bb-pill border-[#e8c98a]/30 bg-[#e8c98a]/10 text-[#ffe8a8]">
                   <Sparkles className="h-3.5 w-3.5" />
                   Bryan Cars Detailing
                 </div>
                 <div className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
-                  <Star className="h-3.5 w-3.5 fill-[#f7b955] text-[#f7b955]" />
+                  <Star className="h-3.5 w-3.5 fill-[#e8c98a] text-[#e8c98a]" />
                   4,9 / 5 sur Google
                 </div>
               </div>
@@ -144,7 +144,7 @@ export function LandingPage() {
                   const FeatureIcon = Icon as typeof CalendarCheck;
                   return (
                     <li className="bb-hairline bb-hover-lift flex items-start gap-3 p-3.5" key={label as string}>
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f7b955]/12 text-[#f7b955]">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e8c98a]/12 text-[#e8c98a]">
                         <FeatureIcon className="h-4 w-4" />
                       </span>
                       <span>
@@ -158,7 +158,7 @@ export function LandingPage() {
             </div>
 
             <article className="bb-surface bb-rise bb-rise-2 relative overflow-hidden p-5 md:p-6">
-              <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[#f7b955]/10 blur-3xl" />
+              <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[#e8c98a]/10 blur-3xl" />
               <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div>
                   <p className="bb-eyebrow">
@@ -271,7 +271,7 @@ export function LandingPage() {
                 className={`bb-surface bb-hover-lift bb-rise relative overflow-hidden p-5 bb-rise-${index + 2}`}
                 key={label as string}
               >
-                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#f7b955]/12 text-[#f7b955]">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#e8c98a]/12 text-[#e8c98a]">
                   <CardIcon className="h-5 w-5" />
                 </span>
                 <p className="mt-4 text-xs uppercase tracking-[0.16em] text-white/40">{label as string}</p>

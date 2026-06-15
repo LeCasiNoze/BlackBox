@@ -1695,7 +1695,7 @@ export function AdminDashboardPage() {
                 const tints: Record<string, string> = {
                   amber: "border-amber-300/25 bg-amber-300/10 text-amber-200",
                   sky: "border-sky-300/25 bg-sky-300/10 text-sky-200",
-                  gold: "border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]",
+                  gold: "border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]",
                   emerald: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
                 };
                 return (
@@ -1767,7 +1767,7 @@ export function AdminDashboardPage() {
                 key={tile.title}
                 to={tile.to}
               >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#f7b955]/20 bg-[#f7b955]/[0.08] text-[#f7b955]">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#e8c98a]/20 bg-[#e8c98a]/[0.08] text-[#e8c98a]">
                   <TileIcon className="h-5 w-5" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1777,7 +1777,7 @@ export function AdminDashboardPage() {
                   </span>
                   <span className="mt-1 block text-sm leading-6 text-white/55">{tile.copy}</span>
                 </span>
-                <ArrowRight className="h-5 w-5 shrink-0 text-white/35 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
+                <ArrowRight className="h-5 w-5 shrink-0 text-white/35 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
               </Link>
             );
           })}
@@ -1843,7 +1843,7 @@ export function AdminDashboardPage() {
 
                 {globalAppointmentsLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                     Chargement des rendez-vous...
                   </div>
                 ) : boardTab === "agenda" && pendingRequests.length > 0 ? (
@@ -1876,7 +1876,7 @@ export function AdminDashboardPage() {
                             className={cn(
                               "bb-hover-lift group w-full rounded-[24px] border p-4 text-left transition duration-200",
                               active
-                                ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                                 : "border-white/10 bg-black/20 hover:border-amber-300/20",
                               `bb-rise bb-rise-${Math.min(idx + 2, 4)}`,
                             )}
@@ -1919,7 +1919,7 @@ export function AdminDashboardPage() {
                                   {appointment.vehicleModel || "Vehicule non renseigne"}
                                 </p>
                               </div>
-                              <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
+                              <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
                             </div>
                           </button>
                         );
@@ -1988,7 +1988,7 @@ export function AdminDashboardPage() {
                         className={cn(
                           "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
                           livraisonFilter === option.key
-                            ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                            ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                             : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
                         )}
                         key={option.key}
@@ -2005,7 +2005,7 @@ export function AdminDashboardPage() {
               <div className="mt-6 space-y-6">
                 {globalAppointmentsLoading ? (
                   <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                     Chargement de l'agenda...
                   </div>
                 ) : agendaSections.length === 0 ? (
@@ -2056,9 +2056,9 @@ export function AdminDashboardPage() {
                               className={cn(
                                 "bb-hover-lift group w-full rounded-[22px] border p-4 text-left transition duration-200",
                                 active
-                                  ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                                  ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                                   : "border-white/10 bg-black/20 hover:border-white/20",
-                                highlighted && "ring-1 ring-[#f7b955]/40",
+                                highlighted && "ring-1 ring-[#e8c98a]/40",
                                 `bb-rise bb-rise-${Math.min(idx + 2, 4)}`,
                               )}
                               key={appointment.id}
@@ -2110,7 +2110,7 @@ export function AdminDashboardPage() {
                                     </p>
                                   )}
                                 </div>
-                                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
+                                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
                               </div>
                             </button>
                           );
@@ -2233,10 +2233,10 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Demande client */}
-                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/18 bg-[linear-gradient(180deg,rgba(247,185,85,0.08),rgba(255,255,255,0.02))] p-5">
+                  <div className="mt-4 rounded-[28px] border border-[#e8c98a]/18 bg-[linear-gradient(180deg,rgba(232,201,138,0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                        <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]">
                           <Inbox className="h-4 w-4" />
                         </span>
                         <div>
@@ -2264,7 +2264,7 @@ export function AdminDashboardPage() {
                         <div className="flex items-center justify-between gap-3">
                           <p className="bb-eyebrow">Photos envoyees a la demande</p>
                           {photosLoading && (
-                            <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                            <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                           )}
                         </div>
 
@@ -2309,7 +2309,7 @@ export function AdminDashboardPage() {
                   </div>
 
                   {selectedAppointment.status === "requested" && (
-                  <div className="mt-4 rounded-[28px] border border-[#f7b955]/20 bg-[linear-gradient(180deg,rgba(247,185,85,0.08),rgba(255,255,255,0.02))] p-5">
+                  <div className="mt-4 rounded-[28px] border border-[#e8c98a]/20 bg-[linear-gradient(180deg,rgba(232,201,138,0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <p className="bb-eyebrow">Tarif a valider</p>
@@ -2350,7 +2350,7 @@ export function AdminDashboardPage() {
                           className={cn(
                             "rounded-[22px] border p-4 text-left transition duration-200",
                             cleanlinessDrafts[selectedAppointment.id] === option.value
-                              ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                              ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                               : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                           )}
                           key={option.value}
@@ -2534,7 +2534,7 @@ export function AdminDashboardPage() {
                   {/* Photos */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
-                      <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                      <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]">
                         <Camera className="h-4 w-4" />
                       </span>
                       <div className="flex-1">
@@ -2544,14 +2544,14 @@ export function AdminDashboardPage() {
                         </p>
                       </div>
                       {photosLoading && (
-                        <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                        <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                       )}
                     </div>
 
                     <div className="mt-4 grid gap-3">
                       <label className="rounded-[22px] border border-dashed border-white/15 bg-white/[0.03] p-4 text-sm text-white/65">
                         <div className="flex items-center gap-2">
-                          <Camera className="h-4 w-4 text-[#f7b955]" />
+                          <Camera className="h-4 w-4 text-[#e8c98a]" />
                           {photoFile ? photoFile.name : "Choisir une photo"}
                         </div>
                         <input
@@ -2639,7 +2639,7 @@ export function AdminDashboardPage() {
 
               {clientLoading || isNavigatingSelection ? (
                 <div className="mt-6 bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                   Chargement du contexte client...
                 </div>
               ) : activeClientContext ? (
@@ -2693,7 +2693,7 @@ export function AdminDashboardPage() {
                             className={cn(
                               "block w-full rounded-[22px] border p-4 text-left transition duration-200",
                               appointment.id === selectedAppointmentId
-                                ? "border-[#f7b955]/45 bg-[#f7b955]/10"
+                                ? "border-[#e8c98a]/45 bg-[#e8c98a]/10"
                                 : "border-white/10 bg-black/20 hover:bg-white/[0.05]",
                             )}
                             key={appointment.id}
@@ -2754,7 +2754,7 @@ export function AdminDashboardPage() {
         {/* ── Metriques rapides ── */}
         <section className="hidden gap-3 md:grid md:grid-cols-3">
           <article className="bb-metric bb-rise">
-            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]">
               <Users className="h-5 w-5" />
             </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
@@ -2802,7 +2802,7 @@ export function AdminDashboardPage() {
                 </h2>
               </div>
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                <Users className="h-3.5 w-3.5 text-[#f7b955]" />
+                <Users className="h-3.5 w-3.5 text-[#e8c98a]" />
                 {filteredClients.length}
               </div>
             </div>
@@ -2837,7 +2837,7 @@ export function AdminDashboardPage() {
                     className={cn(
                       "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
                       clientTypeFilter === filter.key
-                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                        ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                         : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
                     )}
                     key={filter.key}
@@ -2862,7 +2862,7 @@ export function AdminDashboardPage() {
             <div className="mt-5 space-y-3 xl:max-h-[920px] xl:overflow-y-auto xl:pr-1">
               {clientsLoading ? (
                 <div className="bb-surface flex items-center gap-3 px-4 py-3 text-sm text-white/65">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                   Chargement des clients...
                 </div>
               ) : clientsError ? (
@@ -2903,7 +2903,7 @@ export function AdminDashboardPage() {
                       className={cn(
                         "bb-hover-lift group w-full rounded-[26px] border p-4 text-left transition duration-200",
                         active
-                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                          ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                           : "border-white/10 bg-white/[0.03] hover:border-white/20",
                       )}
                       key={client.id}
@@ -2915,7 +2915,7 @@ export function AdminDashboardPage() {
                         <span className={cn(
                           "inline-grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-[13px] font-bold",
                           active
-                            ? "border-[#f7b955]/35 bg-[#f7b955]/15 text-[#ffe8a8]"
+                            ? "border-[#e8c98a]/35 bg-[#e8c98a]/15 text-[#ffe8a8]"
                             : "border-white/12 bg-white/[0.06] text-white/60",
                         )}>
                           {initials}
@@ -2926,7 +2926,7 @@ export function AdminDashboardPage() {
                               {fullClientName(client)}
                             </p>
                             {client.isFounder && (
-                              <span className="bb-pill border-[#f7b955]/35 bg-[#f7b955]/10 text-[#ffe8a8]">
+                              <span className="bb-pill border-[#e8c98a]/35 bg-[#e8c98a]/10 text-[#ffe8a8]">
                                 <Crown className="h-3 w-3" />
                               </span>
                             )}
@@ -2948,12 +2948,12 @@ export function AdminDashboardPage() {
                             )}
                           </div>
                         </div>
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
+                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
                       </div>
 
                       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#f7b955] to-[#ff7a18]"
+                          className="h-full rounded-full bg-gradient-to-r from-[#e8c98a] to-[#d99a4e]"
                           style={{ width: `${creditsRatio * 100}%` }}
                         />
                       </div>
@@ -2996,7 +2996,7 @@ export function AdminDashboardPage() {
 
               {clientLoading || isNavigatingSelection ? (
                 <div className="mt-6 bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/65">
-                  <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
                   Chargement de la fiche client...
                 </div>
               ) : managedClient ? (
@@ -3008,7 +3008,7 @@ export function AdminDashboardPage() {
                       <div className={cn(
                         "inline-grid h-14 w-14 shrink-0 place-items-center rounded-2xl border text-lg font-bold",
                         managedClient.isFounder
-                          ? "border-[#f7b955]/35 bg-[#f7b955]/[0.12] text-[#ffe8a8]"
+                          ? "border-[#e8c98a]/35 bg-[#e8c98a]/[0.12] text-[#ffe8a8]"
                           : "border-white/12 bg-white/[0.06] text-white/60",
                       )}>
                         {([managedClient.firstName, managedClient.lastName]
@@ -3027,7 +3027,7 @@ export function AdminDashboardPage() {
                                 : managedClient.cardCode || "Sans code"}
                           </div>
                           {managedClient.isFounder && (
-                            <div className="bb-pill border-[#f7b955]/35 bg-[#f7b955]/10 text-[#ffe8a8]">
+                            <div className="bb-pill border-[#e8c98a]/35 bg-[#e8c98a]/10 text-[#ffe8a8]">
                               <Crown className="h-3.5 w-3.5" />
                               Fondateur
                             </div>
@@ -3254,7 +3254,7 @@ export function AdminDashboardPage() {
                             Ajuster le solde ou suivre les demandes
                           </p>
                         </div>
-                        <div className="bb-pill border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                        <div className="bb-pill border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]">
                           {managedClient.bcPoints} points
                         </div>
                       </div>
@@ -3383,7 +3383,7 @@ export function AdminDashboardPage() {
                                 >
                                   {appointmentStatusLabel(appointment.status)}
                                 </div>
-                                <ArrowRight className="h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-[#f7b955]" />
+                                <ArrowRight className="h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
                               </div>
                             </Link>
                           );
@@ -3395,7 +3395,7 @@ export function AdminDashboardPage() {
                   {/* Notes internes */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-start gap-3">
-                      <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#f7b955]/25 bg-[#f7b955]/10 text-[#ffe8a8]">
+                      <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]">
                         <PencilLine className="h-4 w-4" />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -3443,9 +3443,9 @@ export function AdminDashboardPage() {
   return (
     <div className="bb-shell pb-28 md:pb-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-6rem] top-24 h-72 w-72 rounded-full bg-[#f7b955]/10 blur-3xl" />
+        <div className="absolute left-[-6rem] top-24 h-72 w-72 rounded-full bg-[#e8c98a]/10 blur-3xl" />
         <div className="absolute right-[-7rem] top-12 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" />
-        <div className="absolute bottom-0 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#ff7a18]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#d99a4e]/10 blur-3xl" />
       </div>
 
       <main className="bb-content space-y-6 md:space-y-8">
@@ -3453,7 +3453,7 @@ export function AdminDashboardPage() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-wrap items-center gap-3">
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                <Sparkles className="h-3.5 w-3.5 text-[#f7b955]" />
+                <Sparkles className="h-3.5 w-3.5 text-[#e8c98a]" />
                 Admin cockpit
               </div>
               <InstallAppButton
@@ -3506,13 +3506,13 @@ export function AdminDashboardPage() {
                     className={cn(
                       "flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[22px] border px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition duration-200",
                       active
-                        ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                        ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                         : "border-white/10 bg-white/[0.03] text-white/60",
                     )}
                     key={item.key}
                     to={adminSectionHrefs[item.key]}
                   >
-                    <Icon className={cn("h-4 w-4", active && "text-[#f7b955]")} />
+                    <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
                     <span>{item.shortLabel}</span>
                   </Link>
                 );
@@ -3524,7 +3524,7 @@ export function AdminDashboardPage() {
                 className={cn(
                   "rounded-[28px] border p-5 transition duration-200",
                   adminSection === "home"
-                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
                 to={adminSectionHrefs.home}
@@ -3540,7 +3540,7 @@ export function AdminDashboardPage() {
                 className={cn(
                   "rounded-[28px] border p-5 transition duration-200",
                   adminSection === "appointments"
-                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
                 to={adminSectionHrefs.appointments}
@@ -3556,7 +3556,7 @@ export function AdminDashboardPage() {
                 className={cn(
                   "rounded-[28px] border p-5 transition duration-200",
                   adminSection === "delivery"
-                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
                 to={adminSectionHrefs.delivery}
@@ -3572,7 +3572,7 @@ export function AdminDashboardPage() {
                 className={cn(
                   "rounded-[28px] border p-5 transition duration-200",
                   adminSection === "clients"
-                    ? "border-[#f7b955]/45 bg-[#f7b955]/10 shadow-[0_18px_48px_rgba(247,185,85,0.12)]"
+                    ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                     : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
                 )}
                 to={adminSectionHrefs.clients}
@@ -3595,7 +3595,7 @@ export function AdminDashboardPage() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-4 rounded-[28px] border border-white/12 bg-[#090d12]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
+        <div className="mx-auto grid max-w-xl grid-cols-4 rounded-[28px] border border-white/12 bg-[#14110d]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
           {ADMIN_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = adminSection === item.key;
@@ -3604,13 +3604,13 @@ export function AdminDashboardPage() {
                 className={cn(
                   "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
                   active
-                    ? "bg-gradient-to-b from-[#f7b955]/18 to-[#ff7a18]/12 text-white shadow-[0_10px_24px_rgba(247,185,85,0.12)]"
+                    ? "bg-gradient-to-b from-[#e8c98a]/18 to-[#d99a4e]/12 text-white shadow-[0_10px_24px_rgba(232,201,138,0.12)]"
                     : "text-white/54",
                 )}
                 key={item.key}
                 to={adminSectionHrefs[item.key]}
               >
-                <Icon className={cn("h-4 w-4", active && "text-[#f7b955]")} />
+                <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
                 <span>{item.shortLabel}</span>
               </Link>
             );
@@ -3711,7 +3711,7 @@ export function AdminDashboardPage() {
                       className={cn(
                         "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
                         profileDraft.clientType === option.value
-                          ? "border-[#f7b955]/45 bg-[#f7b955]/10 text-white"
+                          ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
                           : "border-white/10 bg-black/20 text-white/60 hover:bg-white/[0.04]",
                       )}
                       key={option.value}
