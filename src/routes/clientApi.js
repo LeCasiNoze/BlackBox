@@ -631,6 +631,8 @@ router.get("/:idOrSlug", (req, res) => {
     };
   }
 
+  const foundersCount = countFounders();
+
   return res.json({
     ok: true,
     client: mapClientPayload(client),
@@ -641,6 +643,8 @@ router.get("/:idOrSlug", (req, res) => {
     paymentsReady: isSumupTopupReady(),
     pendingCases: client.is_founder ? listPendingCaseOpenings(client.id) : [],
     event: eventPayload,
+    founderCap: FOUNDER_CAP,
+    foundersRemaining: Math.max(0, FOUNDER_CAP - foundersCount),
     month,
   });
 });

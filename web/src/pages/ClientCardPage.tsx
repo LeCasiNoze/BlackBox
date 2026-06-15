@@ -270,6 +270,8 @@ type ApiResponse = {
   month: ApiMonth;
   pendingCases: PendingCase[];
   event: ApiEvent | null;
+  founderCap?: number;
+  foundersRemaining?: number;
 };
 
 type ModalMode = "book" | "manage" | "past";
@@ -3837,6 +3839,17 @@ export function ClientCardPage() {
                   <p className="mt-1 text-sm leading-6 text-white/62">
                     Carte premium, BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
                   </p>
+                  {typeof data?.foundersRemaining === "number" && (
+                    <span className="mt-1.5 inline-block text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+                      {data.foundersRemaining > 0
+                        ? `${data.foundersRemaining} place${
+                            data.foundersRemaining > 1 ? "s" : ""
+                          } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${
+                            data.founderCap ?? 50
+                          }`
+                        : "Complet — plus de places"}
+                    </span>
+                  )}
                 </div>
               </div>
               <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
@@ -6215,7 +6228,13 @@ export function ClientCardPage() {
                   Le statut fondateur debloque une carte premium et des avantages reserves.
                   Acces a vie pour <span className="font-semibold text-accentSoft">29,99 €</span>.
                   <span className="mt-1 block text-xs uppercase tracking-[0.14em] text-accent">
-                    Places limitees a 50 fondateurs
+                    {typeof data?.foundersRemaining === "number"
+                      ? data.foundersRemaining > 0
+                        ? `Plus que ${data.foundersRemaining} place${
+                            data.foundersRemaining > 1 ? "s" : ""
+                          } sur ${data.founderCap ?? 50}`
+                        : "Complet — plus de places disponibles"
+                      : `Places limitees a ${data?.founderCap ?? 50} fondateurs`}
                   </span>
                 </p>
               </div>
@@ -6251,14 +6270,18 @@ export function ClientCardPage() {
             <div className="mt-6">
               <button
                 className="bb-button-brand w-full justify-center"
-                disabled={founderCheckoutBusy}
+                disabled={founderCheckoutBusy || data?.foundersRemaining === 0}
                 onClick={() => {
                   void startFounderCheckout();
                 }}
                 type="button"
               >
                 <Crown className="mr-2 h-4 w-4" />
-                {founderCheckoutBusy ? "Ouverture du paiement..." : "Devenir fondateur - 29,99 €"}
+                {data?.foundersRemaining === 0
+                  ? "Complet - plus de places"
+                  : founderCheckoutBusy
+                    ? "Ouverture du paiement..."
+                    : "Devenir fondateur - 29,99 €"}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-white/45">
                 Paiement securise SumUp. Le statut est active des la confirmation du paiement.
