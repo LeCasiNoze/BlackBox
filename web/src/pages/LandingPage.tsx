@@ -105,7 +105,10 @@ export function LandingPage() {
         <section className="bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8 xl:p-10">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,201,138,0.18),transparent_34%),radial-gradient(circle_at_right,rgba(44,162,255,0.12),transparent_28%)]" />
           <div className="relative z-10 mx-auto w-full max-w-2xl">
-            <article className="bb-surface bb-rise relative overflow-hidden p-5 md:p-6">
+            {/* Pas de backdrop-blur ici: cette carte est deja DANS une surface
+                en verre. Imbriquer deux backdrop-filter fait disparaitre le
+                contenu sur iOS Safari apres un changement de layout. */}
+            <article className="bb-rise relative overflow-hidden rounded-[26px] border border-white/10 bg-[#16120c]/90 p-5 shadow-[0_30px_70px_-32px_rgba(0,0,0,0.85)] md:p-6">
               <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[#e8c98a]/10 blur-3xl" />
               <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div>
