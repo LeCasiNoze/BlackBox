@@ -695,6 +695,65 @@ function CaseOpeningModal({
   );
 }
 
+// --- URL cachee de demonstration: rejoue l'animation d'ouverture de box ---
+const DEMO_CASE_TIERS: CaseTier[] = [
+  { key: "commun", label: "Commun", proba: 0.6, bc: 20 },
+  { key: "peu_commun", label: "Peu commun", proba: 0.25, bc: 50 },
+  { key: "rare", label: "Rare", proba: 0.1, bc: 120 },
+  { key: "epique", label: "Epique", proba: 0.04, bc: 350 },
+  { key: "legendaire", label: "Legendaire", proba: 0.01, bc: 1000 },
+];
+
+function rollDemoCaseResult(): CaseOpenResult {
+  let rand = Math.random();
+  let picked = DEMO_CASE_TIERS[0];
+  for (const tier of DEMO_CASE_TIERS) {
+    if (rand < tier.proba) {
+      picked = tier;
+      break;
+    }
+    rand -= tier.proba;
+  }
+  return {
+    reward: { tier: picked.key, label: picked.label, bc: picked.bc },
+    tiers: DEMO_CASE_TIERS,
+  };
+}
+
+export function CaseDemoPage() {
+  const [round, setRound] = React.useState(0);
+  const [result, setResult] = React.useState<CaseOpenResult | null>(null);
+  const reelRef = React.useRef<HTMLDivElement | null>(null);
+
+  const demoCase: PendingCase = {
+    id: -1,
+    credits: 1,
+    status: "pending",
+    rewardTier: null,
+    rewardBc: null,
+    createdAt: 0,
+    openedAt: null,
+  };
+
+  // Simule la reponse serveur puis lance l'animation; "Fermer/Genial" rejoue.
+  React.useEffect(() => {
+    setResult(null);
+    const timeout = window.setTimeout(() => setResult(rollDemoCaseResult()), 500);
+    return () => window.clearTimeout(timeout);
+  }, [round]);
+
+  return (
+    <CaseOpeningModal
+      caseItem={demoCase}
+      key={round}
+      onClose={() => setRound((value) => value + 1)}
+      onSpinEnd={() => undefined}
+      reelRef={reelRef}
+      result={result}
+    />
+  );
+}
+
 function useQuery() {
   const { search } = useLocation();
   return React.useMemo(() => new URLSearchParams(search), [search]);
