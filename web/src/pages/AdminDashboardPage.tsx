@@ -44,7 +44,6 @@ import {
   cn,
   formatDateFR,
   formatTimeHHMM,
-  formatUnixDateFR,
   formatUnixDateTimeFR,
   locationClasses,
   locationLabel,
@@ -352,25 +351,6 @@ function fullClientName(client: AdminClient | null) {
 function previewText(value: string | null, fallback: string) {
   if (!value) return fallback;
   return value.length > 140 ? `${value.slice(0, 140)}...` : value;
-}
-
-function formulaHasExpired(timestamp: number | null | undefined) {
-  if (!timestamp) return false;
-
-  const date = new Date(timestamp * 1000);
-  if (Number.isNaN(date.getTime())) return false;
-
-  const endOfDay = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    23,
-    59,
-    59,
-    999,
-  );
-
-  return Date.now() > endOfDay.getTime();
 }
 
 function sortAppointments(
@@ -1406,7 +1386,7 @@ export function AdminDashboardPage() {
     const client = selectedClient?.client;
     if (!client) return;
 
-    setFormulaDraftTotal(client.formulaTotal);
+    setFormulaDraftTotal(client.formulaRemaining);
     setFormulaDraftRemaining(client.formulaRemaining);
     setFormulaEditOpen(true);
   }
@@ -1453,12 +1433,11 @@ export function AdminDashboardPage() {
       payload.append("city", profileDraft.city);
       payload.append("vehicleModel", profileDraft.vehicleModel);
       payload.append("vehiclePlate", profileDraft.vehiclePlate);
+      // Credit unique: total et restant suivent la meme valeur.
+      const creditsValue = String(Number(profileDraft.formulaRemaining || 0));
       payload.append("formulaName", profileDraft.formulaName);
-      payload.append("formulaTotal", String(Number(profileDraft.formulaTotal || 0)));
-      payload.append(
-        "formulaRemaining",
-        String(Number(profileDraft.formulaRemaining || 0)),
-      );
+      payload.append("formulaTotal", creditsValue);
+      payload.append("formulaRemaining", creditsValue);
       payload.append("formulaPurchasedAt", profileDraft.formulaPurchasedAt);
       payload.append("formulaExpiresAt", profileDraft.formulaExpiresAt);
       payload.append("notes", profileDraft.notes);
@@ -1637,7 +1616,6 @@ export function AdminDashboardPage() {
     ? appointmentWorkflowActions(selectedAppointment.status)
     : null;
   const managedClient = selectedClientData;
-  const managedClientFormulaExpired = formulaHasExpired(managedClient?.formulaExpiresAt);
   const managedClientTermsAccepted = !!managedClient?.termsAcceptedAt;
   const sectionTitle =
     adminSection === "appointments"
@@ -3151,44 +3129,23 @@ export function AdminDashboardPage() {
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="bb-eyebrow">Formule & validite</p>
-                          <p className="mt-2 text-lg font-semibold text-white">
-                            {managedClient.formulaName || "Formule libre"}
+                          <p className="bb-eyebrow">Credits</p>
+                          <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
+                            {managedClient.formulaRemaining}
                           </p>
                         </div>
-                        <div
-                          className={cn(
-                            "bb-pill",
-                            managedClientFormulaExpired
-                              ? "border-rose-400/35 bg-rose-300/10 text-rose-100"
-                              : "border-emerald-400/35 bg-emerald-300/10 text-emerald-100",
-                          )}
-                        >
-                          {managedClientFormulaExpired ? "Expiree" : "Active"}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Date d&apos;achat
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-white">
-                            {formatUnixDateFR(managedClient.formulaPurchasedAt)}
-                          </p>
-                        </div>
-                        <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                            Date d&apos;expiration
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-white">
-                            {formatUnixDateFR(managedClient.formulaExpiresAt)}
-                          </p>
-                        </div>
+                        <button className="bb-button-ghost" onClick={openFormulaEdit} type="button">
+                          <PencilLine className="mr-2 h-4 w-4" />
+                          Modifier
+                        </button>
                       </div>
 
                       <p className="mt-3 text-sm leading-6 text-white/55">
-                        Credits disponibles: {managedClient.formulaRemaining} / {managedClient.formulaTotal}
+                        Credits disponibles sur le compte
+                        {managedClient.isFounder
+                          ? ` · ${managedClient.bcPoints} BC'Coins`
+                          : ""}
+                        .
                       </p>
                     </div>
 
@@ -3710,85 +3667,47 @@ export function AdminDashboardPage() {
               </label>
               <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Type de client
+                  Type de compte
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[
-                    { value: "bbx" as const, label: "BBX" },
-                    { value: "data" as const, label: "Data" },
-                    { value: "pro" as const, label: "Pro" },
-                  ].map((option) => (
-                    <button
-                      className={cn(
-                        "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                        profileDraft.clientType === option.value
-                          ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
-                          : "border-white/10 bg-black/20 text-white/60 hover:bg-white/[0.04]",
-                      )}
-                      key={option.value}
-                      onClick={() =>
-                        setProfileDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                clientType: option.value,
-                                isFounder:
-                                  option.value === "bbx" ? current.isFounder : false,
-                              }
-                            : current,
-                        )
-                      }
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                    { value: "bbx" as const, label: "BBX", clientType: "bbx" as const, isFounder: false },
+                    { value: "founder" as const, label: "Fondateur", clientType: "bbx" as const, isFounder: true },
+                    { value: "pro" as const, label: "Pro", clientType: "pro" as const, isFounder: false },
+                  ].map((option) => {
+                    const selected =
+                      option.value === "founder"
+                        ? profileDraft.clientType === "bbx" && profileDraft.isFounder
+                        : option.value === "pro"
+                          ? profileDraft.clientType === "pro"
+                          : profileDraft.clientType === "bbx" && !profileDraft.isFounder;
+                    return (
+                      <button
+                        className={cn(
+                          "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                          selected
+                            ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white"
+                            : "border-white/10 bg-black/20 text-white/60 hover:bg-white/[0.04]",
+                        )}
+                        key={option.value}
+                        onClick={() =>
+                          setProfileDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  clientType: option.clientType,
+                                  isFounder: option.isFounder,
+                                }
+                              : current,
+                          )
+                        }
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <label className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
-                    <input
-                      checked={profileDraft.isFounder}
-                      disabled={profileDraft.clientType !== "bbx"}
-                      onChange={(event) =>
-                        setProfileDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                isFounder: event.target.checked,
-                              }
-                            : current,
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Compte fondateur</span>
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
-                    <input
-                      checked={profileDraft.sendWelcomeEmail}
-                      onChange={(event) =>
-                        setProfileDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                sendWelcomeEmail: event.target.checked,
-                              }
-                            : current,
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    <span>Envoyer le mail de bienvenue</span>
-                  </label>
-                </div>
-
-                {profileDraft.clientType === "data" && (
-                  <p className="mt-3 text-sm leading-6 text-white/55">
-                    Un client Data n'a pas de carte BBX publique. Il reste uniquement dans la base admin pour le suivi et la relance.
-                  </p>
-                )}
 
                 {((profileDraft.clientType === "bbx" && profileDraft.isFounder) || profileDraft.clientType === "pro") && (
                   <label className="mt-4 block space-y-2">
@@ -3866,72 +3785,25 @@ export function AdminDashboardPage() {
                   value={profileDraft.vehicleModel}
                 />
               </label>
-              <label className="space-y-2 md:col-span-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Formule
-                </span>
-                <input
-                  className="bb-input"
-                  onChange={(event) =>
-                    updateProfileDraft("formulaName", event.target.value)
-                  }
-                  value={profileDraft.formulaName}
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Total credits
-                </span>
-                <input
-                  className="bb-input"
-                  min={0}
-                  onChange={(event) =>
-                    updateProfileDraft("formulaTotal", event.target.value)
-                  }
-                  type="number"
-                  value={profileDraft.formulaTotal}
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Credits restants
-                </span>
-                <input
-                  className="bb-input"
-                  min={0}
-                  onChange={(event) =>
-                    updateProfileDraft("formulaRemaining", event.target.value)
-                  }
-                  type="number"
-                  value={profileDraft.formulaRemaining}
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Date d'achat
-                </span>
-                <input
-                  className="bb-input"
-                  onChange={(event) =>
-                    updateProfileDraft("formulaPurchasedAt", event.target.value)
-                  }
-                  type="date"
-                  value={profileDraft.formulaPurchasedAt}
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Date d'expiration
-                </span>
-                <input
-                  className="bb-input"
-                  onChange={(event) =>
-                    updateProfileDraft("formulaExpiresAt", event.target.value)
-                  }
-                  type="date"
-                  value={profileDraft.formulaExpiresAt}
-                />
-              </label>
+              {profileDraft.clientType !== "pro" && (
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                    Credits
+                  </span>
+                  <input
+                    className="bb-input"
+                    min={0}
+                    onChange={(event) =>
+                      updateProfileDraft("formulaRemaining", event.target.value)
+                    }
+                    type="number"
+                    value={profileDraft.formulaRemaining}
+                  />
+                  <p className="text-sm text-white/50">
+                    Nombre de credits disponibles sur le compte.
+                  </p>
+                </label>
+              )}
               {profileMode === "edit" && selectedClientData && (
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/40">
@@ -3993,7 +3865,7 @@ export function AdminDashboardPage() {
           <div className="bb-modal-panel bb-surface-strong w-full max-w-lg p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="bb-eyebrow">Formule sur mesure</p>
+                <p className="bb-eyebrow">Credits</p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   Ajuster {fullClientName(selectedClientData)}
                 </h3>
@@ -4008,30 +3880,19 @@ export function AdminDashboardPage() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2">
+            <div className="mt-6">
+              <label className="block space-y-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Credits max
+                  Credits du compte
                 </span>
                 <input
                   className="bb-input"
                   min={0}
-                  onChange={(event) => setFormulaDraftTotal(Number(event.target.value))}
-                  type="number"
-                  value={formulaDraftTotal ?? 0}
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Credits restants
-                </span>
-                <input
-                  className="bb-input"
-                  max={formulaDraftTotal ?? undefined}
-                  min={0}
-                  onChange={(event) =>
-                    setFormulaDraftRemaining(Number(event.target.value))
-                  }
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setFormulaDraftTotal(value);
+                    setFormulaDraftRemaining(value);
+                  }}
                   type="number"
                   value={formulaDraftRemaining ?? 0}
                 />
