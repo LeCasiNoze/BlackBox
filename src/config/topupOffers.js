@@ -135,8 +135,13 @@ function getTopupOfferForClient(client, offerKey) {
   );
 }
 
+// Plafond de securite sur l'achat de credits a l'unite (evite un montant
+// aberrant en cas de typo), assez haut pour couvrir un tarif eleve valide
+// par l'admin (ex: 30 credits a recharger pour accepter un tarif).
+const MAX_UNIT_TOPUP_QUANTITY = 99;
+
 function getUnitTopupOfferForClient(client, quantity = 1) {
-  const qty = Math.max(1, Math.min(20, Math.floor(Number(quantity) || 1)));
+  const qty = Math.max(1, Math.min(MAX_UNIT_TOPUP_QUANTITY, Math.floor(Number(quantity) || 1)));
   const unitOffer =
     listTopupOffersForClient(client).find((offer) => offer.credits === 1 && offer.applyMode === "add") ||
     null;

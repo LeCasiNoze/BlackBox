@@ -1964,6 +1964,16 @@ export function ClientCardPage() {
   const upcomingAppointment = React.useMemo(() => nextAppointment(appointments), [appointments]);
   const freeSlot = React.useMemo(() => nextFreeSlot(monthDays), [monthDays]);
 
+  // Rendez-vous en attente d'une action tarif du client (accepter / recharger).
+  const pricePendingAppointment = React.useMemo(
+    () =>
+      appointments.find(
+        (a) =>
+          a.priceStatus === "waiting_client_approval" || a.priceStatus === "waiting_payment",
+      ) ?? null,
+    [appointments],
+  );
+
   const sortedAppointments = React.useMemo(() => {
     const next = [...appointments];
     next.sort(
@@ -3549,9 +3559,43 @@ export function ClientCardPage() {
     );
   }
 
+  // Bandeau d'accueil: tarif a valider sur un RDV (ouvre directement la fiche).
+  function renderPriceValidationBanner() {
+    const appt = pricePendingAppointment;
+    if (!appt) return null;
+    const price = Number(appt.approvedCredits ?? appt.requestedCredits ?? 1);
+    return (
+      <button
+        className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[26px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
+        onClick={() => {
+          void openAppointmentModal(appt);
+        }}
+        type="button"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-300/40 bg-amber-300/15 text-amber-200">
+            <CreditCard className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.16em] text-amber-200/80">Action requise</p>
+            <p className="mt-1 text-base font-semibold text-white">
+              Valider le tarif — RDV du{" "}
+              {formatDateFR(appt.date, { day: "numeric", month: "long" })}
+            </p>
+            <p className="mt-0.5 text-sm text-white/65">
+              Tarif propose : {price} credit{price > 1 ? "s" : ""}. Accepte ou recharge pour confirmer.
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-amber-200 transition group-hover:translate-x-1" />
+      </button>
+    );
+  }
+
   function renderProHomeView() {
     return (
       <section className="space-y-4">
+        {renderPriceValidationBanner()}
         {renderEventTeaser()}
         <article className="bb-rise bb-steel-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
@@ -3663,6 +3707,7 @@ export function ClientCardPage() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
+          {renderPriceValidationBanner()}
           {renderEventTeaser()}
           <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
@@ -3786,6 +3831,7 @@ export function ClientCardPage() {
 
     return (
       <section className="space-y-4">
+        {renderPriceValidationBanner()}
         {renderEventTeaser()}
         <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-accent/12 blur-3xl" />
