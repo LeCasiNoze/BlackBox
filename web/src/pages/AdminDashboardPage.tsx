@@ -902,12 +902,23 @@ export function AdminDashboardPage() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  // Silent periodic auto-refresh — does not trigger loading skeletons after first load
+  // Silent periodic auto-refresh — does not trigger loading skeletons after first load.
+  // Also refreshes immediately when the tab regains focus, so a change made on
+  // another device (client cancellation, etc.) shows up right away.
   React.useEffect(() => {
-    const interval = window.setInterval(() => {
-      setRefreshToken((v) => v + 1);
-    }, 45000);
-    return () => window.clearInterval(interval);
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        setRefreshToken((v) => v + 1);
+      }
+    };
+    const interval = window.setInterval(refresh, 25000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
 

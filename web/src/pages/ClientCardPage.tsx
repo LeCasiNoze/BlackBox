@@ -973,6 +973,7 @@ export function ClientCardPage() {
   );
   const [pushBusy, setPushBusy] = React.useState(false);
   const lastOpenedAppointmentIdRef = React.useRef<number | null>(null);
+  const appointmentsEverLoadedRef = React.useRef(false);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
   const [historyFilter, setHistoryFilter] = React.useState<
     "all" | "requested" | "confirmed" | "done"
@@ -1056,7 +1057,11 @@ export function ClientCardPage() {
 
     async function loadAppointments() {
       try {
-        setAppointmentsLoading(true);
+        // N'affiche le loader qu'au premier chargement; les rafraichissements
+        // en arriere-plan (polling, focus) restent silencieux.
+        if (!appointmentsEverLoadedRef.current) {
+          setAppointmentsLoading(true);
+        }
 
         const response = await fetch(`/api/client/${encodeURIComponent(slug)}/appointments`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1066,8 +1071,9 @@ export function ClientCardPage() {
         if (!active) return;
 
         setAppointments(json.appointments ?? []);
+        appointmentsEverLoadedRef.current = true;
       } catch (loadError) {
-        if (active) {
+        if (active && !appointmentsEverLoadedRef.current) {
           setAppointments([]);
         }
       } finally {
@@ -1083,6 +1089,49 @@ export function ClientCardPage() {
       active = false;
     };
   }, [slug, reloadToken]);
+
+  // Rafraichissement temps reel: re-synchronise l'espace client periodiquement
+  // et quand l'onglet reprend le focus, pour refleter les changements admin
+  // (tarif valide, RDV confirme/annule, compte-rendu) sans action manuelle.
+  React.useEffect(() => {
+    if (!slug) return undefined;
+
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        setReloadToken((value) => value + 1);
+      }
+    };
+
+    const interval = window.setInterval(refresh, 20000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [slug]);
+
+  // Garde la modale de RDV ouverte synchronisee avec la derniere version
+  // recue (statut, tarif, compte-rendu admin) -> mise a jour en direct.
+  React.useEffect(() => {
+    setSelectedAppointment((current) => {
+      if (!current) return current;
+      const fresh = appointments.find((item) => item.id === current.id);
+      if (!fresh) return current;
+      if (
+        fresh.status === current.status &&
+        fresh.adminNote === current.adminNote &&
+        fresh.priceStatus === current.priceStatus &&
+        fresh.approvedCredits === current.approvedCredits &&
+        fresh.userRating === current.userRating
+      ) {
+        return current;
+      }
+      return fresh;
+    });
+  }, [appointments]);
 
   React.useEffect(() => {
     bookingImagesRef.current = bookingImageDrafts;
