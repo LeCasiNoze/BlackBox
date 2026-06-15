@@ -32,7 +32,6 @@ import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
 import {
   appointmentDateTime,
-  appointmentIsPast,
   appointmentStatusClasses,
   appointmentStatusLabel,
   canChangeDay,
@@ -975,6 +974,9 @@ export function ClientCardPage() {
   const [pushBusy, setPushBusy] = React.useState(false);
   const lastOpenedAppointmentIdRef = React.useRef<number | null>(null);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
+  const [historyFilter, setHistoryFilter] = React.useState<
+    "all" | "requested" | "confirmed" | "done"
+  >("requested");
   const [vehicleQuery, setVehicleQuery] = React.useState("");
   const [bookingVehicleQuery, setBookingVehicleQuery] = React.useState("");
   const [activeVehicleId, setActiveVehicleId] = React.useState<number | null>(null);
@@ -1410,27 +1412,13 @@ export function ClientCardPage() {
     return next;
   }, [appointments]);
 
-  const upcomingAppointments = React.useMemo(() => {
-    const next = [...appointments].filter((appointment) => {
-      if (appointment.status === "cancelled") return false;
-      return appointmentDateTime(appointment).getTime() >= Date.now();
-    });
-    next.sort(
-      (left, right) => appointmentDateTime(left).getTime() - appointmentDateTime(right).getTime(),
+  const filteredHistoryAppointments = React.useMemo(() => {
+    const visible = sortedAppointments.filter(
+      (appointment) => appointment.status !== "cancelled",
     );
-    return next;
-  }, [appointments]);
-
-  const archivedAppointments = React.useMemo(
-    () =>
-      sortedAppointments.filter(
-        (appointment) =>
-          appointment.status === "cancelled" ||
-          appointment.status === "done" ||
-          appointmentIsPast(appointment),
-      ),
-    [sortedAppointments],
-  );
+    if (historyFilter === "all") return visible;
+    return visible.filter((appointment) => appointment.status === historyFilter);
+  }, [sortedAppointments, historyFilter]);
 
   const visibleVehicles = React.useMemo(() => {
     const queryValue = deferredVehicleQuery.trim().toLowerCase();
@@ -3595,57 +3583,59 @@ export function ClientCardPage() {
         </article>
 
         {historyTab === "mine" ? (
-          <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-            <article className="bb-surface p-6">
-              <div className="bb-section-head">
-                <div>
-                  <p className="bb-eyebrow">A venir</p>
-                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Rendez-vous deja pris</h2>
-                </div>
-                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                  {upcomingAppointments.length} fiche{upcomingAppointments.length > 1 ? "s" : ""}
-                </div>
+          <article className="bb-surface p-6">
+            <div className="bb-section-head">
+              <div>
+                <p className="bb-eyebrow">Mes rendez-vous</p>
+                <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
+                  Suivi de vos prestations
+                </h2>
               </div>
+              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
+                {filteredHistoryAppointments.length} fiche
+                {filteredHistoryAppointments.length > 1 ? "s" : ""}
+              </div>
+            </div>
 
-              <div className="mt-6 grid gap-3">
-                {appointmentsLoading ? (
-                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
-                    Chargement des rendez-vous...
-                  </div>
-                ) : upcomingAppointments.length === 0 ? (
-                  <AppointmentsEmpty copy="Aucune prestation planifiee pour le moment." />
-                ) : (
-                  upcomingAppointments.map((appointment) => renderAppointmentCard(appointment))
-                )}
-              </div>
-            </article>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {(
+                [
+                  { key: "all", label: "Tous" },
+                  { key: "requested", label: "En attente" },
+                  { key: "confirmed", label: "Confirmes" },
+                  { key: "done", label: "Effectues" },
+                ] as const
+              ).map((filter) => (
+                <button
+                  className={cn(
+                    "bb-button-ghost px-4 py-2",
+                    historyFilter === filter.key &&
+                      "border-[#e8c98a]/40 bg-[#e8c98a]/10 text-white",
+                  )}
+                  key={filter.key}
+                  onClick={() => setHistoryFilter(filter.key)}
+                  type="button"
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
 
-            <article className="bb-surface p-6">
-              <div className="bb-section-head">
-                <div>
-                  <p className="bb-eyebrow">Archives</p>
-                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Historique detaille</h2>
+            <div className="mt-6 grid gap-3">
+              {appointmentsLoading ? (
+                <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
+                  Chargement des rendez-vous...
                 </div>
-                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                  {archivedAppointments.length} fiche{archivedAppointments.length > 1 ? "s" : ""}
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-3">
-                {appointmentsLoading ? (
-                  <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#e8c98a]" />
-                    Chargement des rendez-vous...
-                  </div>
-                ) : archivedAppointments.length === 0 ? (
-                  <AppointmentsEmpty copy="Aucune archive disponible pour le moment." />
-                ) : (
-                  archivedAppointments.map((appointment) => renderAppointmentCard(appointment))
-                )}
-              </div>
-            </article>
-          </div>
+              ) : filteredHistoryAppointments.length === 0 ? (
+                <AppointmentsEmpty copy="Aucun rendez-vous pour ce filtre." />
+              ) : (
+                filteredHistoryAppointments.map((appointment) =>
+                  renderAppointmentCard(appointment),
+                )
+              )}
+            </div>
+          </article>
         ) : (
           <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
             <article className="bb-surface p-6">
@@ -4406,9 +4396,25 @@ export function ClientCardPage() {
                 </p>
               </div>
 
-              <button className="bb-button-ghost self-start" onClick={closeAppointmentModal} type="button">
-                Fermer
-              </button>
+              <div className="flex flex-wrap items-center gap-2 self-start">
+                {(selectedAppointment.status === "requested" ||
+                  selectedAppointment.status === "confirmed") && (
+                  <button
+                    className="bb-button-danger"
+                    disabled={busyAction}
+                    onClick={() => {
+                      void cancel(selectedAppointment.date, selectedAppointment.slot);
+                      closeAppointmentModal();
+                    }}
+                    type="button"
+                  >
+                    Annuler le RDV
+                  </button>
+                )}
+                <button className="bb-button-ghost" onClick={closeAppointmentModal} type="button">
+                  Fermer
+                </button>
+              </div>
             </div>
 
             {clientData.clientType !== "pro" && (
@@ -4572,6 +4578,7 @@ export function ClientCardPage() {
               </section>
 
               <section className="space-y-4">
+                {(appointmentPhotosLoading || appointmentPhotos.length > 0) && (
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -4586,19 +4593,6 @@ export function ClientCardPage() {
                   </div>
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    {!appointmentPhotosLoading && appointmentPhotos.length === 0 && (
-                      <>
-                        {Array.from({ length: 3 }).map((_, index) => (
-                          <div
-                            className="flex h-28 items-center justify-center rounded-[22px] border border-dashed border-white/10 bg-black/20 text-center text-xs uppercase tracking-[0.16em] text-white/30"
-                            key={index}
-                          >
-                            Photo a venir
-                          </div>
-                        ))}
-                      </>
-                    )}
-
                     {appointmentPhotos.map((photo) => (
                       <button
                         className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
@@ -4624,7 +4618,9 @@ export function ClientCardPage() {
                     ))}
                   </div>
                 </article>
+                )}
 
+                {selectedAppointment.status === "done" && (
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-[#e8c98a]">
@@ -4699,6 +4695,7 @@ export function ClientCardPage() {
                     )}
                   </div>
                 </article>
+                )}
               </section>
             </div>
           </div>
