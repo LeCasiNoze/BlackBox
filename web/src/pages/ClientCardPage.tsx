@@ -474,8 +474,10 @@ const TIER_COLORS: Record<string, string> = {
 const REEL_CARD_WIDTH = 180;
 const REEL_GAP = 12;
 const REEL_STEP = REEL_CARD_WIDTH + REEL_GAP;
-// Index (base 0) de la carte gagnante dans le reel de 50 elements.
-const WINNER_INDEX = 45;
+// Reel long pour plus de suspens; la carte gagnante est tout pres de la fin.
+const REEL_LENGTH = 90;
+const WINNER_INDEX = 82;
+const REEL_SPIN_MS = 6800;
 
 type CaseTier = { key: string; label: string; proba: number; bc: number };
 
@@ -498,6 +500,11 @@ function getAudioCtx(): AudioContext | null {
   }
 }
 
+// A appeler dans le gestionnaire de clic d'ouverture pour debloquer l'audio.
+function unlockAudio() {
+  getAudioCtx();
+}
+
 function playReelTick() {
   const ctx = getAudioCtx();
   if (!ctx) return;
@@ -507,11 +514,29 @@ function playReelTick() {
   osc.frequency.value = 1050 + Math.random() * 160;
   const t = ctx.currentTime;
   gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(0.05, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.07, t + 0.005);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
   osc.connect(gain).connect(ctx.destination);
   osc.start(t);
   osc.stop(t + 0.06);
+}
+
+// Son d'ouverture: balayage montant qui installe le suspens.
+function playOpenSound() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sawtooth";
+  const t = ctx.currentTime;
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(780, t + 0.5);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.65);
 }
 
 const WIN_SEQUENCES: Record<string, number[]> = {
@@ -581,10 +606,26 @@ function buildReelItems(
     return tiers[tiers.length - 1] ?? FALLBACK_TIER;
   }
 
-  return Array.from({ length: 50 }, (_, index) => {
+  // Tiers les plus rares en premier, pour faire "passer" de gros lots.
+  const rarest = [...tiers].sort((a, b) => a.proba - b.proba);
+  const bigSpots = new Set([
+    WINNER_INDEX - 2,
+    WINNER_INDEX - 5,
+    WINNER_INDEX - 9,
+    WINNER_INDEX - 15,
+    WINNER_INDEX - 24,
+    20,
+    44,
+  ]);
+
+  return Array.from({ length: REEL_LENGTH }, (_, index) => {
     if (index === WINNER_INDEX) {
       const winnerTier = tiers.find((t) => t.key === wonTier) ?? tiers[0] ?? FALLBACK_TIER;
       return { tier: winnerTier, isWinner: true };
+    }
+    if (bigSpots.has(index) && rarest.length > 0) {
+      const tier = rarest[index % Math.min(2, rarest.length)] ?? rarest[0];
+      return { tier, isWinner: false };
     }
     return { tier: pickTier(), isWinner: false };
   });
@@ -635,21 +676,25 @@ function CaseOpeningModal({
     let tickStopped = false;
     let tickDelay = 45;
 
+    // Son d'ouverture (balayage) au lancement.
+    playOpenSound();
+
     // Tic-tac du reel qui ralentit progressivement (effet CS:GO).
     function scheduleTick() {
       if (tickStopped) return;
       playReelTick();
-      tickDelay = Math.min(tickDelay * 1.13, 340);
+      tickDelay = Math.min(tickDelay * 1.1, 320);
       tickTimeout = window.setTimeout(scheduleTick, tickDelay);
     }
 
     // Un tick pour que le DOM peuple les cartes avant de changer le transform.
     const raf = window.requestAnimationFrame(() => {
       // Centrer la carte gagnante sous le pointeur (milieu du conteneur visible).
-      // Le reel part a translateX=0 (+ paddingLeft=REEL_STEP pour le premier item).
-      // On veut que la carte a l'index WINNER_INDEX soit centree.
+      // Le reel a un paddingLeft = REEL_STEP, donc la carte i est centree a
+      // (i + 1) * REEL_STEP + REEL_CARD_WIDTH / 2 dans le repere du reel.
       const containerWidth = reelRef.current?.parentElement?.clientWidth ?? 600;
-      const target = -(WINNER_INDEX * REEL_STEP - containerWidth / 2 + REEL_CARD_WIDTH / 2);
+      const target =
+        containerWidth / 2 - (WINNER_INDEX + 1) * REEL_STEP - REEL_CARD_WIDTH / 2;
       setTranslateX(target);
       scheduleTick();
 
@@ -660,7 +705,7 @@ function CaseOpeningModal({
         setRevealed(true);
         if (result) playWinSound(result.reward.tier);
         onSpinEnd();
-      }, 4200);
+      }, REEL_SPIN_MS + 250);
     });
 
     return () => {
@@ -744,7 +789,10 @@ function CaseOpeningModal({
                 display: "flex",
                 gap: REEL_GAP,
                 transform: `translateX(${translateX}px)`,
-                transition: reelItems.length > 0 ? "transform 4s cubic-bezier(0.15,0.85,0.25,1)" : "none",
+                transition:
+                  reelItems.length > 0
+                    ? `transform ${REEL_SPIN_MS}ms cubic-bezier(0.08, 0.72, 0.12, 1)`
+                    : "none",
                 willChange: "transform",
                 paddingLeft: REEL_STEP,
               }}
@@ -854,31 +902,6 @@ function CaseOpeningModal({
           </div>
         )}
 
-        {/* Tableau des probabilites */}
-        {result && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {result.tiers.map((tier) => {
-              const color = TIER_COLORS[tier.key] ?? "#9ca3af";
-              const isWon = tier.key === result.reward.tier;
-              return (
-                <div
-                  className={cn(
-                    "rounded-[14px] border px-3 py-3 text-center text-xs",
-                    isWon ? "border-current/50" : "border-white/8 bg-white/[0.02]",
-                  )}
-                  key={tier.key}
-                  style={isWon ? { borderColor: `${color}55`, background: `${color}12` } : undefined}
-                >
-                  <p className="font-semibold" style={{ color }}>
-                    {tier.label}
-                  </p>
-                  {!isGoodie && <p className="mt-1 text-white/48">{tier.bc} BC</p>}
-                  <p className="mt-0.5 text-white/35">{Math.round(tier.proba * 100)}%</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -2338,6 +2361,7 @@ export function ClientCardPage() {
 
   async function openCase(pendingCase: PendingCase) {
     if (caseSpinning) return;
+    unlockAudio();
     setCaseSpinning(true);
     setCaseResult(null);
 
@@ -2447,6 +2471,7 @@ export function ClientCardPage() {
   }
 
   async function openReviewBoxFlow() {
+    unlockAudio();
     // On envoie le client vers l'avis Google (confiance) puis on lance la box.
     window.open(GOOGLE_REVIEWS_URL, "_blank", "noopener,noreferrer");
 
@@ -2567,6 +2592,7 @@ export function ClientCardPage() {
   async function participateEvent() {
     const activeEvent = data?.event;
     if (!activeEvent) return;
+    unlockAudio();
     setParticipateBusy(true);
     try {
       const response = await fetch(
