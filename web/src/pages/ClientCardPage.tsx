@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Bell,
   CalendarClock,
+  Camera,
   CarFront,
   CheckCircle2,
   Clock3,
@@ -709,18 +710,6 @@ function weekdayShort(dateStr: string) {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString("fr-FR", {
     weekday: "short",
   });
-}
-
-function weekRangeLabel(days: Array<ApiDay | null>) {
-  const first = days.find(Boolean);
-  const last = [...days].reverse().find(Boolean);
-
-  if (!first || !last) return "Semaine en cours";
-
-  return `${formatDateFR(first.date, { day: "numeric", month: "short" })} - ${formatDateFR(
-    last.date,
-    { day: "numeric", month: "short" },
-  )}`;
 }
 
 function splitTime(value: string, slot: AppointmentSlot) {
@@ -2335,13 +2324,6 @@ export function ClientCardPage() {
     }
   }
 
-  function goWeek(delta: number) {
-    const base = focusedDay?.date ?? requestedDayParam ?? pickFocusedDay(monthDays);
-    if (!base) return;
-    const target = addDaysIso(base, delta * 7);
-    navigate(portalHref("booking", { month: target.slice(0, 7), date: target }));
-  }
-
   function goFocusedDay(delta: number) {
     const base = focusedDay?.date ?? requestedDayParam ?? pickFocusedDay(monthDays);
     if (!base) return;
@@ -2939,28 +2921,12 @@ export function ClientCardPage() {
         </article>
 
         <article className="bb-surface p-5 md:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="bb-eyebrow">Agenda</p>
-              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">{weekRangeLabel(weekDays)}</h2>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                className="bb-button-ghost h-11 w-11 rounded-full px-0"
-                onClick={() => goWeek(-1)}
-                type="button"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <button
-                className="bb-button-ghost h-11 w-11 rounded-full px-0"
-                onClick={() => goWeek(1)}
-                type="button"
-              >
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
+          <div>
+            <p className="bb-eyebrow">Agenda</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez un creneau</h2>
+            <p className="bb-subtitle mt-2">
+              Naviguez jour par jour, puis touchez la demi-journee souhaitee.
+            </p>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -3004,13 +2970,7 @@ export function ClientCardPage() {
                   </button>
                 </div>
 
-                <button
-                  className="w-full rounded-[28px] border border-[#e8c98a]/45 bg-[#e8c98a]/10 p-4 text-left shadow-[0_18px_48px_rgba(232,201,138,0.12)] transition duration-200"
-                  onClick={() => {
-                    void openDayModal(focusedDay);
-                  }}
-                  type="button"
-                >
+                <div className="w-full rounded-[28px] border border-[#e8c98a]/45 bg-[#e8c98a]/10 p-4 shadow-[0_18px_48px_rgba(232,201,138,0.12)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-white/45">
@@ -3029,12 +2989,16 @@ export function ClientCardPage() {
 
                   <div className="mt-4 grid gap-2">
                     {SLOT_ORDER.map((slot) => (
-                      <div
+                      <button
                         className={cn(
-                          "rounded-[18px] border px-3 py-3",
+                          "w-full rounded-[18px] border px-3 py-3 text-left transition duration-200 hover:brightness-110",
                           dayStatusClasses(focusedDay.slots[slot].status),
                         )}
                         key={`${focusedDay.date}-${slot}`}
+                        onClick={() => {
+                          void openDayModal(focusedDay, slot);
+                        }}
+                        type="button"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div>
@@ -3047,10 +3011,10 @@ export function ClientCardPage() {
                             {slotNavigatorStatusLabel(focusedDay.slots[slot].status)}
                           </p>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
-                </button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -3059,18 +3023,14 @@ export function ClientCardPage() {
             <div className="grid grid-cols-7 gap-3">
               {weekDays.map((day, index) =>
                 day ? (
-                  <button
+                  <div
                     className={cn(
-                      "rounded-[26px] border p-4 text-left transition duration-200",
+                      "rounded-[26px] border p-4 transition duration-200",
                       focusedDay?.date === day.date
                         ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
-                        : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+                        : "border-white/10 bg-white/[0.03]",
                     )}
                     key={day.date}
-                    onClick={() => {
-                      void openDayModal(day);
-                    }}
-                    type="button"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -3089,9 +3049,16 @@ export function ClientCardPage() {
 
                     <div className="mt-4 space-y-2">
                       {SLOT_ORDER.map((slot) => (
-                        <div
-                          className={cn("rounded-[18px] border px-3 py-3", dayStatusClasses(day.slots[slot].status))}
+                        <button
+                          className={cn(
+                            "w-full rounded-[18px] border px-3 py-3 text-left transition duration-200 hover:brightness-110",
+                            dayStatusClasses(day.slots[slot].status),
+                          )}
                           key={`${day.date}-${slot}`}
+                          onClick={() => {
+                            void openDayModal(day, slot);
+                          }}
+                          type="button"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div>
@@ -3104,10 +3071,10 @@ export function ClientCardPage() {
                               {slotNavigatorStatusLabel(day.slots[slot].status)}
                             </p>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
-                  </button>
+                  </div>
                 ) : (
                   <div
                     className="rounded-[26px] border border-dashed border-white/8 bg-black/10 p-4 text-sm text-white/28"
@@ -4044,6 +4011,15 @@ export function ClientCardPage() {
                           </button>
                         ))}
                       </div>
+
+                      <button
+                        className="bb-button-ghost mt-4 w-full justify-center"
+                        onClick={openVehicleCreate}
+                        type="button"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Ajouter un vehicule
+                      </button>
                     </div>
                   )}
 
@@ -4143,37 +4119,49 @@ export function ClientCardPage() {
                     />
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <label className="block">
-                      <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Commentaire optionnel
+                  <div className="rounded-[24px] border border-[#e8c98a]/30 bg-[linear-gradient(180deg,rgba(232,201,138,0.09),rgba(255,255,255,0.02))] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#e8c98a]/35 bg-[#e8c98a]/12 text-[#e8c98a]">
+                        <MessageCircle className="h-5 w-5" />
                       </span>
-                      <p className="mt-2 text-sm leading-6 text-white/60">
-                        Une indication utile, un acces particulier ou toute precision a transmettre a l'equipe.
-                      </p>
-                      <textarea
-                        className="bb-textarea mt-4"
-                        maxLength={300}
-                        onChange={(event) => setClientBookingNote(event.target.value)}
-                        placeholder="Ex: portail a gauche, chien dans le jardin, siege bebe a nettoyer en priorite..."
-                        value={clientBookingNote}
-                      />
-                    </label>
+                      <label className="block min-w-0 flex-1">
+                        <span className="text-base font-semibold text-white">
+                          Une demande particuliere ?
+                        </span>
+                        <p className="mt-1 text-sm leading-6 text-white/70">
+                          Indiquez un acces (portail, etage, code...) ou demandez un
+                          <span className="font-semibold text-[#ffe8a8]"> extra</span> : ceramique,
+                          siege a nettoyer en priorite, traitement cuir, taches tenaces...
+                        </p>
+                        <textarea
+                          className="bb-textarea mt-4"
+                          maxLength={300}
+                          onChange={(event) => setClientBookingNote(event.target.value)}
+                          placeholder="Ex: ceramique sur le capot + siege bebe a nettoyer en priorite"
+                          value={clientBookingNote}
+                        />
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                          Images optionnelles
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-white/60">
-                          Ajoutez jusqu'a 4 photos si vous souhaitez montrer un acces, une tache
-                          ou un point a surveiller.
-                        </p>
-                      </div>
-                      <div className="bb-pill border-white/10 bg-black/20 text-white/65">
-                        {bookingImageDrafts.length}/4
+                  <div className="rounded-[24px] border border-[#e8c98a]/30 bg-[linear-gradient(180deg,rgba(232,201,138,0.09),rgba(255,255,255,0.02))] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#e8c98a]/35 bg-[#e8c98a]/12 text-[#e8c98a]">
+                        <Camera className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-white">Ajoutez des photos</p>
+                            <p className="mt-1 text-sm leading-6 text-white/70">
+                              Montrez une tache, une rayure ou la zone a traiter — ca aide a chiffrer
+                              juste (jusqu'a 4 photos).
+                            </p>
+                          </div>
+                          <div className="bb-pill shrink-0 border-[#e8c98a]/25 bg-[#e8c98a]/12 text-[#ffe8a8]">
+                            {bookingImageDrafts.length}/4
+                          </div>
+                        </div>
                       </div>
                     </div>
 
