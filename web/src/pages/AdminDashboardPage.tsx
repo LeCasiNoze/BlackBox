@@ -117,6 +117,17 @@ type AdminEvent = {
   participants: number;
 };
 
+type AdminEventParticipant = {
+  clientId: number;
+  clientName: string | null;
+  cardCode: string | null;
+  isFounder: boolean;
+  tickets: number;
+  consolationReward: string | null;
+  consolationLabel: string | null;
+  createdAt: number;
+};
+
 type EventDraft = {
   id: number | null;
   title: string;
@@ -691,6 +702,11 @@ export function AdminDashboardPage() {
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [eventDraft, setEventDraft] = React.useState<EventDraft | null>(null);
   const [eventBusy, setEventBusy] = React.useState(false);
+  const [participantsByEvent, setParticipantsByEvent] = React.useState<
+    Record<number, AdminEventParticipant[]>
+  >({});
+  const [openParticipantsEventId, setOpenParticipantsEventId] = React.useState<number | null>(null);
+  const [participantsBusy, setParticipantsBusy] = React.useState(false);
   const [goodies, setGoodies] = React.useState<AdminGoodie[]>([]);
   const [goodieFilter, setGoodieFilter] = React.useState<"pending" | "honored">("pending");
   const [goodiePending, setGoodiePending] = React.useState(0);
@@ -1155,6 +1171,32 @@ export function AdminDashboardPage() {
       showToast("Erreur reseau.");
     } finally {
       setEventBusy(false);
+    }
+  }
+
+  // Ouvre/ferme et (re)charge la liste des participants d'un evenement.
+  async function toggleEventParticipants(id: number) {
+    if (openParticipantsEventId === id) {
+      setOpenParticipantsEventId(null);
+      return;
+    }
+    setOpenParticipantsEventId(id);
+    setParticipantsBusy(true);
+    try {
+      const response = await fetch(`/api/admin/events/${id}/participants`);
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && json.ok) {
+        setParticipantsByEvent((prev) => ({
+          ...prev,
+          [id]: json.participants as AdminEventParticipant[],
+        }));
+      } else {
+        showToast("Impossible de charger les participants.");
+      }
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setParticipantsBusy(false);
     }
   }
 
@@ -2250,6 +2292,17 @@ export function AdminDashboardPage() {
                     Modifier
                   </button>
                   <button
+                    className="bb-button-ghost px-3 py-2"
+                    disabled={participantsBusy && openParticipantsEventId === event.id}
+                    onClick={() => {
+                      void toggleEventParticipants(event.id);
+                    }}
+                    type="button"
+                  >
+                    <Users className="mr-1.5 h-4 w-4" />
+                    {openParticipantsEventId === event.id ? "Masquer" : "Participants"}
+                  </button>
+                  <button
                     className="bb-button-ghost px-3 py-2 text-rose-100"
                     disabled={eventBusy}
                     onClick={() => {
@@ -2260,6 +2313,53 @@ export function AdminDashboardPage() {
                     Supprimer
                   </button>
                 </div>
+
+                {openParticipantsEventId === event.id && (
+                  <div className="mt-3 rounded-[18px] border border-white/10 bg-black/20 p-3">
+                    {participantsBusy ? (
+                      <p className="text-sm text-white/55">Chargement des participants...</p>
+                    ) : (participantsByEvent[event.id]?.length ?? 0) === 0 ? (
+                      <p className="text-sm text-white/55">Aucun participant pour le moment.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between px-1 text-[11px] uppercase tracking-[0.14em] text-white/40">
+                          <span>Participant</span>
+                          <span>Tickets</span>
+                        </div>
+                        {participantsByEvent[event.id]?.map((p) => (
+                          <div
+                            className="flex items-center justify-between gap-3 rounded-[12px] border border-white/8 bg-white/[0.03] px-3 py-2"
+                            key={p.clientId}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-white">
+                                {p.clientName || "Client"}
+                                {p.cardCode ? (
+                                  <span className="ml-2 text-xs font-normal text-white/40">
+                                    {p.cardCode}
+                                  </span>
+                                ) : null}
+                                {p.isFounder ? (
+                                  <span className="ml-2 text-xs font-normal text-accentSoft">
+                                    Fondateur
+                                  </span>
+                                ) : null}
+                              </p>
+                              {p.consolationLabel ? (
+                                <p className="truncate text-xs text-white/45">
+                                  Lot : {p.consolationLabel}
+                                </p>
+                              ) : null}
+                            </div>
+                            <span className="shrink-0 text-sm font-bold text-accentSoft">
+                              🎟️ {p.tickets}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           )}

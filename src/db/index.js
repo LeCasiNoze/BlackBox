@@ -203,6 +203,20 @@ function ensureGoodieWinsExtraColumns() {
   }
 }
 
+function ensureEventParticipationsExtraColumns() {
+  try {
+    const cols = getTableColumns("event_participations");
+    if (cols.length === 0) return;
+    const colNames = cols.map((column) => column.name);
+    if (!colNames.includes("tickets")) {
+      console.log("[DB] Ajout de la colonne event_participations.tickets");
+      db.exec(`ALTER TABLE event_participations ADD COLUMN tickets INTEGER NOT NULL DEFAULT 1;`);
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureEventParticipationsExtraColumns:", error);
+  }
+}
+
 function ensureClientsTypeAllowsPro() {
   try {
     const table = db
@@ -629,6 +643,7 @@ ensureClientsExtraColumns();
 ensureClientsTypeAllowsPro();
 applySchema();
 ensureGoodieWinsExtraColumns();
+ensureEventParticipationsExtraColumns();
 ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
 

@@ -1386,7 +1386,6 @@ export function ClientCardPage() {
   const [eventBoxDeliveryNote, setEventBoxDeliveryNote] = React.useState<string | null>(null);
   const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [participateBusy, setParticipateBusy] = React.useState(false);
-  const eventParticipationStartedRef = React.useRef(false);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
     instagram: false,
@@ -2678,7 +2677,11 @@ export function ClientCardPage() {
     );
   }
 
-  async function participateEvent() {
+  // Envoie le nombre de tickets au serveur. La 1re fois cree la participation
+  // (et ouvre la box de consolation); ensuite, ca ne fait que mettre a jour le
+  // compteur de tickets (cosmetique). Les boutons d'action sont desactives
+  // pendant l'appel, ce qui evite les appels concurrents.
+  async function participateEvent(ticketCount: number) {
     const activeEvent = data?.event;
     if (!activeEvent) return;
     unlockAudio();
@@ -2686,24 +2689,26 @@ export function ClientCardPage() {
     try {
       const response = await fetch(
         `/api/client/${encodeURIComponent(slug)}/event/${activeEvent.id}/participate`,
-        { method: "POST", headers: { "Content-Type": "application/json" } },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tickets: ticketCount }),
+        },
       );
       const json = (await response.json()) as {
         ok?: boolean;
+        created?: boolean;
+        tickets?: number;
         consolation?: { key: string; label: string } | null;
         tiers?: Array<{ key: string; label: string; proba: number }>;
         deliveryAppointment?: { date: string; slot: string } | null;
       };
-      if (response.status === 409) {
-        // Deja participe (cote serveur): on garde le verrou et on resynchronise.
-        eventParticipationStartedRef.current = true;
-        setReloadToken((value) => value + 1);
-        return;
-      }
       if (!response.ok || !json.ok) {
         showToast("Participation impossible pour le moment.");
-        // Echec: on relache le verrou pour permettre une nouvelle tentative.
-        eventParticipationStartedRef.current = false;
+        return;
+      }
+      // Mises a jour suivantes (tickets en plus): rien a afficher.
+      if (!json.created) {
         return;
       }
       showToast("Participation confirmee. Bonne chance !");
@@ -2723,8 +2728,6 @@ export function ClientCardPage() {
       setReloadToken((value) => value + 1);
     } catch (_error) {
       showToast("Erreur reseau pendant la participation.");
-      // Echec reseau: on relache le verrou pour permettre une nouvelle tentative.
-      eventParticipationStartedRef.current = false;
     } finally {
       setParticipateBusy(false);
     }
@@ -2891,11 +2894,9 @@ export function ClientCardPage() {
                     window.open(action.href, "_blank", "noopener,noreferrer");
                   }
                   setEventPrereqs((prev) => ({ ...prev, [action.key]: true }));
-                  // Premiere action => participation automatique (une seule fois).
-                  if (!activeEvent.participated && !eventParticipationStartedRef.current) {
-                    eventParticipationStartedRef.current = true;
-                    void participateEvent();
-                  }
+                  // Cette action ajoute 1 ticket: on synchronise le total avec le
+                  // serveur (la 1re fois cree la participation + la box).
+                  void participateEvent(ticketCount + 1);
                 }}
                 type="button"
               >

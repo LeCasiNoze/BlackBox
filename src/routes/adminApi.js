@@ -25,6 +25,7 @@ const {
   updateClientProfile,
 } = require("../db/clients");
 const { getReviewBoxGoodie } = require("../config/reviewBox");
+const { getConsolationGoodie } = require("../config/eventRewards");
 const {
   countParticipants,
   createEvent,
@@ -32,6 +33,7 @@ const {
   drawWinner,
   getEventById,
   listEvents,
+  listParticipants,
   mapEventRow,
   setActive,
   updateEvent,
@@ -1120,6 +1122,23 @@ router.get("/events", (_req, res) => {
     return res.json({ ok: true, events: listEvents().map(eventView) });
   } catch (error) {
     console.error("[adminApi] GET /events:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Liste des participants d'un evenement (avec leur nombre de tickets).
+router.get("/events/:id/participants", (req, res) => {
+  try {
+    const id = Number(req.params.id || 0);
+    const participants = listParticipants(id).map((p) => ({
+      ...p,
+      consolationLabel: p.consolationReward
+        ? getConsolationGoodie(p.consolationReward)?.label || p.consolationReward
+        : null,
+    }));
+    return res.json({ ok: true, participants });
+  } catch (error) {
+    console.error("[adminApi] GET /events/:id/participants:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

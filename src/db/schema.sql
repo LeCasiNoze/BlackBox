@@ -353,6 +353,7 @@ CREATE TABLE IF NOT EXISTS event_participations (
   event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   client_id           INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   consolation_reward  TEXT,
+  tickets             INTEGER NOT NULL DEFAULT 1,
   created_at          INTEGER NOT NULL,
   UNIQUE (event_id, client_id)
 );

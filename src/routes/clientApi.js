@@ -929,7 +929,8 @@ router.post("/:idOrSlug/review-box/open", (req, res) => {
 });
 
 // Participation a un evenement: prerequis valides cote client (confiance).
-// Enregistre la participation et tire la box de consolation.
+// La 1re action cree la participation (et tire la box de consolation); les
+// actions suivantes ne font que mettre a jour le nombre de tickets.
 router.post("/:idOrSlug/event/:eventId/participate", (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
@@ -937,10 +938,8 @@ router.post("/:idOrSlug/event/:eventId/participate", (req, res) => {
   }
 
   const eventId = Number(req.params.eventId || 0);
-  const result = participate(eventId, client);
-  if (!result.ok && result.error === "already_participated") {
-    return res.status(409).json({ ok: false, error: "already_participated" });
-  }
+  const tickets = Number(req.body?.tickets || 1);
+  const result = participate(eventId, client, tickets);
   if (!result.ok) {
     return res.status(400).json({ ok: false, error: result.error || "participate_failed" });
   }
@@ -948,10 +947,14 @@ router.post("/:idOrSlug/event/:eventId/participate", (req, res) => {
   const deliver = result.deliveryAppointment;
   return res.json({
     ok: true,
-    consolation: result.consolation
-      ? { key: result.consolation.key, label: result.consolation.label }
-      : null,
-    deliveryAppointment: deliver ? { date: deliver.date, slot: deliver.slot } : null,
+    created: result.created === true,
+    tickets: result.tickets ?? tickets,
+    // La box n'est renvoyee qu'a la creation (1re participation).
+    consolation:
+      result.created && result.consolation
+        ? { key: result.consolation.key, label: result.consolation.label }
+        : null,
+    deliveryAppointment: result.created && deliver ? { date: deliver.date, slot: deliver.slot } : null,
     tiers: CONSOLATION_GOODIES.map((goodie) => ({
       key: goodie.key,
       label: goodie.label,

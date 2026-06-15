@@ -89,7 +89,7 @@ function getParticipation(eventId, clientId) {
   );
 }
 
-function participate(eventId, client) {
+function participate(eventId, client, tickets = 1) {
   const event = getEventById(eventId);
   if (!event || !event.is_active) {
     return { ok: false, error: "event_inactive" };
@@ -98,9 +98,25 @@ function participate(eventId, client) {
     return { ok: false, error: "not_eligible" };
   }
 
+  const ticketCount = Math.max(1, Math.min(50, Math.floor(Number(tickets) || 1)));
   const existing = getParticipation(eventId, client.id);
+
+  // Deja participe: on met simplement a jour le compteur de tickets (on garde
+  // le plus eleve). Pas de nouvelle box de consolation.
   if (existing) {
-    return { ok: false, error: "already_participated", consolationKey: existing.consolation_reward };
+    const nextTickets = Math.max(Number(existing.tickets || 1), ticketCount);
+    if (nextTickets !== Number(existing.tickets || 1)) {
+      db.prepare(`UPDATE event_participations SET tickets = ? WHERE id = ?`).run(
+        nextTickets,
+        existing.id,
+      );
+    }
+    return {
+      ok: true,
+      created: false,
+      tickets: nextTickets,
+      consolationKey: existing.consolation_reward,
+    };
   }
 
   // Box de consolation reservee aux fondateurs (les BBX n'en ont pas).
@@ -108,9 +124,9 @@ function participate(eventId, client) {
     event.consolation_enabled && client.is_founder ? rollConsolationGoodie() : null;
   const now = nowUnix();
   db.prepare(
-    `INSERT INTO event_participations (event_id, client_id, consolation_reward, created_at)
-     VALUES (?, ?, ?, ?)`,
-  ).run(eventId, client.id, goodie ? goodie.key : null, now);
+    `INSERT INTO event_participations (event_id, client_id, consolation_reward, tickets, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(eventId, client.id, goodie ? goodie.key : null, ticketCount, now);
 
   // Lot de consolation physique -> a remettre au prochain RDV a venir.
   let deliveryAppointment = null;
@@ -118,7 +134,32 @@ function participate(eventId, client) {
     deliveryAppointment = recordGoodieWin(client.id, "event_consolation", goodie.key, goodie.label);
   }
 
-  return { ok: true, consolation: goodie, deliveryAppointment };
+  return { ok: true, created: true, tickets: ticketCount, consolation: goodie, deliveryAppointment };
+}
+
+// Liste des participants d'un evenement (avec leur nombre de tickets), pour l'admin.
+function listParticipants(eventId) {
+  return db
+    .prepare(
+      `
+      SELECT p.client_id, p.tickets, p.consolation_reward, p.created_at,
+             c.full_name, c.card_code, c.is_founder
+      FROM event_participations p
+      LEFT JOIN clients c ON c.id = p.client_id
+      WHERE p.event_id = ?
+      ORDER BY p.tickets DESC, p.created_at ASC
+    `,
+    )
+    .all(eventId)
+    .map((row) => ({
+      clientId: row.client_id,
+      clientName: row.full_name || null,
+      cardCode: row.card_code || null,
+      isFounder: !!row.is_founder,
+      tickets: row.tickets ?? 1,
+      consolationReward: row.consolation_reward || null,
+      createdAt: row.created_at,
+    }));
 }
 
 function createEvent(input = {}) {
@@ -298,6 +339,7 @@ module.exports = {
   getEventById,
   getParticipation,
   listEvents,
+  listParticipants,
   mapEventRow,
   participate,
   setActive,
