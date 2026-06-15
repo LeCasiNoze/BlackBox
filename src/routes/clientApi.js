@@ -562,9 +562,15 @@ router.post("/signup/verify", async (req, res) => {
 
   try {
     const client = createClient(payload);
-    const welcomeSent = await sendClientWelcomeEmail(client);
-    if (welcomeSent) {
-      markWelcomeEmailSent(client.id);
+    // L'email de bienvenue ne doit jamais faire echouer la creation du compte.
+    let welcomeSent = false;
+    try {
+      welcomeSent = await sendClientWelcomeEmail(client);
+      if (welcomeSent) {
+        markWelcomeEmailSent(client.id);
+      }
+    } catch (mailError) {
+      console.error("[API] signup welcome email:", mailError);
     }
 
     return res.json({

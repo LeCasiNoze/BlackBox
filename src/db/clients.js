@@ -196,27 +196,29 @@ function listFounderClients() {
 }
 
 function generateNextCardCode() {
-  const row = db
+  // On prend le plus grand numero deja utilise, que ce soit en card_code
+  // (BBX-NNN) OU en slug (bbx-NNN). Les comptes pro/historiques gardent des
+  // slugs bbx-NNN sans card_code: ignorer ces slugs provoquerait une collision
+  // de slug a la creation d'un nouveau compte.
+  const rows = db
     .prepare(
       `
-      SELECT card_code
-      FROM clients
-      WHERE card_code LIKE 'BBX-%'
-      ORDER BY LENGTH(card_code) DESC, card_code DESC
-      LIMIT 1
+      SELECT card_code AS value FROM clients WHERE card_code LIKE 'BBX-%'
+      UNION ALL
+      SELECT slug AS value FROM clients WHERE slug LIKE 'bbx-%'
     `,
     )
-    .get();
+    .all();
 
-  let nextNum = 1;
-  if (row?.card_code) {
-    const match = String(row.card_code).match(/^BBX-(\d+)$/);
+  let maxNum = 0;
+  for (const row of rows) {
+    const match = String(row.value || "").match(/(\d+)\s*$/);
     if (match) {
-      nextNum = Number.parseInt(match[1], 10) + 1;
+      maxNum = Math.max(maxNum, Number.parseInt(match[1], 10));
     }
   }
 
-  return `BBX-${String(nextNum).padStart(3, "0")}`;
+  return `BBX-${String(maxNum + 1).padStart(3, "0")}`;
 }
 
 // Renumerote TOUS les comptes BBX en BBX-001, BBX-002, ... dans l'ordre de
