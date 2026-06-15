@@ -562,6 +562,13 @@ router.post("/signup/verify", async (req, res) => {
 
   try {
     const client = createClient(payload);
+    // Les conditions sont acceptees a l'inscription (avant le code), on
+    // enregistre l'acceptation des la creation du compte.
+    try {
+      updateClientTermsAcceptance(client.id);
+    } catch (termsError) {
+      console.error("[API] signup terms:", termsError);
+    }
     // L'email de bienvenue ne doit jamais faire echouer la creation du compte.
     let welcomeSent = false;
     try {
@@ -739,10 +746,6 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
     return;
-  }
-
-  if (!client.terms_accepted_at) {
-    return res.status(412).json({ ok: false, error: "terms_not_accepted" });
   }
 
   if (!isSumupTopupReady()) {
@@ -1504,10 +1507,6 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
     } catch (error) {
       return res.status(500).json({ ok: false, error: "server_error" });
     }
-  }
-
-  if (!client.terms_accepted_at) {
-    return res.status(412).json({ ok: false, error: "terms_not_accepted" });
   }
 
   try {

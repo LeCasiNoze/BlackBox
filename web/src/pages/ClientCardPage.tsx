@@ -1855,7 +1855,9 @@ export function ClientCardPage() {
 
   const month = data?.month ?? null;
   const monthDays = month?.days ?? [];
-  const termsAccepted = !!client?.termsAcceptedAt;
+  // Les conditions sont acceptees a l'inscription (avant le code). On ne
+  // redemande plus rien sur le reste du site (RDV, recharge...).
+  const termsAccepted = true;
 
   const deferredVehicleQuery = React.useDeferredValue(vehicleQuery);
   const deferredBookingVehicleQuery = React.useDeferredValue(bookingVehicleQuery);

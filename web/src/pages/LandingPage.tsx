@@ -45,6 +45,7 @@ export function LandingPage() {
   const [portalUrl, setPortalUrl] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = React.useState(false);
 
   function updateField(key: keyof SignupForm, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -157,9 +158,27 @@ export function LandingPage() {
                     ))}
                   </div>
 
-                  <button className="bb-button-brand mt-5 w-full justify-center" disabled={busy} onClick={requestCode} type="button">
+                  <label className="mt-5 flex items-start gap-3 text-sm leading-6 text-white/70">
+                    <input
+                      checked={acceptedTerms}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-[#e8c98a]"
+                      onChange={(event) => setAcceptedTerms(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      J&apos;accepte les conditions generales et la politique de confidentialite de
+                      Bryan Cars.
+                    </span>
+                  </label>
+
+                  <button
+                    className="bb-button-brand mt-4 w-full justify-center"
+                    disabled={busy || !acceptedTerms}
+                    onClick={requestCode}
+                    type="button"
+                  >
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                    Recevoir mon code
+                    {acceptedTerms ? "Recevoir mon code" : "Accepte les conditions pour continuer"}
                   </button>
                 </>
               )}
