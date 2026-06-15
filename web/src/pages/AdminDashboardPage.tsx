@@ -13,6 +13,7 @@ import {
   Crown,
   Download,
   ExternalLink,
+  Gift,
   Inbox,
   Loader2,
   LogOut,
@@ -202,6 +203,7 @@ type AdminAppointment = {
   vehicleModel: string | null;
   vehiclePlate: string | null;
   location: AppointmentLocation | null;
+  goodies?: string[];
 };
 
 type CleanlinessRating =
@@ -2493,6 +2495,12 @@ export function AdminDashboardPage() {
                                 <p className="mt-1 text-sm text-white/45">
                                   {appointment.vehicleModel || "Vehicule non renseigne"}
                                 </p>
+                                {appointment.goodies && appointment.goodies.length > 0 && (
+                                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#e8c98a]/40 bg-[#e8c98a]/12 px-3 py-1 text-xs font-semibold text-[#e8c98a]">
+                                    <Gift className="h-3.5 w-3.5" />
+                                    Lot a remettre : {appointment.goodies.join(", ")}
+                                  </p>
+                                )}
                               </div>
                               <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
                             </div>
@@ -2684,6 +2692,12 @@ export function AdminDashboardPage() {
                                       )}
                                     </p>
                                   )}
+                                  {appointment.goodies && appointment.goodies.length > 0 && (
+                                    <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#e8c98a]/40 bg-[#e8c98a]/12 px-3 py-1 text-xs font-semibold text-[#e8c98a]">
+                                      <Gift className="h-3.5 w-3.5" />
+                                      Lot a remettre : {appointment.goodies.join(", ")}
+                                    </p>
+                                  )}
                                 </div>
                                 <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
                               </div>
@@ -2719,6 +2733,28 @@ export function AdminDashboardPage() {
                   </div>
                 )}
               </div>
+
+              {selectedAppointment &&
+                selectedOnBoard &&
+                selectedAppointment.goodies &&
+                selectedAppointment.goodies.length > 0 && (
+                  <div className="mt-5 flex items-start gap-3 rounded-[24px] border border-[#e8c98a]/45 bg-[#e8c98a]/12 p-4 shadow-[0_0_36px_rgba(232,201,138,0.15)]">
+                    <span className="mt-0.5 inline-grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[#e8c98a]/45 bg-[#e8c98a]/15 text-[#e8c98a]">
+                      <Gift className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#e8c98a]">
+                        Lot(s) a remettre sur ce rendez-vous
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-white/80">
+                        {selectedAppointment.goodies.join(", ")}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-white/45">
+                        A donner au client lors de ce passage. Le passage en « Effectue » valide la remise.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
               {!selectedAppointment || !selectedOnBoard ? (
                 <div className="mt-6 flex flex-col items-center gap-3 rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">

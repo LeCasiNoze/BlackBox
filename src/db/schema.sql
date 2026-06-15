@@ -366,6 +366,7 @@ CREATE INDEX IF NOT EXISTS idx_event_participations_event
 CREATE TABLE IF NOT EXISTS goodie_wins (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  appointment_id INTEGER,
   source        TEXT NOT NULL DEFAULT 'review_box',
   reward_key    TEXT NOT NULL,
   reward_label  TEXT NOT NULL,
@@ -377,6 +378,9 @@ CREATE TABLE IF NOT EXISTS goodie_wins (
 
 CREATE INDEX IF NOT EXISTS idx_goodie_wins_status
   ON goodie_wins(status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_goodie_wins_appointment
+  ON goodie_wins(appointment_id, status);
 
 -- ============================
 -- TABLE export_jobs

@@ -114,6 +114,23 @@ type CaseOpenResult = {
   tiers: Array<{ key: string; label: string; proba: number; bc: number }>;
 };
 
+// "YYYY-MM-DD" -> "JJ/MM"
+function formatShortDateFR(dateStr: string): string {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}`;
+}
+
+// Message indiquant ou/quand le client recupere son lot physique.
+function buildGoodieDeliveryNote(
+  appt: { date: string; slot?: string | null } | null | undefined,
+): string {
+  if (!appt || !appt.date) {
+    return "Tu le recevras a ton prochain rendez-vous.";
+  }
+  return `Tu le recevras a ton rendez-vous du ${formatShortDateFR(appt.date)}.`;
+}
+
 type ApiClient = {
   id: number;
   slug: string;
@@ -290,6 +307,7 @@ type ClientAppointment = {
   priceComment: string | null;
   hasPhotos: boolean;
   location: AppointmentLocation | null;
+  goodies?: string[];
 };
 
 type ServiceLevel = "clean" | "correct" | "dirty";
@@ -640,6 +658,7 @@ type CaseOpeningModalProps = {
   rewardUnit?: "bc" | "goodie";
   title?: string;
   eyebrow?: string;
+  deliveryNote?: string | null;
 };
 
 function CaseOpeningModal({
@@ -651,6 +670,7 @@ function CaseOpeningModal({
   rewardUnit = "bc",
   title,
   eyebrow,
+  deliveryNote,
 }: CaseOpeningModalProps) {
   const isGoodie = rewardUnit === "goodie";
   const [reelItems, setReelItems] = React.useState<
@@ -868,7 +888,7 @@ function CaseOpeningModal({
                     ? "1 credit ajoute a ton compte !"
                     : result.reward.tier === "founder_1m"
                       ? "1 mois Fondateur offert — on l'active pour toi."
-                      : "A recuperer a ton prochain passage a l'atelier."}
+                      : (deliveryNote ?? "A recuperer a ton prochain rendez-vous.")}
                 </p>
               </>
             ) : (
@@ -1348,9 +1368,11 @@ export function ClientCardPage() {
   const [reviewBoxResult, setReviewBoxResult] = React.useState<CaseOpenResult | null>(null);
   const [reviewBoxOpen, setReviewBoxOpen] = React.useState(false);
   const [reviewBoxBusy, setReviewBoxBusy] = React.useState(false);
+  const [reviewBoxDeliveryNote, setReviewBoxDeliveryNote] = React.useState<string | null>(null);
   const reviewReelRef = React.useRef<HTMLDivElement>(null);
   const [eventBoxResult, setEventBoxResult] = React.useState<CaseOpenResult | null>(null);
   const [eventBoxOpen, setEventBoxOpen] = React.useState(false);
+  const [eventBoxDeliveryNote, setEventBoxDeliveryNote] = React.useState<string | null>(null);
   const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [participateBusy, setParticipateBusy] = React.useState(false);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
@@ -2521,6 +2543,7 @@ export function ClientCardPage() {
         error?: string;
         reward?: { key: string; label: string };
         tiers?: Array<{ key: string; label: string; proba: number }>;
+        deliveryAppointment?: { date: string; slot: string } | null;
         client?: ApiClient;
       };
       if (response.status === 409) {
@@ -2534,6 +2557,7 @@ export function ClientCardPage() {
       if (json.client) {
         setData((current) => (current ? { ...current, client: json.client as ApiClient } : current));
       }
+      setReviewBoxDeliveryNote(buildGoodieDeliveryNote(json.deliveryAppointment));
       setReviewBoxResult({
         reward: { tier: json.reward.key, label: json.reward.label, bc: 0 },
         tiers: json.tiers.map((tier) => ({
@@ -2634,6 +2658,7 @@ export function ClientCardPage() {
         ok?: boolean;
         consolation?: { key: string; label: string } | null;
         tiers?: Array<{ key: string; label: string; proba: number }>;
+        deliveryAppointment?: { date: string; slot: string } | null;
       };
       if (response.status === 409) {
         showToast("Tu as deja participe a cet evenement.");
@@ -2646,6 +2671,7 @@ export function ClientCardPage() {
       }
       showToast("Participation confirmee. Bonne chance !");
       if (json.consolation && json.tiers) {
+        setEventBoxDeliveryNote(buildGoodieDeliveryNote(json.deliveryAppointment));
         setEventBoxResult({
           reward: { tier: json.consolation.key, label: json.consolation.label, bc: 0 },
           tiers: json.tiers.map((tier) => ({
@@ -3478,6 +3504,13 @@ export function ClientCardPage() {
             <p className="max-w-2xl text-sm leading-6 text-white/58">
               {previewNote(appointment.adminNote)}
             </p>
+
+            {appointment.goodies && appointment.goodies.length > 0 && (
+              <div className="flex items-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-semibold text-accentSoft">
+                <Gift className="h-4 w-4 shrink-0" />
+                <span>Cadeau a recuperer : {appointment.goodies.join(", ")}</span>
+              </div>
+            )}
           </div>
 
           <div className="min-w-[150px] space-y-3">
@@ -6282,6 +6315,7 @@ export function ClientCardPage() {
           reelRef={reviewReelRef}
           result={reviewBoxResult}
           rewardUnit="goodie"
+          deliveryNote={reviewBoxDeliveryNote}
           title="Box merci"
         />
       )}
@@ -6308,6 +6342,7 @@ export function ClientCardPage() {
           reelRef={eventReelRef}
           result={eventBoxResult}
           rewardUnit="goodie"
+          deliveryNote={eventBoxDeliveryNote}
           title="Box de consolation"
         />
       )}

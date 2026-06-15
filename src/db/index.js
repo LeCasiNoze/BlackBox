@@ -189,6 +189,20 @@ function ensureClientsExtraColumns() {
   }
 }
 
+function ensureGoodieWinsExtraColumns() {
+  try {
+    const cols = getTableColumns("goodie_wins");
+    if (cols.length === 0) return;
+    const colNames = cols.map((column) => column.name);
+    if (!colNames.includes("appointment_id")) {
+      console.log("[DB] Ajout de la colonne goodie_wins.appointment_id");
+      db.exec(`ALTER TABLE goodie_wins ADD COLUMN appointment_id INTEGER;`);
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureGoodieWinsExtraColumns:", error);
+  }
+}
+
 function ensureClientsTypeAllowsPro() {
   try {
     const table = db
@@ -614,6 +628,7 @@ ensureAppointmentPhotosExtraColumns();
 ensureClientsExtraColumns();
 ensureClientsTypeAllowsPro();
 applySchema();
+ensureGoodieWinsExtraColumns();
 ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
 

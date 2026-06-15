@@ -77,8 +77,11 @@ const {
   sendEventWinnerEmail,
 } = require("../email");
 const {
+  attachPendingGoodieWinsToNextAppointment,
   countPendingGoodieWins,
+  honorGoodieWinsForAppointment,
   listGoodieWins,
+  listPendingGoodieWinsForAppointment,
   markGoodieWinHonored,
 } = require("../db/goodieWins");
 const {
@@ -234,6 +237,7 @@ function mapAppointmentRow(row) {
     vehicleModel: row.vehicle_model || null,
     vehiclePlate: row.vehicle_plate || null,
     location: row.location || null,
+    goodies: listPendingGoodieWinsForAppointment(row.id).map((win) => win.rewardLabel),
   };
 }
 
@@ -715,6 +719,9 @@ router.post("/appointments/:id/status", async (req, res) => {
         revokePointsForAppointment(appointment.client_id, appointment.id);
       }
 
+      // Les lots a remettre rattaches a ce RDV repartent vers le prochain a venir.
+      attachPendingGoodieWinsToNextAppointment(appointment.client_id);
+
       return res.json({
         ok: true,
         appointment: mapAppointmentRow(getAppointmentById(id)),
@@ -771,6 +778,8 @@ router.post("/appointments/:id/status", async (req, res) => {
 
     if (status === "done") {
       awardPointsForAppointment(appointment.client_id, appointment.id);
+      // Le passage est effectue: les lots rattaches a ce RDV sont remis.
+      honorGoodieWinsForAppointment(appointment.id);
     }
 
     const updatedAppointment = getAppointmentById(id);

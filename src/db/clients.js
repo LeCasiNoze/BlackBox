@@ -240,6 +240,7 @@ function openReviewBox(clientId) {
   const goodie = rollReviewBoxGoodie();
   const now = nowUnix();
 
+  let deliveryAppointment = null;
   const apply = db.transaction(() => {
     db.prepare(
       `UPDATE clients SET review_box_opened_at = ?, review_box_reward = ?, updated_at = ? WHERE id = ?`,
@@ -256,13 +257,13 @@ function openReviewBox(clientId) {
     } else if (goodie.kind === "founder_month") {
       grantTemporaryFounder(clientId, 30);
     } else {
-      // Lot physique -> a remettre au prochain passage.
-      recordGoodieWin(clientId, "review_box", goodie.key, goodie.label);
+      // Lot physique -> a remettre au prochain RDV a venir.
+      deliveryAppointment = recordGoodieWin(clientId, "review_box", goodie.key, goodie.label);
     }
   });
   apply();
 
-  return { ok: true, reward: goodie };
+  return { ok: true, reward: goodie, deliveryAppointment };
 }
 
 // Supprime un compte client et toutes ses donnees liees (pour purge de tests).

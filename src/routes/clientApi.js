@@ -21,6 +21,10 @@ const {
 } = require("../db/clients");
 const { REVIEW_BOX_GOODIES } = require("../config/reviewBox");
 const {
+  attachPendingGoodieWinsToNextAppointment,
+  listPendingGoodieWinsForAppointment,
+} = require("../db/goodieWins");
+const {
   getActiveEventForClient,
   getParticipation,
   mapEventRow,
@@ -327,6 +331,7 @@ function mapClientAppointment(appointment) {
     priceComment: appointment.price_comment || null,
     hasPhotos: hasAppointmentPhotos(appointment.id),
     location: appointment.location || null,
+    goodies: listPendingGoodieWinsForAppointment(appointment.id).map((win) => win.rewardLabel),
   };
 }
 
@@ -896,9 +901,11 @@ router.post("/:idOrSlug/review-box/open", (req, res) => {
   }
 
   const updated = getClientById(client.id);
+  const deliver = result.deliveryAppointment;
   return res.json({
     ok: true,
     reward: { key: result.reward.key, label: result.reward.label, kind: result.reward.kind },
+    deliveryAppointment: deliver ? { date: deliver.date, slot: deliver.slot } : null,
     tiers: REVIEW_BOX_GOODIES.map((goodie) => ({
       key: goodie.key,
       label: goodie.label,
@@ -925,11 +932,13 @@ router.post("/:idOrSlug/event/:eventId/participate", (req, res) => {
     return res.status(400).json({ ok: false, error: result.error || "participate_failed" });
   }
 
+  const deliver = result.deliveryAppointment;
   return res.json({
     ok: true,
     consolation: result.consolation
       ? { key: result.consolation.key, label: result.consolation.label }
       : null,
+    deliveryAppointment: deliver ? { date: deliver.date, slot: deliver.slot } : null,
     tiers: CONSOLATION_GOODIES.map((goodie) => ({
       key: goodie.key,
       label: goodie.label,
@@ -1540,6 +1549,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
     const clientImageCount = attachClientBookingImages(appointmentId, uploadedImages);
 
+    // Rattache au nouveau RDV les lots gagnes en attente de remise.
+    attachPendingGoodieWinsToNextAppointment(client.id);
+
     try {
       await sendAdminNotification({
         type: "book",
@@ -1616,6 +1628,10 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
   }
 
   cancelAppointmentAndRefund(appointment.id);
+
+  // Le RDV annule peut avoir porte des lots a remettre: on les rebascule
+  // sur le prochain RDV a venir (ou on les detache si plus aucun).
+  attachPendingGoodieWinsToNextAppointment(client.id);
 
   try {
     await sendAdminNotification({

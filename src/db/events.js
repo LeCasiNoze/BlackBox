@@ -112,12 +112,13 @@ function participate(eventId, client) {
      VALUES (?, ?, ?, ?)`,
   ).run(eventId, client.id, goodie ? goodie.key : null, now);
 
-  // Lot de consolation physique -> a remettre au prochain passage.
+  // Lot de consolation physique -> a remettre au prochain RDV a venir.
+  let deliveryAppointment = null;
   if (goodie) {
-    recordGoodieWin(client.id, "event_consolation", goodie.key, goodie.label);
+    deliveryAppointment = recordGoodieWin(client.id, "event_consolation", goodie.key, goodie.label);
   }
 
-  return { ok: true, consolation: goodie };
+  return { ok: true, consolation: goodie, deliveryAppointment };
 }
 
 function createEvent(input = {}) {
