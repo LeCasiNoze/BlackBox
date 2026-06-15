@@ -1326,6 +1326,7 @@ export function ClientCardPage() {
   const reviewReelRef = React.useRef<HTMLDivElement>(null);
   const [eventBoxResult, setEventBoxResult] = React.useState<CaseOpenResult | null>(null);
   const [eventBoxOpen, setEventBoxOpen] = React.useState(false);
+  const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [participateBusy, setParticipateBusy] = React.useState(false);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
@@ -2606,9 +2607,55 @@ export function ClientCardPage() {
     }
   }
 
-  function renderEventCard() {
+  function renderEventTeaser() {
     const activeEvent = data?.event;
     if (!activeEvent) return null;
+
+    return (
+      <div className="bb-event-glow bb-rise rounded-[26px]">
+        <div className="relative z-[2] flex flex-wrap items-center justify-between gap-4 p-4 md:p-5">
+          <div className="min-w-0">
+            <p className="bb-eyebrow flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              Evenement
+            </p>
+            <h3 className="bb-display mt-1 text-xl font-bold leading-tight text-white md:text-2xl">
+              {activeEvent.title}
+            </h3>
+            {activeEvent.prizeKind === "text" && activeEvent.prizeText && (
+              <p className="mt-1 text-sm text-white/70">
+                A gagner :{" "}
+                <span className="font-semibold text-accentSoft">{activeEvent.prizeText}</span>
+              </p>
+            )}
+          </div>
+          {activeEvent.participated ? (
+            <button
+              className="bb-button-ghost shrink-0"
+              onClick={() => setEventModalOpen(true)}
+              type="button"
+            >
+              <CheckCircle2 className="mr-1.5 h-4 w-4 text-emerald-200" />
+              Participation confirmee
+            </button>
+          ) : (
+            <button
+              className="bb-button-brand shrink-0"
+              onClick={() => setEventModalOpen(true)}
+              type="button"
+            >
+              Ouvrir l'evenement
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderEventModal() {
+    const activeEvent = data?.event;
+    if (!activeEvent || !eventModalOpen) return null;
 
     const prereqRows = [
       activeEvent.requireFacebook && {
@@ -2645,23 +2692,42 @@ export function ClientCardPage() {
     const allDone = prereqRows.every((row) => row.done);
 
     return (
-      <article className="bb-surface bb-rise bb-gold-frame relative overflow-hidden p-5 md:p-6">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-accent/10 blur-3xl" />
-        <div className="relative">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
-              <Sparkles className="h-3.5 w-3.5" />
-              Evenement
-            </span>
-            {activeEvent.prizeKind === "text" && activeEvent.prizeText && (
-              <span className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
+      <div
+        className="fixed inset-0 z-[55] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
+        onClick={() => setEventModalOpen(false)}
+      >
+        <div
+          className="bb-surface-strong bb-modal-panel max-h-[calc(100vh-1rem)] w-full max-w-2xl overflow-y-auto p-6 overscroll-contain md:p-7"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="bb-eyebrow flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                Evenement
+              </p>
+              <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
+                {activeEvent.title}
+              </h3>
+            </div>
+            <button
+              className="bb-button-ghost h-11 w-11 rounded-full px-0"
+              onClick={() => setEventModalOpen(false)}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {activeEvent.prizeKind === "text" && activeEvent.prizeText && (
+            <div className="mt-3">
+              <span className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
                 A gagner : {activeEvent.prizeText}
               </span>
-            )}
-          </div>
-          <h2 className="bb-title-xl mt-3">{activeEvent.title}</h2>
+            </div>
+          )}
           {activeEvent.description && (
-            <p className="bb-subtitle mt-3 max-w-2xl">{activeEvent.description}</p>
+            <p className="bb-subtitle mt-3">{activeEvent.description}</p>
           )}
 
           {activeEvent.participated ? (
@@ -2748,7 +2814,7 @@ export function ClientCardPage() {
             </>
           )}
         </div>
-      </article>
+      </div>
     );
   }
 
@@ -3383,7 +3449,7 @@ export function ClientCardPage() {
   function renderProHomeView() {
     return (
       <section className="space-y-4">
-        {renderEventCard()}
+        {renderEventTeaser()}
         <article className="bb-rise bb-steel-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
           <div className="bb-pro-orb bb-pro-orb-indigo" />
@@ -3494,7 +3560,7 @@ export function ClientCardPage() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
-          {renderEventCard()}
+          {renderEventTeaser()}
           <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
             <div className="bb-founder-orb bb-founder-orb-blue" />
@@ -3608,7 +3674,7 @@ export function ClientCardPage() {
 
     return (
       <section className="space-y-4">
-        {renderEventCard()}
+        {renderEventTeaser()}
         <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-accent/12 blur-3xl" />
           <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
@@ -6115,6 +6181,8 @@ export function ClientCardPage() {
           title="Box merci"
         />
       )}
+
+      {renderEventModal()}
 
       {eventBoxOpen && eventBoxResult && (
         <CaseOpeningModal

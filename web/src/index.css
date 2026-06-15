@@ -735,6 +735,48 @@ select {
   will-change: transform, opacity;
 }
 
+/* Carte evenement compacte avec halo lumineux qui tourne autour. */
+.bb-event-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.bb-event-glow::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 240%;
+  aspect-ratio: 1 / 1;
+  translate: -50% -50%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 205deg,
+    var(--bb-accent) 285deg,
+    #fff6df 320deg,
+    var(--bb-accent) 345deg,
+    transparent 360deg
+  );
+  animation: bb-glow-rotate 4.5s linear infinite;
+  will-change: transform;
+}
+
+.bb-event-glow::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 1;
+  border-radius: inherit;
+  background: rgba(20, 17, 13, 0.97);
+}
+
+@keyframes bb-glow-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
