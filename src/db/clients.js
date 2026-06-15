@@ -182,6 +182,11 @@ function listClients(filter = "all") {
     .all();
 }
 
+function countFounders() {
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE is_founder = 1`).get();
+  return row?.n ?? 0;
+}
+
 function listFounderClients() {
   return db
     .prepare(
@@ -838,6 +843,7 @@ function ensureDemoClient() {
 }
 
 module.exports = {
+  countFounders,
   createClient,
   decrementFormulaRemaining,
   deleteClient,

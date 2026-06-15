@@ -294,7 +294,7 @@ function processPaidTopupOrder(orderId, checkout) {
       client.id,
     );
 
-    // Acces fondateur: le paiement (19,99 EUR, 0 credit) fait passer le
+    // Acces fondateur: le paiement (29,99 EUR, 0 credit) fait passer le
     // compte bbx en fondateur et offre une box de bienvenue a ouvrir.
     if (order.offer_key === "founder-access" && !client.is_founder) {
       db.prepare(`UPDATE clients SET is_founder = 1, updated_at = ? WHERE id = ?`).run(

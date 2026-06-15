@@ -2522,6 +2522,10 @@ export function ClientCardPage() {
           showToast("Ce compte ne peut pas passer fondateur.");
           return;
         }
+        if (json?.error === "founder_cap_reached") {
+          showToast("Les 50 places fondateur sont toutes prises.");
+          return;
+        }
         showToast("Impossible d'ouvrir le paiement fondateur pour le moment.");
         return;
       }
@@ -6209,7 +6213,10 @@ export function ClientCardPage() {
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Le statut fondateur debloque une carte premium et des avantages reserves.
-                  Acces a vie pour <span className="font-semibold text-accentSoft">19,99 €</span>.
+                  Acces a vie pour <span className="font-semibold text-accentSoft">29,99 €</span>.
+                  <span className="mt-1 block text-xs uppercase tracking-[0.14em] text-accent">
+                    Places limitees a 50 fondateurs
+                  </span>
                 </p>
               </div>
               <button
@@ -6251,7 +6258,7 @@ export function ClientCardPage() {
                 type="button"
               >
                 <Crown className="mr-2 h-4 w-4" />
-                {founderCheckoutBusy ? "Ouverture du paiement..." : "Devenir fondateur - 19,99 €"}
+                {founderCheckoutBusy ? "Ouverture du paiement..." : "Devenir fondateur - 29,99 €"}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-white/45">
                 Paiement securise SumUp. Le statut est active des la confirmation du paiement.

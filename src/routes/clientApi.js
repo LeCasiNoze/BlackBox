@@ -11,6 +11,7 @@ const {
   listPublicTopupOffersForClient,
 } = require("../config/topupOffers");
 const {
+  countFounders,
   createClient,
   expireTemporaryFounders,
   getClientById,
@@ -19,6 +20,9 @@ const {
   openReviewBox,
   updateClientTermsAcceptance,
 } = require("../db/clients");
+
+// Nombre maximum de fondateurs (places limitees).
+const FOUNDER_CAP = 50;
 const { REVIEW_BOX_GOODIES } = require("../config/reviewBox");
 const {
   attachPendingGoodieWinsToNextAppointment,
@@ -810,8 +814,8 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   }
 });
 
-// Acces fondateur: paiement SumUp unique (19,99 EUR). A la confirmation
-// (webhook ou /topup/sync au retour), le compte bbx passe fondateur.
+// Acces fondateur: paiement SumUp unique (29,99 EUR, places limitees a 50).
+// A la confirmation (webhook ou /topup/sync au retour), le compte bbx passe fondateur.
 router.post("/:idOrSlug/founder/checkout", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
@@ -820,6 +824,11 @@ router.post("/:idOrSlug/founder/checkout", async (req, res) => {
 
   if (client.client_type !== "bbx" || client.is_founder) {
     return res.status(400).json({ ok: false, error: "not_eligible_for_founder" });
+  }
+
+  // Places limitees: pas de nouveau fondateur au-dela du plafond.
+  if (countFounders() >= FOUNDER_CAP) {
+    return res.status(409).json({ ok: false, error: "founder_cap_reached" });
   }
 
   if (!isSumupTopupReady()) {
@@ -833,7 +842,7 @@ router.post("/:idOrSlug/founder/checkout", async (req, res) => {
     applyMode: "add",
     credits: 0,
     durationDays: null,
-    priceCents: 1999,
+    priceCents: 2999,
     currency: "EUR",
   };
 

@@ -996,6 +996,9 @@ async function sendClientAppointmentStatusEmail({ client, appointment, eventType
   const place = locationLabel(appointment.location);
   const isDone = eventType === "done";
   const isReverted = eventType === "reverted";
+  // BC'Coins reellement credites a la cloture (fondateurs: credits consommes x20,
+  // pris dans le pool differe). 0 pour les non-fondateurs.
+  const earnedBc = Math.max(0, Number(appointment.bc_points_granted || 0));
 
   pushClient(client, {
     title: isReverted
@@ -1037,7 +1040,7 @@ Creneau : ${slot} ${windowLabel}
 Heure : ${safeTime}
 Lieu : ${place}
 Vehicule : ${vehicle}
-${isDone ? "BC'Coins gagnes : 100 points" : ""}
+${earnedBc > 0 ? `BC'Coins gagnes : ${earnedBc} BC` : ""}
 Espace client : ${portalUrl || "Lien indisponible"}
   `.trim();
 
@@ -1062,7 +1065,7 @@ Espace client : ${portalUrl || "Lien indisponible"}
           ${infoRows([
             { label: "Lieu", value: place },
             { label: "Vehicule", value: vehicle },
-            isDone ? { label: "BC'Coins gagnes", value: "100 points" } : null,
+            earnedBc > 0 ? { label: "BC'Coins gagnes", value: `${earnedBc} BC` } : null,
           ])}
           ${actionButtons([
             portalUrl
