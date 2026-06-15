@@ -447,6 +447,77 @@ type CaseTier = { key: string; label: string; proba: number; bc: number };
 
 const FALLBACK_TIER: CaseTier = { key: "commun", label: "Commun", proba: 1, bc: 0 };
 
+// --- Sons synthetises (Web Audio, aucun fichier) pour l'ouverture de box ----
+let sharedAudioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const Ctor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    if (!sharedAudioCtx) sharedAudioCtx = new Ctor();
+    if (sharedAudioCtx.state === "suspended") void sharedAudioCtx.resume();
+    return sharedAudioCtx;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function playReelTick() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.value = 1050 + Math.random() * 160;
+  const t = ctx.currentTime;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.05, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.06);
+}
+
+const WIN_SEQUENCES: Record<string, number[]> = {
+  commun: [523.25, 659.25],
+  peu_commun: [523.25, 659.25, 783.99],
+  rare: [523.25, 659.25, 783.99, 1046.5],
+  epique: [523.25, 659.25, 783.99, 1046.5, 1318.5],
+  legendaire: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98],
+};
+
+function playWinSound(tier: string) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const notes = WIN_SEQUENCES[tier] ?? WIN_SEQUENCES.commun;
+  const now = ctx.currentTime;
+  notes.forEach((freq, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    const start = now + index * 0.09;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.14, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.5);
+  });
+}
+
+const CONFETTI_BY_TIER: Record<string, number> = {
+  commun: 22,
+  peu_commun: 34,
+  rare: 50,
+  epique: 72,
+  legendaire: 110,
+};
+
+const CONFETTI_COLORS = ["#e8c98a", "#4cc6ff", "#ffffff", "#43d79d", "#ff7d89", "#a855f7"];
+
 function buildReelItems(
   tiers: CaseTier[],
   wonTier: string,
@@ -506,6 +577,17 @@ function CaseOpeningModal({
     hasAnimated.current = true;
 
     let revealTimeout: ReturnType<typeof window.setTimeout> | null = null;
+    let tickTimeout: ReturnType<typeof window.setTimeout> | null = null;
+    let tickStopped = false;
+    let tickDelay = 45;
+
+    // Tic-tac du reel qui ralentit progressivement (effet CS:GO).
+    function scheduleTick() {
+      if (tickStopped) return;
+      playReelTick();
+      tickDelay = Math.min(tickDelay * 1.13, 340);
+      tickTimeout = window.setTimeout(scheduleTick, tickDelay);
+    }
 
     // Un tick pour que le DOM peuple les cartes avant de changer le transform.
     const raf = window.requestAnimationFrame(() => {
@@ -515,19 +597,25 @@ function CaseOpeningModal({
       const containerWidth = reelRef.current?.parentElement?.clientWidth ?? 600;
       const target = -(WINNER_INDEX * REEL_STEP - containerWidth / 2 + REEL_CARD_WIDTH / 2);
       setTranslateX(target);
+      scheduleTick();
 
       // Apres la duree de la transition, on revele le resultat.
       revealTimeout = window.setTimeout(() => {
+        tickStopped = true;
+        if (tickTimeout !== null) window.clearTimeout(tickTimeout);
         setRevealed(true);
+        if (result) playWinSound(result.reward.tier);
         onSpinEnd();
       }, 4200);
     });
 
     return () => {
+      tickStopped = true;
       window.cancelAnimationFrame(raf);
       if (revealTimeout !== null) window.clearTimeout(revealTimeout);
+      if (tickTimeout !== null) window.clearTimeout(tickTimeout);
     };
-  // onSpinEnd et reelRef sont des refs/callbacks stables dans ce contexte.
+  // onSpinEnd/reelRef/result sont stables au moment du declenchement.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reelItems]);
 
@@ -543,6 +631,27 @@ function CaseOpeningModal({
         className="bb-surface-strong relative flex w-full max-w-3xl flex-col gap-6 overflow-hidden p-6 md:p-8"
         onClick={(event) => event.stopPropagation()}
       >
+        {/* Confettis a la revelation (densite selon la rarete) */}
+        {revealed && result && (
+          <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden" aria-hidden="true">
+            {Array.from({ length: CONFETTI_BY_TIER[result.reward.tier] ?? 30 }).map((_, index) => {
+              const total = CONFETTI_BY_TIER[result.reward.tier] ?? 30;
+              return (
+                <span
+                  className="bb-confetti-piece"
+                  key={index}
+                  style={{
+                    left: `${(index / total) * 100}%`,
+                    background: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+                    animationDelay: `${(index % 12) * 0.06}s`,
+                    animationDuration: `${1.7 + (index % 5) * 0.35}s`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+
         {/* En-tete */}
         <div className="flex items-center justify-between gap-4">
           <div>
