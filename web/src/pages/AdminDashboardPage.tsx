@@ -557,7 +557,9 @@ export function AdminDashboardPage() {
   const [busyPoints, setBusyPoints] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [refreshToken, setRefreshToken] = React.useState(0);
-  const [clientTypeFilter, setClientTypeFilter] = React.useState<"bbx" | "data" | "pro" | "all">("bbx");
+  const [clientTypeFilter, setClientTypeFilter] = React.useState<
+    "bbx" | "founder" | "pro" | "all"
+  >("bbx");
   const [exportingData, setExportingData] = React.useState(false);
   const [pointsDeltaDraft, setPointsDeltaDraft] = React.useState("100");
   const [pushPermission, setPushPermission] = React.useState<
@@ -2818,7 +2820,7 @@ export function AdminDashboardPage() {
               <div className="flex flex-wrap gap-2">
                 {[
                   { key: "bbx" as const, label: "BBX" },
-                  { key: "data" as const, label: "Data" },
+                  { key: "founder" as const, label: "Fondateur" },
                   { key: "pro" as const, label: "Pro" },
                   { key: "all" as const, label: "Tout" },
                 ].map((filter) => (
@@ -2928,7 +2930,11 @@ export function AdminDashboardPage() {
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <span className="bb-pill border-white/10 bg-white/[0.03] text-white/40">
-                              {client.clientType === "data" ? "Data" : client.cardCode || "BBX"}
+                              {client.clientType === "data"
+                                ? "Data"
+                                : client.clientType === "pro"
+                                  ? client.cardCode || "Pro"
+                                  : client.cardCode || "BBX"}
                             </span>
                             {client.city && (
                               <span className="bb-pill border-white/10 bg-white/[0.03] text-white/40">

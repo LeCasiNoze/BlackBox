@@ -143,6 +143,19 @@ function listClients(filter = "all") {
       .all();
   }
 
+  if (filter === "founder") {
+    return db
+      .prepare(
+        `
+        SELECT *
+        FROM clients
+        WHERE is_founder = 1
+        ORDER BY created_at DESC, id DESC
+      `,
+      )
+      .all();
+  }
+
   if (filter === "pro") {
     return db
       .prepare(
@@ -202,6 +215,30 @@ function generateNextCardCode() {
   }
 
   return `BBX-${String(nextNum).padStart(3, "0")}`;
+}
+
+// Attribue un code carte (BBX-NNN) aux comptes BBX historiques qui n'en ont
+// pas encore, dans l'ordre de creation. Idempotent: ne touche que les NULL.
+function backfillCardCodes() {
+  const missing = db
+    .prepare(
+      `
+      SELECT id
+      FROM clients
+      WHERE client_type = 'bbx'
+        AND (card_code IS NULL OR card_code = '')
+      ORDER BY id ASC
+    `,
+    )
+    .all();
+
+  const update = db.prepare(`UPDATE clients SET card_code = ? WHERE id = ?`);
+  let assigned = 0;
+  for (const row of missing) {
+    update.run(generateNextCardCode(), row.id);
+    assigned += 1;
+  }
+  return assigned;
 }
 
 function generateNextDataSlug() {
@@ -690,6 +727,7 @@ function ensureDemoClient() {
 }
 
 module.exports = {
+  backfillCardCodes,
   createClient,
   decrementFormulaRemaining,
   ensureDemoClient,

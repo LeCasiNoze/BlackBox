@@ -290,11 +290,13 @@ router.get("/clients", (req, res) => {
     const filter =
       req.query.filter === "all"
         ? "all"
-        : req.query.filter === "data"
-          ? "data"
-          : req.query.filter === "pro"
-            ? "pro"
-            : "bbx";
+        : req.query.filter === "founder"
+          ? "founder"
+          : req.query.filter === "data"
+            ? "data"
+            : req.query.filter === "pro"
+              ? "pro"
+              : "bbx";
     const clients = listClients(filter).map(mapClientRow);
     return res.json({ ok: true, clients });
   } catch (error) {
