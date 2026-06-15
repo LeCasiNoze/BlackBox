@@ -265,6 +265,43 @@ function openReviewBox(clientId) {
   return { ok: true, reward: goodie };
 }
 
+// Supprime un compte client et toutes ses donnees liees (pour purge de tests).
+function deleteClient(id) {
+  const client = getClientById(id);
+  if (!client) return false;
+
+  const remove = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM appointment_photos WHERE appointment_id IN (SELECT id FROM appointments WHERE client_id = ?)`,
+    ).run(id);
+    db.prepare(`DELETE FROM appointments WHERE client_id = ?`).run(id);
+    db.prepare(`DELETE FROM vehicles WHERE client_id = ?`).run(id);
+    for (const table of [
+      "reward_redemptions",
+      "topup_orders",
+      "case_openings",
+      "event_participations",
+      "goodie_wins",
+    ]) {
+      try {
+        db.prepare(`DELETE FROM ${table} WHERE client_id = ?`).run(id);
+      } catch (_error) {
+        // table absente / schema different: on ignore
+      }
+    }
+    if (client.email) {
+      try {
+        db.prepare(`DELETE FROM signup_codes WHERE lower(email) = lower(?)`).run(client.email);
+      } catch (_error) {
+        // ignore
+      }
+    }
+    db.prepare(`DELETE FROM clients WHERE id = ?`).run(id);
+  });
+  remove();
+  return true;
+}
+
 // Passe le compte fondateur pour `days` jours (expiration auto ensuite).
 function grantTemporaryFounder(clientId, days = 30) {
   const until = nowUnix() + days * 24 * 60 * 60;
@@ -802,6 +839,7 @@ function ensureDemoClient() {
 module.exports = {
   createClient,
   decrementFormulaRemaining,
+  deleteClient,
   expireTemporaryFounders,
   grantTemporaryFounder,
   openReviewBox,

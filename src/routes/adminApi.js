@@ -12,6 +12,7 @@ const {
 const { nowUnix } = require("../db");
 const {
   createClient,
+  deleteClient,
   formulaNameFromTotal,
   getClientById,
   incrementFormulaRemaining,
@@ -358,6 +359,23 @@ router.get("/clients/:id", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] GET /clients/:id:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.delete("/clients/:id", (req, res) => {
+  const id = Number(req.params.id || 0);
+  if (!id) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+  try {
+    const ok = deleteClient(id);
+    if (!ok) {
+      return res.status(404).json({ ok: false, error: "client_not_found" });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminApi] DELETE /clients/:id:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

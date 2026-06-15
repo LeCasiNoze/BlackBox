@@ -1646,6 +1646,31 @@ export function AdminDashboardPage() {
     setProfileDraft((current) => (current ? { ...current, [field]: value } : current));
   }
 
+  async function removeClientAccount(client: AdminClient) {
+    if (
+      !window.confirm(
+        `Supprimer definitivement le compte de ${fullClientName(client)} et toutes ses donnees (RDV, photos, avis...) ? Action irreversible.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/admin/clients/${client.id}`, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.ok === false) {
+        showToast("Suppression impossible.");
+        return;
+      }
+      setClients((current) => current.filter((entry) => entry.id !== client.id));
+      setSelectedClientId(null);
+      setSelectedClient(null);
+      showToast("Compte supprime.");
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau pendant la suppression.");
+    }
+  }
+
   async function submitProfile() {
     if (!profileDraft) return;
 
@@ -3722,6 +3747,16 @@ export function AdminDashboardPage() {
                           Email
                         </a>
                       )}
+                      <button
+                        className="bb-button-danger"
+                        onClick={() => {
+                          void removeClientAccount(managedClient);
+                        }}
+                        type="button"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Supprimer le compte
+                      </button>
                     </div>
                   </div>
 
