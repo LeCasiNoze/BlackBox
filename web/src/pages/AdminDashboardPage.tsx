@@ -2251,114 +2251,90 @@ export function AdminDashboardPage() {
   function renderHomePage() {
     return (
       <>
-        <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Vue rapide</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Les chiffres utiles du jour
-                </h2>
-              </div>
+        <section className="bb-surface p-5 md:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="bb-eyebrow">Tableau de bord</p>
+              <h2 className="mt-1 text-xl font-semibold text-white">Vue rapide</h2>
             </div>
-
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {[
-                { icon: Inbox, tint: "amber", label: "En attente", value: pendingRequests.length, copy: "Demandes a traiter" },
-                { icon: CalendarClock, tint: "sky", label: "Prochains passages", value: upcomingAppointments.length, copy: "Agenda actif" },
-                { icon: Coins, tint: "gold", label: "Credits restants", value: totalCreditsRemaining, copy: `${clientsLowOnCredits} client(s) en tension` },
-                { icon: CheckCircle2, tint: "emerald", label: "Effectues ce mois", value: doneThisMonth, copy: "Prestations cloturees" },
-              ].map((metric, index) => {
-                const MetricIcon = metric.icon;
-                const tints: Record<string, string> = {
-                  amber: "border-amber-300/25 bg-amber-300/10 text-amber-200",
-                  sky: "border-sky-300/25 bg-sky-300/10 text-sky-200",
-                  gold: "border-[#e8c98a]/25 bg-[#e8c98a]/10 text-[#ffe8a8]",
-                  emerald: "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
-                };
-                return (
-                  <article className={`bb-metric bb-rise bb-rise-${Math.min(index + 1, 4)}`} key={metric.label}>
-                    <span className={`mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border ${tints[metric.tint]}`}>
-                      <MetricIcon className="h-5 w-5" />
-                    </span>
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">{metric.label}</p>
-                    <p className="mt-2 text-3xl font-semibold tabular-nums text-white">{metric.value}</p>
-                    <p className="mt-2 text-sm text-white/55">{metric.copy}</p>
-                  </article>
-                );
-              })}
-            </div>
-          </article>
-
-          <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Raccourcis</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Demarrage rapide
-                </h2>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3">
-              {firstPendingRequest && (
-                <Link className="bb-button-brand justify-center" to={appointmentAdminLink(firstPendingRequest)}>
-                  <CalendarClock className="mr-2 h-4 w-4" />
-                  Ouvrir la prochaine demande
-                </Link>
-              )}
-              {firstUpcomingAppointment && (
-                <Link className="bb-button-ghost justify-center" to={appointmentAdminLink(firstUpcomingAppointment)}>
-                  <Clock3 className="mr-2 h-4 w-4" />
-                  Ouvrir le prochain passage
-                </Link>
-              )}
-              <button className="bb-button-ghost justify-center" onClick={openCreateProfile} type="button">
-                <Plus className="mr-2 h-4 w-4" />
-                Nouveau client
-              </button>
-              <button
-                className="bb-button-ghost justify-center"
-                disabled={exportingData}
-                onClick={() => {
-                  void exportFullData();
-                }}
-                type="button"
+            <div className="flex flex-wrap gap-2">
+              <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {doneThisMonth} effectue{doneThisMonth > 1 ? "s" : ""} ce mois
+              </span>
+              <span
+                className={cn(
+                  "bb-pill",
+                  clientsLowOnCredits > 0
+                    ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
+                    : "border-white/10 bg-white/[0.04] text-white/60",
+                )}
               >
-                <Download className="mr-2 h-4 w-4" />
-                {exportingData ? "Export..." : "Exporter les donnees"}
-              </button>
+                <Coins className="h-3.5 w-3.5" />
+                {totalCreditsRemaining} credits
+                {clientsLowOnCredits > 0 ? ` · ${clientsLowOnCredits} en tension` : ""}
+              </span>
             </div>
-          </article>
-        </section>
+          </div>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {[
-            { icon: CalendarClock, title: "Agenda", copy: "Demandes, planning et validations.", badge: `${pendingRequests.length} attente`, to: "/admin/appointments" },
-            { icon: Truck, title: "Livraison", copy: "Rendez-vous confirmes a preparer.", badge: `${upcomingAppointments.length} actifs`, to: "/admin/delivery" },
-            { icon: Users, title: "Clients", copy: "Fiches, credits et historique.", badge: `${clients.length} fiche(s)`, to: "/admin/clients" },
-          ].map((tile) => {
-            const TileIcon = tile.icon;
-            return (
-              <Link
-                className="bb-surface bb-hover-lift group flex items-center gap-4 p-5"
-                key={tile.title}
-                to={tile.to}
-              >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#e8c98a]/20 bg-[#e8c98a]/[0.08] text-[#e8c98a]">
-                  <TileIcon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-lg font-semibold text-white">{tile.title}</span>
-                    <span className="bb-pill border-white/10 bg-white/[0.04] text-[10px] text-white/60">{tile.badge}</span>
-                  </span>
-                  <span className="mt-1 block text-sm leading-6 text-white/55">{tile.copy}</span>
-                </span>
-                <ArrowRight className="h-5 w-5 shrink-0 text-white/35 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
+          <div className="mt-5 flex flex-wrap gap-2">
+            {firstPendingRequest && (
+              <Link className="bb-button-brand" to={appointmentAdminLink(firstPendingRequest)}>
+                <CalendarClock className="mr-2 h-4 w-4" />
+                Prochaine demande
               </Link>
-            );
-          })}
+            )}
+            {firstUpcomingAppointment && (
+              <Link className="bb-button-ghost" to={appointmentAdminLink(firstUpcomingAppointment)}>
+                <Clock3 className="mr-2 h-4 w-4" />
+                Prochain passage
+              </Link>
+            )}
+            <button className="bb-button-ghost" onClick={openCreateProfile} type="button">
+              <Plus className="mr-2 h-4 w-4" />
+              Nouveau client
+            </button>
+            <button
+              className="bb-button-ghost"
+              disabled={exportingData}
+              onClick={() => {
+                void exportFullData();
+              }}
+              type="button"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {exportingData ? "Export..." : "Exporter"}
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              { icon: CalendarClock, title: "Agenda", value: pendingRequests.length, sub: "en attente", to: "/admin/appointments" },
+              { icon: Truck, title: "Livraison", value: upcomingAppointments.length, sub: "a preparer", to: "/admin/delivery" },
+              { icon: Users, title: "Clients", value: clients.length, sub: "fiches", to: "/admin/clients" },
+            ].map((tile) => {
+              const TileIcon = tile.icon;
+              return (
+                <Link
+                  className="bb-hover-lift group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-[#e8c98a]/40 hover:bg-[#e8c98a]/[0.06]"
+                  key={tile.title}
+                  to={tile.to}
+                >
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#e8c98a]/20 bg-[#e8c98a]/[0.08] text-[#e8c98a]">
+                    <TileIcon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span className="text-2xl font-semibold tabular-nums text-white">{tile.value}</span>
+                      <span className="text-sm font-medium text-white/80">{tile.title}</span>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-white/45">{tile.sub}</span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#e8c98a]" />
+                </Link>
+              );
+            })}
+          </div>
         </section>
 
         {renderEventsPanel()}
