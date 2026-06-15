@@ -100,4 +100,8 @@ app.get(/^\/card(\/.*)?$/, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
+app.get(/^\/forfait(\/.*)?$/, (req, res) => {
+  res.sendFile(path.join(distDir, "index.html"));
+});
+
 module.exports = app;

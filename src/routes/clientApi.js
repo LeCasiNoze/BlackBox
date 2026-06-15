@@ -63,6 +63,15 @@ const {
   processPaidTopupOrder,
   syncTopupOrderFromCheckout,
 } = require("../db/topup_orders");
+const { getPartnerForfait, listPartnerForfaits } = require("../config/partnerForfaits");
+const {
+  createPartnerOrder,
+  getPartnerOrderById,
+  listPartnerOrders,
+  listPendingPartnerOrdersWithCheckout,
+  mapPartnerOrderRow,
+  syncPartnerOrderFromCheckout,
+} = require("../db/partner_orders");
 const {
   sendAdminNotification,
   sendAdminRewardRedemption,
@@ -71,7 +80,7 @@ const {
   sendClientWelcomeEmail,
   sendSignupVerificationCode,
 } = require("../email");
-const { createHostedCheckout, retrieveCheckout } = require("../services/sumup");
+const { createHostedCheckout, retrieveCheckout, sumupConfigured } = require("../services/sumup");
 const { getVapidPublicKey, isPushConfigured } = require("../services/webPush");
 const {
   saveSubscription,
@@ -188,6 +197,16 @@ function publicBaseUrl(req) {
 
 function buildTopupCheckoutReference(client, offer) {
   return `bbx-topup-${client.id}-${offer.key}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`.slice(
+    0,
+    90,
+  );
+}
+
+// Reference courte et lisible servant a la fois de jeton public du lien
+// (`/forfait/<reference>`) et de reference SumUp. Le forfait apparait dans
+// l'URL ("en fonction du tarif").
+function buildForfaitCheckoutReference(forfait) {
+  return `f-${forfait.key}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`.slice(
     0,
     90,
   );
@@ -477,6 +496,17 @@ function ensurePortalEligible(client, res) {
   return true;
 }
 
+function ensureProClient(client, res) {
+  if (!ensurePortalEligible(client, res)) {
+    return false;
+  }
+  if ((client.client_type || "bbx") !== "pro") {
+    res.status(403).json({ ok: false, error: "not_a_pro_account" });
+    return false;
+  }
+  return true;
+}
+
 router.post("/signup/request-code", async (req, res) => {
   const body = req.body || {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -590,6 +620,79 @@ router.get("/:idOrSlug/vehicles", (req, res) => {
   return res.json({
     ok: true,
     vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+  });
+});
+
+// --- Forfaits partenaire (comptes pro) ---------------------------------------
+// L'agence (compte pro) consulte la grille de forfaits et son suivi de
+// paiements, puis genere un lien a transmettre au client final.
+router.get("/:idOrSlug/forfaits", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensureProClient(client, res)) {
+    return;
+  }
+
+  // Rafraichit au mieux les commandes encore en attente (best-effort: on ne
+  // bloque pas le suivi si SumUp est indisponible). Le webhook reste le
+  // mecanisme principal de mise a jour.
+  if (sumupConfigured()) {
+    const pending = listPendingPartnerOrdersWithCheckout({
+      partnerClientId: client.id,
+      limit: 15,
+    });
+    await Promise.all(
+      pending.map(async (order) => {
+        try {
+          const checkout = await retrieveCheckout(order.checkoutId);
+          syncPartnerOrderFromCheckout(order.id, checkout);
+        } catch (error) {
+          // silencieux: simple rafraichissement opportuniste
+        }
+      }),
+    );
+  }
+
+  return res.json({
+    ok: true,
+    paymentsReady: sumupConfigured(),
+    forfaits: listPartnerForfaits(),
+    orders: listPartnerOrders({ partnerClientId: client.id, limit: 100 }),
+  });
+});
+
+router.post("/:idOrSlug/forfaits/link", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensureProClient(client, res)) {
+    return;
+  }
+
+  if (!sumupConfigured()) {
+    return res.status(503).json({ ok: false, error: "sumup_not_ready" });
+  }
+
+  const forfait = getPartnerForfait(req.body?.forfaitKey);
+  if (!forfait) {
+    return res.status(400).json({ ok: false, error: "invalid_forfait" });
+  }
+
+  const baseUrl = publicBaseUrl(req);
+  const checkoutReference = buildForfaitCheckoutReference(forfait);
+  const partnerLabel =
+    client.company || client.full_name || client.card_code || client.slug || null;
+
+  const order = createPartnerOrder({
+    partnerClientId: client.id,
+    partnerLabel,
+    forfait,
+    checkoutReference,
+    redirectUrl: `${baseUrl}/forfait/${encodeURIComponent(checkoutReference)}?paid=1`,
+    returnUrl: `${baseUrl}/api/payments/sumup/webhook`,
+  });
+
+  return res.json({
+    ok: true,
+    link: `${baseUrl}/forfait/${encodeURIComponent(checkoutReference)}`,
+    order: mapPartnerOrderRow(order),
   });
 });
 

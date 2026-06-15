@@ -221,6 +221,44 @@ CREATE INDEX IF NOT EXISTS idx_topup_orders_checkout_id
   ON topup_orders(checkout_id);
 
 -- ============================
+-- TABLE partner_orders (forfaits esthetiques des agences partenaires)
+-- ============================
+-- Prestations ponctuelles payees par le client final via un lien SumUp genere
+-- par un compte pro. Aucun lien avec les credits/formules ni les BC'Coins.
+CREATE TABLE IF NOT EXISTS partner_orders (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  partner_client_id   INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+  partner_label       TEXT,
+  forfait_key         TEXT NOT NULL,
+  forfait_label       TEXT NOT NULL,
+  amount_cents        INTEGER NOT NULL,
+  currency            TEXT NOT NULL DEFAULT 'EUR',
+  checkout_reference  TEXT NOT NULL UNIQUE,
+  checkout_id         TEXT UNIQUE,
+  hosted_checkout_url TEXT,
+  redirect_url        TEXT,
+  return_url          TEXT,
+  status              TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded')),
+  sumup_status        TEXT,
+  customer_name       TEXT,
+  customer_email      TEXT,
+  paid_at             INTEGER,
+  sumup_payload       TEXT,
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_partner_orders_partner
+  ON partner_orders(partner_client_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_partner_orders_checkout_id
+  ON partner_orders(checkout_id);
+
+CREATE INDEX IF NOT EXISTS idx_partner_orders_reference
+  ON partner_orders(checkout_reference);
+
+-- ============================
 -- TABLE signup_codes
 -- ============================
 CREATE TABLE IF NOT EXISTS signup_codes (
