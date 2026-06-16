@@ -4750,6 +4750,29 @@ export function ClientCardPage() {
           </div>
 
           <div className="mt-5 hidden md:block">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button
+                className="bb-button-ghost"
+                onClick={() => goFocusedDay(-7)}
+                type="button"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Semaine precedente
+              </button>
+              {focusedDay && (
+                <p className="bb-display text-base font-semibold text-white">
+                  Semaine du {formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}
+                </p>
+              )}
+              <button
+                className="bb-button-ghost"
+                onClick={() => goFocusedDay(7)}
+                type="button"
+              >
+                Semaine suivante
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </button>
+            </div>
             <div className="grid grid-cols-7 gap-3">
               {weekDays.map((day, index) =>
                 day ? (
