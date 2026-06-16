@@ -65,8 +65,11 @@ l'admin → Hall → « Notes de version »).
 
 ## 7. Avis & réputation
 
-- ⏳ **7.1 Demande d'avis automatisée** X h après une presta effectuée.
-- ⏳ **7.2 Mur d'avis** : améliorer + repositionner la section avis.
+- ✅ **7.1 Demande d'avis automatisée** : **72h** après une presta effectuée
+  (sans avis), e-mail + push qui ouvrent la fiche RDV sur la section avis
+  (`?review=1`). 1 seul rappel. `src/services/reviewRequestScheduler.js`.
+- ✅ **7.2 Mur d'avis** : avis publics 4-5★ avec commentaire sur la landing
+  (`GET /api/client/public/reviews`).
 
 ## 8. Admin & opérations
 

@@ -114,6 +114,8 @@ function ensureAppointmentsExtraColumns() {
     );
     addColumnIfMissing("admin_reminder_24h_sent_at", "admin_reminder_24h_sent_at INTEGER");
     addColumnIfMissing("client_reminder_24h_sent_at", "client_reminder_24h_sent_at INTEGER");
+    addColumnIfMissing("done_at", "done_at INTEGER");
+    addColumnIfMissing("review_request_sent_at", "review_request_sent_at INTEGER");
     addColumnIfMissing(
       "is_public",
       "is_public INTEGER NOT NULL DEFAULT 0 CHECK (is_public IN (0, 1))"

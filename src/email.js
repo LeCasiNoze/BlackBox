@@ -1281,6 +1281,61 @@ Reserver : ${bookingUrl || "Lien indisponible"}
   });
 }
 
+// Demande d'avis ~72h apres une prestation effectuee. Redirige directement
+// vers la fiche du RDV, section avis (?appointmentId=N&review=1).
+async function sendClientReviewRequestEmail({ client, appointment }) {
+  if (!client?.email || !appointment) {
+    return false;
+  }
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const formattedDate = formatDateFr(appointment.date);
+  const reviewUrl = portalUrl ? `${portalUrl}?appointmentId=${appointment.id}&review=1` : "";
+
+  try {
+    await sendClientPush(client.id, {
+      title: "Ton avis nous interesse",
+      body: `Comment s'est passe ton detailing du ${formattedDate} ? Laisse une note en 10 secondes.`,
+      url: reviewUrl || "/",
+    });
+  } catch (_error) {
+    // push best-effort
+  }
+
+  const subject = `[Bryan Cars] Ton avis sur ton detailing du ${formattedDate}`;
+  const text = `
+Bonjour ${fullName},
+
+Comment s'est passe ton detailing du ${formattedDate} ?
+Laisse-nous une note (et un petit mot si tu veux), ca nous aide enormement.
+
+Laisser mon avis : ${reviewUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Ton avis",
+    title: "Comment s'est passe ton detailing ?",
+    subtitle: `Ton retour sur le passage du ${formattedDate} nous aide a nous ameliorer.`,
+    preheader: "Laisse ta note en 10 secondes",
+    bodyHtml: `
+      ${panelCard({
+        title: "Note ta prestation",
+        description: "Une note (et un mot si tu veux), directement sur ta fiche de rendez-vous.",
+        bodyHtml: actionButtons([
+          reviewUrl ? { label: "Laisser mon avis", href: reviewUrl, tone: "primary" } : null,
+        ]),
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
 // Recap annuel "Ton annee Bryan Cars".
 async function sendClientYearRecapEmail({ client, recap }) {
   if (!client?.email) {
@@ -1485,6 +1540,7 @@ module.exports = {
   sendClientPriceApprovalEmail,
   sendClientAppointmentReminderEmail,
   sendClientInactivityReminderEmail,
+  sendClientReviewRequestEmail,
   sendClientYearRecapEmail,
   sendWaitlistSlotFreedEmail,
   sendClientAppointmentStatusEmail,

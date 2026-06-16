@@ -49,6 +49,25 @@ export function LandingPage() {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
+  const [reviews, setReviews] = React.useState<
+    Array<{ id: number; author: string; rating: number; comment: string; vehicleModel: string | null }>
+  >([]);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/client/public/reviews");
+        const json = await response.json().catch(() => ({}));
+        if (active && json.ok && Array.isArray(json.reviews)) setReviews(json.reviews);
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function updateField(key: keyof SignupForm, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -282,6 +301,37 @@ export function LandingPage() {
             );
           })}
         </section>
+
+        {reviews.length > 0 && (
+          <section className="bb-surface bb-rise relative overflow-hidden p-5 md:p-6">
+            <div className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-[#e8c98a]" />
+              <p className="text-xs uppercase tracking-[0.16em] text-white/40">Ils nous font confiance</p>
+            </div>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Avis clients</h2>
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {reviews.map((review) => (
+                <article
+                  className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4"
+                  key={review.id}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-white">{review.author}</p>
+                    <div className="flex items-center gap-0.5 text-[#e8c98a]">
+                      {Array.from({ length: Math.max(0, Math.min(5, review.rating)) }).map((_, i) => (
+                        <Star className="h-3.5 w-3.5 fill-current" key={i} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/70">&laquo; {review.comment} &raquo;</p>
+                  {review.vehicleModel && (
+                    <p className="mt-2 text-xs text-white/40">{review.vehicleModel}</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

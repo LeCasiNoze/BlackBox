@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.8.0";
+export const APP_VERSION = "1.9.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.9.0",
+    date: "2026-06-16",
+    title: "Demande d'avis automatique & mur d'avis",
+    changes: [
+      "72h apres une prestation effectuee (sans avis), le client recoit une demande d'avis (e-mail + notification) qui ouvre directement la fiche du RDV sur la section avis. Un seul rappel.",
+      "Mur d'avis clients (notes 4-5 etoiles avec commentaire) affiche sur la page d'accueil publique.",
+    ],
+  },
   {
     version: "1.8.0",
     date: "2026-06-16",

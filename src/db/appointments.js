@@ -701,16 +701,19 @@ function updateAppointmentUserReview(id, rating, review) {
 }
 
 function updateAppointmentStatus(id, newStatus) {
+  const now = nowUnix();
+  // Memorise la date de passage en "effectue" (pour la demande d'avis a J+3).
   return db
     .prepare(
       `
       UPDATE appointments
       SET status = ?,
-          updated_at = ?
+          updated_at = ?,
+          done_at = CASE WHEN ? = 'done' THEN COALESCE(done_at, ?) ELSE done_at END
       WHERE id = ?
     `,
     )
-    .run(newStatus, nowUnix(), id).changes;
+    .run(newStatus, now, newStatus, now, id).changes;
 }
 
 function syncAppointmentCleanlinessPenaltyInTransaction(appointmentId) {

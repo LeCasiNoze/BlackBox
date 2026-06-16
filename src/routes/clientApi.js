@@ -1266,6 +1266,33 @@ router.get("/:idOrSlug/appointments/:appointmentId/photos", (req, res) => {
   }
 });
 
+// Mur d'avis public (landing): prestations effectuees notees >= 4 avec un
+// commentaire. Anonymise (prenom seulement).
+router.get("/public/reviews", (_req, res) => {
+  try {
+    const reviews = getPublicAppointmentsFeed(40)
+      .filter(
+        (a) =>
+          a.user_review &&
+          String(a.user_review).trim() !== "" &&
+          Number(a.user_rating || 0) >= 4,
+      )
+      .slice(0, 12)
+      .map((a) => ({
+        id: a.id,
+        author: String(a.full_name || "").trim().split(/\s+/)[0] || "Client",
+        rating: a.user_rating,
+        comment: a.user_review,
+        vehicleModel: a.vehicle_model || null,
+        date: a.date,
+      }));
+    return res.json({ ok: true, reviews });
+  } catch (error) {
+    console.error("[API] public reviews:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
 router.get("/:idOrSlug/community", (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {

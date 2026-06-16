@@ -1290,6 +1290,7 @@ export function ClientCardPage() {
   const topupRefParam = query.get("topupRef");
   const founderRefParam = query.get("founderRef");
   const appointmentIdParam = query.get("appointmentId");
+  const reviewParam = query.get("review");
 
   const [data, setData] = React.useState<ApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1362,6 +1363,7 @@ export function ClientCardPage() {
     }
   });
   const lastOpenedAppointmentIdRef = React.useRef<number | null>(null);
+  const reviewSectionRef = React.useRef<HTMLElement | null>(null);
   const appointmentsEverLoadedRef = React.useRef(false);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
   const [historyFilter, setHistoryFilter] = React.useState<
@@ -1976,6 +1978,15 @@ export function ClientCardPage() {
   // openAppointmentModal est stable (definie dans le meme composant, pas de deps changeantes)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentIdParam, appointments, appointmentsLoading, selectedAppointment]);
+
+  // Lien "?review=1" (mail/notif de demande d'avis): defile jusqu'a la section avis.
+  React.useEffect(() => {
+    if (!reviewParam || !selectedAppointment) return;
+    const timer = window.setTimeout(() => {
+      reviewSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [reviewParam, selectedAppointment]);
 
   const month = data?.month ?? null;
   const monthDays = month?.days ?? [];
@@ -6202,7 +6213,10 @@ export function ClientCardPage() {
                 )}
 
                 {selectedAppointment.status === "done" && (
-                <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+                <article
+                  className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5"
+                  ref={reviewSectionRef}
+                >
                   <div className="flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
                       <Star className="h-5 w-5" />

@@ -24,6 +24,7 @@ const { ensureDemoClient, renumberCardCodes, expireTemporaryFounders } = require
 const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 const { startInactivityReminderScheduler } = require("./services/inactivityReminderScheduler");
+const { startReviewRequestScheduler } = require("./services/reviewRequestScheduler");
 
 if (process.env.SEED_DEMO_CLIENT === "true") {
   ensureDemoClient();
@@ -61,6 +62,7 @@ ensureDir(EXPORTS_DIR);
 startAppointmentReminderScheduler();
 startWeeklyExportScheduler();
 startInactivityReminderScheduler();
+startReviewRequestScheduler();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
