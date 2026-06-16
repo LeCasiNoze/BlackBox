@@ -86,6 +86,7 @@ const {
   syncTopupOrderFromCheckout,
 } = require("../db/topup_orders");
 const { getCompanyInfo } = require("../db/settings");
+const { getClientYearRecap } = require("../db/recap");
 const { getPartnerForfait, listPartnerForfaits } = require("../config/partnerForfaits");
 const {
   createPartnerOrder,
@@ -996,6 +997,16 @@ function invoiceNumberFor(order) {
   const year = ts ? new Date(ts * 1000).getFullYear() : new Date().getFullYear();
   return `BC-${year}-${String(order.id).padStart(5, "0")}`;
 }
+
+// Recap annuel "Ton annee Bryan Cars".
+router.get("/:idOrSlug/recap", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  const year = Number(req.query.year) || new Date().getFullYear();
+  return res.json({ ok: true, recap: getClientYearRecap(client.id, year) });
+});
 
 // Liste des factures (paiements regles) du client.
 router.get("/:idOrSlug/invoices", (req, res) => {

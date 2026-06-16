@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.7.0";
+export const APP_VERSION = "1.8.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.8.0",
+    date: "2026-06-16",
+    title: "Recap annuel 'Mon annee Bryan Cars'",
+    changes: [
+      "Le client decouvre son recap de l'annee (prestations, credits, BC'Coins, vehicules, avis, photos) dans Suivi.",
+      "Admin : bouton 'Envoyer le recap annuel' qui envoie le recap par e-mail a tous les clients BBX ayant au moins une prestation dans l'annee.",
+    ],
+  },
   {
     version: "1.7.0",
     date: "2026-06-16",

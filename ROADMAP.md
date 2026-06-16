@@ -29,7 +29,9 @@ l'admin → Hall → « Notes de version »).
 - ✅ **3.1 Rappels intelligents** — relance à 8 semaines sans RDV effectué,
   max 1 / 30 j, push + mail. *(Seuils ajustables dans le scheduler.)*
 - ⏳ **3.2 Relances saisonnières** par véhicule (pollen, sel d'hiver…).
-- ⏳ **3.3 Récap annuel** « ton année Bryan Cars » (nb prestas, BC, avant/après).
+- ✅ **3.3 Récap annuel** « Mon année Bryan Cars » : modale client (prestations,
+  crédits, BC, véhicules, avis, photos) + envoi e-mail déclenchable par l'admin
+  (`src/db/recap.js`).
 - ⏳ **3.4 Notif météo** (« beau temps ce week-end, créneau libre ? »).
   *(Bloqué : nécessite une clé d'API météo.)*
 - ✅ **3.5 Activation des notifs plus visible** (bandeau si désactivées).

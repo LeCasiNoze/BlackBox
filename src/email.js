@@ -1281,6 +1281,58 @@ Reserver : ${bookingUrl || "Lien indisponible"}
   });
 }
 
+// Recap annuel "Ton annee Bryan Cars".
+async function sendClientYearRecapEmail({ client, recap }) {
+  if (!client?.email) {
+    return false;
+  }
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const bookingUrl = portalUrl ? `${portalUrl}?view=booking` : "";
+  const year = recap?.year || new Date().getFullYear();
+
+  const subject = `[Bryan Cars] Ton annee ${year} en un coup d'oeil`;
+  const text = `
+Bonjour ${fullName},
+
+Ton annee ${year} chez Bryan Cars :
+- ${recap.visits} prestation(s) realisee(s)
+- ${recap.creditsUsed} credit(s) utilise(s)
+- ${recap.bcEarned} BC'Coins gagnes
+
+Merci pour ta confiance ! Reserve ton prochain detailing : ${bookingUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: `Recap ${year}`,
+    title: `Ton annee ${year} chez Bryan Cars`,
+    subtitle: "Merci pour ta confiance cette annee. Voici ton recap perso.",
+    preheader: `${recap.visits} prestations · ${recap.bcEarned} BC'Coins`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Prestations", value: String(recap.visits) },
+        { label: "Credits utilises", value: String(recap.creditsUsed) },
+        { label: "BC'Coins gagnes", value: String(recap.bcEarned) },
+      ])}
+      ${panelCard({
+        title: "Et l'annee prochaine ?",
+        description:
+          "On garde ta voiture impeccable. Reserve ton prochain detailing quand tu veux.",
+        bodyHtml: actionButtons([
+          bookingUrl ? { label: "Reserver mon detailing", href: bookingUrl, tone: "primary" } : null,
+        ]),
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
 async function sendAdminRewardRedemption({ client, reward }) {
   if (!MAIL_ADMIN_TO) {
     console.warn("[MAIL] MAIL_ADMIN_TO manquant, redemption ignoree.");
@@ -1433,6 +1485,7 @@ module.exports = {
   sendClientPriceApprovalEmail,
   sendClientAppointmentReminderEmail,
   sendClientInactivityReminderEmail,
+  sendClientYearRecapEmail,
   sendWaitlistSlotFreedEmail,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,

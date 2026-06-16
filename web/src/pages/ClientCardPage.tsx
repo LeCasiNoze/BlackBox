@@ -1408,6 +1408,17 @@ export function ClientCardPage() {
   const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [participateBusy, setParticipateBusy] = React.useState(false);
   const [waitlistBusy, setWaitlistBusy] = React.useState(false);
+  const [recapOpen, setRecapOpen] = React.useState(false);
+  const [recapLoading, setRecapLoading] = React.useState(false);
+  const [recapData, setRecapData] = React.useState<{
+    year: number;
+    visits: number;
+    creditsUsed: number;
+    bcEarned: number;
+    vehicles: number;
+    reviews: number;
+    photos: number;
+  } | null>(null);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
     instagram: false,
@@ -3646,6 +3657,55 @@ export function ClientCardPage() {
     }
   }
 
+  async function openRecap() {
+    setRecapOpen(true);
+    if (recapData) return;
+    setRecapLoading(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/recap`);
+      const json = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        recap?: {
+          year: number;
+          visits: number;
+          creditsUsed: number;
+          bcEarned: number;
+          vehicles: number;
+          reviews: number;
+          photos: number;
+        };
+      };
+      if (json.ok && json.recap) setRecapData(json.recap);
+    } catch {
+      /* best-effort */
+    } finally {
+      setRecapLoading(false);
+    }
+  }
+
+  function renderRecapTeaser() {
+    const year = new Date().getFullYear();
+    return (
+      <button
+        className="bb-rise bb-gold-frame bb-hover-lift group flex w-full items-center justify-between gap-4 overflow-hidden rounded-[26px] bg-[#16120c]/80 p-5 text-left"
+        onClick={() => {
+          void openRecap();
+        }}
+        type="button"
+      >
+        <div className="min-w-0">
+          <p className="bb-eyebrow flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            Mon annee {year}
+          </p>
+          <p className="mt-1 text-lg font-bold text-white">Decouvre ton annee Bryan Cars</p>
+          <p className="mt-0.5 text-sm text-white/60">Prestations, credits, BC&apos;Coins...</p>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
+      </button>
+    );
+  }
+
   function dismissNotifBanner() {
     if (slug) {
       try {
@@ -5003,6 +5063,7 @@ export function ClientCardPage() {
   function renderHistoryView() {
     return (
       <section className="space-y-4">
+        {renderRecapTeaser()}
         <article className="bb-surface-strong p-6 md:p-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -6482,6 +6543,77 @@ export function ClientCardPage() {
                 Voir le reglement
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {recapOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/85 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
+          onClick={() => setRecapOpen(false)}
+        >
+          <div
+            className="bb-surface-strong bb-gold-frame bb-modal-panel w-full max-w-lg overflow-y-auto p-6 md:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="bb-eyebrow flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Mon annee {recapData?.year ?? new Date().getFullYear()}
+                </p>
+                <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
+                  Ton annee Bryan Cars
+                </h3>
+              </div>
+              <button
+                className="bb-button-ghost h-10 w-10 rounded-full px-0"
+                onClick={() => setRecapOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {recapLoading ? (
+              <div className="mt-6 flex items-center gap-3 text-sm text-white/70">
+                <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                Calcul de ton annee...
+              </div>
+            ) : recapData && recapData.visits > 0 ? (
+              <>
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Prestations", value: recapData.visits },
+                    { label: "Credits utilises", value: recapData.creditsUsed },
+                    { label: "BC'Coins gagnes", value: recapData.bcEarned },
+                    { label: "Vehicules choyes", value: recapData.vehicles },
+                    { label: "Avis laisses", value: recapData.reviews },
+                    { label: "Photos", value: recapData.photos },
+                  ].map((stat) => (
+                    <div
+                      className="rounded-[20px] border border-accent/20 bg-accent/[0.06] p-4 text-center"
+                      key={stat.label}
+                    >
+                      <p className="text-3xl font-extrabold tabular-nums text-accentSoft">
+                        {stat.value}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-white/50">
+                        {stat.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-5 text-center text-sm leading-6 text-white/65">
+                  Merci pour ta confiance. On garde ta voiture impeccable !
+                </p>
+              </>
+            ) : (
+              <p className="mt-6 text-sm leading-6 text-white/70">
+                Pas encore de prestation cette annee. Reserve ton premier detailing et reviens
+                admirer ton recap !
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -724,6 +724,7 @@ export function AdminDashboardPage() {
     phone: "",
   });
   const [companySaving, setCompanySaving] = React.useState(false);
+  const [recapSending, setRecapSending] = React.useState(false);
 
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
@@ -1067,6 +1068,34 @@ export function AdminDashboardPage() {
       active = false;
     };
   }, []);
+
+  async function sendYearRecap() {
+    if (
+      !window.confirm(
+        "Envoyer le recap annuel par e-mail a tous les clients BBX ayant au moins une prestation cette annee ?",
+      )
+    ) {
+      return;
+    }
+    setRecapSending(true);
+    try {
+      const response = await fetch("/api/admin/recap/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && json.ok) {
+        showToast(`Recap annuel envoye a ${json.sent}/${json.eligible} client(s).`);
+      } else {
+        showToast("Echec de l'envoi du recap.");
+      }
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setRecapSending(false);
+    }
+  }
 
   async function saveCompanySettings() {
     setCompanySaving(true);
@@ -2506,6 +2535,17 @@ export function AdminDashboardPage() {
             >
               <Download className="mr-2 h-4 w-4" />
               {exportingData ? "Export..." : "Exporter"}
+            </button>
+            <button
+              className="bb-button-ghost"
+              disabled={recapSending}
+              onClick={() => {
+                void sendYearRecap();
+              }}
+              type="button"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {recapSending ? "Envoi..." : "Envoyer le recap annuel"}
             </button>
           </div>
 

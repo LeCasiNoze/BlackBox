@@ -78,8 +78,10 @@ const {
   sendClientPriceApprovalEmail,
   sendClientFormulaRecap,
   sendClientWelcomeEmail,
+  sendClientYearRecapEmail,
   sendEventWinnerEmail,
 } = require("../email");
+const { getClientYearRecap } = require("../db/recap");
 const {
   attachPendingGoodieWinsToNextAppointment,
   countPendingGoodieWins,
@@ -1201,6 +1203,34 @@ router.post("/events/:id/draw", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Envoi du recap annuel a tous les clients BBX ayant au moins 1 prestation
+// dans l'annee (best-effort, sequentiel).
+router.post("/recap/send", async (req, res) => {
+  try {
+    const year = Number(req.body?.year) || new Date().getFullYear();
+    const clients = listClients().filter(
+      (client) => (client.client_type || "bbx") === "bbx" && client.email,
+    );
+    let sent = 0;
+    let eligible = 0;
+    for (const client of clients) {
+      const recap = getClientYearRecap(client.id, year);
+      if (recap.visits <= 0) continue;
+      eligible += 1;
+      try {
+        const ok = await sendClientYearRecapEmail({ client, recap });
+        if (ok) sent += 1;
+      } catch (error) {
+        console.error("[adminApi] recap send:", error);
+      }
+    }
+    return res.json({ ok: true, year, eligible, sent });
+  } catch (error) {
+    console.error("[adminApi] POST /recap/send:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
