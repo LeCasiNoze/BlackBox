@@ -31,6 +31,7 @@ import { Link, useLocation } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
+import { APP_VERSION, PATCH_NOTES } from "../lib/patchNotes";
 import {
   adminPushPermission,
   adminPushSupported,
@@ -1831,6 +1832,20 @@ export function AdminDashboardPage() {
     [sortedGlobalAsc],
   );
 
+  // RDV confirmes restant a effectuer (badge "Livraison").
+  const deliveryPendingCount = React.useMemo(
+    () => sortedGlobalAsc.filter((appointment) => appointment.status === "confirmed").length,
+    [sortedGlobalAsc],
+  );
+
+  // Compteurs de notification par onglet de navigation admin.
+  const adminNavBadges: Record<string, number> = {
+    home: goodiePending,
+    appointments: pendingRequests.length,
+    delivery: deliveryPendingCount,
+    clients: 0,
+  };
+
   const filteredClients = React.useMemo(() => {
     const query = deferredClientQuery.trim().toLowerCase();
     if (!query) return clients;
@@ -2378,6 +2393,9 @@ export function AdminDashboardPage() {
               <h2 className="mt-1 text-xl font-semibold text-white">Vue rapide</h2>
             </div>
             <div className="flex flex-wrap gap-2">
+              <span className="bb-pill border-white/10 bg-white/[0.04] text-white/55">
+                v{APP_VERSION}
+              </span>
               <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {doneThisMonth} effectue{doneThisMonth > 1 ? "s" : ""} ce mois
@@ -2459,7 +2477,58 @@ export function AdminDashboardPage() {
 
         {renderEventsPanel()}
         {renderGoodiesPanel()}
+        {renderPatchNotesPanel()}
       </>
+    );
+  }
+
+  // Notes de version (changelog) consultables par l'admin.
+  function renderPatchNotesPanel() {
+    return (
+      <article className="bb-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="bb-eyebrow">Notes de version</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Ou en est l&apos;appli</h2>
+          </div>
+          <span className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+            Version actuelle v{APP_VERSION}
+          </span>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {PATCH_NOTES.map((note, index) => (
+            <div
+              className={cn(
+                "rounded-[20px] border p-4",
+                index === 0
+                  ? "border-accent/30 bg-accent/[0.06]"
+                  : "border-white/10 bg-white/[0.03]",
+              )}
+              key={note.version}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-semibold text-white">v{note.version}</span>
+                {index === 0 && (
+                  <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                    Derniere
+                  </span>
+                )}
+                <span className="text-xs text-white/40">{note.date}</span>
+              </div>
+              <p className="mt-1 text-sm font-medium text-white/85">{note.title}</p>
+              <ul className="mt-2 space-y-1.5">
+                {note.changes.map((change, i) => (
+                  <li className="flex gap-2 text-sm leading-6 text-white/65" key={i}>
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent/70" />
+                    <span>{change}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </article>
     );
   }
 
@@ -4247,10 +4316,11 @@ export function AdminDashboardPage() {
               {ADMIN_NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = adminSection === item.key;
+                const badge = adminNavBadges[item.key] ?? 0;
                 return (
                   <Link
                     className={cn(
-                      "flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[22px] border px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition duration-200",
+                      "relative flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[22px] border px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition duration-200",
                       active
                         ? "border-[#e8c98a]/45 bg-[#e8c98a]/10 text-white shadow-[0_18px_48px_rgba(232,201,138,0.12)]"
                         : "border-white/10 bg-white/[0.03] text-white/60",
@@ -4258,6 +4328,11 @@ export function AdminDashboardPage() {
                     key={item.key}
                     to={adminSectionHrefs[item.key]}
                   >
+                    {badge > 0 && (
+                      <span className="absolute right-2 top-2 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.4)]">
+                        {badge > 9 ? "9+" : badge}
+                      </span>
+                    )}
                     <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
                     <span>{item.shortLabel}</span>
                   </Link>
@@ -4345,10 +4420,11 @@ export function AdminDashboardPage() {
           {ADMIN_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = adminSection === item.key;
+            const badge = adminNavBadges[item.key] ?? 0;
             return (
               <Link
                 className={cn(
-                  "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
+                  "relative flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
                   active
                     ? "bg-gradient-to-b from-[#e8c98a]/18 to-[#d99a4e]/12 text-white shadow-[0_10px_24px_rgba(232,201,138,0.12)]"
                     : "text-white/54",
@@ -4356,7 +4432,14 @@ export function AdminDashboardPage() {
                 key={item.key}
                 to={adminSectionHrefs[item.key]}
               >
-                <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
+                <span className="relative">
+                  <Icon className={cn("h-4 w-4", active && "text-[#e8c98a]")} />
+                  {badge > 0 && (
+                    <span className="absolute -right-2.5 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.4)]">
+                      {badge > 9 ? "9+" : badge}
+                    </span>
+                  )}
+                </span>
                 <span>{item.shortLabel}</span>
               </Link>
             );
