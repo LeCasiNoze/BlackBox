@@ -107,7 +107,8 @@ l'admin → Hall → « Notes de version »).
 
 ## 15. Communauté
 
-- ⏳ **15.1 Classement BC'Coins** (leaderboard opt-in entre fondateurs).
+- ✅ **15.1 Classement BC'Coins** : opt-in fondateurs, top 10 + ta position
+  (prénom + initiale), accessible depuis l'accueil fondateur.
 - ⏳ **15.4 Mascotte / personnalité de marque** — *à travailler ensemble plus tard*.
 
 ---

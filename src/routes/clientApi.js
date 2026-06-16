@@ -16,8 +16,11 @@ const {
   expireTemporaryFounders,
   getClientById,
   getClientBySlugOrCardCode,
+  getFounderLeaderboardRank,
+  getFoundersLeaderboard,
   markWelcomeEmailSent,
   openReviewBox,
+  setLeaderboardOptIn,
   updateClientTermsAcceptance,
 } = require("../db/clients");
 
@@ -997,6 +1000,51 @@ function invoiceNumberFor(order) {
   const year = ts ? new Date(ts * 1000).getFullYear() : new Date().getFullYear();
   return `BC-${year}-${String(order.id).padStart(5, "0")}`;
 }
+
+function leaderboardName(c) {
+  const first = (c.first_name || (c.full_name || "").split(" ")[0] || "Fondateur").trim();
+  const lastInitial = (c.last_name || (c.full_name || "").split(" ")[1] || "").trim().charAt(0);
+  return lastInitial ? `${first} ${lastInitial.toUpperCase()}.` : first;
+}
+
+// Classement BC'Coins (fondateurs, opt-in).
+router.get("/:idOrSlug/leaderboard", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  if (!client.is_founder) {
+    return res.json({ ok: true, eligible: false, optIn: false, entries: [], yourRank: null });
+  }
+  const top = getFoundersLeaderboard(10).map((c, index) => ({
+    rank: index + 1,
+    name: leaderboardName(c),
+    bc: c.bc_points || 0,
+    isYou: c.id === client.id,
+  }));
+  const optIn = !!client.leaderboard_opt_in;
+  return res.json({
+    ok: true,
+    eligible: true,
+    optIn,
+    yourBc: client.bc_points || 0,
+    yourRank: optIn ? getFounderLeaderboardRank(client.id, client.bc_points || 0) : null,
+    entries: top,
+  });
+});
+
+router.post("/:idOrSlug/leaderboard/opt", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  if (!client.is_founder) {
+    return res.status(400).json({ ok: false, error: "not_founder" });
+  }
+  const optIn = req.body?.optIn === true;
+  setLeaderboardOptIn(client.id, optIn);
+  return res.json({ ok: true, optIn });
+});
 
 // Recap annuel "Ton annee Bryan Cars".
 router.get("/:idOrSlug/recap", (req, res) => {

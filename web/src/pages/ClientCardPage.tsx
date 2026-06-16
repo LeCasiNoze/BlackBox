@@ -1422,6 +1422,15 @@ export function ClientCardPage() {
     reviews: number;
     photos: number;
   } | null>(null);
+  const [leaderboardOpen, setLeaderboardOpen] = React.useState(false);
+  const [leaderboardLoading, setLeaderboardLoading] = React.useState(false);
+  const [leaderboardOptBusy, setLeaderboardOptBusy] = React.useState(false);
+  const [leaderboardData, setLeaderboardData] = React.useState<{
+    optIn: boolean;
+    yourBc: number;
+    yourRank: number | null;
+    entries: Array<{ rank: number; name: string; bc: number; isYou: boolean }>;
+  } | null>(null);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
     instagram: false,
@@ -3695,6 +3704,72 @@ export function ClientCardPage() {
     }
   }
 
+  async function openLeaderboard() {
+    setLeaderboardOpen(true);
+    setLeaderboardLoading(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/leaderboard`);
+      const json = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        optIn?: boolean;
+        yourBc?: number;
+        yourRank?: number | null;
+        entries?: Array<{ rank: number; name: string; bc: number; isYou: boolean }>;
+      };
+      if (json.ok) {
+        setLeaderboardData({
+          optIn: !!json.optIn,
+          yourBc: json.yourBc ?? 0,
+          yourRank: json.yourRank ?? null,
+          entries: json.entries ?? [],
+        });
+      }
+    } catch {
+      /* best-effort */
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }
+
+  async function toggleLeaderboardOptIn(optIn: boolean) {
+    setLeaderboardOptBusy(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/leaderboard/opt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optIn }),
+      });
+      if (response.ok) await openLeaderboard();
+    } catch {
+      /* best-effort */
+    } finally {
+      setLeaderboardOptBusy(false);
+    }
+  }
+
+  function renderLeaderboardTeaser() {
+    if (!clientData.isFounder) return null;
+    return (
+      <button
+        className="bb-rise bb-hover-lift group flex w-full items-center justify-between gap-4 rounded-[26px] border border-accent/25 bg-accent/[0.06] p-5 text-left"
+        onClick={() => {
+          void openLeaderboard();
+        }}
+        type="button"
+      >
+        <div className="min-w-0">
+          <p className="bb-eyebrow flex items-center gap-1.5">
+            <Crown className="h-3.5 w-3.5" />
+            Classement
+          </p>
+          <p className="mt-1 text-lg font-bold text-white">Classement BC&apos;Coins</p>
+          <p className="mt-0.5 text-sm text-white/60">Compare-toi aux autres fondateurs.</p>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
+      </button>
+    );
+  }
+
   function renderRecapTeaser() {
     const year = new Date().getFullYear();
     return (
@@ -3965,6 +4040,7 @@ export function ClientCardPage() {
           {renderPriceValidationBanner()}
           {renderNotifBanner()}
           {renderEventTeaser()}
+          {renderLeaderboardTeaser()}
           <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
             <div className="bb-founder-orb bb-founder-orb-blue" />
@@ -6558,6 +6634,97 @@ export function ClientCardPage() {
                 Voir le règlement
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {leaderboardOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/85 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
+          onClick={() => setLeaderboardOpen(false)}
+        >
+          <div
+            className="bb-surface-strong bb-gold-frame bb-modal-panel w-full max-w-md overflow-y-auto p-6 md:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="bb-eyebrow flex items-center gap-1.5">
+                  <Crown className="h-3.5 w-3.5" />
+                  Classement
+                </p>
+                <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
+                  Classement BC&apos;Coins
+                </h3>
+              </div>
+              <button
+                className="bb-button-ghost h-10 w-10 rounded-full px-0"
+                onClick={() => setLeaderboardOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+              <span className="text-sm leading-6 text-white/75">
+                Apparaitre dans le classement (prenom + initiale)
+              </span>
+              <input
+                checked={!!leaderboardData?.optIn}
+                className="h-5 w-5 shrink-0 rounded border-white/20 bg-black/30 accent-[#e8c98a]"
+                disabled={leaderboardOptBusy}
+                onChange={(event) => {
+                  void toggleLeaderboardOptIn(event.target.checked);
+                }}
+                type="checkbox"
+              />
+            </label>
+
+            {leaderboardLoading ? (
+              <div className="mt-5 flex items-center gap-3 text-sm text-white/70">
+                <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                Chargement...
+              </div>
+            ) : leaderboardData && leaderboardData.entries.length > 0 ? (
+              <div className="mt-5 space-y-1.5">
+                {leaderboardData.entries.map((entry) => (
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-[14px] border px-4 py-2.5",
+                      entry.isYou
+                        ? "border-accent/40 bg-accent/10"
+                        : "border-white/8 bg-white/[0.03]",
+                    )}
+                    key={entry.rank}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="w-6 text-center text-sm font-bold text-accentSoft">
+                        {entry.rank}
+                      </span>
+                      <span className="truncate text-sm font-semibold text-white">
+                        {entry.name}
+                        {entry.isYou ? " (toi)" : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-accentSoft">
+                      {entry.bc} BC
+                    </span>
+                  </div>
+                ))}
+                {leaderboardData.optIn && leaderboardData.yourRank && (
+                  <p className="mt-3 text-center text-sm text-white/60">
+                    Ta position : {leaderboardData.yourRank}e · {leaderboardData.yourBc} BC
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-5 text-sm leading-6 text-white/70">
+                {leaderboardData && !leaderboardData.optIn
+                  ? "Active l'option ci-dessus pour rejoindre le classement."
+                  : "Aucun fondateur dans le classement pour le moment."}
+              </p>
+            )}
           </div>
         </div>
       )}

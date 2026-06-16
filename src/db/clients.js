@@ -208,6 +208,40 @@ function listClientsForSegment(segment) {
   return db.prepare(`SELECT * FROM clients c WHERE ${where} ORDER BY c.created_at DESC`).all();
 }
 
+function setLeaderboardOptIn(clientId, optIn) {
+  db.prepare(`UPDATE clients SET leaderboard_opt_in = ?, updated_at = ? WHERE id = ?`).run(
+    optIn ? 1 : 0,
+    nowUnix(),
+    clientId,
+  );
+}
+
+// Classement BC'Coins des fondateurs ayant accepte d'y figurer.
+function getFoundersLeaderboard(limit = 10) {
+  return db
+    .prepare(
+      `
+      SELECT id, first_name, last_name, full_name, bc_points
+      FROM clients
+      WHERE is_founder = 1 AND leaderboard_opt_in = 1
+      ORDER BY bc_points DESC, id ASC
+      LIMIT ?
+    `,
+    )
+    .all(limit);
+}
+
+// Rang d'un client dans le classement (nb de fondateurs opt-in avec plus de BC).
+function getFounderLeaderboardRank(clientId, bcPoints) {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM clients
+       WHERE is_founder = 1 AND leaderboard_opt_in = 1 AND bc_points > ?`,
+    )
+    .get(bcPoints);
+  return (row?.n ?? 0) + 1;
+}
+
 function countFounders() {
   const row = db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE is_founder = 1`).get();
   return row?.n ?? 0;
@@ -873,7 +907,10 @@ module.exports = {
   createClient,
   decrementFormulaRemaining,
   deleteClient,
+  getFounderLeaderboardRank,
+  getFoundersLeaderboard,
   listClientsForSegment,
+  setLeaderboardOptIn,
   expireTemporaryFounders,
   grantTemporaryFounder,
   openReviewBox,

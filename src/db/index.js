@@ -187,6 +187,10 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("review_box_reward", "review_box_reward TEXT");
     addColumnIfMissing("founder_until", "founder_until INTEGER");
     addColumnIfMissing("last_inactivity_reminder_at", "last_inactivity_reminder_at INTEGER");
+    addColumnIfMissing(
+      "leaderboard_opt_in",
+      "leaderboard_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (leaderboard_opt_in IN (0, 1))",
+    );
   } catch (error) {
     console.error("[DB] Erreur ensureClientsExtraColumns:", error);
   }

@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.12.0";
+export const APP_VERSION = "1.13.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.13.0",
+    date: "2026-06-16",
+    title: "Classement BC'Coins (fondateurs)",
+    changes: [
+      "Les fondateurs peuvent rejoindre (opt-in) un classement BC'Coins et se comparer aux autres (prenom + initiale). Accessible depuis l'accueil fondateur.",
+    ],
+  },
   {
     version: "1.12.0",
     date: "2026-06-16",
