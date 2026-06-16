@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.17.0";
+export const APP_VERSION = "1.18.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.18.0",
+    date: "2026-06-16",
+    title: "Admin — coherence visuelle (tokens d'accent)",
+    changes: [
+      "Le tableau de bord admin passe entierement au systeme d'accents par tokens : couleurs alignees sur la nouvelle direction artistique et plus faciles a faire evoluer.",
+    ],
+  },
   {
     version: "1.17.0",
     date: "2026-06-16",
