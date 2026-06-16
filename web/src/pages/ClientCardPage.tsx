@@ -274,6 +274,7 @@ type ApiResponse = {
   event: ApiEvent | null;
   founderCap?: number;
   foundersRemaining?: number;
+  waitlist?: Array<{ date: string; slot: AppointmentSlot; createdAt: number }>;
 };
 
 type ModalMode = "book" | "manage" | "past";
@@ -1395,6 +1396,7 @@ export function ClientCardPage() {
   const [eventBoxDeliveryNote, setEventBoxDeliveryNote] = React.useState<string | null>(null);
   const [eventModalOpen, setEventModalOpen] = React.useState(false);
   const [participateBusy, setParticipateBusy] = React.useState(false);
+  const [waitlistBusy, setWaitlistBusy] = React.useState(false);
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
     instagram: false,
@@ -3580,6 +3582,29 @@ export function ClientCardPage() {
     };
   }
 
+  async function joinWaitlist(date: string, slot: AppointmentSlot) {
+    if (waitlistBusy) return;
+    setWaitlistBusy(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, slot }),
+      });
+      const json = (await response.json().catch(() => ({}))) as { ok?: boolean };
+      if (response.ok && json.ok) {
+        showToast("Tu es sur la liste d'attente. On te previent si ce creneau se libere.");
+        setReloadToken((value) => value + 1);
+      } else {
+        showToast("Impossible de rejoindre la liste d'attente pour le moment.");
+      }
+    } catch (_error) {
+      showToast("Erreur reseau pendant l'inscription en liste d'attente.");
+    } finally {
+      setWaitlistBusy(false);
+    }
+  }
+
   function dismissNotifBanner() {
     if (slug) {
       try {
@@ -3593,9 +3618,51 @@ export function ClientCardPage() {
 
   // Bandeau d'accueil: inciter a activer les notifications (sinon les clients
   // ratent les notifs de rendez-vous / validation de tarif).
+  // Cas Apple: sur iPhone/iPad, le push web n'existe QUE si l'app est installee
+  // sur l'ecran d'accueil -> on invite d'abord a installer.
   function renderNotifBanner() {
     if (notifBannerDismissed) return null;
-    if (!clientPushSupported() || pushPermission === "granted") return null;
+    if (pushPermission === "granted") return null;
+
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)").matches || nav.standalone === true;
+    const ua = nav.userAgent || "";
+    const isIOS =
+      /iphone|ipad|ipod/i.test(ua) ||
+      (nav.platform === "MacIntel" && (nav.maxTouchPoints || 0) > 1);
+    const pushSupported = clientPushSupported();
+
+    // iPhone/iPad hors application installee: push indisponible -> installer d'abord.
+    if (!pushSupported && isIOS && !isStandalone) {
+      return (
+        <div className="bb-rise flex items-start justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/40 bg-accent/15 text-accentSoft">
+              <Bell className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">Active les notifications (iPhone)</p>
+              <p className="text-sm leading-6 text-white/65">
+                Sur iPhone, installe d&apos;abord l&apos;app : bouton <span className="font-semibold text-white">Partager</span> puis
+                <span className="font-semibold text-white"> « Sur l&apos;ecran d&apos;accueil »</span>. Rouvre ensuite l&apos;app pour activer les notifs.
+              </p>
+            </div>
+          </div>
+          <button
+            className="bb-button-ghost h-9 w-9 shrink-0 rounded-full px-0"
+            onClick={dismissNotifBanner}
+            type="button"
+            aria-label="Masquer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    }
+
+    if (!pushSupported) return null;
+
     return (
       <div className="bb-rise flex items-center justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -5250,6 +5317,40 @@ export function ClientCardPage() {
                   );
                 })}
               </div>
+
+              {currentDaySlot?.status === "busy" &&
+                (() => {
+                  const alreadyWaiting = (data?.waitlist ?? []).some(
+                    (w) => w.date === selectedDay.date && w.slot === selectedSlot,
+                  );
+                  return (
+                    <div className="rounded-[24px] border border-accent/25 bg-accent/[0.06] p-4">
+                      <p className="text-sm font-semibold text-white">Ce creneau est deja pris</p>
+                      <p className="mt-1 text-sm leading-6 text-white/65">
+                        Rejoins la liste d&apos;attente : si ce creneau se libere, tu seras prevenu
+                        (e-mail + notification). Premier arrive, premier servi.
+                      </p>
+                      {alreadyWaiting ? (
+                        <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-accentSoft">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Tu es sur la liste d&apos;attente pour ce creneau.
+                        </p>
+                      ) : (
+                        <button
+                          className="bb-button-brand mt-3"
+                          disabled={waitlistBusy}
+                          onClick={() => {
+                            void joinWaitlist(selectedDay.date, selectedSlot);
+                          }}
+                          type="button"
+                        >
+                          <Bell className="mr-2 h-4 w-4" />
+                          {waitlistBusy ? "..." : "Rejoindre la liste d'attente"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
               {selectedMode === "book" && (
                 <>

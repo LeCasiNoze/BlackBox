@@ -26,6 +26,7 @@ const {
 } = require("../db/clients");
 const { getReviewBoxGoodie } = require("../config/reviewBox");
 const { getConsolationGoodie } = require("../config/eventRewards");
+const { notifyWaitlistForFreedSlot } = require("../services/waitlistNotifier");
 const {
   countParticipants,
   createEvent,
@@ -723,6 +724,9 @@ router.post("/appointments/:id/status", async (req, res) => {
 
       // Les lots a remettre rattaches a ce RDV repartent vers le prochain a venir.
       attachPendingGoodieWinsToNextAppointment(appointment.client_id);
+
+      // Creneau libere -> on previent les inscrits en liste d'attente.
+      void notifyWaitlistForFreedSlot(appointment.date, appointment.slot);
 
       return res.json({
         ok: true,

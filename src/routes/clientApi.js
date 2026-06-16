@@ -28,6 +28,8 @@ const {
   attachPendingGoodieWinsToNextAppointment,
   listPendingGoodieWinsForAppointment,
 } = require("../db/goodieWins");
+const { joinWaitlist, getClientWaitlist } = require("../db/waitlist");
+const { notifyWaitlistForFreedSlot } = require("../services/waitlistNotifier");
 const {
   getActiveEventForClient,
   getParticipation,
@@ -645,6 +647,7 @@ router.get("/:idOrSlug", (req, res) => {
     event: eventPayload,
     founderCap: FOUNDER_CAP,
     foundersRemaining: Math.max(0, FOUNDER_CAP - foundersCount),
+    waitlist: getClientWaitlist(client.id),
     month,
   });
 });
@@ -961,6 +964,28 @@ router.post("/:idOrSlug/event/:eventId/participate", (req, res) => {
       proba: goodie.proba,
     })),
   });
+});
+
+// Liste d'attente: s'inscrire sur un creneau pris (date + slot).
+router.post("/:idOrSlug/waitlist", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const date = typeof req.body?.date === "string" ? req.body.date.trim() : "";
+  const slot = normalizeAppointmentSlot(req.body?.slot);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ ok: false, error: "invalid_date" });
+  }
+
+  try {
+    joinWaitlist(client.id, date, slot);
+    return res.json({ ok: true, waitlist: getClientWaitlist(client.id) });
+  } catch (error) {
+    console.error("[API] waitlist join:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
 });
 
 router.post("/:idOrSlug/topup/sync", async (req, res) => {
@@ -1648,6 +1673,9 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
   // Le RDV annule peut avoir porte des lots a remettre: on les rebascule
   // sur le prochain RDV a venir (ou on les detache si plus aucun).
   attachPendingGoodieWinsToNextAppointment(client.id);
+
+  // Creneau libere -> on previent les inscrits en liste d'attente.
+  void notifyWaitlistForFreedSlot(appointment.date, appointment.slot);
 
   try {
     await sendAdminNotification({

@@ -384,6 +384,22 @@ CREATE INDEX IF NOT EXISTS idx_goodie_wins_appointment
   ON goodie_wins(appointment_id, status);
 
 -- ============================
+-- TABLE appointment_waitlist (liste d'attente sur un creneau pris)
+-- ============================
+CREATE TABLE IF NOT EXISTS appointment_waitlist (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  date        TEXT NOT NULL,
+  slot        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  notified_at INTEGER,
+  UNIQUE (client_id, date, slot)
+);
+
+CREATE INDEX IF NOT EXISTS idx_waitlist_slot
+  ON appointment_waitlist(date, slot);
+
+-- ============================
 -- TABLE export_jobs
 -- ============================
 CREATE TABLE IF NOT EXISTS export_jobs (

@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.5.0";
+export const APP_VERSION = "1.6.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.6.0",
+    date: "2026-06-16",
+    title: "Liste d'attente & notifications iPhone",
+    changes: [
+      "Liste d'attente : sur un creneau deja pris, le client peut s'inscrire. Quand le creneau se libere (annulation client ou admin), tous les inscrits sont prevenus (e-mail + notification).",
+      "Banniere notifications adaptee a l'iPhone : invite a installer l'app sur l'ecran d'accueil (prealable au push sur iOS) quand ce n'est pas fait.",
+    ],
+  },
   {
     version: "1.5.0",
     date: "2026-06-16",

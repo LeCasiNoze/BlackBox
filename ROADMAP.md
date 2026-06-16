@@ -36,8 +36,9 @@ l'admin → Hall → « Notes de version »).
 
 ## 4. Réservation & planning
 
-- ⏳ **4.3 Liste d'attente** : si jour pris, option « être en attente » ; à
-  l'annulation d'un RDV (client OU admin) → notif aux personnes en attente.
+- ✅ **4.3 Liste d'attente** : sur un créneau pris, le client s'inscrit ; à
+  l'annulation (client OU admin), **tous** les inscrits sont prévenus (mail +
+  push). `src/db/waitlist.js` + `src/services/waitlistNotifier.js`.
 - ✅ **4.4 Bouton « Ajouter à mon agenda »** (client + admin) — `.ics` + lien
   Google Calendar par RDV (`web/src/lib/calendar.ts`). *(Sync OAuth = plus tard.)*
 

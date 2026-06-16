@@ -1222,6 +1222,65 @@ Reserver : ${bookingUrl || "Lien indisponible"}
   });
 }
 
+// Liste d'attente: un creneau s'est libere -> on previent les inscrits.
+async function sendWaitlistSlotFreedEmail({ client, date, slot }) {
+  if (!client?.email) {
+    return false;
+  }
+
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const bookingUrl = portalUrl ? `${portalUrl}?view=booking` : "";
+  const formattedDate = formatDateFr(date);
+  const windowLabel = appointmentWindowLabel(slot);
+  const slotName = normalizeAppointmentSlot(slot) === "afternoon" ? "apres-midi" : "matin";
+
+  try {
+    await sendClientPush(client.id, {
+      title: "Un creneau s'est libere !",
+      body: `Le ${slotName} du ${formattedDate} (${windowLabel}) est de nouveau disponible. Premier arrive, premier servi !`,
+      url: bookingUrl || "/",
+    });
+  } catch (_error) {
+    // push best-effort
+  }
+
+  const subject = `[Bryan Cars] Un creneau s'est libere le ${formattedDate}`;
+  const text = `
+Bonjour ${fullName},
+
+Bonne nouvelle : le creneau du ${formattedDate} (${slotName}, ${windowLabel}) pour lequel
+tu etais en liste d'attente vient de se liberer.
+
+Premier arrive, premier servi : reserve vite depuis ton espace client.
+Reserver : ${bookingUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Liste d'attente",
+    title: "Un creneau s'est libere !",
+    subtitle: `Le ${slotName} du ${formattedDate} (${windowLabel}) est de nouveau disponible.`,
+    preheader: `Creneau libre · ${formattedDate} · ${slotName}`,
+    bodyHtml: `
+      ${panelCard({
+        title: "Premier arrive, premier servi",
+        description:
+          "Plusieurs personnes sont prevenues en meme temps : reserve vite pour securiser ce creneau.",
+        bodyHtml: actionButtons([
+          bookingUrl ? { label: "Reserver ce creneau", href: bookingUrl, tone: "primary" } : null,
+        ]),
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
 async function sendAdminRewardRedemption({ client, reward }) {
   if (!MAIL_ADMIN_TO) {
     console.warn("[MAIL] MAIL_ADMIN_TO manquant, redemption ignoree.");
@@ -1374,6 +1433,7 @@ module.exports = {
   sendClientPriceApprovalEmail,
   sendClientAppointmentReminderEmail,
   sendClientInactivityReminderEmail,
+  sendWaitlistSlotFreedEmail,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
   sendSignupVerificationCode,
