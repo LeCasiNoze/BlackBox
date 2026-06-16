@@ -59,9 +59,9 @@ l'admin → Hall → « Notes de version »).
 
 - ⏳ **6.3 Galerie avant/après** : taguer les photos « avant » / « après » +
   slider comparatif sur la fiche RDV. *(Photos déjà présentes, tag à ajouter.)*
-- ⏳ **Chatbot d'assistance (assistant guidé / scripté)** : aide à réserver et à
-  retrouver le bon RDV, envoie des boutons de redirection (ex. ouvrir la popup
-  RDV du 17 juin si libre ; retrouver un RDV dont le tarif est à valider).
+- ✅ **Chatbot d'assistance (guidé / scripté)** : bulle portail client, menus +
+  boutons d'action (ouvrir un RDV, valider un tarif, prendre un RDV, box, FAQ,
+  contact). `renderAssistant()` dans ClientCardPage. *(FAQ par défaut à valider.)*
 
 ## 7. Avis & réputation
 

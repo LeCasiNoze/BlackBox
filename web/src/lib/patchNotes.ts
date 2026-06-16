@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.13.0";
+export const APP_VERSION = "1.14.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.14.0",
+    date: "2026-06-16",
+    title: "Assistant Bryan Cars",
+    changes: [
+      "Assistant guide (bulle en bas a droite du portail client) : ouvrir un rendez-vous, valider un tarif, prendre un RDV, box & recompenses, questions frequentes, contact — avec des boutons qui ouvrent directement le bon ecran.",
+    ],
+  },
   {
     version: "1.13.0",
     date: "2026-06-16",

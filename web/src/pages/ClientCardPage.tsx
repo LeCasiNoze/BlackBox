@@ -1431,6 +1431,8 @@ export function ClientCardPage() {
     yourRank: number | null;
     entries: Array<{ rank: number; name: string; bc: number; isYou: boolean }>;
   } | null>(null);
+  const [assistantOpen, setAssistantOpen] = React.useState(false);
+  const [assistantScreen, setAssistantScreen] = React.useState("root");
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
     instagram: false,
@@ -3767,6 +3769,197 @@ export function ClientCardPage() {
         </div>
         <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
       </button>
+    );
+  }
+
+  // Assistant guide (scripte): menus + boutons qui declenchent les actions.
+  function renderAssistant() {
+    const act = (fn: () => void) => {
+      setAssistantOpen(false);
+      setAssistantScreen("root");
+      fn();
+    };
+    const goTo = (screen: string) => setAssistantScreen(screen);
+
+    const upcoming = appointments
+      .filter((a) => a.status === "requested" || a.status === "confirmed")
+      .slice(0, 6);
+    const tarifs = appointments.filter(
+      (a) => a.priceStatus === "waiting_client_approval" || a.priceStatus === "waiting_payment",
+    );
+
+    const faq: Array<{ q: string; a: string; founderOnly?: boolean }> = [
+      {
+        q: "Comment annuler un RDV ?",
+        a: "Ouvre ta fiche de rendez-vous dans Suivi puis « Annuler le RDV ». Fondateur : annulation possible le jour meme ; sinon jusqu'a 24h avant.",
+      },
+      {
+        q: "Comment marchent les credits ?",
+        a: "Chaque prestation consomme des credits selon l'etat du vehicule. L'atelier valide le tarif, tu l'acceptes (ou recharges) avant la confirmation.",
+      },
+      {
+        q: "Comment se passe un rendez-vous ?",
+        a: "Tu choisis un creneau (matin ou apres-midi), a l'atelier ou a domicile. L'atelier valide le tarif, realise la prestation, puis tu retrouves photos et avis dans Suivi.",
+      },
+      {
+        q: "Comment payer / recharger ?",
+        a: "Paiement securise par carte (SumUp) depuis la boutique / recharge de credits.",
+      },
+      {
+        q: "C'est quoi le statut Fondateur ?",
+        a: "Acces a vie (29,99€, places limitees) : BC'Coins, box surprises, carte premium, annulation le jour meme et offres reservees.",
+      },
+      {
+        q: "Comment gagner des BC'Coins ?",
+        a: "Sur tes achats de credits et tes passages effectues. Echange-les ensuite dans la boutique fidelite.",
+        founderOnly: true,
+      },
+    ];
+    const faqList = faq.filter((f) => !f.founderOnly || clientData.isFounder);
+
+    let botText = "";
+    let chips: Array<{ label: string; onClick: () => void; brand?: boolean }> = [];
+
+    if (assistantScreen === "rdv") {
+      if (upcoming.length === 0) {
+        botText = "Tu n'as pas de rendez-vous a venir.";
+        chips = [
+          { label: "➕ Prendre un RDV", onClick: () => act(() => navigateView("booking")), brand: true },
+          { label: "← Menu", onClick: () => goTo("root") },
+        ];
+      } else {
+        botText = "Voici tes rendez-vous a venir. Lequel veux-tu ouvrir ?";
+        chips = upcoming.map((a) => ({
+          label: `${formatDateFR(a.date)} · ${slotLabel(a.slot)}`,
+          onClick: () => act(() => void openAppointmentModal(a)),
+        }));
+        chips.push({ label: "← Menu", onClick: () => goTo("root") });
+      }
+    } else if (assistantScreen === "tarif") {
+      if (tarifs.length === 0) {
+        botText = "Aucun tarif a valider pour le moment 🎉";
+        chips = [{ label: "← Menu", onClick: () => goTo("root") }];
+      } else {
+        botText = "Ces rendez-vous attendent ta validation de tarif :";
+        chips = tarifs.map((a) => ({
+          label: `${formatDateFR(a.date)} — valider`,
+          onClick: () => act(() => void openAppointmentModal(a)),
+          brand: true,
+        }));
+        chips.push({ label: "← Menu", onClick: () => goTo("root") });
+      }
+    } else if (assistantScreen === "box") {
+      if (clientData.isFounder) {
+        botText = "Tes BC'Coins et tes box sont dans ta boutique fidelite.";
+        chips = [
+          { label: "Ouvrir la boutique", onClick: () => act(() => navigateView("shop")), brand: true },
+          { label: "← Menu", onClick: () => goTo("root") },
+        ];
+      } else {
+        botText = clientData.reviewBoxOpenedAt
+          ? "Tu as deja ouvert ta box avis. Merci !"
+          : "Laisse un avis Google et ouvre ta box surprise (1 par compte) !";
+        chips = [
+          ...(clientData.reviewBoxOpenedAt
+            ? []
+            : [
+                {
+                  label: "Ouvrir ma box",
+                  onClick: () => act(() => void openReviewBoxFlow()),
+                  brand: true,
+                },
+              ]),
+          { label: "← Menu", onClick: () => goTo("root") },
+        ];
+      }
+    } else if (assistantScreen === "faq") {
+      botText = "Choisis une question :";
+      chips = faqList.map((f, i) => ({ label: f.q, onClick: () => goTo(`faq:${i}`) }));
+      chips.push({ label: "← Menu", onClick: () => goTo("root") });
+    } else if (assistantScreen.startsWith("faq:")) {
+      const item = faqList[Number(assistantScreen.split(":")[1])];
+      botText = item ? item.a : "Question introuvable.";
+      chips = [
+        { label: "← Autres questions", onClick: () => goTo("faq") },
+        { label: "Menu", onClick: () => goTo("root") },
+      ];
+    } else if (assistantScreen === "contact") {
+      botText = "Comment veux-tu nous joindre ?";
+      chips = [
+        {
+          label: "WhatsApp",
+          onClick: () => act(() => window.open(WHATSAPP_URL, "_blank", "noopener,noreferrer")),
+          brand: true,
+        },
+        { label: "Appeler", onClick: () => act(() => { window.location.href = PHONE_URL; }) },
+        { label: "← Menu", onClick: () => goTo("root") },
+      ];
+    } else {
+      botText = `Salut ${clientData.firstName || ""} 👋 Je peux t'aider a quoi ?`;
+      chips = [
+        { label: "📅 Mes rendez-vous", onClick: () => goTo("rdv") },
+        { label: "💶 Valider un tarif", onClick: () => goTo("tarif") },
+        { label: "➕ Prendre un RDV", onClick: () => act(() => navigateView("booking")) },
+        { label: "🎁 Box & recompenses", onClick: () => goTo("box") },
+        { label: "❓ Questions frequentes", onClick: () => goTo("faq") },
+        { label: "📞 Contacter", onClick: () => goTo("contact") },
+      ];
+    }
+
+    return (
+      <>
+        {!assistantOpen && (
+          <button
+            aria-label="Assistant"
+            className="bb-button-brand fixed bottom-20 right-4 z-[58] grid h-14 w-14 place-items-center rounded-full p-0 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:bottom-6"
+            onClick={() => setAssistantOpen(true)}
+            type="button"
+          >
+            <MessageCircle className="h-6 w-6" />
+          </button>
+        )}
+        {assistantOpen && (
+          <div className="fixed bottom-20 right-4 z-[58] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[24px] border border-white/12 bg-[#16120c]/98 shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6">
+            <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/15 text-accentSoft">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <p className="text-sm font-semibold text-white">Assistant Bryan Cars</p>
+              </div>
+              <button
+                className="bb-button-ghost h-8 w-8 rounded-full px-0"
+                onClick={() => setAssistantOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+              <div className="rounded-[16px] rounded-tl-sm border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/85">
+                {botText}
+              </div>
+              <div className="mt-3 flex flex-col gap-2">
+                {chips.map((chip, index) => (
+                  <button
+                    className={cn(
+                      "rounded-full px-4 py-2 text-left text-sm font-semibold transition",
+                      chip.brand
+                        ? "bb-button-brand justify-start"
+                        : "border border-white/12 bg-white/[0.04] text-white hover:bg-white/[0.08]",
+                    )}
+                    key={index}
+                    onClick={chip.onClick}
+                    type="button"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -6996,6 +7189,8 @@ export function ClientCardPage() {
         onChange={setLightboxUrl}
         onClose={() => setLightboxUrl(null)}
       />
+
+      {renderAssistant()}
 
       {toast && (
         <div className="fixed inset-x-0 bottom-24 z-[70] flex justify-center px-4 md:bottom-5">
