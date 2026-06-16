@@ -1166,6 +1166,62 @@ Espace client : ${portalUrl || "Lien indisponible"}
   });
 }
 
+// Relance d'inactivite: "ca fait X semaines depuis ton dernier detailing".
+// Push best-effort vers la reservation + email mis en forme.
+async function sendClientInactivityReminderEmail({ client, weeksSince }) {
+  if (!client?.email) {
+    return false;
+  }
+
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const bookingUrl = portalUrl ? `${portalUrl}?view=booking` : "";
+  const weeks = Math.max(1, Math.round(Number(weeksSince) || 8));
+
+  try {
+    await sendClientPush(client.id, {
+      title: "On s'occupe de ta voiture ?",
+      body: `Ca fait ${weeks} semaines depuis ton dernier detailing. Reserve ton prochain creneau en quelques secondes.`,
+      url: bookingUrl || "/",
+    });
+  } catch (_error) {
+    // push best-effort
+  }
+
+  const subject = `[Bryan Cars] Ta voiture merite un nouveau detailing`;
+  const text = `
+Bonjour ${fullName},
+
+Ca fait environ ${weeks} semaines depuis ton dernier passage chez Bryan Cars.
+Quand tu veux, reserve ton prochain detailing depuis ton espace client.
+
+Reserver : ${bookingUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "On pense a toi",
+    title: "Ta voiture merite un nouveau detailing",
+    subtitle: `Ca fait environ ${weeks} semaines depuis ton dernier passage. On te garde un creneau quand tu veux.`,
+    preheader: `${weeks} semaines depuis ton dernier detailing`,
+    bodyHtml: `
+      ${panelCard({
+        title: "Reprends rendez-vous",
+        description: "Choisis un creneau en quelques secondes depuis ton espace client.",
+        bodyHtml: actionButtons([
+          bookingUrl ? { label: "Reserver mon detailing", href: bookingUrl, tone: "primary" } : null,
+        ]),
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
 async function sendAdminRewardRedemption({ client, reward }) {
   if (!MAIL_ADMIN_TO) {
     console.warn("[MAIL] MAIL_ADMIN_TO manquant, redemption ignoree.");
@@ -1317,6 +1373,7 @@ module.exports = {
   sendClientPhotosRequestedEmail,
   sendClientPriceApprovalEmail,
   sendClientAppointmentReminderEmail,
+  sendClientInactivityReminderEmail,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
   sendSignupVerificationCode,

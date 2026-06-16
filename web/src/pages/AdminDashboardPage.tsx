@@ -4,6 +4,7 @@ import {
   Bell,
   BellRing,
   CalendarClock,
+  CalendarPlus,
   Camera,
   CarFront,
   CheckCircle2,
@@ -32,6 +33,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
 import { APP_VERSION, PATCH_NOTES } from "../lib/patchNotes";
+import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "../lib/calendar";
 import {
   adminPushPermission,
   adminPushSupported,
@@ -1838,6 +1840,17 @@ export function AdminDashboardPage() {
     [sortedGlobalAsc],
   );
 
+  function adminCalendarEvent(appt: AdminAppointment): CalendarEvent {
+    return {
+      title: `Bryan Cars - ${appt.clientName || "Client"}`,
+      date: appt.date,
+      time: appt.time,
+      slot: appointmentSlot(appt),
+      location: appt.location === "domicile" ? "A domicile" : "Atelier Bryan Cars",
+      details: `Detailing ${appt.vehicleModel || ""}`.trim(),
+    };
+  }
+
   // Compteurs de notification par onglet de navigation admin.
   const adminNavBadges: Record<string, number> = {
     home: goodiePending,
@@ -2971,6 +2984,28 @@ export function AdminDashboardPage() {
                         </div>
                       </div>
                     </div>
+
+                    {(selectedAppointment.status === "requested" ||
+                      selectedAppointment.status === "confirmed") && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          className="bb-button-ghost px-3 py-2"
+                          onClick={() => downloadIcs(adminCalendarEvent(selectedAppointment))}
+                          type="button"
+                        >
+                          <CalendarPlus className="mr-2 h-4 w-4" />
+                          Ajouter a l&apos;agenda
+                        </button>
+                        <a
+                          className="bb-button-ghost px-3 py-2"
+                          href={googleCalendarUrl(adminCalendarEvent(selectedAppointment))}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Google
+                        </a>
+                      </div>
+                    )}
 
                     {selectedAppointmentActions && (
                       <div className="mt-5 grid gap-3 sm:grid-cols-2">

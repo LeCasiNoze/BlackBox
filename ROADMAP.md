@@ -8,31 +8,38 @@ l'admin → Hall → « Notes de version »).
 
 ---
 
-## Vague en cours
+## Fait récemment
 
 - ✅ **Optimisation mobile** : scroll fluide (suppression du fond fixe, des
   `backdrop-filter` sur mobile, du blend-mode, pause des animations décoratives).
-- 🚧 **Numéro de version + onglet patch notes admin** (cette tâche).
-- 🚧 **Compteurs de notif admin** : badge (N) sur les onglets de la bottom bar
-  (ex. Agenda = RDV non traités, Livraison = RDV à effectuer, Hall = lots à remettre).
+- ✅ **Numéro de version + panneau « Notes de version » admin** (v courante dans
+  [`web/src/lib/patchNotes.ts`](web/src/lib/patchNotes.ts)).
+- ✅ **Compteurs de notif admin** : badges (N) sur les onglets (Agenda = RDV non
+  traités, Livraison = RDV à effectuer, Hall = lots à remettre).
+- ✅ **3.1 Rappels d'inactivité** : relance e-mail (+ push) après ~8 semaines
+  sans RDV, max 1/mois (`src/services/inactivityReminderScheduler.js`).
+- ✅ **3.5 Bannière d'activation des notifications** sur l'accueil client.
+- ✅ **4.4 Bouton « Ajouter à mon agenda »** (.ics + Google) sur les RDV
+  (client + admin).
 
 ---
 
 ## 3. Engagement & rétention (validé : tout)
 
-- ⏳ **3.1 Rappels intelligents** — « X semaines sans RDV » → push + mail.
-  *(Défaut proposé : relance à 8 semaines sans RDV effectué, max 1 / 30 j.)*
+- ✅ **3.1 Rappels intelligents** — relance à 8 semaines sans RDV effectué,
+  max 1 / 30 j, push + mail. *(Seuils ajustables dans le scheduler.)*
 - ⏳ **3.2 Relances saisonnières** par véhicule (pollen, sel d'hiver…).
 - ⏳ **3.3 Récap annuel** « ton année Bryan Cars » (nb prestas, BC, avant/après).
 - ⏳ **3.4 Notif météo** (« beau temps ce week-end, créneau libre ? »).
-- ⏳ **3.5 Activation des notifs plus visible** (bandeau si désactivées).
+  *(Bloqué : nécessite une clé d'API météo.)*
+- ✅ **3.5 Activation des notifs plus visible** (bandeau si désactivées).
 
 ## 4. Réservation & planning
 
 - ⏳ **4.3 Liste d'attente** : si jour pris, option « être en attente » ; à
   l'annulation d'un RDV (client OU admin) → notif aux personnes en attente.
-- ⏳ **4.4 Bouton « Ajouter à mon agenda »** (client + admin) — lien `.ics` /
-  Google Calendar par RDV. *(Sync OAuth = vague ultérieure éventuelle.)*
+- ✅ **4.4 Bouton « Ajouter à mon agenda »** (client + admin) — `.ics` + lien
+  Google Calendar par RDV (`web/src/lib/calendar.ts`). *(Sync OAuth = plus tard.)*
 
 ## 5. Paiement & monétisation
 

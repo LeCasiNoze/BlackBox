@@ -23,6 +23,7 @@ const paymentRoutes = require("./routes/payments");
 const { ensureDemoClient, renumberCardCodes, expireTemporaryFounders } = require("./db/clients");
 const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
+const { startInactivityReminderScheduler } = require("./services/inactivityReminderScheduler");
 
 if (process.env.SEED_DEMO_CLIENT === "true") {
   ensureDemoClient();
@@ -59,6 +60,7 @@ ensureDir(FOUNDERS_UPLOAD_DIR);
 ensureDir(EXPORTS_DIR);
 startAppointmentReminderScheduler();
 startWeeklyExportScheduler();
+startInactivityReminderScheduler();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());

@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Bell,
   CalendarClock,
+  CalendarPlus,
   Camera,
   CarFront,
   CheckCircle2,
@@ -66,6 +67,7 @@ import {
   clientPushSupported,
   enableClientPush,
 } from "../lib/clientPush";
+import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "../lib/calendar";
 
 const SUMUP_TOPUP_URL =
   import.meta.env.VITE_SUMUP_TOPUP_URL || "https://www.sumupbookings.com/bryan-cars";
@@ -1340,6 +1342,13 @@ export function ClientCardPage() {
   );
   const [pushBusy, setPushBusy] = React.useState(false);
   const [notifPromptOpen, setNotifPromptOpen] = React.useState(false);
+  const [notifBannerDismissed, setNotifBannerDismissed] = React.useState<boolean>(() => {
+    try {
+      return !!window.sessionStorage.getItem(`bb-notif-banner:${slug}`);
+    } catch {
+      return false;
+    }
+  });
   const lastOpenedAppointmentIdRef = React.useRef<number | null>(null);
   const appointmentsEverLoadedRef = React.useRef(false);
   const [historyTab, setHistoryTab] = React.useState<HistoryTab>("mine");
@@ -3560,6 +3569,70 @@ export function ClientCardPage() {
     );
   }
 
+  function appointmentCalendarEvent(appt: ClientAppointment): CalendarEvent {
+    return {
+      title: "Bryan Cars - Detailing",
+      date: appt.date,
+      time: appt.time,
+      slot: appt.slot,
+      location: appt.location === "domicile" ? "A domicile" : "Atelier Bryan Cars",
+      details: `Detailing ${appt.vehicleModel || clientData.vehicleModel || ""}`.trim(),
+    };
+  }
+
+  function dismissNotifBanner() {
+    if (slug) {
+      try {
+        window.sessionStorage.setItem(`bb-notif-banner:${slug}`, "1");
+      } catch {
+        /* sessionStorage indisponible */
+      }
+    }
+    setNotifBannerDismissed(true);
+  }
+
+  // Bandeau d'accueil: inciter a activer les notifications (sinon les clients
+  // ratent les notifs de rendez-vous / validation de tarif).
+  function renderNotifBanner() {
+    if (notifBannerDismissed) return null;
+    if (!clientPushSupported() || pushPermission === "granted") return null;
+    return (
+      <div className="bb-rise flex items-center justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/40 bg-accent/15 text-accentSoft">
+            <Bell className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white">Active les notifications</p>
+            <p className="text-sm leading-6 text-white/65">
+              Sois prevenu pour tes rendez-vous, la validation des tarifs et tes recompenses.
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            className="bb-button-brand px-4 py-2"
+            disabled={pushBusy}
+            onClick={() => {
+              void handleEnablePush();
+            }}
+            type="button"
+          >
+            {pushBusy ? "..." : "Activer"}
+          </button>
+          <button
+            className="bb-button-ghost h-9 w-9 rounded-full px-0"
+            onClick={dismissNotifBanner}
+            type="button"
+            aria-label="Masquer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Bandeau d'accueil: tarif a valider sur un RDV (ouvre directement la fiche).
   function renderPriceValidationBanner() {
     const appt = pricePendingAppointment;
@@ -3597,6 +3670,7 @@ export function ClientCardPage() {
     return (
       <section className="space-y-4">
         {renderPriceValidationBanner()}
+        {renderNotifBanner()}
         {renderEventTeaser()}
         <article className="bb-rise bb-steel-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
@@ -3709,6 +3783,7 @@ export function ClientCardPage() {
       return (
         <section className="space-y-4">
           {renderPriceValidationBanner()}
+          {renderNotifBanner()}
           {renderEventTeaser()}
           <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
@@ -3833,6 +3908,7 @@ export function ClientCardPage() {
     return (
       <section className="space-y-4">
         {renderPriceValidationBanner()}
+        {renderNotifBanner()}
         {renderEventTeaser()}
         <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
           <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-accent/12 blur-3xl" />
@@ -5647,17 +5723,35 @@ export function ClientCardPage() {
               <div className="flex flex-wrap items-center gap-2 self-start">
                 {(selectedAppointment.status === "requested" ||
                   selectedAppointment.status === "confirmed") && (
-                  <button
-                    className="bb-button-danger"
-                    disabled={busyAction}
-                    onClick={() => {
-                      void cancel(selectedAppointment.date, selectedAppointment.slot);
-                      closeAppointmentModal();
-                    }}
-                    type="button"
-                  >
-                    Annuler le RDV
-                  </button>
+                  <>
+                    <button
+                      className="bb-button-ghost"
+                      onClick={() => downloadIcs(appointmentCalendarEvent(selectedAppointment))}
+                      type="button"
+                    >
+                      <CalendarPlus className="mr-2 h-4 w-4" />
+                      Ajouter a mon agenda
+                    </button>
+                    <a
+                      className="bb-button-ghost"
+                      href={googleCalendarUrl(appointmentCalendarEvent(selectedAppointment))}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Google
+                    </a>
+                    <button
+                      className="bb-button-danger"
+                      disabled={busyAction}
+                      onClick={() => {
+                        void cancel(selectedAppointment.date, selectedAppointment.slot);
+                        closeAppointmentModal();
+                      }}
+                      type="button"
+                    >
+                      Annuler le RDV
+                    </button>
+                  </>
                 )}
                 <button className="bb-button-ghost" onClick={closeAppointmentModal} type="button">
                   Fermer
