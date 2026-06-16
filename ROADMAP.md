@@ -10,6 +10,12 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Refonte visuelle « Nocturne Raffiné » (portail client)** : typographie Inter,
+  base sombre affinée, **un univers par type de compte** (Fondateur or rose/onyx,
+  BBX violet néon, Pro bleu blueprint) piloté par tokens CSS ; accueil mobile-first
+  (CTA « Prendre rendez-vous » dominant et guidé, statut clair, accès rapides en
+  grille), landing + en-tête + agenda guidé refondus, micro-animations. Système
+  documenté dans [`web/DESIGN_SYSTEM.md`](web/DESIGN_SYSTEM.md).
 - ✅ **Optimisation mobile** : scroll fluide (suppression du fond fixe, des
   `backdrop-filter` sur mobile, du blend-mode, pause des animations décoratives).
 - ✅ **Numéro de version + panneau « Notes de version » admin** (v courante dans

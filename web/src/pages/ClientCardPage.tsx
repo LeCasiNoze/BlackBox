@@ -1812,6 +1812,21 @@ export function ClientCardPage() {
   const paymentsReady = data?.paymentsReady ?? false;
   const pendingCases = data?.pendingCases ?? [];
 
+  // Univers visuel par type de compte (fond + surfaces + accents), applique
+  // sur <html> pour un theming complet de la page (Fondateur / BBX / Pro).
+  const accountTheme: "founder" | "bbx" | "pro" | null = client
+    ? client.clientType === "pro"
+      ? "pro"
+      : client.isFounder
+        ? "founder"
+        : "bbx"
+    : null;
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (accountTheme) root.setAttribute("data-theme", accountTheme);
+    return () => root.removeAttribute("data-theme");
+  }, [accountTheme]);
+
   React.useEffect(() => {
     if (!topupRefParam || handledTopupRef.current === topupRefParam) {
       return;
@@ -3501,40 +3516,45 @@ export function ClientCardPage() {
   function renderHeader() {
     return (
       <>
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <InstallAppButton
-              appName="Bryan Cars"
-              className="bb-button-ghost px-4 py-2"
-              startUrl={`/card/${encodeURIComponent(slug)}`}
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <img
+              alt="Bryan Cars"
+              className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10"
+              src="/app-icon-192.png"
             />
-            <button
-              className="bb-button-ghost px-4 py-2"
-              onClick={() => setContactModalOpen(true)}
-              type="button"
-            >
-              <Phone className="mr-2 h-4 w-4" />
-              Contact
-            </button>
+            <div className="leading-none">
+              <p className="bb-display text-sm font-bold text-white">Bryan Cars</p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">Mon espace</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             {clientPushSupported() && pushPermission !== "granted" && (
               <button
-                className="bb-button-ghost px-4 py-2"
+                aria-label="Activer les notifications"
+                className="bb-icon-btn"
                 disabled={pushBusy}
                 onClick={() => {
                   void handleEnablePush();
                 }}
                 type="button"
               >
-                <Bell className="mr-2 h-4 w-4" />
-                Notifications
+                <Bell className="h-4 w-4" />
               </button>
             )}
-            {clientData.clientType !== "pro" && (
-              <button className="bb-button-brand px-4 py-2" onClick={openTopupFlow} type="button">
-                Recharger
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </button>
-            )}
+            <button
+              aria-label="Contacter Bryan Cars"
+              className="bb-icon-btn"
+              onClick={() => setContactModalOpen(true)}
+              type="button"
+            >
+              <Phone className="h-4 w-4" />
+            </button>
+            <InstallAppButton
+              appName="Bryan Cars"
+              className="bb-button-ghost h-11 rounded-2xl px-3 text-xs"
+              startUrl={`/card/${encodeURIComponent(slug)}`}
+            />
           </div>
         </header>
 
@@ -3560,22 +3580,6 @@ export function ClientCardPage() {
           })}
         </nav>
       </>
-    );
-  }
-
-  function renderMetricCard(title: string, value: string, copy: string, tone?: string) {
-    return (
-      <article
-        className={cn(
-          "bb-metric min-h-[150px]",
-          tone === "warning" && "border-amber-300/25 bg-amber-300/10",
-          tone === "danger" && "border-rose-300/25 bg-rose-300/10",
-        )}
-      >
-        <p className="text-xs uppercase tracking-[0.16em] text-white/45">{title}</p>
-        <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
-        <p className="mt-3 text-sm leading-6 text-white/58">{copy}</p>
-      </article>
     );
   }
 
@@ -4162,106 +4166,119 @@ export function ClientCardPage() {
         {renderPriceValidationBanner()}
         {renderNotifBanner()}
         {renderEventTeaser()}
-        <article className="bb-rise bb-steel-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+
+        {/* HERO PRO — Blueprint (grille technique) */}
+        <article className="bb-rise bb-gold-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
+          <div className="bb-grid-motif pointer-events-none absolute inset-0" />
           <div className="bb-pro-orb bb-pro-orb-steel" />
-          <div className="bb-pro-orb bb-pro-orb-indigo" />
           <div className="bb-pro-orb bb-pro-orb-cyan" />
 
-          <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
-            <div className="space-y-5">
+          <div className="relative z-10 space-y-5">
+            <div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-200">
+                <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Accès pro
+                  Acces pro
                 </div>
+                {activeVehicle && (
+                  <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
+                    <CarFront className="h-3.5 w-3.5 text-accent" />
+                    {vehicleTitle(activeVehicle)}
+                  </div>
+                )}
               </div>
-
-              <div className="max-w-3xl">
-                <h1 className="bb-title-xl">
-                  Bonjour <span className="bb-text-steel">{clientData.firstName || clientData.fullName || "client"}</span>,
-                </h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-white/68 md:text-base">
-                  Compte pro : vos rendez-vous sont directs, sans consommation de crédits.
-                </p>
-              </div>
-
-              {upcomingAppointment && (
-                <div className="rounded-[24px] border border-sky-400/20 bg-sky-400/[0.07] p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-sky-200/70">Prochain passage</p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {formatDateFR(upcomingAppointment.date, { day: "numeric", month: "long" })}
-                  </p>
-                  <p className="mt-1 text-sm text-white/62">
-                    {slotLabel(upcomingAppointment.slot)}{" · "}
-                    {formatTimeHHMM(upcomingAppointment.time)}{" · "}
-                    {locationLabel(upcomingAppointment.location)}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className="bb-button-steel"
-                  onClick={() => navigateView("booking")}
-                  type="button"
-                >
-                  <CalendarClock className="mr-2 h-4 w-4" />
-                  Prendre rendez-vous
-                </button>
-              </div>
+              <h1 className="bb-title-xl mt-3">
+                Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
+              </h1>
+              <p className="bb-subtitle mt-2">
+                Compte pro : vos rendez-vous sont directs, sans consommation de credits.
+              </p>
             </div>
 
-            <div className="grid gap-4">
-              <div className="relative overflow-hidden rounded-[30px] border border-sky-400/22 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
-                <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/35">
-                  <img
-                    alt="Espace pro Bryan Cars"
-                    className="h-[260px] w-full object-cover md:h-[320px]"
-                    src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
-                  />
-                </div>
-              </div>
+            {/* Action principale — dominante et guidee */}
+            <div>
+              <button
+                className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
+                onClick={() => navigateView("booking")}
+                type="button"
+              >
+                <CalendarClock className="mr-2 h-5 w-5" />
+                Prendre rendez-vous
+              </button>
+              <p className="mt-2 text-center text-xs text-white/45">
+                Choisissez un jour et une demi-journee — c&apos;est tout.
+              </p>
+            </div>
 
-              <div className="rounded-[24px] border border-sky-400/15 bg-sky-400/[0.05] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/38">Véhicule actif</p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+            {/* Statut — 2 tuiles */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Prochain passage</p>
+                <p className="mt-1.5 text-lg font-bold text-white">
+                  {upcomingAppointment
+                    ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
+                    : "Aucun"}
                 </p>
-                <p className="mt-2 text-sm text-white/56">
-                  {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail véhicule"}
+                <p className="mt-1 text-xs text-white/45">
+                  {upcomingAppointment
+                    ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(upcomingAppointment.time)}`
+                    : "Rien de prevu"}
                 </p>
+              </div>
+              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Compte Pro</p>
+                <p className="mt-1.5 text-lg font-bold text-white">Sans credits</p>
+                <p className="mt-1 text-xs text-white/45">Rendez-vous directs</p>
               </div>
             </div>
           </div>
         </article>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Actions rapides — grille 2x2 */}
+        <section className="bb-rise bb-rise-2 grid grid-cols-2 gap-3">
           {[
-            {
-              view: "shop" as const,
-              title: "Forfaits partenaire",
-              copy: "Generez un lien de paiement a envoyer a vos clients",
-              icon: Sparkles,
-            },
-            ...homeQuickCards,
+            { view: "shop" as const, title: "Forfaits partenaire", copy: "Generer un lien de paiement", icon: Sparkles },
+            ...homeQuickCards.filter((card) => card.view !== "booking"),
           ].map((card) => {
             const Icon = card.icon;
             return (
               <button
-                className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-sky-400/40 hover:bg-sky-400/[0.08]"
+                className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
                 key={card.view}
                 onClick={() => navigateView(card.view)}
                 type="button"
               >
-                <div className="mb-4 inline-flex rounded-2xl border border-sky-400/20 bg-sky-400/[0.08] p-3 text-sky-400">
+                <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
                   <Icon className="h-5 w-5" />
-                </div>
-                <h2 className="text-lg font-semibold text-white">{card.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-white/62">{card.copy}</p>
+                </span>
+                <p className="mt-3 text-sm font-semibold text-white">{card.title}</p>
+                <p className="mt-1 text-xs leading-5 text-white/55">{card.copy}</p>
               </button>
             );
           })}
+          <button
+            className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
+            onClick={() => setContactModalOpen(true)}
+            type="button"
+          >
+            <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
+              <Phone className="h-5 w-5" />
+            </span>
+            <p className="mt-3 text-sm font-semibold text-white">Besoin d&apos;aide ?</p>
+            <p className="mt-1 text-xs leading-5 text-white/55">Contacter Bryan Cars</p>
+          </button>
         </section>
+
+        {/* Vehicule actif */}
+        <div className="bb-rise bb-rise-3 bb-surface p-4">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Vehicule actif</p>
+          <p className="mt-1.5 text-lg font-semibold text-white">
+            {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+          </p>
+          <p className="mt-1 text-sm text-white/55">
+            {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
+          </p>
+        </div>
 
         {renderSocialSection()}
       </section>
@@ -4276,116 +4293,139 @@ export function ClientCardPage() {
           {renderNotifBanner()}
           {renderEventTeaser()}
           {renderLeaderboardTeaser()}
+
+          {/* HERO — identite + statut + action principale dominante */}
           <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
             <div className="bb-founder-orb bb-founder-orb-gold" />
             <div className="bb-founder-orb bb-founder-orb-blue" />
             <div className="bb-founder-orb bb-founder-orb-ember" />
 
-            <div className="relative z-10 grid gap-5 xl:grid-cols-[1.04fr_0.96fr]">
-              <div className="space-y-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
-                    <Crown className="h-3.5 w-3.5" />
-                    Accès fondateur
-                  </div>
-                  {clientData.founderUntil && (
-                    <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
-                      Jusqu'au{" "}
-                      {formatDateFR(toIsoDate(new Date(clientData.founderUntil * 1000)), {
-                        day: "numeric",
-                        month: "long",
-                      })}
+            <div className="relative z-10 space-y-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+                      <Crown className="h-3.5 w-3.5" />
+                      Acces fondateur
                     </div>
-                  )}
-                </div>
-
-                <div className="max-w-3xl">
-                  <h1 className="bb-title-xl">
+                    <div className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
+                      <span className="font-bold text-accent">{clientData.bcPoints}</span> BC&apos;Coins
+                    </div>
+                  </div>
+                  <h1 className="bb-title-xl mt-3">
                     Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "fondateur"}</span>,
                   </h1>
-                  <button
-                    className="bb-button-brand mt-5"
-                    onClick={() => navigateView("booking")}
-                    type="button"
-                  >
-                    <CalendarClock className="mr-2 h-4 w-4" />
-                    Prendre rendez-vous
-                  </button>
+                  <p className="bb-subtitle mt-2">
+                    Bienvenue dans votre espace. Tout commence par un rendez-vous.
+                  </p>
                 </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-[24px] border border-accent/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Crédits</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">
-                      {clientData.formulaRemaining}
-                    </p>
-                  </div>
-                  <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">BC&apos;Coins</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{clientData.bcPoints}</p>
-                  </div>
-                  <div className="rounded-[24px] border border-white/10 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Prochain passage</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {upcomingAppointment
-                        ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
-                        : "Aucun"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-2 rounded-full bg-gradient-to-r from-accent via-[#f0d28a] to-[#d99a4e]"
-                    style={{ width: `${creditsRatio * 100}%` }}
-                  />
-                </div>
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="hidden h-16 w-16 shrink-0 rounded-2xl border border-accent/25 object-cover sm:block"
+                  src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
+                />
               </div>
 
-              <div className="grid gap-4">
-                <div className="bb-founder-media relative overflow-hidden rounded-[30px] border border-accent/22 bg-[radial-gradient(circle_at_top,rgb(var(--bb-accent-rgb)/0.18),transparent_48%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-3">
-                  <div className="bb-founder-shimmer" />
-                  <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-black/35">
-                    <img
-                      alt="Univers fondateur Bryan Cars"
-                      className="h-[260px] w-full object-cover md:h-[320px]"
-                      src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
+              {/* Action principale — dominante et guidee */}
+              <div>
+                <button
+                  className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
+                  onClick={() => navigateView("booking")}
+                  type="button"
+                >
+                  <CalendarClock className="mr-2 h-5 w-5" />
+                  Prendre rendez-vous
+                </button>
+                <p className="mt-2 text-center text-xs text-white/45">
+                  Choisissez un jour et une demi-journee — c&apos;est tout.
+                </p>
+              </div>
+
+              {/* Statut — 2 tuiles claires */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Lavages restants</p>
+                  <p className="mt-1.5 text-2xl font-bold text-white">{clientData.formulaRemaining}</p>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-accent to-accentSoft"
+                      style={{ width: `${Math.max(6, creditsRatio * 100)}%` }}
                     />
                   </div>
                 </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/38">Véhicule actif</p>
-                  <p className="mt-2 text-lg font-semibold text-white">
-                    {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+                <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Prochain passage</p>
+                  <p className="mt-1.5 text-lg font-bold text-white">
+                    {upcomingAppointment
+                      ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
+                      : "Aucun"}
                   </p>
-                  <p className="mt-2 text-sm text-white/56">
-                    {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail véhicule"}
+                  <p className="mt-1 text-xs text-white/45">
+                    {upcomingAppointment
+                      ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(upcomingAppointment.time)}`
+                      : "Rien de prevu"}
                   </p>
                 </div>
               </div>
             </div>
           </article>
 
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {quickCards.map((card) => {
-              const Icon = card.icon;
-              return (
-                <button
-                  className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.08]"
-                  key={card.view}
-                  onClick={() => navigateView(card.view)}
-                  type="button"
-                >
-                  <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h2 className="text-lg font-semibold text-white">{card.title}</h2>
-                  <p className="mt-2 text-sm leading-6 text-white/62">{card.copy}</p>
-                </button>
-              );
-            })}
+          {/* Actions rapides — grille 2x2 mobile, claire et tappable.
+              "Prendre rendez-vous" est deja l'action principale ci-dessus. */}
+          <section className="bb-rise bb-rise-2 grid grid-cols-2 gap-3">
+            {quickCards
+              .filter((card) => card.view !== "booking")
+              .map((card) => {
+                const Icon = card.icon;
+                return (
+                  <button
+                    className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
+                    key={card.view}
+                    onClick={() => navigateView(card.view)}
+                    type="button"
+                  >
+                    <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <p className="mt-3 text-sm font-semibold text-white">{card.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-white/55">{card.copy}</p>
+                  </button>
+                );
+              })}
+            <button
+              className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
+              onClick={() => setContactModalOpen(true)}
+              type="button"
+            >
+              <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
+                <Phone className="h-5 w-5" />
+              </span>
+              <p className="mt-3 text-sm font-semibold text-white">Besoin d&apos;aide ?</p>
+              <p className="mt-1 text-xs leading-5 text-white/55">Contacter Bryan Cars</p>
+            </button>
           </section>
+
+          {/* Vehicule actif + showcase fondateur (non bloquant) */}
+          <div className="bb-rise bb-rise-3 grid gap-3 md:grid-cols-2">
+            <div className="bb-surface p-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Vehicule actif</p>
+              <p className="mt-1.5 text-lg font-semibold text-white">
+                {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
+              </p>
+              <p className="mt-1 text-sm text-white/55">
+                {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
+              </p>
+            </div>
+            <div className="bb-founder-media relative overflow-hidden rounded-[22px] border border-accent/22 bg-black/35">
+              <div className="bb-founder-shimmer" />
+              <img
+                alt="Univers fondateur Bryan Cars"
+                className="h-32 w-full object-cover md:h-full"
+                src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
+              />
+            </div>
+          </div>
 
           {renderSocialSection()}
         </section>
@@ -4401,120 +4441,163 @@ export function ClientCardPage() {
         {renderPriceValidationBanner()}
         {renderNotifBanner()}
         {renderEventTeaser()}
-        <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-6 md:p-8">
-          <div className="pointer-events-none absolute left-[-5rem] top-8 h-56 w-56 rounded-full bg-accent/12 blur-3xl" />
-          <div className="pointer-events-none absolute right-[-4rem] top-[-2rem] h-60 w-60 rounded-full bg-sky-400/10 blur-3xl" />
-          <img
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 right-0 hidden w-[22rem] opacity-[0.10] mix-blend-screen md:block"
-            src="/bryan-cars-logo.png"
+
+        {/* HERO BBX — identite + action principale (caractere Neon Violet) */}
+        <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-5 md:p-7">
+          <div className="pointer-events-none absolute left-[-4rem] top-[-3rem] h-56 w-56 rounded-full bg-accent/14 blur-3xl" />
+          <div
+            className="pointer-events-none absolute right-[-4rem] top-8 h-56 w-56 rounded-full blur-3xl"
+            style={{ background: "rgb(var(--bb-accent2-rgb) / 0.16)" }}
           />
 
-          <div className="relative z-10 space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-2xl">
-                <h1 className="bb-title-xl">
-                  Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
-                </h1>
-                {upcomingAppointment && (
-                  <p className="mt-3 text-sm text-white/62">
-                    Prochain rendez-vous le {formatDateFR(upcomingAppointment.date, {
-                      day: "numeric",
-                      month: "long",
-                    })}
-                  </p>
+          <div className="relative z-10 space-y-5">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Espace client
+                </div>
+                {activeVehicle && (
+                  <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
+                    <CarFront className="h-3.5 w-3.5 text-accent" />
+                    {vehicleTitle(activeVehicle)}
+                  </div>
                 )}
               </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className="bb-button-brand"
-                  onClick={() => navigateView("booking")}
-                  type="button"
-                >
-                  <CalendarClock className="mr-2 h-4 w-4" />
-                  Prendre rendez-vous
-                </button>
-              </div>
+              <h1 className="bb-title-xl mt-3">
+                Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
+              </h1>
+              <p className="bb-subtitle mt-2">
+                Bienvenue dans votre espace. Tout commence par un rendez-vous.
+              </p>
             </div>
 
-            <button
-              className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-accent/45"
-              onClick={() => setFounderModalOpen(true)}
-              type="button"
-            >
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-accent/35 bg-accent/12 p-3 text-accentSoft">
-                  <Crown className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-white">Devenir fondateur</p>
-                  <p className="mt-1 text-sm leading-6 text-white/62">
-                    Carte premium, BC&apos;Coins et avantages exclusifs. Decouvrir le programme.
-                  </p>
-                  {typeof data?.foundersRemaining === "number" && (
-                    <span className="mt-1.5 inline-block text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-                      {data.foundersRemaining > 0
-                        ? `${data.foundersRemaining} place${
-                            data.foundersRemaining > 1 ? "s" : ""
-                          } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${
-                            data.founderCap ?? 50
-                          }`
-                        : "Complet — plus de places"}
-                    </span>
+            {/* Action principale — dominante et guidee */}
+            <div>
+              <button
+                className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
+                onClick={() => navigateView("booking")}
+                type="button"
+              >
+                <CalendarClock className="mr-2 h-5 w-5" />
+                Prendre rendez-vous
+              </button>
+              <p className="mt-2 text-center text-xs text-white/45">
+                Choisissez un jour et une demi-journee — c&apos;est tout.
+              </p>
+            </div>
+
+            {/* Statut — 2 tuiles claires */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Lavages restants</p>
+                <p
+                  className={cn(
+                    "mt-1.5 text-2xl font-bold",
+                    clientData.formulaRemaining > 0 ? "text-white" : "text-amber-300",
                   )}
+                >
+                  {clientData.formulaRemaining}
+                </p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-accentSoft"
+                    style={{ width: `${Math.max(6, creditsRatio * 100)}%` }}
+                  />
                 </div>
               </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
-            </button>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {renderMetricCard(
-                "Credits",
-                `${clientData.formulaRemaining}`,
-                "Les crédits sont consommés uniquement quand le tarif du rendez-vous est validé.",
-                clientData.formulaRemaining > 0 ? undefined : "warning",
-              )}
-              {renderMetricCard(
-                "Prochain passage",
-                upcomingAppointment
-                  ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "long" })
-                  : "Rien de prevu",
-                upcomingAppointment
-                  ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(
-                      upcomingAppointment.time,
-                    )} · ${locationLabel(upcomingAppointment.location)}`
-                  : freeSlot
-                    ? `Prochain libre: ${formatDateFR(freeSlot.date, {
-                        day: "numeric",
-                        month: "short",
-                      })} · ${slotLabel(freeSlot.slot)}`
-                    : "Le planning ne propose pas encore de disponibilite visible.",
-              )}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {homeQuickCards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <button
-                    className="bb-hover-lift rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.08]"
-                    key={card.view}
-                    onClick={() => navigateView(card.view)}
-                    type="button"
-                  >
-                    <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h2 className="text-lg font-semibold text-white">{card.title}</h2>
-                    <p className="mt-2 text-sm leading-6 text-white/62">{card.copy}</p>
-                  </button>
-                );
-              })}
+              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Prochain passage</p>
+                <p className="mt-1.5 text-lg font-bold text-white">
+                  {upcomingAppointment
+                    ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
+                    : "Aucun"}
+                </p>
+                <p className="mt-1 text-xs text-white/45">
+                  {upcomingAppointment
+                    ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(upcomingAppointment.time)}`
+                    : freeSlot
+                      ? `Libre des le ${formatDateFR(freeSlot.date, { day: "numeric", month: "short" })}`
+                      : "Rien de prevu"}
+                </p>
+              </div>
             </div>
           </div>
         </article>
+
+        {/* Actions rapides — grille 2x2 mobile (booking est deja l'action principale) */}
+        <section className="bb-rise bb-rise-2 grid grid-cols-2 gap-3">
+          {homeQuickCards
+            .filter((card) => card.view !== "booking")
+            .map((card) => {
+              const Icon = card.icon;
+              return (
+                <button
+                  className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
+                  key={card.view}
+                  onClick={() => navigateView(card.view)}
+                  type="button"
+                >
+                  <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-semibold text-white">{card.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/55">{card.copy}</p>
+                </button>
+              );
+            })}
+          <button
+            className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
+            onClick={openTopupFlow}
+            type="button"
+          >
+            <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
+              <CreditCard className="h-5 w-5" />
+            </span>
+            <p className="mt-3 text-sm font-semibold text-white">Recharger</p>
+            <p className="mt-1 text-xs leading-5 text-white/55">Ajouter des lavages</p>
+          </button>
+          <button
+            className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
+            onClick={() => setContactModalOpen(true)}
+            type="button"
+          >
+            <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
+              <Phone className="h-5 w-5" />
+            </span>
+            <p className="mt-3 text-sm font-semibold text-white">Besoin d&apos;aide ?</p>
+            <p className="mt-1 text-xs leading-5 text-white/55">Contacter Bryan Cars</p>
+          </button>
+        </section>
+
+        {/* Upsell fondateur — demote sous l'action */}
+        <button
+          className="bb-rise bb-rise-3 group flex w-full items-center justify-between gap-4 rounded-[24px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-accent/45"
+          onClick={() => setFounderModalOpen(true)}
+          type="button"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-accent/35 bg-accent/12 p-3 text-accentSoft">
+              <Crown className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-white">Devenir fondateur</p>
+              <p className="mt-1 text-sm leading-6 text-white/62">
+                Carte premium, BC&apos;Coins et avantages exclusifs.
+              </p>
+              {typeof data?.foundersRemaining === "number" && (
+                <span className="mt-1.5 inline-block text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+                  {data.foundersRemaining > 0
+                    ? `${data.foundersRemaining} place${
+                        data.foundersRemaining > 1 ? "s" : ""
+                      } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${data.founderCap ?? 50}`
+                    : "Complet — plus de places"}
+                </span>
+              )}
+            </div>
+          </div>
+          <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
+        </button>
 
         {renderSocialSection()}
       </section>
@@ -4546,11 +4629,18 @@ export function ClientCardPage() {
 
         <article className="bb-surface p-5 md:p-6">
           <div>
-            <p className="bb-eyebrow">Agenda</p>
-            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez un créneau</h2>
-            <p className="bb-subtitle mt-2">
-              Naviguez jour par jour, puis touchez la demi-journee souhaitee.
-            </p>
+            <p className="bb-eyebrow">Prendre rendez-vous</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez votre creneau</h2>
+            <div className="mt-3 space-y-1.5 text-sm leading-6 text-white/65">
+              <p>
+                <span className="mr-1.5 font-bold text-accent">1.</span>
+                Choisissez le jour (fleches ou calendrier).
+              </p>
+              <p>
+                <span className="mr-1.5 font-bold text-accent">2.</span>
+                Touchez une demi-journee <span className="font-semibold text-emerald-200">libre</span>.
+              </p>
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -5632,7 +5722,7 @@ export function ClientCardPage() {
   return (
     <div
       className="bb-shell pb-24 md:pb-16"
-      data-theme={clientData.clientType === "pro" ? "pro" : undefined}
+      data-theme={accountTheme ?? undefined}
     >
       <input
         accept="image/*"

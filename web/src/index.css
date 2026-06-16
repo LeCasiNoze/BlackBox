@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+/* Inter — precision sans, identite "Nocturne Raffine" (DA 2026). */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,70 +7,167 @@
 
 :root {
   color-scheme: dark;
-  --bb-bg: #14110d;
-  --bb-bg-deep: #0c0a07;
-  --bb-surface: rgba(32, 27, 20, 0.6);
-  --bb-surface-2: rgba(40, 34, 25, 0.74);
-  --bb-surface-strong: rgba(26, 21, 15, 0.86);
-  --bb-border: rgba(247, 235, 210, 0.1);
-  --bb-border-strong: rgba(232, 201, 138, 0.22);
-  --bb-copy: #f4ede0;
-  --bb-muted: #b3a48d;
+  /* Base — Nocturne (noir chaud profond) */
+  --bb-bg: #100c08;
+  --bb-bg-deep: #0a0705;
+  --bb-surface: rgba(30, 25, 18, 0.62);
+  --bb-surface-2: rgba(38, 32, 23, 0.74);
+  --bb-surface-strong: rgba(23, 18, 12, 0.88);
+  --bb-border: rgba(245, 235, 214, 0.1);
+  --bb-border-strong: rgba(232, 201, 138, 0.24);
+  --bb-copy: #f5efe4;
+  --bb-muted: #ab9d86;
+
+  /* Accent — Or champagne (Fondateur + marque, valeur par defaut).
+     Les canaux RGB pilotent la couleur Tailwind `accent`; l'accent bascule
+     par type de compte via [data-theme="bbx"] (bronze) / [data-theme="pro"] (acier).
+     Toutes les classes .bb-* lisent l'accent par var() — pas de hex en dur. */
   --bb-accent: #e8c98a;
-  --bb-accent-soft: #ffd87a;
-  --bb-accent-strong: #d99a4e;
-  /* Canaux RGB de l'accent (pilotent la couleur Tailwind `accent`,
-     bascules par type de compte via [data-theme]). */
+  --bb-accent-soft: #f4dca0;
+  --bb-accent-strong: #d29a4f;
+  --bb-accent-hi: #ffe3a6;
   --bb-accent-rgb: 232 201 138;
-  --bb-accent-soft-rgb: 255 232 168;
+  --bb-accent-soft-rgb: 244 220 160;
+  --bb-glow-rgb: 217 154 78;
+  --bb-button-ink: #1a0f02;
+  --bb-ring-gold: rgba(232, 201, 138, 0.5);
+
+  /* Acier (reserve a l'univers Pro, classes .bb-*-steel) */
   --bb-steel: #4cc6ff;
   --bb-steel-strong: #1f8fd6;
+
+  /* Etats */
   --bb-success: #43d79d;
   --bb-danger: #ff7d89;
-  --bb-ring-gold: rgba(232, 201, 138, 0.55);
+
+  /* Accent secondaire (duo-tons "oses") */
+  --bb-accent2-rgb: 217 154 78;
+
+  /* Fond de page + aurore (themables par compte) */
+  --bb-page-grad-a: #17130d;
+  --bb-page-grad-b: #100c08;
+  --bb-page-grad-c: #1a150e;
+  --bb-aurora-a: rgba(232, 201, 138, 0.22);
+  --bb-aurora-b: rgba(217, 154, 78, 0.16);
+  --bb-aurora-c: rgba(76, 198, 255, 0.08);
+
+  /* Surfaces opaques (fallback perf mobile, par theme) */
+  --bb-glass-solid: rgba(28, 23, 17, 0.94);
+  --bb-glass-solid-2: rgba(22, 18, 13, 0.97);
 }
 
-/* Theme par type de compte: Pro = identite acier sur TOUTES les pages.
-   BBX et Fondateur gardent l'or (valeurs par defaut de :root). */
+/* ===========================================================================
+   UNIVERS PAR TYPE DE COMPTE — chaque compte a sa propre DA complete :
+   fond, surfaces, texte, aurore ET accents. Defaut (:root) = marque Nocturne
+   (or) pour la landing et l'admin. Toutes les classes .bb-* lisent par var().
+   =========================================================================== */
+
+/* FONDATEUR — "Or Rose & Onyx" (luxe mode, onyx + or rose/cuivre + bordeaux). */
+[data-theme="founder"] {
+  --bb-bg: #0b0809;
+  --bb-bg-deep: #060405;
+  --bb-surface: rgba(30, 19, 21, 0.62);
+  --bb-surface-2: rgba(38, 24, 27, 0.74);
+  --bb-surface-strong: rgba(22, 13, 15, 0.88);
+  --bb-border: rgba(232, 180, 160, 0.12);
+  --bb-border-strong: rgba(232, 180, 160, 0.26);
+  --bb-copy: #f5ece7;
+  --bb-muted: #b6a09a;
+
+  --bb-accent: #e8b4a0;
+  --bb-accent-soft: #f4d2c4;
+  --bb-accent-strong: #c9784e;
+  --bb-accent-hi: #ffd9c8;
+  --bb-accent-rgb: 232 180 160;
+  --bb-accent-soft-rgb: 244 210 196;
+  --bb-glow-rgb: 201 120 78;
+  --bb-button-ink: #1a0b08;
+  --bb-ring-gold: rgba(232, 180, 160, 0.5);
+  --bb-accent2-rgb: 122 30 46;
+
+  --bb-page-grad-a: #140a0c;
+  --bb-page-grad-b: #0b0608;
+  --bb-page-grad-c: #160a0e;
+  --bb-aurora-a: rgba(232, 180, 160, 0.2);
+  --bb-aurora-b: rgba(201, 120, 78, 0.16);
+  --bb-aurora-c: rgba(122, 30, 46, 0.14);
+  --bb-glass-solid: rgba(26, 16, 18, 0.95);
+  --bb-glass-solid-2: rgba(20, 12, 14, 0.97);
+}
+
+/* BBX — "Neon Violet" (nuit violette + violet electrique + magenta).
+   Volontairement tres different du Pro (Blueprint bleu) pour distinguer les paliers. */
+[data-theme="bbx"] {
+  --bb-bg: #120a22;
+  --bb-bg-deep: #0c0518;
+  --bb-surface: rgba(42, 26, 64, 0.6);
+  --bb-surface-2: rgba(52, 34, 78, 0.74);
+  --bb-surface-strong: rgba(28, 16, 46, 0.9);
+  --bb-border: rgba(214, 180, 255, 0.12);
+  --bb-border-strong: rgba(168, 85, 247, 0.28);
+  --bb-copy: #f3ecff;
+  --bb-muted: #a99cc8;
+
+  --bb-accent: #a855f7;
+  --bb-accent-soft: #d8b4fe;
+  --bb-accent-strong: #7c3aed;
+  --bb-accent-hi: #c99bff;
+  --bb-accent-rgb: 168 85 247;
+  --bb-accent-soft-rgb: 216 180 254;
+  --bb-glow-rgb: 124 58 237;
+  --bb-button-ink: #ffffff;
+  --bb-ring-gold: rgba(168, 85, 247, 0.5);
+  --bb-accent2-rgb: 255 61 139;
+
+  --bb-page-grad-a: #1a0e30;
+  --bb-page-grad-b: #100722;
+  --bb-page-grad-c: #220e3e;
+  --bb-aurora-a: rgba(168, 85, 247, 0.2);
+  --bb-aurora-b: rgba(255, 61, 139, 0.15);
+  --bb-aurora-c: rgba(99, 102, 241, 0.12);
+  --bb-glass-solid: rgba(28, 16, 46, 0.95);
+  --bb-glass-solid-2: rgba(19, 10, 32, 0.97);
+}
+
+/* PRO — "Blueprint" (encre + cyan + bleu plan, technique). */
 [data-theme="pro"] {
-  --bb-accent: #4cc6ff;
-  --bb-accent-soft: #cdeeff;
-  --bb-accent-strong: #1f8fd6;
-  --bb-accent-rgb: 76 198 255;
-  --bb-accent-soft-rgb: 205 238 255;
-  --bb-ring-gold: rgba(76, 198, 255, 0.55);
-}
+  --bb-bg: #07101f;
+  --bb-bg-deep: #040a14;
+  --bb-surface: rgba(14, 27, 48, 0.6);
+  --bb-surface-2: rgba(18, 34, 60, 0.74);
+  --bb-surface-strong: rgba(8, 16, 30, 0.9);
+  --bb-border: rgba(147, 197, 253, 0.12);
+  --bb-border-strong: rgba(34, 211, 238, 0.26);
+  --bb-copy: #e6f0fb;
+  --bb-muted: #8ba1bf;
 
-[data-theme="pro"] .bb-button-brand {
-  background: linear-gradient(135deg, #8fdcff 2%, var(--bb-accent) 42%, var(--bb-accent-strong) 100%);
-  box-shadow:
-    0 16px 36px -8px rgba(31, 143, 214, 0.5),
-    0 2px 8px rgba(31, 143, 214, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  color: #031420;
-}
+  --bb-accent: #22d3ee;
+  --bb-accent-soft: #a5e8f5;
+  --bb-accent-strong: #1d4ed8;
+  --bb-accent-hi: #93c5fd;
+  --bb-accent-rgb: 34 211 238;
+  --bb-accent-soft-rgb: 165 232 245;
+  --bb-glow-rgb: 29 78 216;
+  --bb-button-ink: #021018;
+  --bb-ring-gold: rgba(34, 211, 238, 0.5);
+  --bb-accent2-rgb: 147 197 253;
 
-[data-theme="pro"] .bb-text-gold {
-  background: linear-gradient(120deg, #cdeeff 6%, var(--bb-accent) 48%, var(--bb-accent-strong) 96%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-[data-theme="pro"] .bb-gold-frame::after {
-  background: linear-gradient(
-    135deg,
-    rgba(76, 198, 255, 0.55),
-    rgba(76, 198, 255, 0) 42%,
-    rgba(31, 143, 214, 0.32)
-  );
+  --bb-page-grad-a: #08142a;
+  --bb-page-grad-b: #060f1f;
+  --bb-page-grad-c: #0a1a38;
+  --bb-aurora-a: rgba(34, 211, 238, 0.16);
+  --bb-aurora-b: rgba(59, 130, 246, 0.14);
+  --bb-aurora-c: rgba(147, 197, 253, 0.1);
+  --bb-glass-solid: rgba(10, 20, 38, 0.95);
+  --bb-glass-solid-2: rgba(7, 14, 28, 0.97);
 }
 
 html {
   min-height: 100%;
   background:
-    linear-gradient(180deg, #17130d 0%, #100c08 48%, #1a150e 100%);
+    linear-gradient(180deg, var(--bb-page-grad-a) 0%, var(--bb-page-grad-b) 48%, var(--bb-page-grad-c) 100%);
   background-attachment: fixed;
+  transition: background 0.5s ease;
 }
 
 /* Aurore chaude animée en fond, derrière tout le contenu. */
@@ -80,10 +178,10 @@ html::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(38% 42% at 14% 8%, rgba(232, 201, 138, 0.22), transparent 70%),
-    radial-gradient(34% 40% at 88% 12%, rgba(217, 154, 78, 0.16), transparent 70%),
-    radial-gradient(46% 48% at 50% 116%, rgba(232, 201, 138, 0.12), transparent 72%),
-    radial-gradient(30% 36% at 78% 82%, rgba(76, 198, 255, 0.08), transparent 70%);
+    radial-gradient(38% 42% at 14% 8%, var(--bb-aurora-a), transparent 70%),
+    radial-gradient(34% 40% at 88% 12%, var(--bb-aurora-b), transparent 70%),
+    radial-gradient(46% 48% at 50% 116%, var(--bb-aurora-a), transparent 72%),
+    radial-gradient(30% 36% at 78% 82%, var(--bb-aurora-c), transparent 70%);
   filter: blur(36px) saturate(118%);
   animation: bb-aurora 26s ease-in-out infinite;
   will-change: transform, opacity;
@@ -106,11 +204,12 @@ body {
   min-height: 100vh;
   color: var(--bb-copy);
   font-family:
-    "Plus Jakarta Sans",
-    "Manrope",
+    "Inter",
     "Segoe UI",
+    system-ui,
     sans-serif;
-  letter-spacing: -0.006em;
+  font-feature-settings: "cv11", "ss01";
+  letter-spacing: -0.011em;
   background: transparent;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -220,9 +319,9 @@ select {
     padding: 1px;
     background: linear-gradient(
       135deg,
-      rgba(232, 201, 138, 0.6),
-      rgba(232, 201, 138, 0) 42%,
-      rgba(217, 154, 78, 0.32)
+      rgb(var(--bb-accent-rgb) / 0.6),
+      rgb(var(--bb-accent-rgb) / 0) 42%,
+      rgb(var(--bb-glow-rgb) / 0.32)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -266,12 +365,9 @@ select {
   }
 
   .bb-display {
-    font-family:
-      "Plus Jakarta Sans",
-      "Manrope",
-      "Segoe UI",
-      sans-serif;
-    letter-spacing: -0.022em;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: -0.028em;
+    font-feature-settings: "cv11", "ss01";
   }
 
   .bb-eyebrow {
@@ -295,7 +391,7 @@ select {
   }
 
   .bb-text-gold {
-    background: linear-gradient(120deg, #ffe7ab 6%, var(--bb-accent) 44%, var(--bb-accent-strong) 96%);
+    background: linear-gradient(120deg, var(--bb-accent-hi) 6%, var(--bb-accent) 44%, var(--bb-accent-strong) 96%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -350,12 +446,12 @@ select {
     position: relative;
     overflow: hidden;
     background:
-      linear-gradient(135deg, #ffd680 2%, var(--bb-accent) 42%, var(--bb-accent-strong) 100%);
+      linear-gradient(135deg, var(--bb-accent-hi) 2%, var(--bb-accent) 42%, var(--bb-accent-strong) 100%);
     box-shadow:
-      0 16px 36px -8px rgba(217, 154, 78, 0.5),
-      0 2px 8px rgba(217, 154, 78, 0.25),
+      0 16px 36px -8px rgb(var(--bb-glow-rgb) / 0.5),
+      0 2px 8px rgb(var(--bb-glow-rgb) / 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.45);
-    color: #1a0f02;
+    color: var(--bb-button-ink);
     @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-bold transition duration-200 hover:-translate-y-0.5 hover:brightness-[1.06];
   }
 
@@ -408,6 +504,11 @@ select {
 
   .bb-button-ghost {
     @apply inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.07];
+  }
+
+  /* Bouton icone compact, cible tactile 44x44 (a11y). */
+  .bb-icon-btn {
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white/75 transition duration-200 hover:border-white/25 hover:bg-white/[0.08] hover:text-white;
   }
 
   .bb-button-danger {
@@ -676,6 +777,36 @@ select {
   transform: translateY(-3px);
 }
 
+/* Action principale: halo qui respire pour guider l'oeil du debutant
+   (subtil, lent ; desactive par prefers-reduced-motion plus bas). */
+@keyframes bb-cta-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 16px 36px -8px rgb(var(--bb-glow-rgb) / 0.5),
+      0 0 0 0 rgb(var(--bb-accent-rgb) / 0.34);
+  }
+  50% {
+    box-shadow:
+      0 18px 42px -6px rgb(var(--bb-glow-rgb) / 0.6),
+      0 0 0 9px rgb(var(--bb-accent-rgb) / 0);
+  }
+}
+.bb-cta-pulse {
+  animation: bb-cta-pulse 2.6s ease-in-out infinite;
+}
+
+/* Caractere "Blueprint" (univers Pro) : grille technique discrete,
+   estompee vers le bas par un masque radial. */
+.bb-grid-motif {
+  background-image:
+    linear-gradient(rgb(var(--bb-accent-rgb) / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--bb-accent-rgb) / 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(125% 90% at 50% 0%, #000 35%, transparent 76%);
+  mask-image: radial-gradient(125% 90% at 50% 0%, #000 35%, transparent 76%);
+}
+
 /* Apparition des modales: fond en fondu + panneau qui monte et grandit. */
 @keyframes bb-backdrop-in {
   from {
@@ -807,19 +938,19 @@ select {
   .bb-surface {
     background:
       linear-gradient(158deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01) 44%, rgba(255, 255, 255, 0.022)),
-      rgba(28, 23, 17, 0.94);
+      var(--bb-glass-solid);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
   .bb-surface-strong {
     background:
       linear-gradient(158deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.012) 48%, rgba(255, 255, 255, 0.03)),
-      rgba(22, 18, 13, 0.975);
+      var(--bb-glass-solid-2);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
   .bb-hairline {
-    background: rgba(28, 23, 17, 0.9);
+    background: var(--bb-glass-solid);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
