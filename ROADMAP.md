@@ -57,8 +57,9 @@ l'admin → Hall → « Notes de version »).
 
 ## 6. Communication client
 
-- ⏳ **6.3 Galerie avant/après** : taguer les photos « avant » / « après » +
-  slider comparatif sur la fiche RDV. *(Photos déjà présentes, tag à ajouter.)*
+- ✅ **6.3 Photos avant/après** : tag optionnel « Avant »/« Après » par photo côté
+  admin (Livraison) ; affichage groupé en sections Avant/Après côté client (sinon
+  galerie normale). Pas de slider (angles non garantis) — dégrade proprement.
 - ✅ **Chatbot d'assistance (guidé / scripté)** : bulle portail client, menus +
   boutons d'action (ouvrir un RDV, valider un tarif, prendre un RDV, box, FAQ,
   contact). `renderAssistant()` dans ClientCardPage. *(FAQ par défaut à valider.)*

@@ -251,6 +251,7 @@ type AdminAppointmentPhoto = {
   caption: string | null;
   isCover: boolean;
   isPublic: boolean;
+  category?: "before" | "after" | null;
 };
 
 type AdminAppointmentPhotosResponse = {
@@ -1655,6 +1656,26 @@ export function AdminDashboardPage() {
     }
 
     clearStagedPhotos();
+  }
+
+  // Tag avant/apres d'une photo (toggle: re-cliquer retire le tag).
+  async function setPhotoCategory(photoId: number, category: "before" | "after") {
+    const appointmentId = selectedAppointment?.id;
+    if (!appointmentId) return;
+    const current = currentPhotos.find((p) => p.id === photoId)?.category ?? null;
+    const next = current === category ? null : category;
+    setCurrentPhotos((list) =>
+      list.map((p) => (p.id === photoId ? { ...p, category: next } : p)),
+    );
+    try {
+      await fetch(`/api/admin/appointments/${appointmentId}/photos/${photoId}/category`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: next }),
+      });
+    } catch (_error) {
+      showToast("Echec du tag photo.");
+    }
   }
 
   async function updateFormula(mode: "reset" | "empty" | "custom") {
@@ -3815,27 +3836,47 @@ export function AdminDashboardPage() {
                     {publicAppointmentPhotos.length > 0 && (
                       <div className="mt-4 grid gap-3 sm:grid-cols-3">
                         {publicAppointmentPhotos.map((photo) => (
-                          <button
-                            className="block overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
-                            key={photo.id}
-                            onClick={() =>
-                              openLightbox(
-                                publicAppointmentPhotos.map((entry) => ({
-                                  id: `public-${entry.id}`,
-                                  url: entry.url,
-                                  label: entry.caption,
-                                })),
-                                photo.url,
-                              )
-                            }
-                            type="button"
-                          >
-                            <img
-                              alt={photo.caption || "Photo rendez-vous"}
-                              className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
-                              src={photo.url}
-                            />
-                          </button>
+                          <div className="space-y-1.5" key={photo.id}>
+                            <button
+                              className="block w-full overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
+                              onClick={() =>
+                                openLightbox(
+                                  publicAppointmentPhotos.map((entry) => ({
+                                    id: `public-${entry.id}`,
+                                    url: entry.url,
+                                    label: entry.caption,
+                                  })),
+                                  photo.url,
+                                )
+                              }
+                              type="button"
+                            >
+                              <img
+                                alt={photo.caption || "Photo rendez-vous"}
+                                className="h-24 w-full object-cover transition duration-300 hover:scale-[1.04]"
+                                src={photo.url}
+                              />
+                            </button>
+                            <div className="flex gap-1.5">
+                              {(["before", "after"] as const).map((cat) => (
+                                <button
+                                  className={cn(
+                                    "flex-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition",
+                                    photo.category === cat
+                                      ? "border-[#e8c98a]/45 bg-[#e8c98a]/15 text-[#ffe8a8]"
+                                      : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.07]",
+                                  )}
+                                  key={cat}
+                                  onClick={() => {
+                                    void setPhotoCategory(photo.id, cat);
+                                  }}
+                                  type="button"
+                                >
+                                  {cat === "before" ? "Avant" : "Apres"}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}

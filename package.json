@@ -1,6 +1,6 @@
 {
   "name": "blackbox",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "main": "index.js",
   "engines": {
     "node": "20.x"

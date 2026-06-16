@@ -1303,6 +1303,7 @@ router.get("/:idOrSlug/appointments/:appointmentId/photos", (req, res) => {
         id: photo.id,
         url: photo.url,
         label: photo.caption || null,
+        category: photo.category || null,
       })),
     });
   } catch (error) {

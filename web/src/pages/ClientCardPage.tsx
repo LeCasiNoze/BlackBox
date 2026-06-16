@@ -337,6 +337,7 @@ type AppointmentPhoto = {
   id: number;
   url: string;
   label: string | null;
+  category?: "before" | "after" | null;
 };
 
 type BookingImageDraft = {
@@ -6492,21 +6493,21 @@ export function ClientCardPage() {
                     )}
                   </div>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    {appointmentPhotos.map((photo) => (
+                  {(() => {
+                    const openAll = (url: string) =>
+                      openLightbox(
+                        appointmentPhotos.map((entry) => ({
+                          id: entry.id,
+                          url: entry.url,
+                          label: entry.label,
+                        })),
+                        url,
+                      );
+                    const tile = (photo: AppointmentPhoto) => (
                       <button
                         className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30"
                         key={photo.id}
-                        onClick={() =>
-                          openLightbox(
-                            appointmentPhotos.map((entry) => ({
-                              id: entry.id,
-                              url: entry.url,
-                              label: entry.label,
-                            })),
-                            photo.url,
-                          )
-                        }
+                        onClick={() => openAll(photo.url)}
                         type="button"
                       >
                         <img
@@ -6515,8 +6516,37 @@ export function ClientCardPage() {
                           src={photo.url}
                         />
                       </button>
-                    ))}
-                  </div>
+                    );
+                    const before = appointmentPhotos.filter((p) => p.category === "before");
+                    const after = appointmentPhotos.filter((p) => p.category === "after");
+                    const others = appointmentPhotos.filter(
+                      (p) => p.category !== "before" && p.category !== "after",
+                    );
+                    const tagged = before.length > 0 || after.length > 0;
+                    if (!tagged) {
+                      return (
+                        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                          {appointmentPhotos.map(tile)}
+                        </div>
+                      );
+                    }
+                    const group = (label: string, list: AppointmentPhoto[]) =>
+                      list.length === 0 ? null : (
+                        <div>
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-accentSoft">
+                            {label}
+                          </p>
+                          <div className="grid gap-3 sm:grid-cols-3">{list.map(tile)}</div>
+                        </div>
+                      );
+                    return (
+                      <div className="mt-5 space-y-4">
+                        {group("Avant", before)}
+                        {group("Apres", after)}
+                        {group("Autres", others)}
+                      </div>
+                    );
+                  })()}
                 </article>
                 )}
 

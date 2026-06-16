@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS appointment_photos (
                   CHECK (is_public IN (0, 1)),
 
   caption        TEXT,
+  category       TEXT,
   created_at     INTEGER NOT NULL
 );
 

@@ -56,6 +56,7 @@ const {
   revertAppointmentToRequested,
   syncAppointmentCleanlinessPenalty,
   updateAppointmentAdminWorkspace,
+  updateAppointmentPhotoCategory,
   updateAppointmentStatus,
 } = require("../db/appointments");
 const {
@@ -259,6 +260,7 @@ function mapPhotoRow(row) {
     caption: row.caption || null,
     isCover: !!row.is_cover,
     isPublic: !!row.is_public,
+    category: row.category || null,
   };
 }
 
@@ -972,6 +974,26 @@ router.get("/appointments/:id/photos", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] GET /appointments/:id/photos:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Tag avant/apres d'une photo (optionnel).
+router.post("/appointments/:id/photos/:photoId/category", (req, res) => {
+  const id = Number(req.params.id || 0);
+  const photoId = Number(req.params.photoId || 0);
+  if (!id || !photoId) {
+    return res.status(400).json({ ok: false, error: "invalid_id" });
+  }
+  const category =
+    req.body?.category === "before" || req.body?.category === "after"
+      ? req.body.category
+      : null;
+  try {
+    updateAppointmentPhotoCategory(photoId, id, category);
+    return res.json({ ok: true, category });
+  } catch (error) {
+    console.error("[adminApi] POST photo category:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

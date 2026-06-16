@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.14.0";
+export const APP_VERSION = "1.15.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.15.0",
+    date: "2026-06-16",
+    title: "Photos avant / apres",
+    changes: [
+      "Cote admin (Livraison) : possibilite de taguer chaque photo « Avant » ou « Apres » (optionnel).",
+      "Cote client : les photos taguees s'affichent regroupees en sections Avant / Apres sur la fiche du rendez-vous (sinon, galerie normale).",
+    ],
+  },
   {
     version: "1.14.0",
     date: "2026-06-16",

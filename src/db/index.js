@@ -148,6 +148,11 @@ function ensureAppointmentPhotosExtraColumns() {
         CHECK (is_public IN (0, 1));
       `);
     }
+
+    if (!colNames.includes("category")) {
+      console.log("[DB] Ajout de la colonne appointment_photos.category");
+      db.exec(`ALTER TABLE appointment_photos ADD COLUMN category TEXT;`);
+    }
   } catch (error) {
     console.error("[DB] Erreur ensureAppointmentPhotosExtraColumns:", error);
   }

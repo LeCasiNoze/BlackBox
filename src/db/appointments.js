@@ -835,7 +835,7 @@ function getAppointmentPhotos(appointmentId, options = {}) {
   return db
     .prepare(
       `
-      SELECT id, appointment_id, url, is_cover, is_public, caption, created_at
+      SELECT id, appointment_id, url, is_cover, is_public, caption, category, created_at
       FROM appointment_photos
       WHERE appointment_id = ?
       ${onlyPublic ? "AND is_public = 1" : ""}
@@ -843,6 +843,16 @@ function getAppointmentPhotos(appointmentId, options = {}) {
     `,
     )
     .all(appointmentId);
+}
+
+// Tag optionnel "avant"/"apres" (ou null) d'une photo.
+function updateAppointmentPhotoCategory(photoId, appointmentId, category) {
+  const normalized = category === "before" || category === "after" ? category : null;
+  return db
+    .prepare(
+      `UPDATE appointment_photos SET category = ? WHERE id = ? AND appointment_id = ?`,
+    )
+    .run(normalized, photoId, appointmentId).changes;
 }
 
 function insertAppointmentPhoto(
@@ -878,7 +888,7 @@ function insertAppointmentPhoto(
   return db
     .prepare(
       `
-      SELECT id, appointment_id, url, is_cover, is_public, caption, created_at
+      SELECT id, appointment_id, url, is_cover, is_public, caption, category, created_at
       FROM appointment_photos
       WHERE id = ?
     `,
@@ -1013,6 +1023,7 @@ module.exports = {
   updateAppointmentAdminWorkspace,
   updateAppointmentCleanlinessRating,
   updateAppointmentForClientSlot,
+  updateAppointmentPhotoCategory,
   updateAppointmentPhotoPublicVisibility,
   updateAppointmentPublicVisibility,
   updateAppointmentStatus,
