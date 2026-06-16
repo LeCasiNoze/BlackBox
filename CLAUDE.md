@@ -45,9 +45,15 @@ Pas d'outil MCP pour déclencher un deploy : c'est le webhook GitHub→Render. S
 ne se déclenche pas (rare), un commit vide relance.
 
 ## Carte du code
-- `web/src/pages/ClientCardPage.tsx` — portail client (~6700 l). Vues via `?view=`
+- `web/src/pages/ClientCardPage.tsx` — portail client (~7000 l). Vues via `?view=`
   (`home`/`booking`/`vehicles`/`shop`/`history`). Modale RDV, box (CaseOpeningModal),
-  events, BC'Coins, fondateur. Deep-link RDV via `?appointmentId=N`.
+  events, BC'Coins, fondateur. Deep-link RDV via `?appointmentId=N` (+ `&review=1`
+  ouvre la section avis). **Assistant guidé** = `renderAssistant()` (bulle 💬) :
+  écrans pilotés par l'état `assistantScreen` ("root"/"rdv"/"tarif"/"box"/"faq"/
+  "contact"). Pour **ajouter une question FAQ** : éditer le tableau `faq` dans
+  `renderAssistant` (mise en forme : `\n` conservés, ligne `• …` = puce,
+  `founderOnly: true` = fondateurs). Pour **ajouter une capacité** : ajouter un
+  `chip` au menu racine + un bloc `else if (assistantScreen === "…")`.
 - `web/src/pages/AdminDashboardPage.tsx` — admin (~4900 l). Sections
   `home`/`appointments`/`delivery`/`clients` (`ADMIN_NAV_ITEMS`), badges de notif,
   panneau events + participants, goodies, notes de version.

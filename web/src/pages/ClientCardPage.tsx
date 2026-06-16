@@ -3788,30 +3788,68 @@ export function ClientCardPage() {
       (a) => a.priceStatus === "waiting_client_approval" || a.priceStatus === "waiting_payment",
     );
 
+    // --- FAQ de l'assistant ---
+    // Pour AJOUTER/MODIFIER une reponse : edite ce tableau. Mise en forme :
+    // les sauts de ligne sont conserves (whitespace-pre-line), et une ligne qui
+    // commence par "• " s'affiche comme une puce. Mets `founderOnly: true` pour
+    // n'afficher la question qu'aux fondateurs. (Voir aussi CLAUDE.md.)
     const faq: Array<{ q: string; a: string; founderOnly?: boolean }> = [
       {
-        q: "Comment annuler un RDV ?",
-        a: "Ouvre ta fiche de rendez-vous dans Suivi puis « Annuler le RDV ». Fondateur : annulation possible le jour meme ; sinon jusqu'a 24h avant.",
+        q: "Comment marchent les credits ?",
+        a:
+          "Chaque prestation coute des credits selon l'etat du vehicule :\n" +
+          "• Propre (entretien) : 1 credit\n" +
+          "• Correct (traces, nettoyage plus pousse) : 2 credits\n" +
+          "• Sale (remise a niveau exigeante) : 3 credits\n\n" +
+          "Pour une demande specifique, l'atelier peut fixer un tarif personnalise. " +
+          "Tu vois toujours le tarif propose et tu l'acceptes (ou recharges) avant la " +
+          "confirmation du rendez-vous. Les credits ne sont debites qu'a ce moment-la.",
       },
       {
-        q: "Comment marchent les credits ?",
-        a: "Chaque prestation consomme des credits selon l'etat du vehicule. L'atelier valide le tarif, tu l'acceptes (ou recharges) avant la confirmation.",
+        q: "Comment annuler ou deplacer un RDV ?",
+        a:
+          "Va dans Suivi, ouvre la fiche du rendez-vous, puis « Annuler le RDV ».\n" +
+          "• Fondateur : annulation / deplacement possible le jour meme.\n" +
+          "• Autres comptes : jusqu'a 24h avant le creneau.\n\n" +
+          "Si des credits avaient ete debites, ils te sont automatiquement recredites.",
       },
       {
         q: "Comment se passe un rendez-vous ?",
-        a: "Tu choisis un creneau (matin ou apres-midi), a l'atelier ou a domicile. L'atelier valide le tarif, realise la prestation, puis tu retrouves photos et avis dans Suivi.",
+        a:
+          "1. Tu reserves un creneau (matin 9h-12h ou apres-midi 14h-18h), a l'atelier ou a domicile.\n" +
+          "2. L'atelier estime l'etat du vehicule et valide le tarif (en credits).\n" +
+          "3. Tu acceptes le tarif (ou recharges si besoin) -> le RDV est confirme.\n" +
+          "4. Le jour J, la prestation est realisee.\n" +
+          "5. Ensuite : photos et ton avis dans Suivi.",
       },
       {
         q: "Comment payer / recharger ?",
-        a: "Paiement securise par carte (SumUp) depuis la boutique / recharge de credits.",
+        a:
+          "Le paiement se fait par carte bancaire via SumUp (page securisee), Apple Pay / " +
+          "Google Pay inclus.\n" +
+          "• Recharge de credits depuis la boutique / le bouton Recharger.\n" +
+          "• A la validation d'un tarif, tu peux recharger juste ce qu'il manque.\n\n" +
+          "Une facture est disponible dans Suivi -> Mes factures apres chaque paiement.",
       },
       {
         q: "C'est quoi le statut Fondateur ?",
-        a: "Acces a vie (29,99€, places limitees) : BC'Coins, box surprises, carte premium, annulation le jour meme et offres reservees.",
+        a:
+          "Acces a vie pour 29,99 € (places limitees a 50). Avantages :\n" +
+          "• BC'Coins sur tes achats et passages, echangeables en boutique fidelite\n" +
+          "• Box surprises et box de consolation lors des evenements\n" +
+          "• Carte premium personnalisee\n" +
+          "• Annulation / deplacement le jour meme\n" +
+          "• Offres et recharges reservees\n\n" +
+          "Le nombre de places restantes s'affiche sur la page « Devenir fondateur ».",
       },
       {
-        q: "Comment gagner des BC'Coins ?",
-        a: "Sur tes achats de credits et tes passages effectues. Echange-les ensuite dans la boutique fidelite.",
+        q: "Comment marchent les BC'Coins ?",
+        a:
+          "Les BC'Coins sont la monnaie fidelite des fondateurs :\n" +
+          "• +80 BC par credit achete (immediat) et +20 BC par credit, debloques quand le RDV est effectue\n" +
+          "• Echange en boutique fidelite (ex. 2000 BC = bon de 100 €)\n" +
+          "• 1 BC vaut environ 0,05 €\n\n" +
+          "Tu peux aussi figurer au classement BC'Coins (option a activer).",
         founderOnly: true,
       },
     ];
@@ -3936,7 +3974,7 @@ export function ClientCardPage() {
               </button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-4">
-              <div className="rounded-[16px] rounded-tl-sm border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/85">
+              <div className="whitespace-pre-line rounded-[16px] rounded-tl-sm border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/85">
                 {botText}
               </div>
               <div className="mt-3 flex flex-col gap-2">
