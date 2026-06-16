@@ -1388,6 +1388,106 @@ Merci pour ta confiance ! Reserve ton prochain detailing : ${bookingUrl || "Lien
   });
 }
 
+// Email groupe libre (composer admin): titre + corps (paragraphes) + bouton.
+async function sendBroadcastEmail({ client, subject, title, body, buttonLabel, buttonUrl }) {
+  if (!client?.email) {
+    return false;
+  }
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const btnUrl = buttonUrl ? absoluteUrlMaybe(buttonUrl) : portalUrl || "";
+  const paragraphs = String(body || "")
+    .split(/\n{2,}/)
+    .filter((p) => p.trim() !== "")
+    .map(
+      (p) =>
+        `<p style="margin:0 0 12px;font-size:14px;line-height:22px;color:#cbd5f5;">${escapeHtml(
+          p,
+        ).replace(/\n/g, "<br/>")}</p>`,
+    )
+    .join("");
+
+  const html = brandEmailShell({
+    eyebrow: "Bryan Cars",
+    title: title || "Bryan Cars",
+    subtitle: "",
+    preheader: title || subject || "Bryan Cars",
+    bodyHtml: `
+      ${panelCard({
+        title: title || "Information",
+        description: "",
+        bodyHtml:
+          paragraphs +
+          (buttonLabel && btnUrl
+            ? actionButtons([{ label: buttonLabel, href: btnUrl, tone: "primary" }])
+            : ""),
+      })}
+    `,
+  });
+
+  const text = `${title ? `${title}\n\n` : ""}${body || ""}${
+    buttonLabel && btnUrl ? `\n\n${buttonLabel} : ${btnUrl}` : ""
+  }`.trim();
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject: subject || `[Bryan Cars] ${title || "Information"}`,
+    html,
+    text,
+  });
+}
+
+// Annonce d'evenement (lancement / fin) a l'audience concernee.
+async function sendEventAnnouncementEmail({ client, event, kind }) {
+  if (!client?.email) {
+    return false;
+  }
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+  const launch = kind !== "end";
+  const prize = event.prize_text || event.prizeText || "";
+  const subject = launch
+    ? `[Bryan Cars] Nouvel evenement : ${event.title}`
+    : `[Bryan Cars] Evenement termine : ${event.title}`;
+  const title = launch ? event.title : `${event.title} — termine`;
+  const subtitle = launch
+    ? event.description || "Un nouvel evenement vient de commencer !"
+    : "Merci a tous les participants !";
+
+  const html = brandEmailShell({
+    eyebrow: launch ? "Nouvel evenement" : "Evenement termine",
+    title,
+    subtitle,
+    preheader: launch ? `A gagner : ${prize || "des recompenses"}` : "Resultats de l'evenement",
+    bodyHtml: `
+      ${panelCard({
+        title: launch ? "Participe des maintenant" : "C'est termine",
+        description: launch && prize ? `A gagner : ${prize}` : "",
+        bodyHtml: actionButtons([
+          portalUrl
+            ? {
+                label: launch ? "Voir l'evenement" : "Ouvrir mon espace",
+                href: portalUrl,
+                tone: "primary",
+              }
+            : null,
+        ]),
+      })}
+    `,
+  });
+
+  const text = `${title}\n\n${subtitle}${
+    launch && prize ? `\n\nA gagner : ${prize}` : ""
+  }\n\n${portalUrl || ""}`.trim();
+
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject,
+    html,
+    text,
+  });
+}
+
 async function sendAdminRewardRedemption({ client, reward }) {
   if (!MAIL_ADMIN_TO) {
     console.warn("[MAIL] MAIL_ADMIN_TO manquant, redemption ignoree.");
@@ -1540,8 +1640,10 @@ module.exports = {
   sendClientPriceApprovalEmail,
   sendClientAppointmentReminderEmail,
   sendClientInactivityReminderEmail,
+  sendBroadcastEmail,
   sendClientReviewRequestEmail,
   sendClientYearRecapEmail,
+  sendEventAnnouncementEmail,
   sendWaitlistSlotFreedEmail,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,

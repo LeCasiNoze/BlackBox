@@ -743,6 +743,15 @@ export function AdminDashboardPage() {
   const [statsYear, setStatsYear] = React.useState(() => new Date().getFullYear());
   const [statsMonth, setStatsMonth] = React.useState(() => new Date().getMonth());
   const [statsData, setStatsData] = React.useState<AdminStats | null>(null);
+  const [broadcast, setBroadcast] = React.useState({
+    segment: "bbx",
+    subject: "",
+    title: "",
+    body: "",
+    buttonLabel: "",
+    buttonUrl: "",
+  });
+  const [broadcastSending, setBroadcastSending] = React.useState(false);
 
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
@@ -1112,6 +1121,43 @@ export function AdminDashboardPage() {
       setStatsYear(nextYear);
       return nextMonth;
     });
+  }
+
+  const BROADCAST_SEGMENTS: Array<{ value: string; label: string }> = [
+    { value: "all", label: "Tous les clients" },
+    { value: "bbx", label: "BBX (+ fondateurs)" },
+    { value: "founders", label: "Fondateurs" },
+    { value: "pro", label: "Pro" },
+    { value: "recent", label: "Actifs recents (90j)" },
+  ];
+
+  async function sendBroadcast() {
+    if (!broadcast.body.trim() && !broadcast.title.trim()) {
+      showToast("Ajoute un titre ou un message.");
+      return;
+    }
+    const segLabel =
+      BROADCAST_SEGMENTS.find((s) => s.value === broadcast.segment)?.label || broadcast.segment;
+    if (!window.confirm(`Envoyer cet e-mail au segment « ${segLabel} » ?`)) return;
+    setBroadcastSending(true);
+    try {
+      const response = await fetch("/api/admin/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(broadcast),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && json.ok) {
+        showToast(`E-mail envoye a ${json.sent}/${json.total} client(s).`);
+        setBroadcast((prev) => ({ ...prev, subject: "", title: "", body: "", buttonLabel: "", buttonUrl: "" }));
+      } else {
+        showToast("Echec de l'envoi groupe.");
+      }
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setBroadcastSending(false);
+    }
   }
 
   async function sendYearRecap() {
@@ -2627,9 +2673,112 @@ export function AdminDashboardPage() {
         {renderStatsPanel()}
         {renderEventsPanel()}
         {renderGoodiesPanel()}
+        {renderBroadcastPanel()}
         {renderCompanySettingsPanel()}
         {renderPatchNotesPanel()}
       </>
+    );
+  }
+
+  // Composer d'e-mails groupes (segments + texte libre mis en forme).
+  function renderBroadcastPanel() {
+    return (
+      <article className="bb-surface p-5 md:p-6">
+        <div className="bb-section-head">
+          <div>
+            <p className="bb-eyebrow">Communication</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">E-mail groupe</h2>
+            <p className="mt-1 text-sm text-white/55">
+              Envoie un message mis en forme a un segment de clients.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.16em] text-white/40">Destinataires</span>
+              <select
+                className="bb-select"
+                onChange={(event) => setBroadcast((p) => ({ ...p, segment: event.target.value }))}
+                value={broadcast.segment}
+              >
+                {BROADCAST_SEGMENTS.map((seg) => (
+                  <option key={seg.value} value={seg.value}>
+                    {seg.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                Objet (optionnel)
+              </span>
+              <input
+                className="bb-input"
+                onChange={(event) => setBroadcast((p) => ({ ...p, subject: event.target.value }))}
+                placeholder="[Bryan Cars] ..."
+                value={broadcast.subject}
+              />
+            </label>
+          </div>
+          <label className="space-y-1.5">
+            <span className="text-xs uppercase tracking-[0.16em] text-white/40">Titre</span>
+            <input
+              className="bb-input"
+              onChange={(event) => setBroadcast((p) => ({ ...p, title: event.target.value }))}
+              placeholder="Le titre affiche dans l'e-mail"
+              value={broadcast.title}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs uppercase tracking-[0.16em] text-white/40">Message</span>
+            <textarea
+              className="bb-textarea"
+              onChange={(event) => setBroadcast((p) => ({ ...p, body: event.target.value }))}
+              placeholder="Ton message... (sauts de ligne conserves)"
+              rows={5}
+              value={broadcast.body}
+            />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                Bouton — texte (optionnel)
+              </span>
+              <input
+                className="bb-input"
+                onChange={(event) => setBroadcast((p) => ({ ...p, buttonLabel: event.target.value }))}
+                placeholder="Ex: Reserver"
+                value={broadcast.buttonLabel}
+              />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                Bouton — lien
+              </span>
+              <input
+                className="bb-input"
+                onChange={(event) => setBroadcast((p) => ({ ...p, buttonUrl: event.target.value }))}
+                placeholder="https://..."
+                value={broadcast.buttonUrl}
+              />
+            </label>
+          </div>
+          <div>
+            <button
+              className="bb-button-brand"
+              disabled={broadcastSending}
+              onClick={() => {
+                void sendBroadcast();
+              }}
+              type="button"
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              {broadcastSending ? "Envoi..." : "Envoyer l'e-mail groupe"}
+            </button>
+          </div>
+        </div>
+      </article>
     );
   }
 

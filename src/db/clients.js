@@ -182,6 +182,32 @@ function listClients(filter = "all") {
     .all();
 }
 
+// Clients d'un segment (pour les e-mails groupes). Toujours avec un e-mail.
+function listClientsForSegment(segment) {
+  if (segment === "recent") {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return db
+      .prepare(
+        `
+        SELECT DISTINCT c.*
+        FROM clients c
+        JOIN appointments a ON a.client_id = c.id
+        WHERE a.status = 'done' AND a.date >= ?
+          AND c.email IS NOT NULL AND c.email != ''
+        ORDER BY c.created_at DESC
+      `,
+      )
+      .all(cutoff);
+  }
+
+  let where = "c.email IS NOT NULL AND c.email != ''";
+  if (segment === "bbx") where += " AND c.client_type = 'bbx'";
+  else if (segment === "founders") where += " AND c.client_type = 'bbx' AND c.is_founder = 1";
+  else if (segment === "pro") where += " AND c.client_type = 'pro'";
+
+  return db.prepare(`SELECT * FROM clients c WHERE ${where} ORDER BY c.created_at DESC`).all();
+}
+
 function countFounders() {
   const row = db.prepare(`SELECT COUNT(*) AS n FROM clients WHERE is_founder = 1`).get();
   return row?.n ?? 0;
@@ -847,6 +873,7 @@ module.exports = {
   createClient,
   decrementFormulaRemaining,
   deleteClient,
+  listClientsForSegment,
   expireTemporaryFounders,
   grantTemporaryFounder,
   openReviewBox,

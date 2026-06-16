@@ -17,6 +17,7 @@ const {
   getClientById,
   incrementFormulaRemaining,
   listClients,
+  listClientsForSegment,
   markFormulaRecapSent,
   markWelcomeEmailSent,
   parseDateInputToUnix,
@@ -75,10 +76,12 @@ const {
   sendAdminNotification,
   sendClientAppointmentStatusEmail,
   sendClientPhotosRequestedEmail,
+  sendBroadcastEmail,
   sendClientPriceApprovalEmail,
   sendClientFormulaRecap,
   sendClientWelcomeEmail,
   sendClientYearRecapEmail,
+  sendEventAnnouncementEmail,
   sendEventWinnerEmail,
 } = require("../email");
 const { getClientYearRecap } = require("../db/recap");
@@ -1174,8 +1177,23 @@ router.post("/events/:id", (req, res) => {
 
 router.post("/events/:id/active", (req, res) => {
   try {
-    const event = setActive(Number(req.params.id || 0), req.body?.active === true);
+    const activate = req.body?.active === true;
+    const event = setActive(Number(req.params.id || 0), activate);
     if (!event) return res.status(404).json({ ok: false, error: "event_not_found" });
+
+    // Lancement: on annonce l'evenement a l'audience (best-effort, jamais Pro).
+    if (activate) {
+      void (async () => {
+        for (const client of eventAudienceClients(event)) {
+          try {
+            await sendEventAnnouncementEmail({ client, event, kind: "launch" });
+          } catch (error) {
+            console.error("[adminApi] event launch announce:", error);
+          }
+        }
+      })();
+    }
+
     return res.json({ ok: true, event: eventView(event) });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/active:", error);
@@ -1197,6 +1215,21 @@ router.post("/events/:id/draw", (req, res) => {
         console.error("[adminApi] sendEventWinnerEmail:", error);
       });
     }
+
+    // Annonce de fin d'evenement a l'audience (best-effort, jamais Pro).
+    if (eventRow) {
+      const winnerId = result.winnerClientId ?? null;
+      void (async () => {
+        for (const client of eventAudienceClients(eventRow)) {
+          if (client.id === winnerId) continue; // le gagnant a deja son e-mail dedie
+          try {
+            await sendEventAnnouncementEmail({ client, event: eventRow, kind: "end" });
+          } catch (error) {
+            console.error("[adminApi] event end announce:", error);
+          }
+        }
+      })();
+    }
     return res.json({
       ok: true,
       event: eventView(eventRow),
@@ -1204,6 +1237,39 @@ router.post("/events/:id/draw", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Clients d'un evenement selon son audience (jamais les Pro).
+function eventAudienceClients(event) {
+  return listClientsForSegment("bbx").filter((client) => {
+    if (event.audience === "founder") return !!client.is_founder;
+    if (event.audience === "bbx") return !client.is_founder;
+    return true; // global
+  });
+}
+
+// Email groupe libre (composer admin) vers un segment.
+router.post("/broadcast", async (req, res) => {
+  try {
+    const { subject, title, body, buttonLabel, buttonUrl, segment } = req.body || {};
+    if (!body && !title) {
+      return res.status(400).json({ ok: false, error: "empty" });
+    }
+    const clients = listClientsForSegment(segment || "all");
+    let sent = 0;
+    for (const client of clients) {
+      try {
+        const ok = await sendBroadcastEmail({ client, subject, title, body, buttonLabel, buttonUrl });
+        if (ok) sent += 1;
+      } catch (error) {
+        console.error("[adminApi] broadcast:", error);
+      }
+    }
+    return res.json({ ok: true, sent, total: clients.length });
+  } catch (error) {
+    console.error("[adminApi] POST /broadcast:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

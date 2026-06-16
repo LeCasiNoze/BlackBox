@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.11.0";
+export const APP_VERSION = "1.12.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.12.0",
+    date: "2026-06-16",
+    title: "E-mails groupes & annonces d'evenement",
+    changes: [
+      "Admin : composer d'e-mail groupe (titre, message, bouton) avec ciblage par segment (tous / BBX / fondateurs / pro / actifs recents).",
+      "Annonce automatique par e-mail au lancement et a la fin d'un evenement, envoyee a l'audience concernee (jamais aux Pro).",
+    ],
+  },
   {
     version: "1.11.0",
     date: "2026-06-16",

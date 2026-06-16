@@ -85,10 +85,9 @@ l'admin → Hall → « Notes de version »).
 
 ## 11. Contenu & marketing
 
-- ⏳ **11.2 Emails groupés** : envoi en masse mis en forme (lancement / fin
-  d'event auto) + composer texte libre mis en forme, **ciblage par segments
-  flexibles** (tous / BBX / Fondateurs / Pro / actifs récents).
-  ⚠️ Les mails **d'event** restent BBX/Fondateurs, **jamais Pro**.
+- ✅ **11.2 Emails groupés** : composer admin (titre + message + bouton) avec
+  ciblage par segment (tous / BBX / fondateurs / pro / actifs récents) + annonce
+  auto au lancement/fin d'événement (audience, **jamais Pro**). `POST /broadcast`.
 - ⏳ **11.4 Events saisonniers** automatiques (préparation hiver/été…).
 
 ## 12. Technique / qualité
