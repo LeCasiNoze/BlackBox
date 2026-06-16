@@ -323,7 +323,7 @@ const SERVICE_LEVEL_OPTIONS: Array<{
   credits: number;
   copy: string;
 }> = [
-  { value: "clean", label: "Propre", credits: 1, copy: "Entretien simple, vehicule deja suivi." },
+  { value: "clean", label: "Propre", credits: 1, copy: "Entretien simple, véhicule déjà suivi." },
   { value: "correct", label: "Correct", credits: 2, copy: "Traces visibles, nettoyage plus complet." },
   { value: "dirty", label: "Sale", credits: 3, copy: "Remise a niveau plus exigeante." },
 ];
@@ -440,7 +440,7 @@ const GOOGLE_REVIEWS_FALLBACK = [
     author: "Avis Google",
     rating: 5,
     copy:
-      "La zone Google Reviews sert a prolonger l'experience apres prestation et a guider les nouveaux clients.",
+      "La zone Google Reviews sert a prolonger l'experience après prestation et a guider les nouveaux clients.",
   },
   {
     author: "Bryan Cars",
@@ -457,7 +457,7 @@ const FOUNDER_PERKS: Array<{
 }> = [
   {
     title: "BC'Coins",
-    copy: "Cumulez des BC'Coins sur vos passages et echangez-les contre des recompenses dans la boutique fidelite.",
+    copy: "Cumulez des BC'Coins sur vos passages et echangez-les contre des récompenses dans la boutique fidélité.",
     icon: Gift,
   },
   {
@@ -467,12 +467,12 @@ const FOUNDER_PERKS: Array<{
   },
   {
     title: "Avantages tarifaires",
-    copy: "Acces a des formules et recharges reservees aux membres fondateurs.",
+    copy: "Accès a des formules et recharges réservées aux membres fondateurs.",
     icon: Sparkles,
   },
   {
-    title: "Annulation le jour meme",
-    copy: "Plus de souplesse: annulez ou deplacez un rendez-vous le jour meme.",
+    title: "Annulation le jour même",
+    copy: "Plus de souplesse: annulez ou deplacez un rendez-vous le jour même.",
     icon: ShieldCheck,
   },
 ];
@@ -890,7 +890,7 @@ function CaseOpeningModal({
                 </div>
                 <p className="text-sm text-white/60">
                   {result.reward.tier === "credit_1"
-                    ? "1 credit ajoute a ton compte !"
+                    ? "1 crédit ajoute a ton compte !"
                     : result.reward.tier === "founder_1m"
                       ? "1 mois Fondateur offert — on l'active pour toi."
                       : (deliveryNote ?? "A recuperer a ton prochain rendez-vous.")}
@@ -1091,6 +1091,7 @@ function vehicleTitle(vehicle: {
   plate?: string | null;
 }) {
   const rawLabel = vehicle.label?.trim().toLowerCase();
+  // Compare a la valeur stockee (non accentuee) — ne pas accentuer ici.
   if (rawLabel === "vehicule fondateur") {
     return "Vehicule";
   }
@@ -1103,7 +1104,7 @@ function vehicleSubtitle(vehicle: {
   plate?: string | null;
 }) {
   const parts = [vehicle.model].filter(Boolean);
-  return parts.length > 0 ? parts.join(" / ") : "Aucun detail vehicule";
+  return parts.length > 0 ? parts.join(" / ") : "Aucun detail véhicule";
 }
 
 function vehicleSearchText(vehicle: ClientVehicle) {
@@ -1720,7 +1721,7 @@ export function ClientCardPage() {
       if (result.ok) {
         showToast("Notifications activees.");
       } else if (result.reason === "denied") {
-        showToast("Notifications refusees. Autorisez-les dans les reglages.");
+        showToast("Notifications refusees. Autorisez-les dans les réglages.");
       } else if (result.reason === "not_configured") {
         showToast("Notifications indisponibles pour le moment.");
       } else if (result.reason === "unsupported") {
@@ -1832,16 +1833,16 @@ export function ClientCardPage() {
         }
 
         if (json.topupOrder?.status === "processed") {
-          showToast("Paiement confirme. Vos credits viennent d'etre ajoutes.");
+          showToast("Paiement confirmé. Vos crédits viennent d'être ajoutes.");
           setReloadToken((value) => value + 1);
         } else if (json.topupOrder?.status === "pending" || json.topupOrder?.status === "paid") {
-          showToast("Paiement recu, confirmation encore en cours.");
+          showToast("Paiement reçu, confirmation encore en cours.");
         } else if (json.topupOrder?.status === "failed" || json.topupOrder?.status === "expired") {
           showToast("La recharge n'a pas ete finalisee.");
         }
       } catch (_error) {
         if (active) {
-          showToast("Impossible de verifier la recharge pour le moment.");
+          showToast("Impossible de vérifier la recharge pour le moment.");
         }
       } finally {
         if (active) {
@@ -1891,16 +1892,16 @@ export function ClientCardPage() {
         }
 
         if (json.topupOrder?.status === "processed") {
-          showToast("Paiement confirme. Bienvenue parmi les fondateurs !");
+          showToast("Paiement confirmé. Bienvenue parmi les fondateurs !");
           setReloadToken((value) => value + 1);
         } else if (json.topupOrder?.status === "pending" || json.topupOrder?.status === "paid") {
-          showToast("Paiement recu, activation du statut fondateur en cours.");
+          showToast("Paiement reçu, activation du statut fondateur en cours.");
         } else if (json.topupOrder?.status === "failed" || json.topupOrder?.status === "expired") {
           showToast("Le paiement fondateur n'a pas ete finalise.");
         }
       } catch (_error) {
         if (active) {
-          showToast("Impossible de verifier le paiement fondateur pour le moment.");
+          showToast("Impossible de vérifier le paiement fondateur pour le moment.");
         }
       } finally {
         if (active) {
@@ -2381,7 +2382,7 @@ export function ClientCardPage() {
 
       const json = (await response.json()) as VehiclesResponse;
       if (!response.ok || !json.ok || !json.vehicles) {
-        showToast("Impossible d'enregistrer ce vehicule.");
+        showToast("Impossible d'enregistrer ce véhicule.");
         return;
       }
 
@@ -2402,10 +2403,10 @@ export function ClientCardPage() {
 
       setActiveVehicleId(focusVehicle);
       closeVehicleModal();
-      showToast(creating ? "Vehicule ajoute." : "Vehicule mis a jour.");
+      showToast(creating ? "Véhicule ajoute." : "Véhicule mis a jour.");
       setReloadToken((value) => value + 1);
     } catch (saveError) {
-      showToast("Erreur reseau pendant la sauvegarde du vehicule.");
+      showToast("Erreur reseau pendant la sauvegarde du véhicule.");
     } finally {
       setSavingVehicle(false);
     }
@@ -2420,7 +2421,7 @@ export function ClientCardPage() {
       });
       const json = (await response.json()) as VehiclesResponse;
       if (!response.ok || !json.ok || !json.vehicles) {
-        showToast("Impossible de supprimer ce vehicule.");
+        showToast("Impossible de supprimer ce véhicule.");
         return;
       }
 
@@ -2435,10 +2436,10 @@ export function ClientCardPage() {
       if (activeVehicleId === vehicleId) {
         setActiveVehicleId(json.vehicles[0]?.id ?? null);
       }
-      showToast("Vehicule supprime.");
+      showToast("Véhicule supprime.");
       setReloadToken((value) => value + 1);
     } catch (saveError) {
-      showToast("Erreur reseau pendant la suppression du vehicule.");
+      showToast("Erreur reseau pendant la suppression du véhicule.");
     } finally {
       setDeletingVehicleId(null);
     }
@@ -2452,7 +2453,7 @@ export function ClientCardPage() {
       );
       const json = (await response.json()) as VehiclesResponse;
       if (!response.ok || !json.ok || !json.vehicles) {
-        showToast("Impossible de changer le vehicule principal.");
+        showToast("Impossible de changer le véhicule principal.");
         return;
       }
 
@@ -2465,9 +2466,9 @@ export function ClientCardPage() {
           : current,
       );
       setActiveVehicleId(vehicleId);
-      showToast("Vehicule principal mis a jour.");
+      showToast("Véhicule principal mis a jour.");
     } catch (saveError) {
-      showToast("Erreur reseau pendant la mise a jour du vehicule principal.");
+      showToast("Erreur reseau pendant la mise a jour du véhicule principal.");
     }
   }
 
@@ -2645,7 +2646,7 @@ export function ClientCardPage() {
         client?: ApiClient;
       };
       if (response.status === 409) {
-        showToast("Tu as deja ouvert ta box.");
+        showToast("Tu as déjà ouvert ta box.");
         return;
       }
       if (!response.ok || !json.ok || !json.reward || !json.tiers) {
@@ -2717,7 +2718,7 @@ export function ClientCardPage() {
               </p>
               <p className="mt-1 text-sm leading-6 text-white/65">
                 {boxDone
-                  ? "Votre box a deja ete ouverte (une seule par compte)."
+                  ? "Votre box a déjà ete ouverte (une seule par compte)."
                   : "Laissez votre avis, puis ouvrez votre box surprise. Elle vous attend ici tant que vous ne l'avez pas ouverte — une seule par compte."}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -2785,7 +2786,7 @@ export function ClientCardPage() {
       if (!json.created) {
         return;
       }
-      showToast("Participation confirmee. Bonne chance !");
+      showToast("Participation confirmée. Bonne chance !");
       if (json.consolation && json.tiers) {
         setEventBoxDeliveryNote(buildGoodieDeliveryNote(json.deliveryAppointment));
         setEventBoxResult({
@@ -2817,7 +2818,7 @@ export function ClientCardPage() {
           <div className="min-w-0">
             <p className="bb-eyebrow flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
-              Evenement
+              Événement
             </p>
             <h3 className="bb-display mt-1 text-xl font-bold leading-tight text-white md:text-2xl">
               {activeEvent.title}
@@ -2844,7 +2845,7 @@ export function ClientCardPage() {
               onClick={() => setEventModalOpen(true)}
               type="button"
             >
-              Ouvrir l'evenement
+              Ouvrir l'événement
               <ArrowRight className="ml-1.5 h-4 w-4" />
             </button>
           )}
@@ -2910,7 +2911,7 @@ export function ClientCardPage() {
             <div>
               <p className="bb-eyebrow flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5" />
-                Evenement
+                Événement
               </p>
               <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
                 {activeEvent.title}
@@ -2938,15 +2939,15 @@ export function ClientCardPage() {
 
           <p className="mt-5 text-sm leading-6 text-white/65">
             Gagne des tickets : chaque action te donne <strong className="text-accentSoft">+1 ticket</strong>.
-            Tu participes automatiquement des ta premiere action — continue ensuite pour gagner plus de tickets !
+            Tu participes automatiquement des ta première action — continue ensuite pour gagner plus de tickets !
           </p>
 
           {activeEvent.participated && (
             <div className="mt-3 flex items-center gap-3 rounded-[18px] border border-emerald-300/25 bg-emerald-300/10 px-4 py-3">
               <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-200" />
               <p className="text-sm leading-6 text-white/80">
-                <span className="font-semibold text-white">Participation confirmee !</span> Bonne chance —
-                le tirage aura lieu a la fin de l'evenement. Tu peux continuer a gagner des tickets ci-dessous.
+                <span className="font-semibold text-white">Participation confirmée !</span> Bonne chance —
+                le tirage aura lieu a la fin de l'événement. Tu peux continuer a gagner des tickets ci-dessous.
               </p>
             </div>
           )}
@@ -3067,7 +3068,7 @@ export function ClientCardPage() {
   ) {
     if (!data) return;
     if (vehicles.length > 0 && !activeVehicleId) {
-      showToast("Selectionnez d'abord le vehicule concerne.");
+      showToast("Selectionnez d'abord le véhicule concerne.");
       return;
     }
 
@@ -3118,7 +3119,7 @@ export function ClientCardPage() {
           showToast("Seules les images sont acceptees.");
           return;
         }
-        showToast("Impossible de reserver ce creneau.");
+        showToast("Impossible de réserver ce créneau.");
         return;
       }
 
@@ -3134,7 +3135,7 @@ export function ClientCardPage() {
       setSelectedDay(null);
       setReloadToken((value) => value + 1);
     } catch (saveError) {
-      showToast("Erreur reseau pendant la reservation.");
+      showToast("Erreur reseau pendant la réservation.");
     } finally {
       setBusyAction(false);
     }
@@ -3197,7 +3198,7 @@ export function ClientCardPage() {
       return;
     }
     if (client?.isFounder && slotIsPast(date, slot)) {
-      showToast("Le creneau est deja passe.");
+      showToast("Le créneau est déjà passe.");
       return;
     }
 
@@ -3216,7 +3217,7 @@ export function ClientCardPage() {
         return;
       }
 
-      showToast("Rendez-vous annule.");
+      showToast("Rendez-vous annulé.");
       setSelectedDay(null);
       setReloadToken((value) => value + 1);
     } catch (saveError) {
@@ -3250,7 +3251,7 @@ export function ClientCardPage() {
         setData((current) => (current ? { ...current, client: json.client } : current));
       }
       setReloadToken((value) => value + 1);
-      showToast("Tarif valide. Le rendez-vous est confirme.");
+      showToast("Tarif validé. Le rendez-vous est confirmé.");
     } catch (error) {
       showToast("Erreur reseau pendant la validation.");
     } finally {
@@ -3361,7 +3362,7 @@ export function ClientCardPage() {
       setSelectedAppointment((current) =>
         current && current.id === json.appointment?.id ? json.appointment : current,
       );
-      showToast("Merci, votre avis a bien ete enregistre.");
+      showToast("Merci, votre avis a bien ete enregistré.");
     } catch (saveError) {
       showToast("Erreur reseau pendant l'enregistrement.");
     } finally {
@@ -3440,7 +3441,7 @@ export function ClientCardPage() {
     },
     {
       view: "vehicles" as const,
-      title: "Mes vehicules",
+      title: "Mes véhicules",
       copy:
         vehicles.length <= 1
           ? vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })
@@ -3656,7 +3657,7 @@ export function ClientCardPage() {
       });
       const json = (await response.json().catch(() => ({}))) as { ok?: boolean };
       if (response.ok && json.ok) {
-        showToast("Tu es sur la liste d'attente. On te previent si ce creneau se libere.");
+        showToast("Tu es sur la liste d'attente. On te previent si ce créneau se libere.");
         setReloadToken((value) => value + 1);
       } else {
         showToast("Impossible de rejoindre la liste d'attente pour le moment.");
@@ -3709,7 +3710,7 @@ export function ClientCardPage() {
             <Sparkles className="h-3.5 w-3.5" />
             Mon annee {year}
           </p>
-          <p className="mt-1 text-lg font-bold text-white">Decouvre ton annee Bryan Cars</p>
+          <p className="mt-1 text-lg font-bold text-white">Decouvre ton année Bryan Cars</p>
           <p className="mt-0.5 text-sm text-white/60">Prestations, credits, BC&apos;Coins...</p>
         </div>
         <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
@@ -3784,7 +3785,7 @@ export function ClientCardPage() {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white">Active les notifications</p>
             <p className="text-sm leading-6 text-white/65">
-              Sois prevenu pour tes rendez-vous, la validation des tarifs et tes recompenses.
+              Sois prevenu pour tes rendez-vous, la validation des tarifs et tes récompenses.
             </p>
           </div>
         </div>
@@ -3861,7 +3862,7 @@ export function ClientCardPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <div className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Acces pro
+                  Accès pro
                 </div>
               </div>
 
@@ -3870,7 +3871,7 @@ export function ClientCardPage() {
                   Bonjour <span className="bb-text-steel">{clientData.firstName || clientData.fullName || "client"}</span>,
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-white/68 md:text-base">
-                  Compte pro : vos rendez-vous sont directs, sans consommation de credits.
+                  Compte pro : vos rendez-vous sont directs, sans consommation de crédits.
                 </p>
               </div>
 
@@ -3912,12 +3913,12 @@ export function ClientCardPage() {
               </div>
 
               <div className="rounded-[24px] border border-sky-400/15 bg-sky-400/[0.05] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-white/38">Véhicule actif</p>
                 <p className="mt-2 text-lg font-semibold text-white">
                   {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
                 </p>
                 <p className="mt-2 text-sm text-white/56">
-                  {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
+                  {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail véhicule"}
                 </p>
               </div>
             </div>
@@ -3974,7 +3975,7 @@ export function ClientCardPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
                     <Crown className="h-3.5 w-3.5" />
-                    Acces fondateur
+                    Accès fondateur
                   </div>
                   {clientData.founderUntil && (
                     <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
@@ -4003,7 +4004,7 @@ export function ClientCardPage() {
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[24px] border border-accent/20 bg-black/22 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Credits</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/38">Crédits</p>
                     <p className="mt-2 text-2xl font-semibold text-white">
                       {clientData.formulaRemaining}
                     </p>
@@ -4043,12 +4044,12 @@ export function ClientCardPage() {
                 </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/38">Vehicule actif</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/38">Véhicule actif</p>
                   <p className="mt-2 text-lg font-semibold text-white">
                     {vehicleTitle(activeVehicle ?? { model: clientData.vehicleModel })}
                   </p>
                   <p className="mt-2 text-sm text-white/56">
-                    {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail vehicule"}
+                    {activeVehicle ? vehicleSubtitle(activeVehicle) : "Aucun detail véhicule"}
                   </p>
                 </div>
               </div>
@@ -4161,7 +4162,7 @@ export function ClientCardPage() {
               {renderMetricCard(
                 "Credits",
                 `${clientData.formulaRemaining}`,
-                "Les credits sont consommes uniquement quand le tarif du rendez-vous est valide.",
+                "Les crédits sont consommés uniquement quand le tarif du rendez-vous est validé.",
                 clientData.formulaRemaining > 0 ? undefined : "warning",
               )}
               {renderMetricCard(
@@ -4235,7 +4236,7 @@ export function ClientCardPage() {
         <article className="bb-surface p-5 md:p-6">
           <div>
             <p className="bb-eyebrow">Agenda</p>
-            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez un creneau</h2>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez un créneau</h2>
             <p className="bb-subtitle mt-2">
               Naviguez jour par jour, puis touchez la demi-journee souhaitee.
             </p>
@@ -4244,7 +4245,7 @@ export function ClientCardPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             {[
               { label: "Libre", status: "free" as const },
-              { label: "Votre creneau", status: "mine" as const },
+              { label: "Votre créneau", status: "mine" as const },
               { label: "Pris", status: "busy" as const },
               { label: "Passe", status: "done" as const },
             ].map((item) => (
@@ -4409,10 +4410,10 @@ export function ClientCardPage() {
         <article className="bb-surface p-6">
           <div className="bb-section-head">
             <div>
-              <p className="bb-eyebrow">Vehicules</p>
+              <p className="bb-eyebrow">Véhicules</p>
               <h1 className="bb-display mt-2 text-2xl font-semibold text-white">Votre garage Bryan Cars</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                Ajoutez, modifiez ou retrouvez un vehicule en quelques secondes.
+                Ajoutez, modifiez ou retrouvez un véhicule en quelques secondes.
               </p>
             </div>
             <button className="bb-button-brand" onClick={openVehicleCreate} type="button">
@@ -4427,7 +4428,7 @@ export function ClientCardPage() {
               <input
                 className="bb-input pl-11"
                 onChange={(event) => setVehicleQuery(event.target.value)}
-                placeholder="Rechercher par modele"
+                placeholder="Rechercher par modèle"
                 value={vehicleQuery}
               />
             </div>
@@ -4522,13 +4523,13 @@ export function ClientCardPage() {
         <article className="bb-surface p-6">
           <div className="bb-section-head">
             <div>
-              <p className="bb-eyebrow">Vehicule actif</p>
+              <p className="bb-eyebrow">Véhicule actif</p>
               <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
-                {activeVehicle ? vehicleTitle(activeVehicle) : "Aucun vehicule selectionne"}
+                {activeVehicle ? vehicleTitle(activeVehicle) : "Aucun véhicule sélectionné"}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
-                Depuis cette fiche, vous retrouvez les prestations realisees sur le vehicule
-                selectionne.
+                Depuis cette fiche, vous retrouvez les prestations realisees sur le véhicule
+                sélectionné.
               </p>
             </div>
             {activeVehicle && (
@@ -4546,7 +4547,7 @@ export function ClientCardPage() {
             <div className="mt-6 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">Modele</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/40">Modèle</p>
                   <p className="mt-2 text-sm font-semibold text-white">
                     {activeVehicle.model || "Non renseigne"}
                   </p>
@@ -4560,7 +4561,7 @@ export function ClientCardPage() {
               </div>
 
               {activeVehicleAppointments.length === 0 ? (
-                <AppointmentsEmpty copy="Aucune prestation n'est encore reliee a ce vehicule." />
+                <AppointmentsEmpty copy="Aucune prestation n'est encore reliee a ce véhicule." />
               ) : (
                 <div className="grid gap-3">
                   {activeVehicleAppointments.map((appointment) => renderAppointmentCard(appointment))}
@@ -4568,7 +4569,7 @@ export function ClientCardPage() {
               )}
             </div>
           ) : (
-            <AppointmentsEmpty copy="Selectionnez ou ajoutez d'abord un vehicule pour consulter ses dossiers." />
+            <AppointmentsEmpty copy="Selectionnez ou ajoutez d'abord un véhicule pour consulter ses dossiers." />
           )}
         </article>
       </section>
@@ -4638,7 +4639,7 @@ export function ClientCardPage() {
             </h2>
             <p className="max-w-2xl text-sm leading-7 text-white/68">
               Choisissez un forfait, generez le lien de paiement et envoyez-le a votre client. Le
-              suivi se met a jour automatiquement des que le client a paye.
+              suivi se met a jour automatiquement des que le client a payé.
             </p>
             {!paymentsReady && (
               <p className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">
@@ -4789,12 +4790,12 @@ export function ClientCardPage() {
             <div>
               <p className="bb-eyebrow">{clientData.isFounder ? "BC'Coins" : "Credits"}</p>
               <h1 className="bb-display mt-2 text-2xl font-semibold text-white">
-                {clientData.isFounder ? "Boutique fondateur" : "Recharger des credits"}
+                {clientData.isFounder ? "Boutique fondateur" : "Recharger des crédits"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/62">
                 {clientData.isFounder
                   ? "Recharges Bryan Cars et BC'Coins sont regroupes ici pour garder un parcours simple et direct."
-                  : "Achetez vos credits Bryan Cars en quelques secondes pour reserver vos prochains passages."}
+                  : "Achetez vos crédits Bryan Cars en quelques secondes pour réserver vos prochains passages."}
               </p>
             </div>
             <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
@@ -4829,7 +4830,7 @@ export function ClientCardPage() {
                           </div>
                         )}
                         <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                          Ajout de credits
+                          Ajout de crédits
                         </div>
                       </div>
                     </div>
@@ -4854,7 +4855,7 @@ export function ClientCardPage() {
               <div className="rounded-[24px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))] p-4">
                 <p className="text-lg font-semibold text-white">Achat de credits a l&apos;unite</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">
-                  Choisissez le nombre de credits a acheter au tarif unitaire.
+                  Choisissez le nombre de crédits a acheter au tarif unitaire.
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {[1, 2, 3, 5, 10].map((quantity) => {
@@ -4897,14 +4898,14 @@ export function ClientCardPage() {
               <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                 <p className="text-lg font-semibold text-white">Completer un devis personnalise</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">
-                  Si l'admin valide un tarif special, indiquez exactement le nombre de credits a acheter.
+                  Si l'admin validé un tarif special, indiquez exactement le nombre de crédits a acheter.
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
                   <input
                     className="bb-input"
                     min={1}
                     onChange={(event) => setCustomTopupQuantity(event.target.value)}
-                    placeholder="Nombre de credits"
+                    placeholder="Nombre de crédits"
                     type="number"
                     value={customTopupQuantity}
                   />
@@ -4930,7 +4931,7 @@ export function ClientCardPage() {
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">BC&apos;Coins</p>
-                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Boutique fidelite</h2>
+                  <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Boutique fidélité</h2>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                   <Gift className="h-3.5 w-3.5 text-accent" />
@@ -4957,7 +4958,7 @@ export function ClientCardPage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Cases a ouvrir</p>
                 {pendingCases.length === 0 ? (
                   <p className="mt-3 text-sm leading-6 text-white/48">
-                    Aucune case a ouvrir. Achetez des credits pour en gagner.
+                    Aucune case a ouvrir. Achetez des crédits pour en gagner.
                   </p>
                 ) : (
                   <div className="mt-3 grid gap-3">
@@ -5035,7 +5036,7 @@ export function ClientCardPage() {
           <div className="bb-section-head">
             <div>
               <p className="bb-eyebrow">Historique boutique</p>
-              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Dernieres demandes</h2>
+              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Dernières demandes</h2>
             </div>
             <button className="bb-button-ghost" onClick={() => setContactModalOpen(true)} type="button">
               Besoin d&apos;aide
@@ -5210,7 +5211,7 @@ export function ClientCardPage() {
 
                       <div className="mt-4 space-y-2">
                         <h3 className="text-xl font-semibold text-white">
-                          {item.vehicleModel || "Vehicule detaille"}
+                          {item.vehicleModel || "Véhicule détaillé"}
                         </h3>
                         <p className="text-sm text-white/55">
                           {formatDateFR(item.date)} · {slotWindowLabel(item.slot)} · {formatTimeHHMM(item.time)}
@@ -5394,11 +5395,11 @@ export function ClientCardPage() {
                 </h3>
                 <p className="mt-2 text-sm text-white/60">
                   {selectedMode === "book" &&
-                    "Choisissez votre demi-journee, l'heure et le vehicule pour envoyer la demande."}
+                    "Choisissez votre demi-journee, l'heure et le véhicule pour envoyer la demande."}
                   {selectedMode === "manage" &&
-                    "Votre demande existe deja sur ce jour. Vous pouvez l'ajuster ou l'annuler."}
+                    "Votre demande existe déjà sur ce jour. Vous pouvez l'ajuster ou l'annuler."}
                   {selectedMode === "past" &&
-                    "Ce jour n'est plus reservable depuis l'agenda. Ouvrez la fiche si elle existe deja."}
+                    "Ce jour n'est plus réservable depuis l'agenda. Ouvrez la fiche si elle existe déjà."}
                 </p>
               </div>
 
@@ -5457,10 +5458,10 @@ export function ClientCardPage() {
                               slotAppointment.location,
                             )}`
                           : slotInfo.status === "free"
-                            ? "Cette demi-journee est reservable."
+                            ? "Cette demi-journee est réservable."
                             : slotInfo.status === "busy"
-                              ? "Une autre reservation existe deja sur cette demi-journee."
-                              : "Creneau consulte a titre d'historique."}
+                              ? "Une autre réservation existe déjà sur cette demi-journee."
+                              : "Créneau consulte a titre d'historique."}
                       </p>
                     </button>
                   );
@@ -5474,7 +5475,7 @@ export function ClientCardPage() {
                   );
                   return (
                     <div className="rounded-[24px] border border-accent/25 bg-accent/[0.06] p-4">
-                      <p className="text-sm font-semibold text-white">Ce creneau est deja pris</p>
+                      <p className="text-sm font-semibold text-white">Ce créneau est déjà pris</p>
                       <p className="mt-1 text-sm leading-6 text-white/65">
                         Rejoins la liste d&apos;attente : si ce creneau se libere, tu seras prevenu
                         (e-mail + notification). Premier arrive, premier servi.
@@ -5531,7 +5532,7 @@ export function ClientCardPage() {
                   {vehicles.length > 0 && (
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Vehicule concerne
+                        Véhicule concerne
                       </p>
 
                       {vehicles.length > 1 && (
@@ -5540,7 +5541,7 @@ export function ClientCardPage() {
                           <input
                             className="bb-input pl-11"
                             onChange={(event) => setBookingVehicleQuery(event.target.value)}
-                            placeholder="Rechercher par modele"
+                            placeholder="Rechercher par modèle"
                             value={bookingVehicleQuery}
                           />
                         </div>
@@ -5582,7 +5583,7 @@ export function ClientCardPage() {
                         type="button"
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        Ajouter un vehicule
+                        Ajouter un véhicule
                       </button>
                     </div>
                   )}
@@ -5594,7 +5595,7 @@ export function ClientCardPage() {
                         {
                           value: "atelier" as const,
                           label: "Au studio",
-                          copy: "Deposez le vehicule au centre detailing.",
+                          copy: "Deposez le véhicule au centre detailing.",
                         },
                         {
                           value: "domicile" as const,
@@ -5628,7 +5629,7 @@ export function ClientCardPage() {
                   {clientData.clientType !== "pro" && (
                     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Etat estime du vehicule
+                        Etat estime du véhicule
                       </p>
                       <p className="mt-2 text-sm leading-6 text-white/60">
                         Cette estimation aide l&apos;admin a valider plus vite. Aucun credit n&apos;est
@@ -5693,7 +5694,7 @@ export function ClientCardPage() {
                           Une demande particuliere ?
                         </span>
                         <p className="mt-1 text-sm leading-6 text-white/70">
-                          Indiquez un acces (portail, etage, code...) ou demandez un
+                          Indiquez un accès (portail, etage, code...) ou demandez un
                           <span className="font-semibold text-accentSoft"> extra</span> : ceramique,
                           siege a nettoyer en priorite, traitement cuir, taches tenaces...
                         </p>
@@ -5718,7 +5719,7 @@ export function ClientCardPage() {
                           <div>
                             <p className="text-base font-semibold text-white">Ajoutez des photos</p>
                             <p className="mt-1 text-sm leading-6 text-white/70">
-                              Montrez une tache, une rayure ou la zone a traiter — ca aide a chiffrer
+                              Montrez une tache, une rayure ou la zone a traiter — ça aide a chiffrer
                               juste (jusqu'a 4 photos).
                             </p>
                           </div>
@@ -5896,12 +5897,12 @@ export function ClientCardPage() {
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
                   <p className="text-sm leading-6 text-white/65">
                     {currentDayAppointment
-                      ? "Ce passage fait deja partie de votre historique. Ouvrez la fiche pour revoir le compte-rendu, les photos et votre evaluation client."
+                      ? "Ce passage fait déjà partie de votre historique. Ouvrez la fiche pour revoir le compte-rendu, les photos et votre évaluation client."
                       : currentDaySlot.status === "busy"
-                        ? "Ce creneau est deja reserve par un autre client sur cette demi-journee."
+                        ? "Ce créneau est déjà réservé par un autre client sur cette demi-journee."
                         : currentDaySlot.status === "free"
-                          ? "Cette demi-journee est deja passee et ne peut plus etre reservee."
-                          : "Ce creneau est archive dans le planning."}
+                          ? "Cette demi-journee est déjà passee et ne peut plus être réservée."
+                          : "Ce créneau est archive dans le planning."}
                   </p>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     {currentDayAppointment && (
@@ -6022,9 +6023,9 @@ export function ClientCardPage() {
                         : selectedAppointment.priceStatus === "waiting_client_approval"
                           ? "Tarif a accepter"
                           : selectedAppointment.priceStatus === "waiting_payment"
-                            ? "Recharge necessaire"
+                            ? "Recharge nécessaire"
                             : selectedAppointment.priceStatus === "approved"
-                              ? "Credits consommes"
+                              ? "Crédits consommés"
                               : "Analyse admin en cours"}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-white/68">
@@ -6174,7 +6175,7 @@ export function ClientCardPage() {
                 <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-white">Photos du vehicule</p>
+                      <p className="text-sm font-semibold text-white">Photos du véhicule</p>
                       <p className="mt-1 text-sm text-white/55">
                         Cliquez sur une image pour l'ouvrir en grand.
                       </p>
@@ -6309,12 +6310,12 @@ export function ClientCardPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">
-                  {vehicleModalMode === "create" ? "Nouveau vehicule" : "Modifier vehicule"}
+                  {vehicleModalMode === "create" ? "Nouveau véhicule" : "Modifier véhicule"}
                 </p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   {vehicleModalMode === "create"
-                    ? "Ajouter un vehicule a votre compte"
-                    : "Mettre a jour ce vehicule"}
+                    ? "Ajouter un véhicule a votre compte"
+                    : "Mettre a jour ce véhicule"}
                 </h3>
               </div>
               <button
@@ -6335,12 +6336,12 @@ export function ClientCardPage() {
                   onChange={(event) =>
                     setVehicleDraft((current) => ({ ...current, label: event.target.value }))
                   }
-                  placeholder="Ex: BMW familiale / Vehicule societaire"
+                  placeholder="Ex: BMW familiale / Véhicule societaire"
                   value={vehicleDraft.label}
                 />
               </label>
               <label className="space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Modele</span>
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">Modèle</span>
                 <input
                   className="bb-input"
                   onChange={(event) =>
@@ -6398,7 +6399,7 @@ export function ClientCardPage() {
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {termsAccepted ? "Conditions acceptees" : "Acceptation requise"}
                 </div>
-                <h3 className="bb-display mt-4 text-3xl font-semibold text-white">Conditions & reglement</h3>
+                <h3 className="bb-display mt-4 text-3xl font-semibold text-white">Conditions & règlement</h3>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-white/65">
                   Version du {TERMS_UPDATED_LABEL}. Le reglement n'est plus bloque sur la page
                   d'accueil: il apparait ici uniquement quand c'est utile.
@@ -6431,7 +6432,7 @@ export function ClientCardPage() {
                   <p className="text-sm font-semibold text-white">
                     {termsAccepted
                       ? `Acceptation enregistree le ${formatUnixDateTimeFR(clientData.termsAcceptedAt)}`
-                      : "Avant de poursuivre, vous devez accepter le reglement."}
+                      : "Avant de poursuivre, vous devez accepter le règlement."}
                   </p>
                 </div>
 
@@ -6519,7 +6520,7 @@ export function ClientCardPage() {
                 <p className="bb-eyebrow">Contact</p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">Joindre Bryan Cars rapidement</h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
-                  Le contact et les acces utiles sont regroupes ici pour ne plus surcharger la carte client.
+                  Le contact et les accès utiles sont regroupes ici pour ne plus surcharger la carte client.
                 </p>
               </div>
               <button
@@ -6554,7 +6555,7 @@ export function ClientCardPage() {
                 to={`/card/${encodeURIComponent(slug)}/conditions`}
               >
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Voir le reglement
+                Voir le règlement
               </Link>
             </div>
           </div>
@@ -6577,7 +6578,7 @@ export function ClientCardPage() {
                   Mon annee {recapData?.year ?? new Date().getFullYear()}
                 </p>
                 <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
-                  Ton annee Bryan Cars
+                  Ton année Bryan Cars
                 </h3>
               </div>
               <button
@@ -6592,16 +6593,16 @@ export function ClientCardPage() {
             {recapLoading ? (
               <div className="mt-6 flex items-center gap-3 text-sm text-white/70">
                 <Loader2 className="h-4 w-4 animate-spin text-accent" />
-                Calcul de ton annee...
+                Calcul de ton année...
               </div>
             ) : recapData && recapData.visits > 0 ? (
               <>
                 <div className="mt-6 grid grid-cols-2 gap-3">
                   {[
                     { label: "Prestations", value: recapData.visits },
-                    { label: "Credits utilises", value: recapData.creditsUsed },
+                    { label: "Crédits utilises", value: recapData.creditsUsed },
                     { label: "BC'Coins gagnes", value: recapData.bcEarned },
-                    { label: "Vehicules choyes", value: recapData.vehicles },
+                    { label: "Véhicules choyes", value: recapData.vehicles },
                     { label: "Avis laisses", value: recapData.reviews },
                     { label: "Photos", value: recapData.photos },
                   ].map((stat) => (
@@ -6624,8 +6625,8 @@ export function ClientCardPage() {
               </>
             ) : (
               <p className="mt-6 text-sm leading-6 text-white/70">
-                Pas encore de prestation cette annee. Reserve ton premier detailing et reviens
-                admirer ton recap !
+                Pas encore de prestation cette année. Réservé ton premier detailing et reviens
+                admirer ton récap !
               </p>
             )}
           </div>
@@ -6649,7 +6650,7 @@ export function ClientCardPage() {
             </h3>
             <p className="mt-2 text-sm leading-6 text-white/65">
               Sois prevenu en temps reel : confirmation de rendez-vous, prestation terminee, avis a
-              laisser et evenements. Tu peux les desactiver a tout moment.
+              laisser et événements. Tu peux les désactiver a tout moment.
             </p>
             <div className="mt-6 grid gap-3">
               <button
@@ -6690,8 +6691,8 @@ export function ClientCardPage() {
                   Devenir fondateur Bryan Cars
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
-                  Le statut fondateur debloque une carte premium et des avantages reserves.
-                  Acces a vie pour <span className="font-semibold text-accentSoft">29,99 €</span>.
+                  Le statut fondateur debloque une carte premium et des avantages réservés.
+                  Accès a vie pour <span className="font-semibold text-accentSoft">29,99 €</span>.
                   <span className="mt-1 block text-xs uppercase tracking-[0.14em] text-accent">
                     {typeof data?.foundersRemaining === "number"
                       ? data.foundersRemaining > 0

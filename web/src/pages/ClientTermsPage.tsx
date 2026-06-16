@@ -160,7 +160,7 @@ export function ClientTermsPage() {
           <div className="rounded-[28px] border border-rose-300/20 bg-rose-300/10 p-6 text-white">
             <p className="text-lg font-semibold">Conditions indisponibles</p>
             <p className="mt-2 text-sm text-white/75">
-              {error || "Cette carte client n'a pas pu etre retrouvee."}
+              {error || "Cette carte client n'a pas pu être retrouvee."}
             </p>
             <Link className="bb-button-ghost mt-5" to={returnTo}>
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -184,7 +184,7 @@ export function ClientTermsPage() {
               </Link>
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#f7b955]" />
-                Conditions & reglement
+                Conditions & règlement
               </div>
             </div>
 
@@ -211,7 +211,7 @@ export function ClientTermsPage() {
                     Statut d'acceptation
                   </p>
                   <p className="mt-2 text-2xl font-semibold text-white">
-                    {alreadyAccepted ? "Conditions deja acceptees" : "Acceptation requise"}
+                    {alreadyAccepted ? "Conditions déjà acceptees" : "Acceptation requise"}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-white/70">
                     {alreadyAccepted

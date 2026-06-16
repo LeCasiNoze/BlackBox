@@ -446,7 +446,7 @@ function cleanlinessAverageRating(
 }
 
 function fullClientName(client: AdminClient | null) {
-  if (!client) return "Client non selectionne";
+  if (!client) return "Client non sélectionné";
   return (
     client.fullName ||
     `${client.firstName || ""} ${client.lastName || ""}`.trim() ||
@@ -535,13 +535,13 @@ function appointmentSlot(appointment: AdminAppointment) {
 function appointmentPrimaryAction(status: AppointmentStatus) {
   switch (status) {
     case "requested":
-      return "Confirmer le creneau";
+      return "Confirmer le créneau";
     case "confirmed":
-      return "Marquer comme effectue";
+      return "Marquer comme effectué";
     case "done":
       return "Prestation terminee";
     case "cancelled":
-      return "Rendez-vous annule";
+      return "Rendez-vous annulé";
     default:
       return "Mettre a jour";
   }
@@ -570,7 +570,7 @@ function appointmentWorkflowActions(status: AppointmentStatus) {
   if (status === "confirmed") {
     return {
       primary: {
-        label: "Marquer effectue",
+        label: "Marquer effectué",
         nextStatus: "done" as AppointmentStatus,
         icon: CheckCircle2,
         className: "bb-button-brand justify-center",
@@ -1117,7 +1117,7 @@ export function AdminDashboardPage() {
   async function sendYearRecap() {
     if (
       !window.confirm(
-        "Envoyer le recap annuel par e-mail a tous les clients BBX ayant au moins une prestation cette annee ?",
+        "Envoyer le récap annuel par e-mail a tous les clients BBX ayant au moins une prestation cette année ?",
       )
     ) {
       return;
@@ -1133,7 +1133,7 @@ export function AdminDashboardPage() {
       if (response.ok && json.ok) {
         showToast(`Recap annuel envoye a ${json.sent}/${json.eligible} client(s).`);
       } else {
-        showToast("Echec de l'envoi du recap.");
+        showToast("Échec de l'envoi du récap.");
       }
     } catch (_error) {
       showToast("Erreur reseau.");
@@ -1153,9 +1153,9 @@ export function AdminDashboardPage() {
       const json = await response.json().catch(() => ({}));
       if (response.ok && json.ok) {
         if (json.company) setCompanySettings((prev) => ({ ...prev, ...json.company }));
-        showToast("Infos societe enregistrees.");
+        showToast("Infos société enregistrees.");
       } else {
-        showToast("Echec de l'enregistrement.");
+        showToast("Échec de l'enregistrement.");
       }
     } catch (_error) {
       showToast("Erreur reseau.");
@@ -1252,10 +1252,10 @@ export function AdminDashboardPage() {
       });
       const json = await response.json();
       if (!response.ok || !json.ok) {
-        showToast("Impossible d'enregistrer l'evenement.");
+        showToast("Impossible d'enregistrer l'événement.");
         return;
       }
-      showToast("Evenement enregistre.");
+      showToast("Événement enregistré.");
       setEventDraft(null);
       setRefreshToken((value) => value + 1);
     } catch (_error) {
@@ -1293,7 +1293,7 @@ export function AdminDashboardPage() {
     setEventBusy(true);
     try {
       await fetch(`/api/admin/events/${id}`, { method: "DELETE" });
-      showToast("Evenement supprime.");
+      showToast("Événement supprime.");
       setRefreshToken((value) => value + 1);
     } catch (_error) {
       showToast("Erreur reseau.");
@@ -1340,7 +1340,7 @@ export function AdminDashboardPage() {
       if (result.ok) {
         showToast("Notifications activees sur cet appareil.");
       } else if (result.reason === "denied") {
-        showToast("Notifications refusees. Autorisez-les dans les reglages du navigateur.");
+        showToast("Notifications refusees. Autorisez-les dans les réglages du navigateur.");
       } else if (result.reason === "not_configured") {
         showToast("Notifications pas encore configurees cote serveur.");
       } else if (result.reason === "unsupported") {
@@ -1505,7 +1505,7 @@ export function AdminDashboardPage() {
       applyAppointmentUpdate(updated);
 
       if (updated.priceStatus === "waiting_payment" || json.warning === "not_enough_credits") {
-        showToast("Tarif enregistre. Le client doit recharger pour confirmer.");
+        showToast("Tarif enregistré. Le client doit recharger pour confirmer.");
       } else if (updated.priceStatus === "waiting_client_approval") {
         showToast("Tarif envoye au client pour validation.");
       } else {
@@ -1529,7 +1529,7 @@ export function AdminDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: photoRequestDrafts[appointmentId] || "Merci d'ajouter quelques photos du vehicule.",
+          message: photoRequestDrafts[appointmentId] || "Merci d'ajouter quelques photos du véhicule.",
         }),
       });
       const json = await response.json();
@@ -1745,7 +1745,7 @@ export function AdminDashboardPage() {
         showToast(
           json?.error === "not_enough_points"
             ? "Impossible de retirer plus de BC'Coins que le solde disponible."
-            : "La mise a jour des BC'Coins a echoue.",
+            : "La mise a jour des BC'Coins a échoué.",
         );
         return;
       }
@@ -1772,17 +1772,17 @@ export function AdminDashboardPage() {
       });
       const json = await response.json();
       if (!response.ok || !json.ok) {
-        showToast("Impossible d'exporter les donnees.");
+        showToast("Impossible d'exporter les données.");
         return;
       }
 
       showToast(
         json.emailSent
-          ? "Export complet cree et envoye a l'admin."
-          : "Export cree. Verifiez la configuration email admin.",
+          ? "Export complet créé et envoye a l'admin."
+          : "Export créé. Verifiez la configuration email admin.",
       );
     } catch (error) {
-      showToast("Erreur reseau pendant l'export des donnees.");
+      showToast("Erreur reseau pendant l'export des données.");
     } finally {
       setExportingData(false);
     }
@@ -1897,7 +1897,7 @@ export function AdminDashboardPage() {
       if (creating) {
         setClients((current) => [updated, ...current]);
         setSelectedClientId(updated.id);
-        showToast("Nouveau client cree.");
+        showToast("Nouveau client créé.");
       } else {
         setClients((current) =>
           current.map((entry) => (entry.id === updated.id ? updated : entry)),
@@ -1905,7 +1905,7 @@ export function AdminDashboardPage() {
         setSelectedClient((current) =>
           current ? { ...current, client: updated } : current,
         );
-        showToast("Profil client enregistre.");
+        showToast("Profil client enregistré.");
       }
 
       setProfileModalOpen(false);
@@ -2085,7 +2085,7 @@ export function AdminDashboardPage() {
     adminSection === "appointments"
       ? "Demandes en attente: validez le tarif et planifiez."
       : adminSection === "delivery"
-        ? "Rendez-vous confirmes: compte-rendu, photos et passage en effectue."
+        ? "Rendez-vous confirmés: compte-rendu, photos et passage en effectué."
         : adminSection === "clients"
           ? "Fiches, formules, BC'Coins et historique client."
           : "Hall, agenda, livraison et clients.";
@@ -2210,12 +2210,12 @@ export function AdminDashboardPage() {
       <article className="bb-surface p-6">
         <div className="bb-section-head">
           <div>
-            <p className="bb-eyebrow">Evenements</p>
+            <p className="bb-eyebrow">Événements</p>
             <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Jeux concours</h2>
           </div>
           <button className="bb-button-brand" onClick={openCreateEvent} type="button">
             <Plus className="mr-2 h-4 w-4" />
-            Nouvel evenement
+            Nouvel événement
           </button>
         </div>
 
@@ -2322,7 +2322,7 @@ export function AdminDashboardPage() {
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <label className="space-y-2">
-                    <span className="text-xs uppercase tracking-[0.16em] text-white/40">Recompense</span>
+                    <span className="text-xs uppercase tracking-[0.16em] text-white/40">Récompense</span>
                     <select
                       className="bb-select"
                       onChange={(e) =>
@@ -2330,7 +2330,7 @@ export function AdminDashboardPage() {
                       }
                       value={eventDraft.prizeInappType}
                     >
-                      <option value="credit">Credits</option>
+                      <option value="credit">Crédits</option>
                       <option value="bc">BC'Coins</option>
                       <option value="founder_month">Mois fondateur</option>
                     </select>
@@ -2388,7 +2388,7 @@ export function AdminDashboardPage() {
 
         <div className="mt-5 grid gap-3">
           {events.length === 0 ? (
-            <p className="text-sm text-white/45">Aucun evenement pour le moment.</p>
+            <p className="text-sm text-white/45">Aucun événement pour le moment.</p>
           ) : (
             events.map((event) => (
               <div
@@ -2590,7 +2590,7 @@ export function AdminDashboardPage() {
               type="button"
             >
               <Sparkles className="mr-2 h-4 w-4" />
-              {recapSending ? "Envoi..." : "Envoyer le recap annuel"}
+              {recapSending ? "Envoi..." : "Envoyer le récap annuel"}
             </button>
           </div>
 
@@ -2654,7 +2654,7 @@ export function AdminDashboardPage() {
       <article className="bb-surface p-5 md:p-6">
         <div className="bb-section-head">
           <div>
-            <p className="bb-eyebrow">Societe</p>
+            <p className="bb-eyebrow">Société</p>
             <h2 className="mt-1 text-xl font-semibold text-white">Mentions des factures</h2>
             <p className="mt-1 text-sm text-white/55">
               Ces informations apparaissent sur les factures clients.
@@ -2703,11 +2703,11 @@ export function AdminDashboardPage() {
     const tiles = s
       ? [
           { label: "CA encaisse", value: euro(s.revenueCents), sub: `${s.payments} paiement(s)` },
-          { label: "RDV effectues", value: String(s.appointments.done), sub: `sur ${s.appointmentsTotal} RDV` },
+          { label: "RDV effectués", value: String(s.appointments.done), sub: `sur ${s.appointmentsTotal} RDV` },
           { label: "En attente", value: String(s.appointments.requested), sub: "a traiter" },
           { label: "Confirmes", value: String(s.appointments.confirmed), sub: "a faire" },
           { label: "Annules", value: String(s.appointments.cancelled), sub: "ce mois" },
-          { label: "Credits consommes", value: String(s.creditsConsumed), sub: "sur RDV effectues" },
+          { label: "Crédits consommés", value: String(s.creditsConsumed), sub: "sur RDV effectués" },
           { label: "BC'Coins distribues", value: String(s.bcDistributed), sub: "ce mois" },
           { label: "Nouveaux clients", value: String(s.newClients), sub: "ce mois" },
         ]
@@ -2726,7 +2726,7 @@ export function AdminDashboardPage() {
               className="bb-button-ghost h-10 w-10 rounded-full px-0"
               onClick={() => shiftStatsMonth(-1)}
               type="button"
-              aria-label="Mois precedent"
+              aria-label="Mois précédent"
             >
               <ArrowRight className="h-4 w-4 rotate-180" />
             </button>
@@ -2793,7 +2793,7 @@ export function AdminDashboardPage() {
                 <span className="text-base font-semibold text-white">v{note.version}</span>
                 {index === 0 && (
                   <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
-                    Derniere
+                    Dernière
                   </span>
                 )}
                 <span className="text-xs text-white/40">{note.date}</span>
@@ -2828,7 +2828,7 @@ export function AdminDashboardPage() {
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="bb-eyebrow">Etape 1</p>
+                    <p className="bb-eyebrow">Étape 1</p>
                     <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                       Choisir un rendez-vous
                     </h2>
@@ -2944,7 +2944,7 @@ export function AdminDashboardPage() {
                                   {formatTimeHHMM(appointment.time)}
                                 </p>
                                 <p className="mt-1 text-sm text-white/45">
-                                  {appointment.vehicleModel || "Vehicule non renseigne"}
+                                  {appointment.vehicleModel || "Véhicule non renseigne"}
                                 </p>
                                 {appointment.goodies && appointment.goodies.length > 0 && (
                                   <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#e8c98a]/40 bg-[#e8c98a]/12 px-3 py-1 text-xs font-semibold text-[#e8c98a]">
@@ -2990,7 +2990,7 @@ export function AdminDashboardPage() {
                 <div>
                   <p className="bb-eyebrow">Liste complete</p>
                   <h3 className="bb-display mt-2 text-xl font-semibold text-white">
-                    {boardTab === "agenda" ? "Rendez-vous en attente" : "Rendez-vous confirmes"}
+                    {boardTab === "agenda" ? "Rendez-vous en attente" : "Rendez-vous confirmés"}
                   </h3>
                 </div>
                 <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
@@ -3004,7 +3004,7 @@ export function AdminDashboardPage() {
                   <input
                     className="bb-input pl-11"
                     onChange={(event) => setAppointmentQuery(event.target.value)}
-                    placeholder="Client, vehicule, note, date..."
+                    placeholder="Client, véhicule, note, date..."
                     value={appointmentQuery}
                   />
                 </div>
@@ -3049,7 +3049,7 @@ export function AdminDashboardPage() {
                     </span>
                     <div>
                       <p className="text-base font-semibold text-white">
-                        {boardTab === "agenda" ? "Aucune demande en attente" : "Aucun rendez-vous confirme"}
+                        {boardTab === "agenda" ? "Aucune demande en attente" : "Aucun rendez-vous confirmé"}
                       </p>
                       <p className="mt-1 max-w-xs text-sm leading-6 text-white/55">
                         {boardTab === "agenda"
@@ -3168,7 +3168,7 @@ export function AdminDashboardPage() {
             <article className="bb-surface self-start p-6" ref={appointmentWorkspaceRef}>
               <div className="bb-section-head">
                 <div>
-                  <p className="bb-eyebrow">Etape 2</p>
+                  <p className="bb-eyebrow">Étape 2</p>
                   <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                     {selectedAppointment ? "Traiter ce rendez-vous" : "Traiter ce rendez-vous"}
                   </h2>
@@ -3201,7 +3201,7 @@ export function AdminDashboardPage() {
                         {selectedAppointment.goodies.join(", ")}
                       </p>
                       <p className="mt-1 text-xs leading-5 text-white/45">
-                        A donner au client lors de ce passage. Le passage en « Effectue » valide la remise.
+                        A donner au client lors de ce passage. Le passage en « Effectué » validé la remise.
                       </p>
                     </div>
                   </div>
@@ -3213,11 +3213,11 @@ export function AdminDashboardPage() {
                     <CalendarClock className="h-6 w-6" />
                   </span>
                   <div>
-                    <p className="text-base font-semibold text-white">Aucun rendez-vous selectionne</p>
+                    <p className="text-base font-semibold text-white">Aucun rendez-vous sélectionné</p>
                     <p className="mt-1 text-sm leading-6 text-white/55">
                       {boardTab === "agenda"
                         ? "Choisissez une demande en attente a gauche."
-                        : "Choisissez un rendez-vous confirme a gauche pour le traiter."}
+                        : "Choisissez un rendez-vous confirmé a gauche pour le traiter."}
                     </p>
                   </div>
                 </div>
@@ -3399,13 +3399,13 @@ export function AdminDashboardPage() {
                         <p className="bb-eyebrow">Tarif a valider</p>
                         <h3 className="bb-display mt-2 text-xl font-semibold text-white">
                           {selectedAppointment.priceStatus === "waiting_photos"
-                            ? "Photos demandees"
+                            ? "Photos demandées"
                             : selectedAppointment.priceStatus === "waiting_client_approval"
                               ? "En attente accord client"
                               : selectedAppointment.priceStatus === "waiting_payment"
                                 ? "Le client doit recharger"
                                 : selectedAppointment.priceStatus === "approved"
-                                  ? "Tarif valide et credits consommes"
+                                  ? "Tarif validé et crédits consommés"
                                   : "Controle admin requis"}
                         </h3>
                         <p className="mt-2 text-sm leading-6 text-white/62">
@@ -3468,7 +3468,7 @@ export function AdminDashboardPage() {
                               [selectedAppointment.id]: event.target.value,
                             }))
                           }
-                          placeholder="Ex: 6 credits"
+                          placeholder="Ex: 6 crédits"
                           type="number"
                           value={customCreditDrafts[selectedAppointment.id] ?? ""}
                         />
@@ -3503,7 +3503,7 @@ export function AdminDashboardPage() {
                             [selectedAppointment.id]: event.target.value,
                           }))
                         }
-                        placeholder="Explique au client pourquoi ce tarif (etat du vehicule, prestation...)"
+                        placeholder="Explique au client pourquoi ce tarif (etat du véhicule, prestation...)"
                         value={priceCommentDrafts[selectedAppointment.id] ?? ""}
                       />
                     </label>
@@ -3547,9 +3547,9 @@ export function AdminDashboardPage() {
                           <CarFront className="h-4 w-4" />
                         </span>
                         <div>
-                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">Vehicule</p>
+                          <p className="text-xs uppercase tracking-[0.16em] text-white/35">Véhicule</p>
                           <p className="mt-1 text-sm font-semibold text-white">
-                            {selectedAppointment.vehicleModel || "Vehicule non renseigne"}
+                            {selectedAppointment.vehicleModel || "Véhicule non renseigne"}
                           </p>
                         </div>
                       </div>
@@ -3566,7 +3566,7 @@ export function AdminDashboardPage() {
                               <div className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
                                 {selectedAppointment.userRating}/5
                               </div>
-                              <p className="text-sm text-white/70">Evaluation client</p>
+                              <p className="text-sm text-white/70">Évaluation client</p>
                             </div>
                             <p className="text-sm leading-6 text-white/60">
                               {selectedAppointment.userReview || "Aucun commentaire ecrit."}
@@ -3574,7 +3574,7 @@ export function AdminDashboardPage() {
                           </div>
                         ) : (
                           <p className="mt-2 text-sm leading-6 text-white/60">
-                            Aucun avis client enregistre pour le moment.
+                            Aucun avis client enregistré pour le moment.
                           </p>
                         )}
                       </div>
@@ -3588,7 +3588,7 @@ export function AdminDashboardPage() {
                     <p className="bb-eyebrow">Compte-rendu (visible par le client)</p>
                     <p className="mt-3 text-sm leading-6 text-white/55">
                       Commentaire + photos sont enregistres automatiquement au passage en{" "}
-                      <strong className="text-white">Effectue</strong>.
+                      <strong className="text-white">Effectué</strong>.
                     </p>
                     <textarea
                       className="bb-textarea mt-4"
@@ -3598,7 +3598,7 @@ export function AdminDashboardPage() {
                           [selectedAppointment.id]: event.target.value,
                         }))
                       }
-                      placeholder="Compte-rendu, preparation, particularites du vehicule..."
+                      placeholder="Compte-rendu, préparation, particularites du véhicule..."
                       value={noteDrafts[selectedAppointment.id] ?? ""}
                     />
                   </div>
@@ -3612,7 +3612,7 @@ export function AdminDashboardPage() {
                       <div className="flex-1">
                         <p className="bb-eyebrow">Photos</p>
                         <p className="mt-0.5 text-sm text-white/55">
-                          Ajoute plusieurs photos: elles partent au passage en Effectue.
+                          Ajoute plusieurs photos: elles partent au passage en Effectué.
                         </p>
                       </div>
                       {photosLoading && (
@@ -3774,12 +3774,12 @@ export function AdminDashboardPage() {
                           {fullClientName(activeClientContext)}
                         </h3>
                         <p className="mt-2 text-sm text-white/58">
-                          {activeClientContext.vehicleModel || "Vehicule non renseigne"}
+                          {activeClientContext.vehicleModel || "Véhicule non renseigne"}
                         </p>
                       </div>
                       <div className="w-full rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 sm:w-auto sm:text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Credits
+                          Crédits
                         </p>
                         <p className="mt-2 text-xl font-semibold text-white">
                           {activeClientContext.formulaRemaining}
@@ -3791,7 +3791,7 @@ export function AdminDashboardPage() {
                     </div>
 
                     <div className="mt-5 space-y-3 text-sm text-white/65">
-                      <p>{activeClientContext.phone || "Telephone non renseigne"}</p>
+                      <p>{activeClientContext.phone || "Téléphone non renseigne"}</p>
                       <p>{activeClientContext.email || "Email non renseigne"}</p>
                     </div>
                   </div>
@@ -3895,14 +3895,14 @@ export function AdminDashboardPage() {
             <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
               {clientsLowOnCredits}
             </p>
-            <p className="mt-2 text-sm text-white/55">Credits bas</p>
+            <p className="mt-2 text-sm text-white/55">Crédits bas</p>
           </article>
           <article className="bb-metric bb-rise bb-rise-3">
             <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
               <Coins className="h-5 w-5" />
             </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-              Credits cumules
+              Crédits cumules
             </p>
             <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
               {totalCreditsRemaining}
@@ -4055,7 +4055,7 @@ export function AdminDashboardPage() {
                             </span>
                           </div>
                           <p className="mt-1 text-sm text-white/50">
-                            {client.vehicleModel || "Vehicule non renseigne"}
+                            {client.vehicleModel || "Véhicule non renseigne"}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <span className="bb-pill border-white/10 bg-white/[0.03] text-white/40">
@@ -4112,7 +4112,7 @@ export function AdminDashboardPage() {
                       type="button"
                     >
                       <Mail className="mr-2 h-4 w-4" />
-                      {busyFormulaRecap ? "Envoi..." : "Envoyer recap"}
+                      {busyFormulaRecap ? "Envoi..." : "Envoyer récap"}
                     </button>
                   </div>
                 )}
@@ -4161,7 +4161,7 @@ export function AdminDashboardPage() {
                           {fullClientName(managedClient)}
                         </h3>
                         <p className="mt-1 text-sm text-white/55">
-                          {managedClient.vehicleModel || "Vehicule non renseigne"}
+                          {managedClient.vehicleModel || "Véhicule non renseigne"}
                         </p>
                       </div>
                       <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
@@ -4187,7 +4187,7 @@ export function AdminDashboardPage() {
                         </div>
                       )}
                       {!managedClient.phone && (
-                        <p className="text-sm text-white/35">Telephone non renseigne</p>
+                        <p className="text-sm text-white/35">Téléphone non renseigne</p>
                       )}
                       {managedClient.email && (
                         <div className="flex items-center gap-3">
@@ -4274,7 +4274,7 @@ export function AdminDashboardPage() {
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="bb-eyebrow">Credits</p>
+                          <p className="bb-eyebrow">Crédits</p>
                           <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
                             {managedClient.formulaRemaining}
                           </p>
@@ -4303,7 +4303,7 @@ export function AdminDashboardPage() {
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="bb-eyebrow">Conditions & recap</p>
+                          <p className="bb-eyebrow">Conditions & récap</p>
                           <p className="mt-2 text-lg font-semibold text-white">
                             {managedClientTermsAccepted
                               ? "Conditions acceptees"
@@ -4331,7 +4331,7 @@ export function AdminDashboardPage() {
                         </p>
                         <p>
                           {managedClient.email
-                            ? "Le recapitulatif client peut etre renvoye depuis cette fiche."
+                            ? "Le recapitulatif client peut être renvoye depuis cette fiche."
                             : "Ajoutez un email client pour envoyer le recapitulatif formule."}
                         </p>
                       </div>
@@ -4341,7 +4341,7 @@ export function AdminDashboardPage() {
                   {/* Qualite vehicule + BC'Coins */}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                      <p className="bb-eyebrow mb-3">Qualite vehicule moyenne</p>
+                      <p className="bb-eyebrow mb-3">Qualite véhicule moyenne</p>
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
@@ -4445,7 +4445,7 @@ export function AdminDashboardPage() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-sm text-white/50">Aucune demande enregistree.</p>
+                            <p className="text-sm text-white/50">Aucune demande enregistrée.</p>
                           )}
                         </div>
                       </div>
@@ -4545,9 +4545,9 @@ export function AdminDashboardPage() {
                     <Users className="h-6 w-6" />
                   </span>
                   <div>
-                    <p className="text-base font-semibold text-white">Aucun client selectionne</p>
+                    <p className="text-base font-semibold text-white">Aucun client sélectionné</p>
                     <p className="mt-1 text-sm leading-6 text-white/50">
-                      Choisissez un client dans la liste pour ouvrir sa fiche detaillee.
+                      Choisissez un client dans la liste pour ouvrir sa fiche détaillée.
                     </p>
                   </div>
                 </div>
@@ -4689,7 +4689,7 @@ export function AdminDashboardPage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
                 <h2 className="mt-3 text-2xl font-semibold text-white">Livraison</h2>
                 <p className="mt-3 text-sm leading-6 text-white/62">
-                  Rendez-vous confirmes: compte-rendu, photos et passage en effectue.
+                  Rendez-vous confirmés: compte-rendu, photos et passage en effectué.
                 </p>
               </Link>
 
@@ -4705,7 +4705,7 @@ export function AdminDashboardPage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
                 <h2 className="mt-3 text-2xl font-semibold text-white">Clients</h2>
                 <p className="mt-3 text-sm leading-6 text-white/62">
-                  Fiches, credits, contact, formules et historique client.
+                  Fiches, crédits, contact, formules et historique client.
                 </p>
               </Link>
             </div>
@@ -4757,7 +4757,7 @@ export function AdminDashboardPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">
-                  {profileMode === "new" ? "Creation client" : "Edition client"}
+                  {profileMode === "new" ? "Création client" : "Edition client"}
                 </p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   {profileMode === "new"
@@ -4802,7 +4802,7 @@ export function AdminDashboardPage() {
               </label>
               <label className="space-y-2 md:col-span-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Societe
+                  Société
                 </span>
                 <input
                   className="bb-input"
@@ -4812,7 +4812,7 @@ export function AdminDashboardPage() {
               </label>
               <label className="space-y-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Telephone
+                  Téléphone
                 </span>
                 <input
                   className="bb-input"
@@ -4940,7 +4940,7 @@ export function AdminDashboardPage() {
               </label>
               <label className="space-y-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Vehicule
+                  Véhicule
                 </span>
                 <input
                   className="bb-input"
@@ -4953,7 +4953,7 @@ export function AdminDashboardPage() {
               {profileDraft.clientType !== "pro" && (
                 <label className="space-y-2 md:col-span-2">
                   <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Credits
+                    Crédits
                   </span>
                   <input
                     className="bb-input"
@@ -4965,14 +4965,14 @@ export function AdminDashboardPage() {
                     value={profileDraft.formulaRemaining}
                   />
                   <p className="text-sm text-white/50">
-                    Nombre de credits disponibles sur le compte.
+                    Nombre de crédits disponibles sur le compte.
                   </p>
                 </label>
               )}
               {profileMode === "edit" && selectedClientData && (
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Conditions & recap
+                    Conditions & récap
                   </p>
                   <div className="mt-3 grid gap-3 text-sm text-white/65 md:grid-cols-2">
                     <p>
@@ -5030,7 +5030,7 @@ export function AdminDashboardPage() {
           <div className="bb-modal-panel bb-surface-strong w-full max-w-lg p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="bb-eyebrow">Credits</p>
+                <p className="bb-eyebrow">Crédits</p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   Ajuster {fullClientName(selectedClientData)}
                 </h3>
@@ -5048,7 +5048,7 @@ export function AdminDashboardPage() {
             <div className="mt-6">
               <label className="block space-y-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Credits du compte
+                  Crédits du compte
                 </span>
                 <input
                   className="bb-input"

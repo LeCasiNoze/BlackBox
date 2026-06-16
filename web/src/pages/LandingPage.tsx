@@ -234,7 +234,7 @@ export function LandingPage() {
                 <div className="space-y-4">
                   <div className="rounded-[26px] border border-emerald-300/25 bg-emerald-300/10 p-5">
                     <CheckCircle2 className="h-8 w-8 text-emerald-200" />
-                    <p className="mt-4 text-xl font-semibold text-white">Compte cree.</p>
+                    <p className="mt-4 text-xl font-semibold text-white">Compte créé.</p>
                     <p className="mt-2 text-sm leading-6 text-white/65">
                       Le lien d&apos;acces vient aussi d&apos;etre envoye par mail.
                     </p>

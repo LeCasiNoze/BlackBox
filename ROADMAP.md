@@ -101,8 +101,10 @@ l'admin → Hall → « Notes de version »).
 
 ## 13. Accessibilité & i18n
 
-- ⏳ **13 Pass accents** : remettre les accents (é/è/à/ê…) sur tous les textes
-  visibles du site (actuellement tout est en non-accentué).
+- ✅ **13 Pass accents (1re passe)** : accents auto sur le texte affiché (JSX +
+  chaînes avec espace ; identifiants/clés jamais touchés). Quelques formes
+  ambiguës (réserve/réservé, « a »→« à », participes hors dictionnaire) à
+  affiner dans une 2e passe.
 
 ## 15. Communauté
 

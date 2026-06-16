@@ -164,7 +164,7 @@ export function ForfaitPayPage() {
             <AlertCircle className="mx-auto h-10 w-10 text-[#ff7d89]" />
             <h1 className="bb-title-xl mt-4 text-2xl">Lien introuvable</h1>
             <p className="mt-3 text-sm leading-6 text-white/62">
-              Ce lien de paiement n'existe pas ou n'est plus valide. Demandez un nouveau lien a
+              Ce lien de paiement n'existe pas ou n'est plus validé. Demandez un nouveau lien a
               l'agence qui vous l'a transmis.
             </p>
           </article>
@@ -188,7 +188,7 @@ export function ForfaitPayPage() {
                 <div className="mx-auto inline-flex rounded-full border border-[#43d79d]/30 bg-[#43d79d]/10 p-4">
                   <CheckCircle2 className="h-10 w-10 text-[#43d79d]" />
                 </div>
-                <h1 className="bb-title-xl mt-5 text-2xl">Paiement confirme</h1>
+                <h1 className="bb-title-xl mt-5 text-2xl">Paiement confirmé</h1>
                 <p className="mt-3 text-sm leading-6 text-white/62">
                   Votre forfait <span className="font-semibold text-white">{order.forfaitLabel}</span>{" "}
                   est regle{order.paidAt ? ` (${formatPaidAt(order.paidAt)})` : ""}. L'agence et
@@ -242,7 +242,7 @@ export function ForfaitPayPage() {
 
                 {(order.status === "failed" || order.status === "expired") && (
                   <p className="mt-6 rounded-2xl border border-[#ff7d89]/25 bg-[#ff7d89]/10 p-3 text-sm text-[#ffb3ba]">
-                    Le paiement precedent n'a pas abouti. Vous pouvez reessayer ci-dessous.
+                    Le paiement précédent n'a pas abouti. Vous pouvez reessayer ci-dessous.
                   </p>
                 )}
 

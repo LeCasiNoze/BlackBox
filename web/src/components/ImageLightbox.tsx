@@ -79,7 +79,7 @@ export function ImageLightbox({
 
       {canNavigate && (
         <button
-          aria-label="Photo precedente"
+          aria-label="Photo précédente"
           className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white transition hover:bg-white/10 md:left-6"
           onClick={(event) => {
             event.stopPropagation();
