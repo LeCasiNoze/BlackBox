@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.19.0";
+export const APP_VERSION = "1.20.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.20.0",
+    date: "2026-06-16",
+    title: "Admin — navigation repensee (moins de scroll)",
+    changes: [
+      "Le Hall n'empile plus tous les panneaux : il devient un apercu rapide + un lanceur de sections.",
+      "Nouvelles pages dediees : Statistiques (stats + analytics), Evenements (events + goodies), Communication (e-mails groupes), Reglages (entreprise + notes de version).",
+      "Nouvelle barre d'onglets (toutes les sections) + barre du bas mobile (sections principales) pour passer d'une page a l'autre facilement.",
+    ],
+  },
   {
     version: "1.19.0",
     date: "2026-06-16",

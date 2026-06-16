@@ -10,6 +10,9 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Admin — navigation repensée (v1.20.0)** : Hall allégé (aperçu + lanceur),
+  pages dédiées Statistiques / Événements / Communication / Réglages, barre
+  d'onglets (toutes les sections) + barre du bas mobile (sections principales).
 - ✅ **Refonte visuelle « Nocturne Raffiné » (portail client)** : typographie Inter,
   base sombre affinée, **un univers par type de compte** (Fondateur or rose/onyx,
   BBX violet néon, Pro bleu blueprint) piloté par tokens CSS ; accueil mobile-first

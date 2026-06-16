@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   ArrowRight,
+  BarChart3,
   Bell,
   BellRing,
   CalendarClock,
@@ -23,7 +24,9 @@ import {
   Phone,
   Plus,
   Search,
+  Settings,
   Sparkles,
+  Trophy,
   Truck,
   Users,
   XCircle,
@@ -346,7 +349,15 @@ type ProfileDraft = {
   notes: string;
 };
 
-type AdminSection = "home" | "appointments" | "delivery" | "clients";
+type AdminSection =
+  | "home"
+  | "appointments"
+  | "delivery"
+  | "clients"
+  | "stats"
+  | "events"
+  | "comms"
+  | "settings";
 
 const ADMIN_NAV_ITEMS: Array<{
   key: AdminSection;
@@ -354,11 +365,19 @@ const ADMIN_NAV_ITEMS: Array<{
   shortLabel: string;
   icon: typeof Sparkles;
 }> = [
-  { key: "home", label: "Hall principal", shortLabel: "Hall", icon: Sparkles },
-  { key: "appointments", label: "Agenda admin", shortLabel: "Agenda", icon: CalendarClock },
+  { key: "home", label: "Hall", shortLabel: "Hall", icon: Sparkles },
+  { key: "appointments", label: "Agenda", shortLabel: "Agenda", icon: CalendarClock },
   { key: "delivery", label: "Livraison", shortLabel: "Livraison", icon: Truck },
   { key: "clients", label: "Clients", shortLabel: "Clients", icon: Users },
+  { key: "stats", label: "Stats", shortLabel: "Stats", icon: BarChart3 },
+  { key: "events", label: "Événements", shortLabel: "Events", icon: Trophy },
+  { key: "comms", label: "Emails", shortLabel: "Emails", icon: Mail },
+  { key: "settings", label: "Réglages", shortLabel: "Réglages", icon: Settings },
 ];
+
+// Nav du bas (mobile) : sections principales uniquement; les secondaires
+// (stats / events / emails / reglages) passent par la barre d'onglets + le Hall.
+const PRIMARY_ADMIN_KEYS: AdminSection[] = ["home", "appointments", "delivery", "clients"];
 
 const CLEANLINESS_OPTIONS: Array<{
   value: CanonicalCleanlinessRating;
@@ -990,6 +1009,10 @@ export function AdminDashboardPage() {
       appointments: `/admin/appointments${appointmentQuery}`,
       delivery: `/admin/delivery${appointmentQuery}`,
       clients: `/admin/clients${clientQuery}`,
+      stats: "/admin/stats",
+      events: "/admin/events",
+      comms: "/admin/comms",
+      settings: "/admin/settings",
     };
   }, [selectedAppointment, selectedClientId]);
 
@@ -2164,7 +2187,15 @@ export function AdminDashboardPage() {
       ? "delivery"
       : location.pathname.startsWith("/admin/clients")
         ? "clients"
-        : "home";
+        : location.pathname.startsWith("/admin/stats")
+          ? "stats"
+          : location.pathname.startsWith("/admin/events")
+            ? "events"
+            : location.pathname.startsWith("/admin/comms")
+              ? "comms"
+              : location.pathname.startsWith("/admin/settings")
+                ? "settings"
+                : "home";
   const selectedAppointmentActions = selectedAppointment
     ? appointmentWorkflowActions(selectedAppointment.status)
     : null;
@@ -2177,7 +2208,15 @@ export function AdminDashboardPage() {
         ? "Livraison"
         : adminSection === "clients"
           ? "Clients"
-          : "Hall principal";
+          : adminSection === "stats"
+            ? "Statistiques"
+            : adminSection === "events"
+              ? "Événements"
+              : adminSection === "comms"
+                ? "Communication"
+                : adminSection === "settings"
+                  ? "Réglages"
+                  : "Hall principal";
   const sectionSubtitle =
     adminSection === "appointments"
       ? "Demandes en attente: validez le tarif et planifiez."
@@ -2185,7 +2224,15 @@ export function AdminDashboardPage() {
         ? "Rendez-vous confirmés: compte-rendu, photos et passage en effectué."
         : adminSection === "clients"
           ? "Fiches, formules, BC'Coins et historique client."
-          : "Hall, agenda, livraison et clients.";
+          : adminSection === "stats"
+            ? "Statistiques par mois et analytics (conversion, rétention, créneaux)."
+            : adminSection === "events"
+              ? "Événements, tirages et goodies à remettre."
+              : adminSection === "comms"
+                ? "E-mails groupés et annonces aux clients."
+                : adminSection === "settings"
+                  ? "Coordonnées de l'entreprise et notes de version."
+                  : "Aperçu rapide — ouvrez une section pour travailler.";
 
   // Garde le rendez-vous selectionne coherent avec l'onglet agenda/livraison:
   // un RDV confirme quitte l'agenda, un RDV en attente quitte la livraison.
@@ -2618,6 +2665,37 @@ export function AdminDashboardPage() {
     );
   }
 
+  function renderStatsPage() {
+    return (
+      <>
+        {renderStatsPanel()}
+        {renderAnalyticsPanel()}
+      </>
+    );
+  }
+
+  function renderEventsPage() {
+    return (
+      <>
+        {renderEventsPanel()}
+        {renderGoodiesPanel()}
+      </>
+    );
+  }
+
+  function renderCommsPage() {
+    return renderBroadcastPanel();
+  }
+
+  function renderSettingsPage() {
+    return (
+      <>
+        {renderCompanySettingsPanel()}
+        {renderPatchNotesPanel()}
+      </>
+    );
+  }
+
   function renderHomePage() {
     return (
       <>
@@ -2721,13 +2799,34 @@ export function AdminDashboardPage() {
           </div>
         </section>
 
-        {renderStatsPanel()}
-        {renderAnalyticsPanel()}
-        {renderEventsPanel()}
-        {renderGoodiesPanel()}
-        {renderBroadcastPanel()}
-        {renderCompanySettingsPanel()}
-        {renderPatchNotesPanel()}
+        {/* Lanceur : acces direct a chaque section (fini le scroll infini) */}
+        <section className="bb-surface p-5 md:p-6">
+          <p className="bb-eyebrow">Sections</p>
+          <h2 className="mt-1 text-xl font-semibold text-white">Ou aller ?</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { to: adminSectionHrefs.stats, icon: BarChart3, title: "Statistiques", copy: "CA, RDV, rétention, créneaux." },
+              { to: adminSectionHrefs.events, icon: Trophy, title: "Événements", copy: "Jeux, tirages et goodies." },
+              { to: adminSectionHrefs.comms, icon: Mail, title: "Communication", copy: "E-mails groupés & annonces." },
+              { to: adminSectionHrefs.settings, icon: Settings, title: "Réglages", copy: "Entreprise & notes de version." },
+            ].map((tile) => {
+              const TileIcon = tile.icon;
+              return (
+                <Link
+                  className="bb-hover-lift group rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-accent/40 hover:bg-accent/[0.06]"
+                  key={tile.title}
+                  to={tile.to}
+                >
+                  <span className="inline-flex rounded-xl border border-accent/20 bg-accent/[0.08] p-2.5 text-accent transition group-hover:scale-110">
+                    <TileIcon className="h-5 w-5" />
+                  </span>
+                  <p className="mt-3 text-sm font-semibold text-white">{tile.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/55">{tile.copy}</p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
       </>
     );
   }
@@ -4911,7 +5010,7 @@ export function AdminDashboardPage() {
               <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 md:hidden">
+            <nav className="flex flex-wrap gap-2">
               {ADMIN_NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = adminSection === item.key;
@@ -4919,91 +5018,25 @@ export function AdminDashboardPage() {
                 return (
                   <Link
                     className={cn(
-                      "relative flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[22px] border px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] transition duration-200",
+                      "relative inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition duration-200",
                       active
-                        ? "border-accent/45 bg-accent/10 text-white shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
-                        : "border-white/10 bg-white/[0.03] text-white/60",
+                        ? "border-accent/45 bg-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.12)]"
+                        : "border-white/10 bg-white/[0.03] text-white/65 hover:border-white/25 hover:bg-white/[0.06]",
                     )}
                     key={item.key}
                     to={adminSectionHrefs[item.key]}
                   >
+                    <Icon className={cn("h-4 w-4", active ? "text-accent" : "text-white/45")} />
+                    <span>{item.label}</span>
                     {badge > 0 && (
-                      <span className="absolute right-2 top-2 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.4)]">
+                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
                         {badge > 9 ? "9+" : badge}
                       </span>
                     )}
-                    <Icon className={cn("h-4 w-4", active && "text-accent")} />
-                    <span>{item.shortLabel}</span>
                   </Link>
                 );
               })}
-            </div>
-
-            <div className="hidden gap-3 md:grid md:grid-cols-4">
-              <Link
-                className={cn(
-                  "rounded-[28px] border p-5 transition duration-200",
-                  adminSection === "home"
-                    ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
-                )}
-                to={adminSectionHrefs.home}
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Hall</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">Vue d'ensemble</h2>
-                <p className="mt-3 text-sm leading-6 text-white/62">
-                  Entrez par une page simple puis ouvrez la bonne zone de travail.
-                </p>
-              </Link>
-
-              <Link
-                className={cn(
-                  "rounded-[28px] border p-5 transition duration-200",
-                  adminSection === "appointments"
-                    ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
-                )}
-                to={adminSectionHrefs.appointments}
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">Agenda</h2>
-                <p className="mt-3 text-sm leading-6 text-white/62">
-                  Demandes en attente: validez le tarif et planifiez.
-                </p>
-              </Link>
-
-              <Link
-                className={cn(
-                  "rounded-[28px] border p-5 transition duration-200",
-                  adminSection === "delivery"
-                    ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
-                )}
-                to={adminSectionHrefs.delivery}
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">Livraison</h2>
-                <p className="mt-3 text-sm leading-6 text-white/62">
-                  Rendez-vous confirmés: compte-rendu, photos et passage en effectué.
-                </p>
-              </Link>
-
-              <Link
-                className={cn(
-                  "rounded-[28px] border p-5 transition duration-200",
-                  adminSection === "clients"
-                    ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
-                )}
-                to={adminSectionHrefs.clients}
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Section</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">Clients</h2>
-                <p className="mt-3 text-sm leading-6 text-white/62">
-                  Fiches, crédits, contact, formules et historique client.
-                </p>
-              </Link>
-            </div>
+            </nav>
           </div>
         </section>
 
@@ -5011,12 +5044,20 @@ export function AdminDashboardPage() {
           ? renderAppointmentsPage()
           : adminSection === "clients"
             ? renderClientsPage()
-            : renderHomePage()}
+            : adminSection === "stats"
+              ? renderStatsPage()
+              : adminSection === "events"
+                ? renderEventsPage()
+                : adminSection === "comms"
+                  ? renderCommsPage()
+                  : adminSection === "settings"
+                    ? renderSettingsPage()
+                    : renderHomePage()}
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
         <div className="mx-auto grid max-w-xl grid-cols-4 rounded-[28px] border border-white/12 bg-[var(--bb-glass-solid-2)] p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
-          {ADMIN_NAV_ITEMS.map((item) => {
+          {ADMIN_NAV_ITEMS.filter((item) => PRIMARY_ADMIN_KEYS.includes(item.key)).map((item) => {
             const Icon = item.icon;
             const active = adminSection === item.key;
             const badge = adminNavBadges[item.key] ?? 0;
