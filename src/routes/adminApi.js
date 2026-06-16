@@ -82,6 +82,7 @@ const {
   sendEventWinnerEmail,
 } = require("../email");
 const { getClientYearRecap } = require("../db/recap");
+const { getAdminMonthlyStats } = require("../db/stats");
 const {
   attachPendingGoodieWinsToNextAppointment,
   countPendingGoodieWins,
@@ -1203,6 +1204,20 @@ router.post("/events/:id/draw", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Statistiques mensuelles (tableau de bord admin).
+router.get("/stats", (req, res) => {
+  try {
+    const now = new Date();
+    const year = Number(req.query.year) || now.getFullYear();
+    const monthIndex =
+      req.query.month !== undefined ? Number(req.query.month) : now.getMonth();
+    return res.json({ ok: true, stats: getAdminMonthlyStats(year, monthIndex) });
+  } catch (error) {
+    console.error("[adminApi] GET /stats:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

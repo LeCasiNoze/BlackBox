@@ -120,6 +120,21 @@ type AdminEvent = {
   participants: number;
 };
 
+type AdminStats = {
+  year: number;
+  monthIndex: number;
+  revenueCents: number;
+  payments: number;
+  appointments: { requested: number; confirmed: number; done: number; cancelled: number };
+  appointmentsTotal: number;
+  creditsConsumed: number;
+  bcDistributed: number;
+  newClients: number;
+  totalClients: number;
+  totalFounders: number;
+  activeEvents: number;
+};
+
 type AdminEventParticipant = {
   clientId: number;
   clientName: string | null;
@@ -725,6 +740,9 @@ export function AdminDashboardPage() {
   });
   const [companySaving, setCompanySaving] = React.useState(false);
   const [recapSending, setRecapSending] = React.useState(false);
+  const [statsYear, setStatsYear] = React.useState(() => new Date().getFullYear());
+  const [statsMonth, setStatsMonth] = React.useState(() => new Date().getMonth());
+  const [statsData, setStatsData] = React.useState<AdminStats | null>(null);
 
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
@@ -1068,6 +1086,33 @@ export function AdminDashboardPage() {
       active = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/admin/stats?year=${statsYear}&month=${statsMonth}`);
+        const json = await response.json();
+        if (active && response.ok && json.ok) setStatsData(json.stats as AdminStats);
+      } catch (_error) {
+        // silencieux
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [statsYear, statsMonth, refreshToken]);
+
+  function shiftStatsMonth(delta: number) {
+    setStatsData(null);
+    setStatsMonth((prev) => {
+      const total = statsYear * 12 + prev + delta;
+      const nextYear = Math.floor(total / 12);
+      const nextMonth = ((total % 12) + 12) % 12;
+      setStatsYear(nextYear);
+      return nextMonth;
+    });
+  }
 
   async function sendYearRecap() {
     if (
@@ -2579,6 +2624,7 @@ export function AdminDashboardPage() {
           </div>
         </section>
 
+        {renderStatsPanel()}
         {renderEventsPanel()}
         {renderGoodiesPanel()}
         {renderCompanySettingsPanel()}
@@ -2643,6 +2689,78 @@ export function AdminDashboardPage() {
           </button>
         </div>
       </article>
+    );
+  }
+
+  // Tableau de bord statistiques (par mois).
+  function renderStatsPanel() {
+    const MONTHS = [
+      "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
+      "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre",
+    ];
+    const s = statsData;
+    const euro = (cents: number) => `${(cents / 100).toFixed(2).replace(".", ",")} €`;
+    const tiles = s
+      ? [
+          { label: "CA encaisse", value: euro(s.revenueCents), sub: `${s.payments} paiement(s)` },
+          { label: "RDV effectues", value: String(s.appointments.done), sub: `sur ${s.appointmentsTotal} RDV` },
+          { label: "En attente", value: String(s.appointments.requested), sub: "a traiter" },
+          { label: "Confirmes", value: String(s.appointments.confirmed), sub: "a faire" },
+          { label: "Annules", value: String(s.appointments.cancelled), sub: "ce mois" },
+          { label: "Credits consommes", value: String(s.creditsConsumed), sub: "sur RDV effectues" },
+          { label: "BC'Coins distribues", value: String(s.bcDistributed), sub: "ce mois" },
+          { label: "Nouveaux clients", value: String(s.newClients), sub: "ce mois" },
+        ]
+      : [];
+    return (
+      <section className="bb-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="bb-eyebrow">Statistiques</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">
+              {MONTHS[statsMonth]} {statsYear}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="bb-button-ghost h-10 w-10 rounded-full px-0"
+              onClick={() => shiftStatsMonth(-1)}
+              type="button"
+              aria-label="Mois precedent"
+            >
+              <ArrowRight className="h-4 w-4 rotate-180" />
+            </button>
+            <button
+              className="bb-button-ghost h-10 w-10 rounded-full px-0"
+              onClick={() => shiftStatsMonth(1)}
+              type="button"
+              aria-label="Mois suivant"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {tiles.map((tile) => (
+            <div
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+              key={tile.label}
+            >
+              <p className="text-2xl font-semibold tabular-nums text-white">{tile.value}</p>
+              <p className="mt-1 text-sm font-medium text-white/80">{tile.label}</p>
+              <p className="mt-0.5 text-xs text-white/45">{tile.sub}</p>
+            </div>
+          ))}
+        </div>
+
+        {s && (
+          <p className="mt-4 text-xs text-white/45">
+            Total : {s.totalClients} client(s) · {s.totalFounders} fondateur(s) · {s.activeEvents}{" "}
+            evenement(s) actif(s)
+          </p>
+        )}
+      </section>
     );
   }
 

@@ -73,8 +73,9 @@ l'admin → Hall → « Notes de version »).
 
 ## 8. Admin & opérations
 
-- ⏳ **8.1 Dashboard stats** : CA, nb RDV, taux de remplissage, no-show, BC
-  distribués.
+- ✅ **8.1 Dashboard stats** : panneau Statistiques par mois (CA encaissé, RDV
+  par statut, crédits consommés, BC distribués, nouveaux clients, totaux) avec
+  navigation mois. `src/db/stats.js`. *(taux de remplissage/no-show = à affiner.)*
 
 ## 10. Data & analytics
 

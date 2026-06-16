@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.9.0";
+export const APP_VERSION = "1.10.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.10.0",
+    date: "2026-06-16",
+    title: "Tableau de bord statistiques (admin)",
+    changes: [
+      "Nouveau panneau Statistiques par mois dans le Hall admin : CA encaisse, RDV par statut, credits consommes, BC'Coins distribues, nouveaux clients, totaux. Navigation mois precedent / suivant.",
+    ],
+  },
   {
     version: "1.9.0",
     date: "2026-06-16",
