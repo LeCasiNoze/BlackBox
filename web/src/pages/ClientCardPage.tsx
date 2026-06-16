@@ -4503,6 +4503,35 @@ export function ClientCardPage() {
               </p>
             </div>
 
+            {/* Devenir fondateur — juste sous l'action principale */}
+            <button
+              className="group flex w-full items-center justify-between gap-4 rounded-[22px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.12),rgba(255,255,255,0.02))] p-4 text-left transition duration-200 hover:border-accent/45"
+              onClick={() => setFounderModalOpen(true)}
+              type="button"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl border border-accent/35 bg-accent/12 p-2.5 text-accentSoft">
+                  <Crown className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Devenir fondateur</p>
+                  <p className="mt-0.5 text-xs leading-5 text-white/62">
+                    Carte premium, BC&apos;Coins et avantages exclusifs.
+                  </p>
+                  {typeof data?.foundersRemaining === "number" && (
+                    <span className="mt-1 inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">
+                      {data.foundersRemaining > 0
+                        ? `${data.foundersRemaining} place${
+                            data.foundersRemaining > 1 ? "s" : ""
+                          } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${data.founderCap ?? 50}`
+                        : "Complet — plus de places"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
+            </button>
+
             {/* Statut — 2 tuiles claires */}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
@@ -4585,35 +4614,6 @@ export function ClientCardPage() {
             <p className="mt-1 text-xs leading-5 text-white/55">Contacter Bryan Cars</p>
           </button>
         </section>
-
-        {/* Upsell fondateur — demote sous l'action */}
-        <button
-          className="bb-rise bb-rise-3 group flex w-full items-center justify-between gap-4 rounded-[24px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.02))] p-5 text-left transition duration-200 hover:border-accent/45"
-          onClick={() => setFounderModalOpen(true)}
-          type="button"
-        >
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-accent/35 bg-accent/12 p-3 text-accentSoft">
-              <Crown className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-white">Devenir fondateur</p>
-              <p className="mt-1 text-sm leading-6 text-white/62">
-                Carte premium, BC&apos;Coins et avantages exclusifs.
-              </p>
-              {typeof data?.foundersRemaining === "number" && (
-                <span className="mt-1.5 inline-block text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-                  {data.foundersRemaining > 0
-                    ? `${data.foundersRemaining} place${
-                        data.foundersRemaining > 1 ? "s" : ""
-                      } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${data.founderCap ?? 50}`
-                    : "Complet — plus de places"}
-                </span>
-              )}
-            </div>
-          </div>
-          <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
-        </button>
 
         {renderSocialSection()}
       </section>

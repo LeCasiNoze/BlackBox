@@ -4961,9 +4961,56 @@ export function AdminDashboardPage() {
         <div className="absolute bottom-0 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
       </div>
 
-      <main className="bb-content space-y-6 md:space-y-8">
-        <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
-          <div className="flex flex-col gap-6">
+      <main className="bb-content">
+        <div className="md:flex md:items-start md:gap-6">
+          {/* Sidebar (rail lateral) — desktop uniquement */}
+          <aside className="hidden md:block md:w-56 md:shrink-0 lg:w-60">
+            <div className="sticky top-6 space-y-3">
+              <div className="bb-surface-strong flex items-center gap-2.5 p-4">
+                <img
+                  alt=""
+                  className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10"
+                  src="/app-icon-192.png"
+                />
+                <div className="leading-none">
+                  <p className="bb-display text-sm font-bold text-white">Bryan Cars</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">Admin</p>
+                </div>
+              </div>
+              <nav className="bb-surface space-y-1 p-2">
+                {ADMIN_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const active = adminSection === item.key;
+                  const badge = adminNavBadges[item.key] ?? 0;
+                  return (
+                    <Link
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
+                        active
+                          ? "bg-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.1)]"
+                          : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+                      )}
+                      key={item.key}
+                      to={adminSectionHrefs[item.key]}
+                    >
+                      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-white/45")} />
+                      <span className="flex-1">{item.label}</span>
+                      {badge > 0 && (
+                        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
+                          {badge > 9 ? "9+" : badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </aside>
+
+          {/* Colonne contenu */}
+          <div className="min-w-0 flex-1 space-y-6 md:space-y-8">
+            <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
+              <div className="flex flex-col gap-6">
             <div className="flex flex-wrap items-center gap-3">
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
@@ -5010,49 +5057,24 @@ export function AdminDashboardPage() {
               <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
             </div>
 
-            <nav className="flex flex-wrap gap-2">
-              {ADMIN_NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const active = adminSection === item.key;
-                const badge = adminNavBadges[item.key] ?? 0;
-                return (
-                  <Link
-                    className={cn(
-                      "relative inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition duration-200",
-                      active
-                        ? "border-accent/45 bg-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.12)]"
-                        : "border-white/10 bg-white/[0.03] text-white/65 hover:border-white/25 hover:bg-white/[0.06]",
-                    )}
-                    key={item.key}
-                    to={adminSectionHrefs[item.key]}
-                  >
-                    <Icon className={cn("h-4 w-4", active ? "text-accent" : "text-white/45")} />
-                    <span>{item.label}</span>
-                    {badge > 0 && (
-                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
-                        {badge > 9 ? "9+" : badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
           </div>
-        </section>
+            </section>
 
-        {adminSection === "appointments" || adminSection === "delivery"
-          ? renderAppointmentsPage()
-          : adminSection === "clients"
-            ? renderClientsPage()
-            : adminSection === "stats"
-              ? renderStatsPage()
-              : adminSection === "events"
-                ? renderEventsPage()
-                : adminSection === "comms"
-                  ? renderCommsPage()
-                  : adminSection === "settings"
-                    ? renderSettingsPage()
-                    : renderHomePage()}
+            {adminSection === "appointments" || adminSection === "delivery"
+              ? renderAppointmentsPage()
+              : adminSection === "clients"
+                ? renderClientsPage()
+                : adminSection === "stats"
+                  ? renderStatsPage()
+                  : adminSection === "events"
+                    ? renderEventsPage()
+                    : adminSection === "comms"
+                      ? renderCommsPage()
+                      : adminSection === "settings"
+                        ? renderSettingsPage()
+                        : renderHomePage()}
+          </div>
+        </div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">

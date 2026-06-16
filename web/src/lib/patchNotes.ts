@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.20.0";
+export const APP_VERSION = "1.21.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.21.0",
+    date: "2026-06-16",
+    title: "Admin : menu en sidebar + accueil client (ajustement)",
+    changes: [
+      "Admin : la barre d'onglets devient un menu lateral (sidebar) sur desktop, plus lisible ; barre du bas conservee sur mobile.",
+      "Accueil client (BBX) : « Devenir fondateur » remonte dans la carte principale, juste sous « Prendre rendez-vous ».",
+    ],
+  },
   {
     version: "1.20.0",
     date: "2026-06-16",
