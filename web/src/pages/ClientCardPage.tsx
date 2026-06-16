@@ -3958,7 +3958,10 @@ export function ClientCardPage() {
           </button>
         )}
         {assistantOpen && (
-          <div className="fixed bottom-20 right-4 z-[58] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[24px] border border-white/12 bg-[#16120c]/98 shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6">
+          <div
+            className="fixed bottom-20 right-4 z-[58] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[24px] border border-white/12 shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6"
+            style={{ backgroundColor: "#16120c" }}
+          >
             <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/15 text-accentSoft">
