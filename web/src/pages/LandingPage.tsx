@@ -57,6 +57,15 @@ export function LandingPage() {
   const [reviews, setReviews] = React.useState<
     Array<{ id: number; author: string; rating: number; comment: string; vehicleModel: string | null }>
   >([]);
+  const signupCardRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Au changement d'etape (code envoye / compte cree), on remonte sur la carte
+  // d'inscription pour que le client voie directement la saisie du code.
+  React.useEffect(() => {
+    if (step === "code" || step === "ready") {
+      signupCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [step]);
 
   React.useEffect(() => {
     let active = true;
@@ -220,7 +229,10 @@ export function LandingPage() {
           </div>
 
           {/* Carte d'inscription (logique inchangee) */}
-          <div className="bb-rise bb-rise-2 bb-gold-frame relative overflow-hidden rounded-[30px] border border-white/10 bg-[var(--bb-glass-solid-2)] p-5 shadow-[0_44px_100px_-44px_rgba(0,0,0,0.92)] md:p-6">
+          <div
+            className="bb-rise bb-rise-2 bb-gold-frame relative scroll-mt-4 overflow-hidden rounded-[30px] border border-white/10 bg-[var(--bb-glass-solid-2)] p-5 shadow-[0_44px_100px_-44px_rgba(0,0,0,0.92)] md:p-6"
+            ref={signupCardRef}
+          >
             <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-accent/10 blur-3xl" />
             <div className="relative mb-5 flex items-start justify-between gap-4">
               <div>
@@ -346,7 +358,7 @@ export function LandingPage() {
                     className="bb-button-brand mt-4 w-full justify-center"
                   />
                   <p className="mt-3 text-xs leading-5 text-white/45">
-                    iPhone : bouton Partager puis « Sur l&apos;ecran d&apos;accueil ». Android : menu &#8942; puis
+                    iPhone : bouton Partager → Plus → « Sur l&apos;écran d&apos;accueil ». Android : menu &#8942; →
                     « Installer l&apos;application ».
                   </p>
                 </div>

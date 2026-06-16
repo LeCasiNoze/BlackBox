@@ -4087,8 +4087,8 @@ export function ClientCardPage() {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white">Active les notifications (iPhone)</p>
               <p className="text-sm leading-6 text-white/65">
-                Sur iPhone, installe d&apos;abord l&apos;app : bouton <span className="font-semibold text-white">Partager</span> puis
-                <span className="font-semibold text-white"> « Sur l&apos;ecran d&apos;accueil »</span>. Rouvre ensuite l&apos;app pour activer les notifs.
+                Sur iPhone, installe d&apos;abord l&apos;app : <span className="font-semibold text-white">Partager → Plus →</span>
+                <span className="font-semibold text-white"> « Sur l&apos;écran d&apos;accueil »</span>. Rouvre ensuite l&apos;app pour activer les notifs.
               </p>
             </div>
           </div>
