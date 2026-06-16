@@ -861,7 +861,10 @@ function insertAppointmentPhoto(
   caption = null,
   isCover = 0,
   isPublic = 1,
+  category = null,
 ) {
+  const normalizedCategory =
+    category === "before" || category === "after" ? category : null;
   const info = db
     .prepare(
       `
@@ -871,9 +874,10 @@ function insertAppointmentPhoto(
         is_cover,
         is_public,
         caption,
+        category,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
@@ -882,6 +886,7 @@ function insertAppointmentPhoto(
       isCover ? 1 : 0,
       isPublic ? 1 : 0,
       caption || null,
+      normalizedCategory,
       nowUnix(),
     );
 

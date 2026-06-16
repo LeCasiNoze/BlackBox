@@ -1,5 +1,6 @@
 const express = require("express");
 const multer = require("multer");
+const { optimizeUploadedImage } = require("../services/imageProcessing");
 const path = require("path");
 const router = express.Router();
 
@@ -174,27 +175,30 @@ function handleBookingUpload(req, res, next) {
   });
 }
 
-function attachClientBookingImages(appointmentId, files = []) {
+async function attachClientBookingImages(appointmentId, files = []) {
   if (!appointmentId || !Array.isArray(files) || files.length === 0) {
     return 0;
   }
 
   let insertedCount = 0;
 
-  files.forEach((file) => {
+  for (const file of files) {
     try {
+      const finalName = await optimizeUploadedImage(APPOINTMENTS_UPLOAD_DIR, file.filename);
       insertAppointmentPhoto(
         appointmentId,
-        `/uploads/appointments/${file.filename}`,
+        `/uploads/appointments/${finalName}`,
         "Photo envoyee par le client",
         0,
         0,
+        // Photo envoyee par le client -> "avant" (etat du vehicule).
+        "before",
       );
       insertedCount += 1;
     } catch (error) {
       console.error("[BOOK] attachClientBookingImages:", error);
     }
-  });
+  }
 
   return insertedCount;
 }
@@ -1688,7 +1692,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       }
 
       const appointmentId = existing?.id || null;
-      const clientImageCount = attachClientBookingImages(appointmentId, uploadedImages);
+      const clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
 
       try {
         await sendAdminNotification({
@@ -1743,7 +1747,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       return res.status(500).json({ ok: false, error: "db_error" });
     }
 
-    const clientImageCount = attachClientBookingImages(appointmentId, uploadedImages);
+    const clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
 
     // Rattache au nouveau RDV les lots gagnes en attente de remise.
     attachPendingGoodieWinsToNextAppointment(client.id);

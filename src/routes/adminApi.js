@@ -1,5 +1,6 @@
 const express = require("express");
 const multer = require("multer");
+const { optimizeUploadedImage } = require("../services/imageProcessing");
 const path = require("path");
 
 const router = express.Router();
@@ -926,7 +927,7 @@ router.post("/appointments/:id/admin-note", (req, res) => {
 router.post(
   "/appointments/:id/photos/upload",
   appointmentPhotoUpload.single("file"),
-  (req, res) => {
+  async (req, res) => {
     const id = Number(req.params.id || 0);
     if (!id) {
       return res.status(400).json({ ok: false, error: "invalid_id" });
@@ -945,8 +946,10 @@ router.post(
         typeof req.body.caption === "string" && req.body.caption.trim() !== ""
           ? req.body.caption.trim()
           : null;
-      const url = `/uploads/appointments/${req.file.filename}`;
-      const row = insertAppointmentPhoto(id, url, caption, 0, 1);
+      const finalName = await optimizeUploadedImage(APPOINTMENTS_UPLOAD_DIR, req.file.filename);
+      const url = `/uploads/appointments/${finalName}`;
+      // Photo postee par l'admin -> "apres" (resultat de la prestation).
+      const row = insertAppointmentPhoto(id, url, caption, 0, 1, "after");
 
       return res.json({ ok: true, photo: mapPhotoRow(row) });
     } catch (error) {

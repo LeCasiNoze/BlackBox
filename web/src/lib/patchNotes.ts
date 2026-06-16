@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.22.0";
+export const APP_VERSION = "1.23.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.23.0",
+    date: "2026-06-16",
+    title: "Photos prestation : Avant/Apres auto + images allegees + logo facture",
+    changes: [
+      "Les photos d'un rendez-vous sont separees automatiquement : « Avant » (envoyees par le client) et « Apres » (postees par l'admin). (Les photos deja en ligne restent a tagger a la main cote admin.)",
+      "Chaque photo uploadee est automatiquement allegee (rotation, redimension max 1600px, WebP) : chargement bien plus rapide, fini les bugs d'affichage des grosses photos iPhone (~ -75% de poids).",
+      "Logo Bryan Cars ajoute en haut des factures.",
+    ],
+  },
   {
     version: "1.22.0",
     date: "2026-06-16",

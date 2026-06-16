@@ -111,6 +111,11 @@ export function InvoicePage() {
         <div className="rounded-lg bg-white p-8 text-neutral-800 shadow-lg print:rounded-none print:shadow-none md:p-12">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
+              <img
+                alt="Bryan Cars"
+                className="mb-3 h-14 w-14 rounded-xl object-cover ring-1 ring-neutral-200"
+                src="/app-icon-192.png"
+              />
               <p className="text-lg font-bold text-neutral-900">
                 {company.name || "Bryan Cars"}
               </p>
