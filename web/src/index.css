@@ -796,6 +796,19 @@ select {
   animation: bb-cta-pulse 2.6s ease-in-out infinite;
 }
 
+/* Tiroir lateral (menu admin mobile) : entree par la gauche. */
+@keyframes bb-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.bb-drawer-in {
+  animation: bb-drawer-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Caractere "Blueprint" (univers Pro) : grille technique discrete,
    estompee vers le bas par un masque radial. */
 .bb-grid-motif {

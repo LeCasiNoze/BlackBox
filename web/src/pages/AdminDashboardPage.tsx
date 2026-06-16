@@ -20,6 +20,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  Menu,
   PencilLine,
   Phone,
   Plus,
@@ -29,6 +30,7 @@ import {
   Trophy,
   Truck,
   Users,
+  X,
   XCircle,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -374,10 +376,6 @@ const ADMIN_NAV_ITEMS: Array<{
   { key: "comms", label: "Emails", shortLabel: "Emails", icon: Mail },
   { key: "settings", label: "Réglages", shortLabel: "Réglages", icon: Settings },
 ];
-
-// Nav du bas (mobile) : sections principales uniquement; les secondaires
-// (stats / events / emails / reglages) passent par la barre d'onglets + le Hall.
-const PRIMARY_ADMIN_KEYS: AdminSection[] = ["home", "appointments", "delivery", "clients"];
 
 const CLEANLINESS_OPTIONS: Array<{
   value: CanonicalCleanlinessRating;
@@ -2234,6 +2232,11 @@ export function AdminDashboardPage() {
                   ? "Coordonnées de l'entreprise et notes de version."
                   : "Aperçu rapide — ouvrez une section pour travailler.";
 
+  const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    setAdminMenuOpen(false);
+  }, [adminSection]);
+
   // Garde le rendez-vous selectionne coherent avec l'onglet agenda/livraison:
   // un RDV confirme quitte l'agenda, un RDV en attente quitte la livraison.
   React.useEffect(() => {
@@ -2662,6 +2665,98 @@ export function AdminDashboardPage() {
           )}
         </div>
       </article>
+    );
+  }
+
+  // Menu admin unique (marque + toutes les sections + notifs + deconnexion).
+  // Utilise par le rail desktop ET le tiroir mobile (onNavigate ferme le tiroir).
+  function renderAdminMenu(onNavigate?: () => void) {
+    return (
+      <div className="space-y-3">
+        <div className="bb-surface-strong flex items-center gap-2.5 p-4">
+          <img
+            alt=""
+            className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10"
+            src="/app-icon-192.png"
+          />
+          <div className="leading-none">
+            <p className="bb-display text-sm font-bold text-white">Bryan Cars</p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">Admin</p>
+          </div>
+        </div>
+
+        <nav className="bb-surface space-y-1 p-2">
+          {ADMIN_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = adminSection === item.key;
+            const badge = adminNavBadges[item.key] ?? 0;
+            return (
+              <Link
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
+                  active
+                    ? "bg-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.1)]"
+                    : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+                )}
+                key={item.key}
+                onClick={onNavigate}
+                to={adminSectionHrefs[item.key]}
+              >
+                <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-white/45")} />
+                <span className="flex-1">{item.label}</span>
+                {badge > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
+                    {badge > 9 ? "9+" : badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="bb-surface space-y-1 p-2">
+          {pushPermission !== "unsupported" && (
+            <button
+              className={cn(
+                "flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
+                pushPermission === "granted"
+                  ? "text-emerald-100"
+                  : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+              )}
+              disabled={pushBusy || pushPermission === "granted"}
+              onClick={() => {
+                void handleEnablePush();
+              }}
+              type="button"
+            >
+              {pushPermission === "granted" ? (
+                <BellRing className="h-4 w-4 shrink-0 text-emerald-200" />
+              ) : (
+                <Bell className="h-4 w-4 shrink-0 text-white/45" />
+              )}
+              <span className="flex-1 text-left">
+                {pushBusy
+                  ? "Activation..."
+                  : pushPermission === "granted"
+                    ? "Notifications activées"
+                    : "Activer les notifications"}
+              </span>
+            </button>
+          )}
+          <InstallAppButton
+            appName="Bryan Cars Admin"
+            className="flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-white/60 transition duration-200 hover:bg-white/[0.05] hover:text-white"
+            startUrl="/admin"
+          />
+          <a
+            className="flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-rose-200/80 transition duration-200 hover:bg-rose-500/10 hover:text-rose-100"
+            href="/logout"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="flex-1">Se déconnecter</span>
+          </a>
+        </div>
+      </div>
     );
   }
 
@@ -4954,7 +5049,7 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <div className="bb-shell pb-28 md:pb-16">
+    <div className="bb-shell pb-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-6rem] top-24 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
         <div className="absolute right-[-7rem] top-12 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" />
@@ -4962,95 +5057,59 @@ export function AdminDashboardPage() {
       </div>
 
       <main className="bb-content">
-        <div className="md:flex md:items-start md:gap-6">
-          {/* Sidebar (rail lateral) — desktop uniquement */}
-          <aside className="hidden md:block md:w-56 md:shrink-0 lg:w-60">
-            <div className="sticky top-6 space-y-3">
-              <div className="bb-surface-strong flex items-center gap-2.5 p-4">
-                <img
-                  alt=""
-                  className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10"
-                  src="/app-icon-192.png"
-                />
-                <div className="leading-none">
-                  <p className="bb-display text-sm font-bold text-white">Bryan Cars</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">Admin</p>
-                </div>
+        {/* Barre du haut mobile : hamburger qui ouvre le menu complet */}
+        <div className="mb-4 flex items-center gap-3 md:hidden">
+          <button
+            aria-label="Ouvrir le menu"
+            className="bb-icon-btn"
+            onClick={() => setAdminMenuOpen(true)}
+            type="button"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <img
+              alt=""
+              className="h-8 w-8 rounded-lg object-cover ring-1 ring-white/10"
+              src="/app-icon-192.png"
+            />
+            <p className="bb-display text-sm font-bold text-white">Bryan Cars · Admin</p>
+          </div>
+        </div>
+
+        {/* Tiroir lateral (mobile) : tout au meme endroit */}
+        {adminMenuOpen && (
+          <div className="fixed inset-0 z-[60] md:hidden">
+            <div
+              className="bb-backdrop-in absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setAdminMenuOpen(false)}
+            />
+            <div className="bb-drawer-in absolute inset-y-0 left-0 flex w-[84%] max-w-xs flex-col gap-3 overflow-y-auto bg-[var(--bb-glass-solid-2)] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+              <div className="flex justify-end">
+                <button
+                  aria-label="Fermer le menu"
+                  className="bb-icon-btn"
+                  onClick={() => setAdminMenuOpen(false)}
+                  type="button"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <nav className="bb-surface space-y-1 p-2">
-                {ADMIN_NAV_ITEMS.map((item) => {
-                  const Icon = item.icon;
-                  const active = adminSection === item.key;
-                  const badge = adminNavBadges[item.key] ?? 0;
-                  return (
-                    <Link
-                      className={cn(
-                        "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
-                        active
-                          ? "bg-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.1)]"
-                          : "text-white/60 hover:bg-white/[0.05] hover:text-white",
-                      )}
-                      key={item.key}
-                      to={adminSectionHrefs[item.key]}
-                    >
-                      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-white/45")} />
-                      <span className="flex-1">{item.label}</span>
-                      {badge > 0 && (
-                        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white">
-                          {badge > 9 ? "9+" : badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </nav>
+              {renderAdminMenu(() => setAdminMenuOpen(false))}
             </div>
+          </div>
+        )}
+
+        <div className="md:flex md:items-start md:gap-6">
+          {/* Menu lateral — desktop */}
+          <aside className="hidden md:block md:w-60 md:shrink-0">
+            <div className="sticky top-6">{renderAdminMenu()}</div>
           </aside>
 
           {/* Colonne contenu */}
           <div className="min-w-0 flex-1 space-y-6 md:space-y-8">
             <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
               <div className="flex flex-col gap-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                Admin cockpit
-              </div>
-              <InstallAppButton
-                appName="Bryan Cars Admin"
-                className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]"
-                startUrl="/admin"
-              />
-              {pushPermission !== "unsupported" && (
-                <button
-                  className={cn(
-                    "bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]",
-                    pushPermission === "granted" && "border-emerald-300/35 text-emerald-100",
-                  )}
-                  disabled={pushBusy || pushPermission === "granted"}
-                  onClick={() => {
-                    void handleEnablePush();
-                  }}
-                  type="button"
-                >
-                  {pushPermission === "granted" ? (
-                    <BellRing className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Bell className="mr-2 h-4 w-4" />
-                  )}
-                  {pushBusy
-                    ? "Activation..."
-                    : pushPermission === "granted"
-                      ? "Notifications ON"
-                      : "Activer notifications"}
-                </button>
-              )}
-              <a className="bb-button-ghost px-4 py-2 text-xs uppercase tracking-[0.16em]" href="/logout">
-                <LogOut className="mr-2 h-4 w-4" />
-                Sortir
-              </a>
-            </div>
-
             <div className="max-w-4xl">
               <p className="bb-eyebrow">Operations Bryan Cars</p>
               <h1 className="bb-title mt-3">{sectionTitle}</h1>
@@ -5076,38 +5135,6 @@ export function AdminDashboardPage() {
           </div>
         </div>
       </main>
-
-      <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-4 rounded-[28px] border border-white/12 bg-[var(--bb-glass-solid-2)] p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl">
-          {ADMIN_NAV_ITEMS.filter((item) => PRIMARY_ADMIN_KEYS.includes(item.key)).map((item) => {
-            const Icon = item.icon;
-            const active = adminSection === item.key;
-            const badge = adminNavBadges[item.key] ?? 0;
-            return (
-              <Link
-                className={cn(
-                  "relative flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
-                  active
-                    ? "bg-gradient-to-b from-accent/18 to-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "text-white/54",
-                )}
-                key={item.key}
-                to={adminSectionHrefs[item.key]}
-              >
-                <span className="relative">
-                  <Icon className={cn("h-4 w-4", active && "text-accent")} />
-                  {badge > 0 && (
-                    <span className="absolute -right-2.5 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.4)]">
-                      {badge > 9 ? "9+" : badge}
-                    </span>
-                  )}
-                </span>
-                <span>{item.shortLabel}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
 
       {profileModalOpen && profileDraft && (
         <div className="bb-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">

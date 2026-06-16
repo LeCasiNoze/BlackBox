@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.21.0";
+export const APP_VERSION = "1.22.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.22.0",
+    date: "2026-06-16",
+    title: "Admin — menu unique (sidebar desktop / tiroir mobile)",
+    changes: [
+      "Toute la navigation admin est regroupee dans un seul menu : sections (Hall, Agenda, Livraison, Clients, Stats, Evenements, Emails, Reglages) + activation des notifications + deconnexion.",
+      "Desktop : rail lateral fixe. Mobile : bouton menu (hamburger) qui ouvre un tiroir lateral. Fini la barre du bas et les boutons disperses.",
+    ],
+  },
   {
     version: "1.21.0",
     date: "2026-06-16",
