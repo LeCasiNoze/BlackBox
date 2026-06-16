@@ -63,4 +63,67 @@ function getAdminMonthlyStats(year, monthIndex) {
   };
 }
 
-module.exports = { getAdminMonthlyStats };
+// Analytics admin: funnel d'inscription, cohortes de retention, heatmap creneaux.
+function getAdminAnalytics() {
+  // --- Funnel inscription (codes demandes -> comptes crees) ---
+  let requested = 0;
+  let used = 0;
+  for (const row of db.prepare(`SELECT status, COUNT(*) AS n FROM signup_codes GROUP BY status`).all()) {
+    requested += row.n;
+    if (row.status === "used") used += row.n;
+  }
+
+  // --- Cohortes de retention (BBX vs Fondateurs) ---
+  const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  function retentionFor(founder) {
+    const where = founder
+      ? "c.client_type = 'bbx' AND c.is_founder = 1"
+      : "c.client_type = 'bbx' AND c.is_founder = 0";
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM clients c WHERE ${where}`).get().n;
+    const withVisit = db
+      .prepare(
+        `SELECT COUNT(DISTINCT c.id) AS n FROM clients c
+         JOIN appointments a ON a.client_id = c.id
+         WHERE ${where} AND a.status = 'done'`,
+      )
+      .get().n;
+    const active90 = db
+      .prepare(
+        `SELECT COUNT(DISTINCT c.id) AS n FROM clients c
+         JOIN appointments a ON a.client_id = c.id
+         WHERE ${where} AND a.status = 'done' AND a.date >= ?`,
+      )
+      .get(cutoff90).n;
+    const repeat = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM (
+           SELECT c.id FROM clients c
+           JOIN appointments a ON a.client_id = c.id
+           WHERE ${where} AND a.status = 'done'
+           GROUP BY c.id HAVING COUNT(*) >= 2
+         )`,
+      )
+      .get().n;
+    return { total, withVisit, active90, repeat };
+  }
+
+  // --- Heatmap creneaux (180 derniers jours, hors annules) ---
+  const cutoff180 = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
+  const heatmap = {};
+  for (const row of db
+    .prepare(`SELECT date, slot FROM appointments WHERE status != 'cancelled' AND date >= ?`)
+    .all(cutoff180)) {
+    const weekday = new Date(`${row.date}T00:00:00`).getDay(); // 0 = dimanche
+    const slot = row.slot === "afternoon" ? "afternoon" : "morning";
+    const key = `${weekday}-${slot}`;
+    heatmap[key] = (heatmap[key] || 0) + 1;
+  }
+
+  return {
+    funnel: { requested, used, rate: requested ? Math.round((used / requested) * 100) : 0 },
+    retention: { bbx: retentionFor(false), founders: retentionFor(true) },
+    heatmap,
+  };
+}
+
+module.exports = { getAdminMonthlyStats, getAdminAnalytics };

@@ -80,9 +80,9 @@ l'admin → Hall → « Notes de version »).
 
 ## 10. Data & analytics
 
-- ⏳ **10.1 Funnel d'inscription** (où ça décroche).
-- ⏳ **10.2 Cohortes de rétention** (fondateurs vs BBX).
-- ⏳ **10.4 Heatmap des créneaux** les plus demandés.
+- ✅ **10.1 Funnel d'inscription** (codes utilisés / demandés → taux de conversion).
+- ✅ **10.2 Cohortes de rétention** (BBX vs Fondateurs : déjà venus / actifs 90j / fidèles 2+).
+- ✅ **10.4 Heatmap des créneaux** (jour × matin/après-midi, 180 j). `src/db/stats.js` → `getAdminAnalytics`.
 
 ## 11. Contenu & marketing
 

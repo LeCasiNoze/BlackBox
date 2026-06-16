@@ -86,7 +86,7 @@ const {
   sendEventWinnerEmail,
 } = require("../email");
 const { getClientYearRecap } = require("../db/recap");
-const { getAdminMonthlyStats } = require("../db/stats");
+const { getAdminMonthlyStats, getAdminAnalytics } = require("../db/stats");
 const {
   attachPendingGoodieWinsToNextAppointment,
   countPendingGoodieWins,
@@ -1292,6 +1292,16 @@ router.post("/broadcast", async (req, res) => {
     return res.json({ ok: true, sent, total: clients.length });
   } catch (error) {
     console.error("[adminApi] POST /broadcast:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Analytics (funnel, retention, heatmap).
+router.get("/analytics", (_req, res) => {
+  try {
+    return res.json({ ok: true, analytics: getAdminAnalytics() });
+  } catch (error) {
+    console.error("[adminApi] GET /analytics:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

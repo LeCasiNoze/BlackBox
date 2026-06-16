@@ -135,6 +135,19 @@ type AdminStats = {
   activeEvents: number;
 };
 
+type AdminRetentionCohort = {
+  total: number;
+  withVisit: number;
+  active90: number;
+  repeat: number;
+};
+
+type AdminAnalytics = {
+  funnel: { requested: number; used: number; rate: number };
+  retention: { bbx: AdminRetentionCohort; founders: AdminRetentionCohort };
+  heatmap: Record<string, number>;
+};
+
 type AdminEventParticipant = {
   clientId: number;
   clientName: string | null;
@@ -744,6 +757,7 @@ export function AdminDashboardPage() {
   const [statsYear, setStatsYear] = React.useState(() => new Date().getFullYear());
   const [statsMonth, setStatsMonth] = React.useState(() => new Date().getMonth());
   const [statsData, setStatsData] = React.useState<AdminStats | null>(null);
+  const [analytics, setAnalytics] = React.useState<AdminAnalytics | null>(null);
   const [broadcast, setBroadcast] = React.useState({
     segment: "bbx",
     subject: "",
@@ -1112,6 +1126,22 @@ export function AdminDashboardPage() {
       active = false;
     };
   }, [statsYear, statsMonth, refreshToken]);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/analytics");
+        const json = await response.json();
+        if (active && response.ok && json.ok) setAnalytics(json.analytics as AdminAnalytics);
+      } catch (_error) {
+        // silencieux
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshToken]);
 
   function shiftStatsMonth(delta: number) {
     setStatsData(null);
@@ -2692,6 +2722,7 @@ export function AdminDashboardPage() {
         </section>
 
         {renderStatsPanel()}
+        {renderAnalyticsPanel()}
         {renderEventsPanel()}
         {renderGoodiesPanel()}
         {renderBroadcastPanel()}
@@ -2931,6 +2962,80 @@ export function AdminDashboardPage() {
           </p>
         )}
       </section>
+    );
+  }
+
+  // Analytics: funnel inscription, cohortes de retention, heatmap creneaux.
+  function renderAnalyticsPanel() {
+    if (!analytics) return null;
+    const a = analytics;
+    const cohort = (label: string, c: AdminRetentionCohort) => (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-sm font-semibold text-white">{label}</p>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-white/60">
+          <span>Total : <b className="text-white/85">{c.total}</b></span>
+          <span>Deja venus : <b className="text-white/85">{c.withVisit}</b></span>
+          <span>Actifs 90j : <b className="text-white/85">{c.active90}</b></span>
+          <span>Fideles (2+) : <b className="text-white/85">{c.repeat}</b></span>
+        </div>
+      </div>
+    );
+    const WD = [
+      { i: 1, l: "Lun" }, { i: 2, l: "Mar" }, { i: 3, l: "Mer" }, { i: 4, l: "Jeu" },
+      { i: 5, l: "Ven" }, { i: 6, l: "Sam" }, { i: 0, l: "Dim" },
+    ];
+    const maxHeat = Math.max(1, ...Object.values(a.heatmap));
+    const cell = (wd: number, slot: "morning" | "afternoon") => {
+      const n = a.heatmap[`${wd}-${slot}`] || 0;
+      const alpha = n === 0 ? 0 : 0.12 + 0.6 * (n / maxHeat);
+      return (
+        <div
+          className="grid h-9 place-items-center rounded-lg border border-white/8 text-xs font-semibold text-white/85"
+          key={`${wd}-${slot}`}
+          style={{ background: `rgba(232,201,138,${alpha})` }}
+          title={`${n} RDV`}
+        >
+          {n || ""}
+        </div>
+      );
+    };
+    return (
+      <article className="bb-surface p-5 md:p-6">
+        <div className="bb-section-head">
+          <div>
+            <p className="bb-eyebrow">Analytics</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Donnees & retention</h2>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs uppercase tracking-[0.16em] text-white/40">Inscriptions</p>
+            <p className="mt-2 text-2xl font-semibold text-white">{a.funnel.rate}%</p>
+            <p className="mt-0.5 text-xs text-white/45">
+              {a.funnel.used}/{a.funnel.requested} codes utilises -&gt; comptes crees
+            </p>
+          </div>
+          {cohort("BBX", a.retention.bbx)}
+          {cohort("Fondateurs", a.retention.founders)}
+        </div>
+
+        <p className="mt-5 text-xs uppercase tracking-[0.16em] text-white/40">
+          Creneaux demandes (180 j)
+        </p>
+        <div className="mt-3 grid grid-cols-[auto_1fr_1fr] items-center gap-2">
+          <span />
+          <span className="text-center text-xs text-white/45">Matin</span>
+          <span className="text-center text-xs text-white/45">Apres-midi</span>
+          {WD.map((d) => (
+            <React.Fragment key={d.i}>
+              <span className="text-xs text-white/55">{d.l}</span>
+              {cell(d.i, "morning")}
+              {cell(d.i, "afternoon")}
+            </React.Fragment>
+          ))}
+        </div>
+      </article>
     );
   }
 

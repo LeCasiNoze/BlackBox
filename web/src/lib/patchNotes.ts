@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.15.0";
+export const APP_VERSION = "1.16.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.16.0",
+    date: "2026-06-16",
+    title: "Analytics admin (donnees & retention)",
+    changes: [
+      "Nouveau panneau Analytics dans le Hall : taux de conversion des inscriptions, cohortes de retention (BBX vs Fondateurs : deja venus / actifs 90j / fideles), et heatmap des creneaux demandes (180 jours).",
+    ],
+  },
   {
     version: "1.15.0",
     date: "2026-06-16",
