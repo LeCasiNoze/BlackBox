@@ -713,6 +713,17 @@ export function AdminDashboardPage() {
   const [goodies, setGoodies] = React.useState<AdminGoodie[]>([]);
   const [goodieFilter, setGoodieFilter] = React.useState<"pending" | "honored">("pending");
   const [goodiePending, setGoodiePending] = React.useState(0);
+  const [companySettings, setCompanySettings] = React.useState<Record<string, string>>({
+    name: "",
+    legalForm: "",
+    address: "",
+    city: "",
+    siret: "",
+    vatNote: "",
+    email: "",
+    phone: "",
+  });
+  const [companySaving, setCompanySaving] = React.useState(false);
 
   const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
   const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
@@ -1038,6 +1049,46 @@ export function AdminDashboardPage() {
       active = false;
     };
   }, [refreshToken]);
+
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/settings/company");
+        const json = await response.json();
+        if (active && response.ok && json.ok && json.company) {
+          setCompanySettings((prev) => ({ ...prev, ...json.company }));
+        }
+      } catch (_error) {
+        // silencieux
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function saveCompanySettings() {
+    setCompanySaving(true);
+    try {
+      const response = await fetch("/api/admin/settings/company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(companySettings),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && json.ok) {
+        if (json.company) setCompanySettings((prev) => ({ ...prev, ...json.company }));
+        showToast("Infos societe enregistrees.");
+      } else {
+        showToast("Echec de l'enregistrement.");
+      }
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setCompanySaving(false);
+    }
+  }
 
   React.useEffect(() => {
     let active = true;
@@ -2490,8 +2541,68 @@ export function AdminDashboardPage() {
 
         {renderEventsPanel()}
         {renderGoodiesPanel()}
+        {renderCompanySettingsPanel()}
         {renderPatchNotesPanel()}
       </>
+    );
+  }
+
+  // Reglages societe (mentions sur les factures clients).
+  function renderCompanySettingsPanel() {
+    const fields: Array<{ key: string; label: string; placeholder: string; full?: boolean }> = [
+      { key: "name", label: "Raison sociale", placeholder: "Bryan Cars" },
+      { key: "legalForm", label: "Forme / statut", placeholder: "Auto-entrepreneur" },
+      { key: "address", label: "Adresse", placeholder: "12 rue ...", full: true },
+      { key: "city", label: "Code postal + ville", placeholder: "71500 Louhans" },
+      { key: "siret", label: "SIRET", placeholder: "123 456 789 00012" },
+      { key: "email", label: "E-mail", placeholder: "contact@..." },
+      { key: "phone", label: "Telephone", placeholder: "06 ..." },
+      {
+        key: "vatNote",
+        label: "Mention TVA",
+        placeholder: "TVA non applicable, art. 293 B du CGI",
+        full: true,
+      },
+    ];
+    return (
+      <article className="bb-surface p-5 md:p-6">
+        <div className="bb-section-head">
+          <div>
+            <p className="bb-eyebrow">Societe</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Mentions des factures</h2>
+            <p className="mt-1 text-sm text-white/55">
+              Ces informations apparaissent sur les factures clients.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {fields.map((field) => (
+            <label className={cn("space-y-1.5", field.full && "sm:col-span-2")} key={field.key}>
+              <span className="text-xs uppercase tracking-[0.16em] text-white/40">{field.label}</span>
+              <input
+                className="bb-input"
+                onChange={(event) =>
+                  setCompanySettings((prev) => ({ ...prev, [field.key]: event.target.value }))
+                }
+                placeholder={field.placeholder}
+                value={companySettings[field.key] ?? ""}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-4">
+          <button
+            className="bb-button-brand"
+            disabled={companySaving}
+            onClick={() => {
+              void saveCompanySettings();
+            }}
+            type="button"
+          >
+            {companySaving ? "Enregistrement..." : "Enregistrer"}
+          </button>
+        </div>
+      </article>
     );
   }
 

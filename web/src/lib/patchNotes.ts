@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.6.0";
+export const APP_VERSION = "1.7.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.7.0",
+    date: "2026-06-16",
+    title: "Factures clients",
+    changes: [
+      "Le client retrouve ses factures (paiements regles) dans Suivi, avec une facture imprimable / enregistrable en PDF.",
+      "Admin : panneau 'Mentions des factures' (raison sociale, SIRET, TVA, adresse...) editable, repris automatiquement sur les factures.",
+    ],
+  },
   {
     version: "1.6.0",
     date: "2026-06-16",

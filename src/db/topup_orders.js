@@ -366,12 +366,35 @@ function processPaidTopupOrder(orderId, checkout) {
   return transaction();
 }
 
+// Paiements regles d'un client (pour les factures).
+function listPaidTopupOrdersByClient(clientId) {
+  return db
+    .prepare(
+      `SELECT * FROM topup_orders
+       WHERE client_id = ? AND paid_at IS NOT NULL
+       ORDER BY paid_at DESC, id DESC`,
+    )
+    .all(clientId);
+}
+
+function getPaidTopupOrderForClient(clientId, orderId) {
+  return (
+    db
+      .prepare(
+        `SELECT * FROM topup_orders WHERE id = ? AND client_id = ? AND paid_at IS NOT NULL LIMIT 1`,
+      )
+      .get(orderId, clientId) || null
+  );
+}
+
 module.exports = {
   attachTopupCheckoutSession,
   createTopupOrder,
+  getPaidTopupOrderForClient,
   getTopupOrderByCheckoutId,
   getTopupOrderByCheckoutReference,
   getTopupOrderById,
+  listPaidTopupOrdersByClient,
   mapTopupOrderRow,
   processPaidTopupOrder,
   syncTopupOrderFromCheckout,

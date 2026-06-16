@@ -78,11 +78,14 @@ const {
 const {
   createTopupOrder,
   attachTopupCheckoutSession,
+  getPaidTopupOrderForClient,
   getTopupOrderByCheckoutReference,
+  listPaidTopupOrdersByClient,
   mapTopupOrderRow,
   processPaidTopupOrder,
   syncTopupOrderFromCheckout,
 } = require("../db/topup_orders");
+const { getCompanyInfo } = require("../db/settings");
 const { getPartnerForfait, listPartnerForfaits } = require("../config/partnerForfaits");
 const {
   createPartnerOrder,
@@ -986,6 +989,71 @@ router.post("/:idOrSlug/waitlist", (req, res) => {
     console.error("[API] waitlist join:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
+});
+
+function invoiceNumberFor(order) {
+  const ts = Number(order.paid_at || order.created_at || 0);
+  const year = ts ? new Date(ts * 1000).getFullYear() : new Date().getFullYear();
+  return `BC-${year}-${String(order.id).padStart(5, "0")}`;
+}
+
+// Liste des factures (paiements regles) du client.
+router.get("/:idOrSlug/invoices", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  try {
+    const invoices = listPaidTopupOrdersByClient(client.id).map((order) => ({
+      id: order.id,
+      number: invoiceNumberFor(order),
+      label: order.offer_label || "Paiement",
+      credits: order.credits ?? 0,
+      amountCents: order.amount_cents ?? 0,
+      currency: order.currency || "EUR",
+      paidAt: order.paid_at ?? order.created_at ?? null,
+    }));
+    return res.json({ ok: true, invoices });
+  } catch (error) {
+    console.error("[API] invoices:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Detail d'une facture (pour la page imprimable).
+router.get("/:idOrSlug/invoices/:orderId", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  const order = getPaidTopupOrderForClient(client.id, Number(req.params.orderId || 0));
+  if (!order) {
+    return res.status(404).json({ ok: false, error: "invoice_not_found" });
+  }
+
+  return res.json({
+    ok: true,
+    invoice: {
+      number: invoiceNumberFor(order),
+      issuedAt: order.paid_at ?? order.created_at ?? null,
+      label: order.offer_label || "Paiement",
+      credits: order.credits ?? 0,
+      amountCents: order.amount_cents ?? 0,
+      currency: order.currency || "EUR",
+      paymentMethod: "Carte (SumUp)",
+      company: getCompanyInfo(),
+      client: {
+        name:
+          client.full_name ||
+          `${client.first_name || ""} ${client.last_name || ""}`.trim() ||
+          "Client",
+        email: client.email || "",
+        address: client.address_line1 || "",
+        city: [client.postal_code, client.city].filter(Boolean).join(" "),
+        cardCode: client.card_code || client.slug || "",
+      },
+    },
+  });
 });
 
 router.post("/:idOrSlug/topup/sync", async (req, res) => {

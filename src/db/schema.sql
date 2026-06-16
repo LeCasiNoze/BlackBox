@@ -400,6 +400,15 @@ CREATE INDEX IF NOT EXISTS idx_waitlist_slot
   ON appointment_waitlist(date, slot);
 
 -- ============================
+-- TABLE app_settings (reglages editables: infos societe pour factures, etc.)
+-- ============================
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  updated_at INTEGER
+);
+
+-- ============================
 -- TABLE export_jobs
 -- ============================
 CREATE TABLE IF NOT EXISTS export_jobs (

@@ -46,9 +46,10 @@ l'admin → Hall → « Notes de version »).
 
 - ✅ **5.1 Apple Pay / Google Pay** — géré par la page hébergée SumUp (à activer
   dans le dashboard SumUp, pas de dev). *Vérifié.*
-- ⏳ **5.5 Factures** : le client demande sa facture → génération + envoi PDF par
-  mail. *(Besoin des infos légales : raison sociale, adresse, SIRET, statut TVA,
-  numérotation.)*
+- ✅ **5.5 Factures** : le client retrouve ses factures (paiements réglés) dans
+  Suivi → facture imprimable / PDF (`web/src/pages/InvoicePage.tsx`). Mentions
+  société éditables dans l'admin (`src/db/settings.js`). *(N° = `BC-AAAA-NNNNN` ;
+  numérotation strictement séquentielle = à durcir si besoin légal.)*
 
 ## 6. Communication client
 

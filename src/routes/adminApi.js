@@ -27,6 +27,7 @@ const {
 const { getReviewBoxGoodie } = require("../config/reviewBox");
 const { getConsolationGoodie } = require("../config/eventRewards");
 const { notifyWaitlistForFreedSlot } = require("../services/waitlistNotifier");
+const { getCompanyInfo, setCompanyInfo } = require("../db/settings");
 const {
   countParticipants,
   createEvent,
@@ -1200,6 +1201,25 @@ router.post("/events/:id/draw", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Reglages societe (mentions sur les factures).
+router.get("/settings/company", (_req, res) => {
+  try {
+    return res.json({ ok: true, company: getCompanyInfo() });
+  } catch (error) {
+    console.error("[adminApi] GET /settings/company:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/settings/company", (req, res) => {
+  try {
+    return res.json({ ok: true, company: setCompanyInfo(req.body || {}) });
+  } catch (error) {
+    console.error("[adminApi] POST /settings/company:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

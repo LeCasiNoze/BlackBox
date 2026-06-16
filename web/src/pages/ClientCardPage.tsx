@@ -1298,6 +1298,17 @@ export function ClientCardPage() {
   const [appointmentsLoading, setAppointmentsLoading] = React.useState(true);
   const [communityItems, setCommunityItems] = React.useState<PublicShowcaseItem[]>([]);
   const [communityLoading, setCommunityLoading] = React.useState(true);
+  const [invoices, setInvoices] = React.useState<
+    Array<{
+      id: number;
+      number: string;
+      label: string;
+      credits: number;
+      amountCents: number;
+      currency: string;
+      paidAt: number | null;
+    }>
+  >([]);
   // Section avis: uniquement les retours avec une note etoilee et/ou un
   // commentaire ecrit (on n'affiche plus les photos).
   const communityReviews = React.useMemo(
@@ -1607,6 +1618,36 @@ export function ClientCardPage() {
 
     void loadCommunity();
 
+    return () => {
+      active = false;
+    };
+  }, [slug, reloadToken]);
+
+  // Factures (paiements regles) du client.
+  React.useEffect(() => {
+    let active = true;
+    async function loadInvoices() {
+      try {
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/invoices`);
+        if (!response.ok) return;
+        const json = (await response.json()) as {
+          ok?: boolean;
+          invoices?: Array<{
+            id: number;
+            number: string;
+            label: string;
+            credits: number;
+            amountCents: number;
+            currency: string;
+            paidAt: number | null;
+          }>;
+        };
+        if (active && json.ok && json.invoices) setInvoices(json.invoices);
+      } catch {
+        /* best-effort */
+      }
+    }
+    void loadInvoices();
     return () => {
       active = false;
     };
@@ -5163,6 +5204,42 @@ export function ClientCardPage() {
               </div>
             </article>
           </div>
+        )}
+
+        {invoices.length > 0 && (
+          <article className="bb-surface p-6">
+            <div className="bb-section-head">
+              <div>
+                <p className="bb-eyebrow">Factures</p>
+                <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Mes factures</h2>
+              </div>
+            </div>
+            <div className="mt-5 space-y-2">
+              {invoices.map((inv) => (
+                <Link
+                  className="bb-hairline bb-hover-lift flex items-center justify-between gap-3 p-4"
+                  key={inv.id}
+                  to={`/card/${encodeURIComponent(slug)}/facture/${inv.id}`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{inv.label}</p>
+                    <p className="text-xs text-white/45">
+                      {inv.number}
+                      {inv.paidAt
+                        ? ` · ${new Date(inv.paidAt * 1000).toLocaleDateString("fr-FR")}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-sm font-semibold text-accentSoft">
+                      {(inv.amountCents / 100).toFixed(2).replace(".", ",")} €
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-accent" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </article>
         )}
       </section>
     );
