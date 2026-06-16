@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -751,12 +752,18 @@ function CaseOpeningModal({
     result?.reward.tier === "credit_1";
 
   return (
-    <div
+    <motion.div
       className="fixed inset-0 z-[57] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.22 }}
       onClick={revealed ? onClose : undefined}
     >
-      <div
+      <motion.div
         className="bb-surface-strong relative flex w-full max-w-3xl flex-col gap-6 overflow-hidden p-6 md:p-8"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 24 }}
         onClick={(event) => event.stopPropagation()}
       >
         {/* Confettis a la revelation (densite selon la rarete) */}
@@ -870,25 +877,31 @@ function CaseOpeningModal({
 
         {/* Resultat revele */}
         {revealed && result && (
-          <div
+          <motion.div
             className={cn(
               "flex flex-col items-center gap-4 rounded-[24px] border p-6 text-center",
               highlightWin
                 ? "border-accent/50 bg-accent/10 shadow-[0_0_48px_rgb(var(--bb-accent-rgb)/0.25)]"
                 : "border-white/10 bg-white/[0.04]",
             )}
+            initial={{ opacity: 0, scale: 0.85, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 220, damping: 18, delay: 0.05 }}
           >
             {isGoodie ? (
               <>
-                <div
+                <motion.div
                   className="text-3xl font-bold md:text-4xl"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 13, delay: 0.18 }}
                   style={{
                     color: wonTierColor,
                     textShadow: highlightWin ? `0 0 24px ${wonTierColor}` : undefined,
                   }}
                 >
                   {result.reward.label}
-                </div>
+                </motion.div>
                 <p className="text-sm text-white/60">
                   {result.reward.tier === "credit_1"
                     ? "1 crédit ajoute a ton compte !"
@@ -899,15 +912,18 @@ function CaseOpeningModal({
               </>
             ) : (
               <>
-                <div
+                <motion.div
                   className="text-5xl font-bold"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 13, delay: 0.18 }}
                   style={{
                     color: wonTierColor,
                     textShadow: highlightWin ? `0 0 24px ${wonTierColor}` : undefined,
                   }}
                 >
                   +{result.reward.bc} BC
-                </div>
+                </motion.div>
                 <div>
                   <p className="text-lg font-semibold" style={{ color: wonTierColor }}>
                     {result.reward.label}
@@ -925,11 +941,11 @@ function CaseOpeningModal({
             >
               {highlightWin ? "Incroyable !" : "Genial !"}
             </button>
-          </div>
+          </motion.div>
         )}
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

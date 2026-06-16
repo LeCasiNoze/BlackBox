@@ -2,6 +2,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 import "./index.css";
 import { ClientCardPage, CaseDemoPage } from "./pages/ClientCardPage";
 import { ClientTermsPage } from "./pages/ClientTermsPage";
@@ -12,7 +13,8 @@ import { InvoicePage } from "./pages/InvoicePage";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <MotionConfig reducedMotion="user">
+      <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/card/:slug" element={<ClientCardPage />} />
@@ -23,7 +25,8 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <Route path="/admin/*" element={<AdminDashboardPage />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </MotionConfig>
   </React.StrictMode>
 );
 

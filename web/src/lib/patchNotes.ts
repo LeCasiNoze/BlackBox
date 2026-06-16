@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.18.0";
+export const APP_VERSION = "1.19.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.19.0",
+    date: "2026-06-16",
+    title: "Ouverture de case — animations (Framer Motion)",
+    changes: [
+      "L'ouverture de case (box BC'Coins) gagne des animations plus fluides : apparition en ressort de la fenetre et de la carte de gain, « pop » du montant gagne — en plus des confettis et du reel.",
+      "Les animations Framer Motion respectent le reglage systeme « animations reduites » (accessibilite).",
+    ],
+  },
   {
     version: "1.18.0",
     date: "2026-06-16",
