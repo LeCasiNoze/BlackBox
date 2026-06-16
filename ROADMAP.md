@@ -40,7 +40,9 @@ l'admin → Hall → « Notes de version »).
 
 - ✅ **4.3 Liste d'attente** : sur un créneau pris, le client s'inscrit ; à
   l'annulation (client OU admin), **tous** les inscrits sont prévenus (mail +
-  push). `src/db/waitlist.js` + `src/services/waitlistNotifier.js`.
+  push). La liste n'est **pas** vidée : à chaque re-libération on re-prévient les
+  mêmes + les nouveaux ; l'inscription part quand le client réserve, et les dates
+  passées sont purgées. `src/db/waitlist.js` + `src/services/waitlistNotifier.js`.
 - ✅ **4.4 Bouton « Ajouter à mon agenda »** (client + admin) — `.ics` + lien
   Google Calendar par RDV (`web/src/lib/calendar.ts`). *(Sync OAuth = plus tard.)*
 

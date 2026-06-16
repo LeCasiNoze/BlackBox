@@ -33,6 +33,11 @@ function clearWaitlistForSlot(date, slot) {
   db.prepare(`DELETE FROM appointment_waitlist WHERE date = ? AND slot = ?`).run(date, slot);
 }
 
+// Nettoyage des inscriptions dont la date est passee.
+function purgePastWaitlist() {
+  db.prepare(`DELETE FROM appointment_waitlist WHERE date < date('now')`).run();
+}
+
 // Entrees d'un client (pour afficher "tu es en attente" cote portail).
 function getClientWaitlist(clientId) {
   return db
@@ -48,5 +53,6 @@ module.exports = {
   leaveWaitlist,
   listWaitlistForSlot,
   clearWaitlistForSlot,
+  purgePastWaitlist,
   getClientWaitlist,
 };

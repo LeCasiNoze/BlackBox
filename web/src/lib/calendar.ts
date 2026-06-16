@@ -21,7 +21,7 @@ function startEndStamps(ev: CalendarEvent): { start: string; end: string } {
   const [y, m, d] = ev.date.split("-").map((v) => Number(v));
   const [hh, mm] = time.split(":").map((v) => Number(v));
   const startDate = new Date(y, m - 1, d, hh, mm);
-  const endDate = new Date(startDate.getTime() + (ev.durationMinutes ?? 120) * 60000);
+  const endDate = new Date(startDate.getTime() + (ev.durationMinutes ?? 240) * 60000);
   const fmt = (dt: Date) =>
     `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(
       dt.getMinutes(),

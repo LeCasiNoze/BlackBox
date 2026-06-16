@@ -28,7 +28,7 @@ const {
   attachPendingGoodieWinsToNextAppointment,
   listPendingGoodieWinsForAppointment,
 } = require("../db/goodieWins");
-const { joinWaitlist, getClientWaitlist } = require("../db/waitlist");
+const { joinWaitlist, getClientWaitlist, leaveWaitlist } = require("../db/waitlist");
 const { notifyWaitlistForFreedSlot } = require("../services/waitlistNotifier");
 const {
   getActiveEventForClient,
@@ -1671,6 +1671,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
     // Rattache au nouveau RDV les lots gagnes en attente de remise.
     attachPendingGoodieWinsToNextAppointment(client.id);
+
+    // Le client a reserve ce creneau: on le retire de la liste d'attente.
+    leaveWaitlist(client.id, date, slot);
 
     try {
       await sendAdminNotification({
