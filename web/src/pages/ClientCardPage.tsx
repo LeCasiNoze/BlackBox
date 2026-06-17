@@ -1449,6 +1449,9 @@ export function ClientCardPage() {
     entries: Array<{ rank: number; name: string; bc: number; isYou: boolean }>;
   } | null>(null);
   const [assistantOpen, setAssistantOpen] = React.useState(false);
+  // Bulle assistant deplaçable (drag & drop). chatPos null = position par defaut.
+  const [chatPos, setChatPos] = React.useState<{ x: number; y: number } | null>(null);
+  const chatDragRef = React.useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
   const [assistantScreen, setAssistantScreen] = React.useState("root");
   const eventReelRef = React.useRef<HTMLDivElement>(null);
   const [eventPrereqs, setEventPrereqs] = React.useState({
@@ -2857,7 +2860,10 @@ export function ClientCardPage() {
 
     return (
       <div className="bb-event-glow bb-rise rounded-[26px]">
-        <div className="relative z-[2] flex flex-wrap items-center justify-between gap-4 p-4 md:p-5">
+        <div
+          className="relative z-[2] flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 md:p-5"
+          onClick={() => setEventModalOpen(true)}
+        >
           <div className="min-w-0">
             <p className="bb-eyebrow flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
@@ -3970,8 +3976,38 @@ export function ClientCardPage() {
         {!assistantOpen && (
           <button
             aria-label="Assistant"
-            className="bb-button-brand fixed bottom-20 right-4 z-[58] grid h-14 w-14 place-items-center rounded-full p-0 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:bottom-6"
-            onClick={() => setAssistantOpen(true)}
+            className="bb-button-brand fixed bottom-20 right-4 z-[58] grid h-14 w-14 touch-none place-items-center rounded-full p-0 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:bottom-6"
+            onPointerDown={(event) => {
+              chatDragRef.current = { startX: event.clientX, startY: event.clientY, moved: false };
+              try {
+                (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+              } catch {
+                /* noop */
+              }
+            }}
+            onPointerMove={(event) => {
+              const drag = chatDragRef.current;
+              if (!drag) return;
+              const dx = event.clientX - drag.startX;
+              const dy = event.clientY - drag.startY;
+              if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+              drag.moved = true;
+              const size = 56;
+              const x = Math.min(Math.max(8, event.clientX - size / 2), window.innerWidth - size - 8);
+              const y = Math.min(Math.max(8, event.clientY - size / 2), window.innerHeight - size - 8);
+              setChatPos({ x, y });
+            }}
+            onPointerUp={(event) => {
+              const drag = chatDragRef.current;
+              chatDragRef.current = null;
+              try {
+                (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+              } catch {
+                /* noop */
+              }
+              if (drag && !drag.moved) setAssistantOpen(true);
+            }}
+            style={chatPos ? { left: chatPos.x, top: chatPos.y, right: "auto", bottom: "auto" } : undefined}
             type="button"
           >
             <MessageCircle className="h-6 w-6" />

@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.23.0";
+export const APP_VERSION = "1.24.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.24.0",
+    date: "2026-06-16",
+    title: "Accueil client : carte evenement cliquable + bulle assistant deplaçable",
+    changes: [
+      "La carte « Evenement » de l'accueil s'ouvre en cliquant n'importe ou dessus (plus seulement sur le bouton).",
+      "La bulle de l'assistant (chat) est deplaçable par glisser-deposer pour ne plus gener la lecture.",
+    ],
+  },
   {
     version: "1.23.0",
     date: "2026-06-16",
