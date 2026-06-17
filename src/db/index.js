@@ -158,6 +158,24 @@ function ensureAppointmentPhotosExtraColumns() {
   }
 }
 
+function ensureEventsExtraColumns() {
+  try {
+    const cols = getTableColumns("events");
+    if (cols.length === 0) return;
+    const colNames = cols.map((column) => column.name);
+    if (!colNames.includes("draw_names")) {
+      console.log("[DB] Ajout de la colonne events.draw_names");
+      db.exec(`ALTER TABLE events ADD COLUMN draw_names TEXT;`);
+    }
+    if (!colNames.includes("draw_history")) {
+      console.log("[DB] Ajout de la colonne events.draw_history");
+      db.exec(`ALTER TABLE events ADD COLUMN draw_history TEXT;`);
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureEventsExtraColumns:", error);
+  }
+}
+
 function ensureClientsExtraColumns() {
   try {
     const cols = getClientsColumns();
@@ -656,6 +674,7 @@ ensureClientsTypeAllowsPro();
 applySchema();
 ensureGoodieWinsExtraColumns();
 ensureEventParticipationsExtraColumns();
+ensureEventsExtraColumns();
 ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
 

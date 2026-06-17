@@ -345,6 +345,8 @@ CREATE TABLE IF NOT EXISTS events (
   consolation_enabled INTEGER NOT NULL DEFAULT 1 CHECK (consolation_enabled IN (0, 1)),
   winner_client_id    INTEGER,
   drawn_at            INTEGER,
+  draw_names          TEXT,
+  draw_history        TEXT,
   created_at          INTEGER NOT NULL,
   updated_at          INTEGER NOT NULL
 );

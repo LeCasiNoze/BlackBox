@@ -36,10 +36,14 @@ const {
   deleteEvent,
   drawWinner,
   getEventById,
+  getEventDrawHistory,
+  getEventDrawParticipants,
   listEvents,
   listParticipants,
   mapEventRow,
+  recordEventDraw,
   setActive,
+  setEventDrawNames,
   updateEvent,
 } = require("../db/events");
 const {
@@ -1262,6 +1266,53 @@ router.post("/events/:id/draw", (req, res) => {
     });
   } catch (error) {
     console.error("[adminApi] POST /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Tirage immersif (filmable) : liste combinee des participants + historique.
+router.get("/events/:id/draw", (req, res) => {
+  try {
+    const id = Number(req.params.id || 0);
+    return res.json({
+      ok: true,
+      participants: getEventDrawParticipants(id),
+      history: getEventDrawHistory(id),
+    });
+  } catch (error) {
+    console.error("[adminApi] GET /events/:id/draw:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Noms ajoutes a la main (collage / saisie) pour le tirage.
+router.post("/events/:id/draw-names", (req, res) => {
+  try {
+    const id = Number(req.params.id || 0);
+    const raw = req.body?.names;
+    const names = Array.isArray(raw)
+      ? raw
+      : String(req.body?.text || "")
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+    const saved = setEventDrawNames(id, names);
+    return res.json({ ok: true, names: saved, participants: getEventDrawParticipants(id) });
+  } catch (error) {
+    console.error("[adminApi] POST /events/:id/draw-names:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// Cloture du tirage : enregistre les gagnants dans l'historique + clot l'event.
+router.post("/events/:id/draw-finish", (req, res) => {
+  try {
+    const id = Number(req.params.id || 0);
+    const result = recordEventDraw(id, req.body?.winners);
+    if (!result.ok) return res.status(400).json({ ok: false, error: result.error });
+    return res.json({ ok: true, event: eventView(getEventById(id)), history: result.history });
+  } catch (error) {
+    console.error("[adminApi] POST /events/:id/draw-finish:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

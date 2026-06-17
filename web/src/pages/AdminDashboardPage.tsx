@@ -37,6 +37,7 @@ import { Link, useLocation } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
+import { DrawModal } from "../components/DrawModal";
 import { APP_VERSION, PATCH_NOTES } from "../lib/patchNotes";
 import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "../lib/calendar";
 import {
@@ -123,6 +124,8 @@ type AdminEvent = {
   winnerName: string | null;
   drawnAt: number | null;
   participants: number;
+  drawNames?: string[];
+  drawHistory?: Array<{ drawnAt: number; participantCount: number; winners: string[] }>;
 };
 
 type AdminStats = {
@@ -749,6 +752,8 @@ export function AdminDashboardPage() {
   const [founderMediaFile, setFounderMediaFile] = React.useState<File | null>(null);
 
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
+  const [drawEvent, setDrawEvent] = React.useState<AdminEvent | null>(null);
+  const [drawNamesDraft, setDrawNamesDraft] = React.useState<Record<number, string>>({});
   const [eventDraft, setEventDraft] = React.useState<EventDraft | null>(null);
   const [eventBusy, setEventBusy] = React.useState(false);
   const [participantsByEvent, setParticipantsByEvent] = React.useState<
@@ -1094,6 +1099,35 @@ export function AdminDashboardPage() {
 
   function showToast(message: string) {
     setToast(message);
+  }
+
+  const loadEvents = React.useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/events");
+      const json = await response.json();
+      if (response.ok && json.ok) setEvents(json.events as AdminEvent[]);
+    } catch (_error) {
+      // silencieux
+    }
+  }, []);
+
+  async function saveDrawNames(eventId: number) {
+    const current = events.find((e) => e.id === eventId);
+    const text = drawNamesDraft[eventId] ?? (current?.drawNames || []).join("\n");
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/draw-names`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const json = await response.json();
+      if (response.ok && json.ok) {
+        await loadEvents();
+        showToast("Liste de tirage enregistree.");
+      }
+    } catch (_error) {
+      showToast("Erreur lors de l'enregistrement.");
+    }
   }
 
   React.useEffect(() => {
@@ -2575,14 +2609,12 @@ export function AdminDashboardPage() {
                     {event.isActive ? "Desactiver" : "Activer"}
                   </button>
                   <button
-                    className="bb-button-ghost px-3 py-2"
-                    disabled={eventBusy || !!event.drawnAt}
-                    onClick={() => {
-                      void eventAction(event.id, "/draw");
-                    }}
+                    className="bb-button-brand px-3 py-2"
+                    onClick={() => setDrawEvent(event)}
                     type="button"
                   >
-                    {event.drawnAt ? "Tirage fait" : "Tirer au sort"}
+                    <Trophy className="mr-1.5 h-4 w-4" />
+                    Tirer au sort
                   </button>
                   <button
                     className="bb-button-ghost px-3 py-2"
@@ -2656,6 +2688,69 @@ export function AdminDashboardPage() {
                             </span>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Edition des participants du tirage (collage / ajout manuel) */}
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
+                        Noms ajoutes a la main (tirage)
+                      </p>
+                      <p className="mt-1 text-xs text-white/45">
+                        Un nom par ligne (ex. liste collee depuis Instagram). Ils s'ajoutent aux
+                        participants de l'app pour le tirage.
+                      </p>
+                      <textarea
+                        className="bb-textarea mt-2 min-h-[90px] text-xs"
+                        onChange={(e) =>
+                          setDrawNamesDraft((d) => ({ ...d, [event.id]: e.target.value }))
+                        }
+                        placeholder={"Marie Dupont\nKevin Martin\n..."}
+                        value={drawNamesDraft[event.id] ?? (event.drawNames || []).join("\n")}
+                      />
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs text-white/45">
+                          {participantsByEvent[event.id]?.length ?? event.participants} de l'app
+                          {(event.drawNames?.length ?? 0) > 0
+                            ? ` + ${event.drawNames?.length} ajoute(s)`
+                            : ""}
+                        </span>
+                        <button
+                          className="bb-button-brand px-4 py-2 text-xs"
+                          onClick={() => {
+                            void saveDrawNames(event.id);
+                          }}
+                          type="button"
+                        >
+                          Enregistrer la liste
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Historique des tirages */}
+                    {(event.drawHistory?.length ?? 0) > 0 && (
+                      <div className="mt-4 border-t border-white/10 pt-4">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
+                          Historique des tirages
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {event.drawHistory?.map((draw, index) => (
+                            <div
+                              className="rounded-[12px] border border-white/8 bg-white/[0.03] px-3 py-2"
+                              key={index}
+                            >
+                              <p className="text-xs text-white/45">
+                                {formatUnixDateTimeFR(draw.drawnAt)} · {draw.participantCount}{" "}
+                                participant(s)
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-accentSoft">
+                                {draw.winners.length > 0
+                                  ? draw.winners.join(", ")
+                                  : "Aucun gagnant enregistre"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -5135,6 +5230,17 @@ export function AdminDashboardPage() {
           </div>
         </div>
       </main>
+
+      {drawEvent && (
+        <DrawModal
+          eventId={drawEvent.id}
+          eventTitle={drawEvent.title}
+          onClose={() => setDrawEvent(null)}
+          onFinished={() => {
+            void loadEvents();
+          }}
+        />
+      )}
 
       {profileModalOpen && profileDraft && (
         <div className="bb-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">

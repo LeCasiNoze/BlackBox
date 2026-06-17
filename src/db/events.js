@@ -3,6 +3,16 @@ const { getClientById, grantTemporaryFounder } = require("./clients");
 const { recordGoodieWin } = require("./goodieWins");
 const { rollConsolationGoodie } = require("../config/eventRewards");
 
+function safeParseArray(raw) {
+  if (!raw) return [];
+  try {
+    const value = JSON.parse(raw);
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
 function mapEventRow(row) {
   if (!row) return null;
   return {
@@ -26,6 +36,8 @@ function mapEventRow(row) {
     consolationEnabled: !!row.consolation_enabled,
     winnerClientId: row.winner_client_id ?? null,
     drawnAt: row.drawn_at ?? null,
+    drawNames: safeParseArray(row.draw_names),
+    drawHistory: safeParseArray(row.draw_history),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -327,6 +339,63 @@ function ensureTestEvent() {
   });
 }
 
+function getEventDrawNames(eventId) {
+  const row = db.prepare(`SELECT draw_names FROM events WHERE id = ? LIMIT 1`).get(eventId);
+  return safeParseArray(row?.draw_names);
+}
+
+function setEventDrawNames(eventId, names) {
+  const clean = (Array.isArray(names) ? names : [])
+    .map((name) => String(name || "").trim())
+    .filter((name) => name.length > 0)
+    .slice(0, 2000);
+  db.prepare(`UPDATE events SET draw_names = ?, updated_at = ? WHERE id = ?`).run(
+    JSON.stringify(clean),
+    nowUnix(),
+    eventId,
+  );
+  return clean;
+}
+
+// Liste combinee des noms pour le tirage : participants app + noms ajoutes a la
+// main (collage/saisie admin), dedupliquee (insensible a la casse).
+function getEventDrawParticipants(eventId) {
+  const registered = listParticipants(eventId)
+    .map((participant) => (participant.clientName || "").trim())
+    .filter((name) => name.length > 0);
+  const manual = getEventDrawNames(eventId);
+  const seen = new Set();
+  const out = [];
+  for (const name of [...registered, ...manual]) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+function getEventDrawHistory(eventId) {
+  const row = db.prepare(`SELECT draw_history FROM events WHERE id = ? LIMIT 1`).get(eventId);
+  return safeParseArray(row?.draw_history);
+}
+
+function recordEventDraw(eventId, winners) {
+  const event = getEventById(eventId);
+  if (!event) return { ok: false, error: "event_not_found" };
+  const cleanWinners = (Array.isArray(winners) ? winners : [])
+    .map((winner) => String(winner || "").trim())
+    .filter((winner) => winner.length > 0);
+  const history = safeParseArray(event.draw_history);
+  const participantCount = getEventDrawParticipants(eventId).length;
+  const now = nowUnix();
+  history.unshift({ drawnAt: now, participantCount, winners: cleanWinners });
+  db.prepare(
+    `UPDATE events SET draw_history = ?, drawn_at = ?, is_active = 0, updated_at = ? WHERE id = ?`,
+  ).run(JSON.stringify(history.slice(0, 100)), now, now, eventId);
+  return { ok: true, history };
+}
+
 module.exports = {
   clientMatchesAudience,
   ensureTestEvent,
@@ -338,10 +407,15 @@ module.exports = {
   getActiveEventForClient,
   getEventById,
   getParticipation,
+  getEventDrawHistory,
+  getEventDrawNames,
+  getEventDrawParticipants,
   listEvents,
   listParticipants,
   mapEventRow,
   participate,
+  recordEventDraw,
+  setEventDrawNames,
   setActive,
   updateEvent,
 };

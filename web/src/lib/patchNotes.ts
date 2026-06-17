@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.24.0";
+export const APP_VERSION = "1.25.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,17 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.25.0",
+    date: "2026-06-17",
+    title: "Tirage au sort immersif (jeux concours)",
+    changes: [
+      "Nouveau tirage filmable : « Tirer au sort » ouvre une page noir & or plein ecran. Les noms defilent (animation de la box) puis ralentissent jusqu'au gagnant, affiche en grand avec confettis et son.",
+      "Re-tirage en excluant les gagnants precedents (2e, 3e gagnant), bouton « Terminer l'evenement », et bouton plein ecran pour filmer le tirage comme preuve.",
+      "Participants editables avant le tirage (participants de l'app + noms colles / ajoutes a la main) dans le panneau Evenements.",
+      "Historique des tirages (date, nombre de participants, gagnants) consultable dans le menu Evenements.",
+    ],
+  },
   {
     version: "1.24.0",
     date: "2026-06-16",
