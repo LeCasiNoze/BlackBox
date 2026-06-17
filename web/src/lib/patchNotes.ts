@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.25.0";
+export const APP_VERSION = "1.26.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.26.0",
+    date: "2026-06-17",
+    title: "Inscription : remontee auto vers la saisie du code",
+    changes: [
+      "Apres l'envoi du code (et a la creation du compte), la page d'inscription remonte automatiquement sur la carte pour voir directement la saisie du code.",
+    ],
+  },
   {
     version: "1.25.0",
     date: "2026-06-17",
