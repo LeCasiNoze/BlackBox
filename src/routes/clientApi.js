@@ -1749,14 +1749,11 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
     const clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
 
-    // Rattache au nouveau RDV les lots gagnes en attente de remise.
-    attachPendingGoodieWinsToNextAppointment(client.id);
-
-    // Le client a reserve ce creneau: on le retire de la liste d'attente.
-    leaveWaitlist(client.id, date, slot);
-
+    // Notifications d'abord : aucun effet de bord (lots, liste d'attente) ne doit
+    // pouvoir empecher l'e-mail + push admin de partir (notamment pour les pros,
+    // dont le RDV est confirme directement).
     try {
-      await sendAdminNotification({
+      const adminNotified = await sendAdminNotification({
         type: "book",
         client: {
           ...client,
@@ -1770,6 +1767,11 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         clientImageCount,
         appointmentId,
       });
+      if (!adminNotified) {
+        console.warn(
+          `[BOOK] Notif admin NON envoyee (clientId=${client.id}, pro=${isPro}). Verifier MAIL_ADMIN_TO / cle Brevo.`,
+        );
+      }
     } catch (error) {
       console.error("[MAIL] notif book:", error);
     }
@@ -1784,6 +1786,20 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       } catch (error) {
         console.error("[MAIL] notif pro confirmed:", error);
       }
+    }
+
+    // Effets de bord ensuite, isoles pour ne jamais casser la reponse ni les notifs.
+    try {
+      // Rattache au nouveau RDV les lots gagnes en attente de remise.
+      attachPendingGoodieWinsToNextAppointment(client.id);
+    } catch (error) {
+      console.error("[BOOK] attachPendingGoodieWins:", error);
+    }
+    try {
+      // Le client a reserve ce creneau: on le retire de la liste d'attente.
+      leaveWaitlist(client.id, date, slot);
+    } catch (error) {
+      console.error("[BOOK] leaveWaitlist:", error);
     }
 
     return res.json({ ok: true, created: true, clientImageCount });

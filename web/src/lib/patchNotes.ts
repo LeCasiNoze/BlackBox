@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.26.0";
+export const APP_VERSION = "1.27.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.27.0",
+    date: "2026-06-18",
+    title: "Reservation : notification admin fiabilisee (Pro inclus)",
+    changes: [
+      "La notification admin (e-mail + push) d'une nouvelle reservation part desormais en priorite, avant les traitements secondaires (lots gagnes, liste d'attente) : plus aucun effet de bord ne peut l'empecher d'etre envoyee — y compris pour les comptes Pro, dont le RDV est confirme directement.",
+      "Ajout d'une trace serveur si la notification admin n'a pas pu partir, pour diagnostiquer immediatement un souci d'envoi (cle Brevo / adresse admin).",
+    ],
+  },
   {
     version: "1.26.0",
     date: "2026-06-17",
