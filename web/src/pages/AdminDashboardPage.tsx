@@ -764,6 +764,10 @@ export function AdminDashboardPage() {
   const [goodies, setGoodies] = React.useState<AdminGoodie[]>([]);
   const [goodieFilter, setGoodieFilter] = React.useState<"pending" | "honored">("pending");
   const [goodiePending, setGoodiePending] = React.useState(0);
+  // LOT "RDV plus rapides" : id du RDV en attente de confirmation du tarif
+  // (recap "tu vas facturer X credits" avant de valider). Retirable : supprimer
+  // cet etat + le bloc recap dans la section "Tarif a valider".
+  const [pendingPriceConfirm, setPendingPriceConfirm] = React.useState<number | null>(null);
   const [companySettings, setCompanySettings] = React.useState<Record<string, string>>({
     name: "",
     legalForm: "",
@@ -2267,8 +2271,11 @@ export function AdminDashboardPage() {
                   : "Aperçu rapide — ouvrez une section pour travailler.";
 
   const [adminMenuOpen, setAdminMenuOpen] = React.useState(false);
+  // LOT "Confort mobile" : popover du bouton d'acces rapide flottant (FAB).
+  const [fabOpen, setFabOpen] = React.useState(false);
   React.useEffect(() => {
     setAdminMenuOpen(false);
+    setFabOpen(false);
   }, [adminSection]);
 
   // Garde le rendez-vous selectionne coherent avec l'onglet agenda/livraison:
@@ -2290,6 +2297,19 @@ export function AdminDashboardPage() {
 
   function appointmentAdminLink(appointment: AdminAppointment) {
     return `/admin/appointments?clientId=${appointment.clientId}&appointmentId=${appointment.id}`;
+  }
+
+  // LOT "RDV plus rapides" : credits qui seront factures si l'admin valide le
+  // tarif maintenant (custom > palier de proprete > tarif admin > estimation).
+  function plannedCreditsFor(appointment: AdminAppointment) {
+    const customRaw = customCreditDrafts[appointment.id];
+    const customNum = customRaw ? Number.parseInt(customRaw, 10) : Number.NaN;
+    if (Number.isFinite(customNum) && customNum > 0) return customNum;
+    const tier = cleanlinessDrafts[appointment.id];
+    if (tier === "very_clean") return 1;
+    if (tier === "correct") return 2;
+    if (tier === "dirty") return 3;
+    return appointment.approvedCredits || appointment.requestedCredits || 1;
   }
 
   function clientAdminLink(client: AdminClient) {
@@ -2886,6 +2906,209 @@ export function AdminDashboardPage() {
     );
   }
 
+  // ── LOT "Accueil actionnable" ──────────────────────────────────────────────
+  // Bloc autonome et retirable d'un seul coup : pour l'enlever, supprimer cette
+  // fonction + son appel `{renderHomeAttention()}` dans renderHomePage().
+  // Montre en un coup d'oeil ce qui demande une action (demandes a valider,
+  // livraisons a preparer) + des alertes (clients a recharger, lots a remettre).
+  function renderHomeAttention() {
+    const topPending = pendingRequests.slice(0, 3);
+    const deliveriesToPrep = upcomingAppointments.filter(
+      (appointment) => appointment.status === "confirmed",
+    );
+    const topDeliveries = deliveriesToPrep.slice(0, 3);
+    const lowCreditClients = clients.filter((client) => client.formulaRemaining <= 1);
+    const allClear =
+      topPending.length === 0 &&
+      topDeliveries.length === 0 &&
+      lowCreditClients.length === 0 &&
+      goodiePending === 0;
+
+    const attentionCard = (
+      appointment: AdminAppointment,
+      to: string,
+      tone: "pending" | "delivery",
+    ) => (
+      <Link
+        className={cn(
+          "bb-hover-lift group flex items-start gap-3 rounded-2xl border p-3.5 transition",
+          tone === "pending"
+            ? "border-amber-300/20 bg-amber-300/[0.05] hover:border-amber-300/40"
+            : "border-sky-300/20 bg-sky-300/[0.05] hover:border-sky-300/40",
+        )}
+        key={appointment.id}
+        to={to}
+      >
+        <span
+          className={cn(
+            "mt-0.5 inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border",
+            tone === "pending"
+              ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-300"
+              : "border-sky-300/25 bg-sky-300/[0.08] text-sky-300",
+          )}
+        >
+          {tone === "pending" ? <Clock3 className="h-4 w-4" /> : <Truck className="h-4 w-4" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-white">
+              {appointment.clientName || "Client"}
+            </span>
+            <span
+              className={cn(
+                "bb-pill",
+                tone === "pending"
+                  ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
+                  : "border-sky-300/25 bg-sky-300/10 text-sky-100",
+              )}
+            >
+              {slotLabel(appointmentSlot(appointment))}
+            </span>
+          </span>
+          <span className="mt-1 block text-xs text-white/55">
+            {formatDateFR(appointment.date)} &middot; {formatTimeHHMM(appointment.time)}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-white/40">
+            {appointment.vehicleModel || "Véhicule non renseigne"}
+          </span>
+        </span>
+        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-accent" />
+      </Link>
+    );
+
+    return (
+      <section className="bb-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="bb-eyebrow">A traiter</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Ce qui m'attend</h2>
+          </div>
+          {allClear && (
+            <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Tout est a jour
+            </span>
+          )}
+        </div>
+
+        {allClear ? (
+          <p className="mt-4 text-sm leading-6 text-white/55">
+            Aucune demande a valider, aucune livraison a preparer. Rien ne presse : profitez-en.
+          </p>
+        ) : (
+          <>
+            {(lowCreditClients.length > 0 || goodiePending > 0) && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {lowCreditClients.length > 0 && (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3.5 py-1.5 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45"
+                    to="/admin/clients"
+                  >
+                    <Coins className="h-3.5 w-3.5" />
+                    {lowCreditClients.length} client{lowCreditClients.length > 1 ? "s" : ""} a court de credits
+                  </Link>
+                )}
+                {goodiePending > 0 && (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3.5 py-1.5 text-xs font-semibold text-accent transition hover:border-accent/50"
+                    to="/admin/events"
+                  >
+                    <Gift className="h-3.5 w-3.5" />
+                    {goodiePending} lot{goodiePending > 1 ? "s" : ""} a remettre
+                  </Link>
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-grid h-8 w-8 place-items-center rounded-lg border border-amber-300/25 bg-amber-300/10 text-amber-200">
+                      <Inbox className="h-4 w-4" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-white">Demandes a valider</h3>
+                    <span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
+                      {pendingRequests.length}
+                    </span>
+                  </div>
+                  {pendingRequests.length > 0 && (
+                    <Link
+                      className="text-xs font-medium text-white/55 transition hover:text-accent"
+                      to="/admin/appointments"
+                    >
+                      Tout voir
+                    </Link>
+                  )}
+                </div>
+                {topPending.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {topPending.map((appointment) =>
+                      attentionCard(appointment, appointmentAdminLink(appointment), "pending"),
+                    )}
+                    {pendingRequests.length > topPending.length && (
+                      <Link
+                        className="block pt-1 text-xs text-white/50 transition hover:text-accent"
+                        to="/admin/appointments"
+                      >
+                        + {pendingRequests.length - topPending.length} autre(s) demande(s)
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs leading-5 text-white/40">Aucune demande en attente.</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-grid h-8 w-8 place-items-center rounded-lg border border-sky-300/25 bg-sky-300/10 text-sky-200">
+                      <Truck className="h-4 w-4" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-white">Livraisons a preparer</h3>
+                    <span className="bb-pill border-sky-300/25 bg-sky-300/10 text-sky-100">
+                      {deliveriesToPrep.length}
+                    </span>
+                  </div>
+                  {deliveriesToPrep.length > 0 && (
+                    <Link
+                      className="text-xs font-medium text-white/55 transition hover:text-accent"
+                      to="/admin/delivery"
+                    >
+                      Tout voir
+                    </Link>
+                  )}
+                </div>
+                {topDeliveries.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {topDeliveries.map((appointment) =>
+                      attentionCard(
+                        appointment,
+                        `/admin/delivery?clientId=${appointment.clientId}&appointmentId=${appointment.id}`,
+                        "delivery",
+                      ),
+                    )}
+                    {deliveriesToPrep.length > topDeliveries.length && (
+                      <Link
+                        className="block pt-1 text-xs text-white/50 transition hover:text-accent"
+                        to="/admin/delivery"
+                      >
+                        + {deliveriesToPrep.length - topDeliveries.length} autre(s) a preparer
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs leading-5 text-white/40">Rien a preparer pour l'instant.</p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    );
+  }
+
   function renderHomePage() {
     return (
       <>
@@ -2988,6 +3211,8 @@ export function AdminDashboardPage() {
             })}
           </div>
         </section>
+
+        {renderHomeAttention()}
 
         {/* Lanceur : acces direct a chaque section (fini le scroll infini) */}
         <section className="bb-surface p-5 md:p-6">
@@ -3650,6 +3875,7 @@ export function AdminDashboardPage() {
                           const iconTint = statusTints[appointment.status] ?? "border-white/12 bg-white/[0.04] text-white/50";
 
                           return (
+                            <div key={appointment.id} className="space-y-2">
                             <button
                               className={cn(
                                 "bb-hover-lift group w-full rounded-[22px] border p-4 text-left transition duration-200",
@@ -3659,7 +3885,6 @@ export function AdminDashboardPage() {
                                 highlighted && "ring-1 ring-accent/40",
                                 `bb-rise bb-rise-${Math.min(idx + 2, 4)}`,
                               )}
-                              key={appointment.id}
                               onClick={() => focusAppointment(appointment)}
                               type="button"
                             >
@@ -3717,6 +3942,37 @@ export function AdminDashboardPage() {
                                 <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-accent" />
                               </div>
                             </button>
+                            {/* LOT "RDV plus rapides" : action rapide sans ouvrir le panneau */}
+                            {(appointment.status === "requested" ||
+                              appointment.status === "confirmed") && (
+                              <div className="flex justify-end">
+                                {appointment.status === "requested" ? (
+                                  <button
+                                    className="bb-button-ghost px-3 py-1.5 text-xs"
+                                    onClick={() => focusAppointment(appointment)}
+                                    type="button"
+                                  >
+                                    <Coins className="mr-1.5 h-3.5 w-3.5" />
+                                    Fixer le tarif
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="bb-button-ghost px-3 py-1.5 text-xs"
+                                    disabled={busyAction}
+                                    onClick={() => {
+                                      if (window.confirm("Marquer ce rendez-vous comme effectue ?")) {
+                                        void changeStatus(appointment.id, "done");
+                                      }
+                                    }}
+                                    type="button"
+                                  >
+                                    <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                                    Marquer effectue
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            </div>
                           );
                         })}
                       </div>
@@ -4077,28 +4333,64 @@ export function AdminDashboardPage() {
                       </p>
                     )}
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <button
-                        className="bb-button-brand justify-center"
-                        disabled={busyAction}
-                        onClick={() => {
-                          void changeStatus(selectedAppointment.id, "confirmed");
-                        }}
-                        type="button"
-                      >
-                        Valider ce tarif
-                      </button>
-                      <button
-                        className="bb-button-ghost justify-center"
-                        disabled={busyAction}
-                        onClick={() => {
-                          void requestClientPhotos(selectedAppointment.id);
-                        }}
-                        type="button"
-                      >
-                        Demander des photos
-                      </button>
-                    </div>
+                    {/* LOT "RDV plus rapides" : recap credits avant de valider */}
+                    {pendingPriceConfirm === selectedAppointment.id ? (
+                      <div className="mt-5 rounded-2xl border border-accent/35 bg-accent/[0.08] p-4">
+                        <p className="text-sm font-semibold text-white">Confirmer le tarif</p>
+                        <p className="mt-1 text-sm leading-6 text-white/65">
+                          Le client sera facture de{" "}
+                          <span className="font-semibold text-accent">
+                            {plannedCreditsFor(selectedAppointment)} credit
+                            {plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}
+                          </span>{" "}
+                          pour ce rendez-vous.
+                        </p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <button
+                            className="bb-button-brand justify-center"
+                            disabled={busyAction}
+                            onClick={() => {
+                              setPendingPriceConfirm(null);
+                              void changeStatus(selectedAppointment.id, "confirmed");
+                            }}
+                            type="button"
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Confirmer {plannedCreditsFor(selectedAppointment)} credit
+                            {plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}
+                          </button>
+                          <button
+                            className="bb-button-ghost justify-center"
+                            disabled={busyAction}
+                            onClick={() => setPendingPriceConfirm(null)}
+                            type="button"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <button
+                          className="bb-button-brand justify-center"
+                          disabled={busyAction}
+                          onClick={() => setPendingPriceConfirm(selectedAppointment.id)}
+                          type="button"
+                        >
+                          Valider ce tarif
+                        </button>
+                        <button
+                          className="bb-button-ghost justify-center"
+                          disabled={busyAction}
+                          onClick={() => {
+                            void requestClientPhotos(selectedAppointment.id);
+                          }}
+                          type="button"
+                        >
+                          Demander des photos
+                        </button>
+                      </div>
+                    )}
                   </div>
                   )}
 
@@ -5578,6 +5870,59 @@ export function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── LOT "Confort mobile" : bouton d'acces rapide flottant (mobile) ──────
+          Retirable d'un coup : supprimer ce bloc + l'etat fabOpen. Raccourcis 1
+          tap vers Demandes / Livraisons / Clients, avec compteurs. */}
+      <div className="fixed bottom-5 right-4 z-[65] flex flex-col items-end gap-3 md:hidden">
+        {fabOpen && (
+          <div className="bb-rise flex flex-col items-end gap-2">
+            {[
+              {
+                to: "/admin/appointments",
+                icon: CalendarClock,
+                label: "Demandes",
+                badge: pendingRequests.length,
+              },
+              {
+                to: "/admin/delivery",
+                icon: Truck,
+                label: "Livraisons",
+                badge: deliveryPendingCount,
+              },
+              { to: "/admin/clients", icon: Users, label: "Clients", badge: 0 },
+            ].map((item) => {
+              const ItemIcon = item.icon;
+              return (
+                <Link
+                  className="flex items-center gap-2 rounded-full border border-white/12 bg-[var(--bb-glass-solid-2)] py-2 pl-3 pr-4 shadow-[0_12px_40px_rgba(0,0,0,0.5)] transition active:scale-95"
+                  key={item.to}
+                  onClick={() => setFabOpen(false)}
+                  to={item.to}
+                >
+                  <span className="relative inline-grid h-8 w-8 place-items-center rounded-full border border-accent/25 bg-accent/[0.1] text-accent">
+                    <ItemIcon className="h-4 w-4" />
+                    {item.badge > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 inline-grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-[var(--bb-button-ink)]">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-sm font-semibold text-white">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+        <button
+          aria-label="Acces rapide"
+          className="inline-grid h-14 w-14 place-items-center rounded-full bg-accent text-[var(--bb-button-ink)] shadow-[0_16px_44px_rgb(var(--bb-accent-rgb)/0.5)] transition active:scale-95"
+          onClick={() => setFabOpen((open) => !open)}
+          type="button"
+        >
+          {fabOpen ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+        </button>
+      </div>
 
       {toast && (
         <div className="fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">

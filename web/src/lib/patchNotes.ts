@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.27.0";
+export const APP_VERSION = "1.28.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,17 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.28.0",
+    date: "2026-06-18",
+    title: "Admin plus rapide : accueil actionnable, RDV en 1 geste, acces mobile",
+    changes: [
+      "Accueil admin : nouveau bloc « Ce qui m'attend » — les demandes a valider et les livraisons a preparer sont cliquables directement, avec des alertes (clients a court de credits, lots a remettre).",
+      "RDV plus rapides : boutons « Fixer le tarif » et « Marquer effectue » directement sur les cartes de l'agenda, sans ouvrir le detail.",
+      "Validation de tarif : recap « le client sera facture de X credits » avec confirmation avant de valider, pour eviter les erreurs.",
+      "Mobile : bouton d'acces rapide flottant (Demandes / Livraisons / Clients) avec compteurs, accessible en 1 tap depuis n'importe quelle vue.",
+    ],
+  },
   {
     version: "1.27.0",
     date: "2026-06-18",
