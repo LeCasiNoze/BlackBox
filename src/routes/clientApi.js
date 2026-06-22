@@ -1836,14 +1836,17 @@ router.post("/:idOrSlug/cancel", async (req, res) => {
     });
   }
 
+  // Fondateurs et pros : annulables a tout moment tant que le RDV n'est pas
+  // marque effectue (statut deja filtre sur requested/confirmed plus haut).
+  // Clients standard : annulation jusqu'a 24h avant le jour du rendez-vous.
   const isFounder = !!client.is_founder;
-  const dayStart = new Date(`${appointment.date}T00:00:00`);
-  const limit = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
-  if (!isFounder && Date.now() >= limit.getTime()) {
-    return res.status(400).json({ ok: false, error: "too_late_to_cancel" });
-  }
-  if (isFounder && slotHasPassed(appointment.date, slot)) {
-    return res.status(400).json({ ok: false, error: "slot_already_passed" });
+  const isPro = (client.client_type || "bbx") === "pro";
+  if (!isFounder && !isPro) {
+    const dayStart = new Date(`${appointment.date}T00:00:00`);
+    const limit = new Date(dayStart.getTime() - 24 * 60 * 60 * 1000);
+    if (Date.now() >= limit.getTime()) {
+      return res.status(400).json({ ok: false, error: "too_late_to_cancel" });
+    }
   }
 
   cancelAppointmentAndRefund(appointment.id);

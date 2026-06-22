@@ -473,8 +473,8 @@ const FOUNDER_PERKS: Array<{
     icon: Sparkles,
   },
   {
-    title: "Annulation le jour même",
-    copy: "Plus de souplesse: annulez ou deplacez un rendez-vous le jour même.",
+    title: "Annulation flexible",
+    copy: "Annulez ou deplacez un rendez-vous a tout moment, tant qu'il n'est pas effectue.",
     icon: ShieldCheck,
   },
 ];
@@ -1339,6 +1339,11 @@ export function ClientCardPage() {
   );
   const [busyAction, setBusyAction] = React.useState(false);
   const [reloadToken, setReloadToken] = React.useState(0);
+  // Confirmation avant annulation d'un RDV (evite les annulations accidentelles).
+  const [cancelConfirm, setCancelConfirm] = React.useState<{
+    date: string;
+    slot: AppointmentSlot;
+  } | null>(null);
   const [focusedDayDate, setFocusedDayDate] = React.useState<string | null>(null);
 
   const [selectedDay, setSelectedDay] = React.useState<ApiDay | null>(null);
@@ -3242,12 +3247,11 @@ export function ClientCardPage() {
   }
 
   async function cancel(date: string, slot: AppointmentSlot) {
-    if (!client?.isFounder && !canChangeDay(date)) {
-      showToast("Annulation fermee a partir de la veille a minuit.");
-      return;
-    }
-    if (client?.isFounder && slotIsPast(date, slot)) {
-      showToast("Le créneau est déjà passe.");
+    // Fondateurs & pros : annulation possible a tout moment (tant que le RDV
+    // n'est pas marque effectue). Clients standard : jusqu'a 24h avant.
+    const flexibleCancel = !!client?.isFounder || client?.clientType === "pro";
+    if (!flexibleCancel && !canChangeDay(date)) {
+      showToast("Annulation possible jusqu'a 24h avant le rendez-vous.");
       return;
     }
 
@@ -3835,8 +3839,8 @@ export function ClientCardPage() {
       {
         q: "Comment annuler ou deplacer un RDV ?",
         a:
-          "Va dans Suivi, ouvre la fiche du rendez-vous, puis « Annuler le RDV ».\n" +
-          "• Fondateur : annulation / deplacement possible le jour meme.\n" +
+          "Va dans Suivi, ouvre la fiche du rendez-vous, puis « Annuler le RDV » (une confirmation t'est demandee).\n" +
+          "• Fondateur & Pro : annulation possible a tout moment, tant que le rendez-vous n'a pas ete marque effectue.\n" +
           "• Autres comptes : jusqu'a 24h avant le creneau.\n\n" +
           "Si des credits avaient ete debites, ils te sont automatiquement recredites.",
       },
@@ -3865,7 +3869,7 @@ export function ClientCardPage() {
           "• BC'Coins sur tes achats et passages, echangeables en boutique fidelite\n" +
           "• Box surprises et box de consolation lors des evenements\n" +
           "• Carte premium personnalisee\n" +
-          "• Annulation / deplacement le jour meme\n" +
+          "• Annulation / deplacement a tout moment (jusqu'a ce que le RDV soit effectue)\n" +
           "• Offres et recharges reservees\n\n" +
           "Le nombre de places restantes s'affiche sur la page « Devenir fondateur ».",
       },
@@ -6350,9 +6354,9 @@ export function ClientCardPage() {
                     <button
                       className="bb-button-danger justify-center"
                       disabled={busyAction}
-                      onClick={() => {
-                        void cancel(selectedDay.date, selectedSlot);
-                      }}
+                      onClick={() =>
+                        setCancelConfirm({ date: selectedDay.date, slot: selectedSlot })
+                      }
                       type="button"
                     >
                       Annuler ce rendez-vous
@@ -6470,10 +6474,12 @@ export function ClientCardPage() {
                     <button
                       className="bb-button-danger"
                       disabled={busyAction}
-                      onClick={() => {
-                        void cancel(selectedAppointment.date, selectedAppointment.slot);
-                        closeAppointmentModal();
-                      }}
+                      onClick={() =>
+                        setCancelConfirm({
+                          date: selectedAppointment.date,
+                          slot: selectedAppointment.slot,
+                        })
+                      }
                       type="button"
                     >
                       Annuler le RDV
@@ -7427,6 +7433,46 @@ export function ClientCardPage() {
       />
 
       {renderAssistant()}
+
+      {/* Confirmation d'annulation (evite les annulations accidentelles) */}
+      {cancelConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setCancelConfirm(null)}
+          />
+          <div className="relative w-full max-w-sm rounded-3xl border border-white/12 bg-[var(--bb-glass-solid-2)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
+            <h3 className="text-lg font-semibold text-white">Annuler ce rendez-vous ?</h3>
+            <p className="mt-2 text-sm leading-6 text-white/60">
+              Le créneau sera libéré et redevient disponible. Vous pourrez toujours
+              reprendre un nouveau rendez-vous ensuite.
+            </p>
+            <div className="mt-5 grid gap-2">
+              <button
+                className="bb-button-danger justify-center"
+                disabled={busyAction}
+                onClick={() => {
+                  const target = cancelConfirm;
+                  setCancelConfirm(null);
+                  closeAppointmentModal();
+                  if (target) void cancel(target.date, target.slot);
+                }}
+                type="button"
+              >
+                {busyAction ? "Annulation..." : "Oui, annuler le rendez-vous"}
+              </button>
+              <button
+                className="bb-button-ghost justify-center"
+                disabled={busyAction}
+                onClick={() => setCancelConfirm(null)}
+                type="button"
+              >
+                Garder mon rendez-vous
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className="fixed inset-x-0 bottom-24 z-[70] flex justify-center px-4 md:bottom-5">

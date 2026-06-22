@@ -3112,6 +3112,43 @@ export function AdminDashboardPage() {
   function renderHomePage() {
     return (
       <>
+        {/* LOT "Notifications" : banniere d'activation (retirable). S'affiche tant
+            que les notifications push ne sont pas actives sur cet appareil. */}
+        {pushPermission !== "granted" && (
+          <section className="bb-surface border border-amber-300/30 bg-amber-300/[0.06] p-5 md:p-6">
+            <div className="flex items-start gap-4">
+              <span className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-300/30 bg-amber-300/10 text-amber-200">
+                <BellRing className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-white">
+                  Notifications desactivees sur cet appareil
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-white/65">
+                  Activez-les pour etre prevenu directement sur votre telephone des
+                  qu'un client reserve, modifie ou annule un rendez-vous.
+                </p>
+                <p className="mt-2 text-xs leading-5 text-white/45">
+                  Sur iPhone : ajoutez d'abord l'app a l'ecran d'accueil (bouton
+                  Partager &rarr; « Sur l'ecran d'accueil »), ouvrez-la depuis cette
+                  icone, puis activez les notifications.
+                </p>
+                <button
+                  className="bb-button-brand mt-4"
+                  disabled={pushBusy}
+                  onClick={() => {
+                    void handleEnablePush();
+                  }}
+                  type="button"
+                >
+                  <BellRing className="mr-2 h-4 w-4" />
+                  {pushBusy ? "Activation..." : "Activer les notifications"}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="bb-surface p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

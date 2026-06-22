@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.28.0";
+export const APP_VERSION = "1.29.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.29.0",
+    date: "2026-06-22",
+    title: "Notifications admin (push) + annulation plus souple",
+    changes: [
+      "Notifications admin : une banniere d'activation s'affiche sur l'accueil admin tant que les notifications push ne sont pas actives sur l'appareil, avec la marche a suivre iPhone (ajouter l'app a l'ecran d'accueil puis activer). C'etait la cause des alertes de RDV manquantes : aucun appareil admin n'etait reellement abonne aux notifications.",
+      "Annulation : les fondateurs et les pros peuvent annuler un rendez-vous a tout moment, tant qu'il n'est pas marque effectue (les autres comptes : jusqu'a 24h avant le creneau).",
+      "Annulation : une confirmation est desormais demandee avant d'annuler, pour eviter les annulations accidentelles.",
+    ],
+  },
   {
     version: "1.28.0",
     date: "2026-06-18",
