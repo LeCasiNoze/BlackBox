@@ -1819,10 +1819,10 @@ export function ClientCardPage() {
     }
 
     const currentCount = bookingImagesRef.current.length;
-    const remainingSlots = Math.max(0, 4 - currentCount);
+    const remainingSlots = Math.max(0, 8 - currentCount);
 
     if (remainingSlots <= 0) {
-      showToast("Maximum 4 images par demande.");
+      showToast("Maximum 8 images par demande.");
       event.target.value = "";
       return;
     }
@@ -1834,7 +1834,7 @@ export function ClientCardPage() {
 
     const allowedFiles = imageFiles.slice(0, remainingSlots);
     if (allowedFiles.length < imageFiles.length) {
-      showToast("Maximum 4 images par demande.");
+      showToast("Maximum 8 images par demande.");
     }
 
     if (allowedFiles.length > 0) {
@@ -1873,9 +1873,9 @@ export function ClientCardPage() {
     const selectedFiles = Array.from(event.target.files || []);
     if (selectedFiles.length === 0) return;
     setQuoteImageDrafts((current) => {
-      const remaining = Math.max(0, 4 - current.length);
+      const remaining = Math.max(0, 8 - current.length);
       if (remaining <= 0) {
-        showToast("Maximum 4 images par demande.");
+        showToast("Maximum 8 images par demande.");
         return current;
       }
       const imageFiles = selectedFiles
@@ -2090,7 +2090,7 @@ export function ClientCardPage() {
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm font-semibold text-white">Photos du vehicule</span>
                   <span className="bb-pill border-accent/25 bg-accent/12 text-accent">
-                    {quoteImageDrafts.length}/4
+                    {quoteImageDrafts.length}/8
                   </span>
                 </div>
                 <input
@@ -3489,7 +3489,7 @@ export function ClientCardPage() {
           return;
         }
         if (json?.error === "too_many_images") {
-          showToast("Maximum 4 images par demande.");
+          showToast("Maximum 8 images par demande.");
           return;
         }
         if (json?.error === "image_too_large") {
@@ -6530,11 +6530,11 @@ export function ClientCardPage() {
                             <p className="text-base font-semibold text-white">Ajoutez des photos</p>
                             <p className="mt-1 text-sm leading-6 text-white/70">
                               Montrez une tache, une rayure ou la zone a traiter — ça aide a chiffrer
-                              juste (jusqu'a 4 photos).
+                              juste (jusqu'a 8 photos).
                             </p>
                           </div>
                           <div className="bb-pill shrink-0 border-accent/25 bg-accent/12 text-accentSoft">
-                            {bookingImageDrafts.length}/4
+                            {bookingImageDrafts.length}/8
                           </div>
                         </div>
                       </div>

@@ -129,7 +129,7 @@ const SLOT_END_TIMES = {
   morning: "12:00",
   afternoon: "18:00",
 };
-const MAX_BOOKING_IMAGES = 4;
+const MAX_BOOKING_IMAGES = 8;
 
 ensureDir(APPOINTMENTS_UPLOAD_DIR);
 

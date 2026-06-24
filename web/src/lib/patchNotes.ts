@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.30.1";
+export const APP_VERSION = "1.30.2";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.30.2",
+    date: "2026-06-24",
+    title: "Photos : jusqu'a 8 (devis & reservation)",
+    changes: [
+      "La limite passe de 4 a 8 photos pour les demandes de devis et les reservations. Les photos restent automatiquement allegees (rotation + redimension + WebP) avant stockage.",
+    ],
+  },
   {
     version: "1.30.1",
     date: "2026-06-24",
