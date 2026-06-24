@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.30.0";
+export const APP_VERSION = "1.30.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.30.1",
+    date: "2026-06-24",
+    title: "Devis : bouton visible sur tous les accueils",
+    changes: [
+      "Le bouton « Obtenir un devis » s'affiche desormais aussi sur l'accueil des comptes BBX standard (il manquait sur cette variante).",
+    ],
+  },
   {
     version: "1.30.0",
     date: "2026-06-22",

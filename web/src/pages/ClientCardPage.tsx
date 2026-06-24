@@ -4870,6 +4870,7 @@ export function ClientCardPage() {
               <p className="mt-2 text-center text-xs text-white/45">
                 Choisissez un jour et une demi-journee — c&apos;est tout.
               </p>
+              <div className="mt-3">{renderQuoteCta()}</div>
             </div>
 
             {/* Devenir fondateur — juste sous l'action principale */}
