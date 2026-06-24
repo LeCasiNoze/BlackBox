@@ -87,10 +87,17 @@ const {
   sendClientFormulaRecap,
   sendClientWelcomeEmail,
   sendClientYearRecapEmail,
+  sendClientQuoteAnsweredEmail,
   sendEventAnnouncementEmail,
   sendEventWinnerEmail,
 } = require("../email");
 const { getClientYearRecap } = require("../db/recap");
+const {
+  answerQuoteRequest,
+  getQuoteRequestById,
+  listQuoteRequestsForAdmin,
+  deleteQuoteRequest,
+} = require("../db/quoteRequests");
 const { getAdminMonthlyStats, getAdminAnalytics } = require("../db/stats");
 const {
   attachPendingGoodieWinsToNextAppointment,
@@ -703,6 +710,59 @@ router.get("/test-email", async (_req, res) => {
     console.error("[adminApi] GET /test-email:", error);
     return res.status(500).json({ ok: false, error: String(error) });
   }
+});
+
+// ── Devis : liste des demandes d'estimation (en attente en premier) ─────────
+router.get("/quotes", (_req, res) => {
+  try {
+    return res.json({ ok: true, quotes: listQuoteRequestsForAdmin() });
+  } catch (error) {
+    console.error("[adminApi] GET /quotes:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ── Devis : reponse de l'admin avec une estimation en credits ───────────────
+router.post("/quotes/:id/answer", async (req, res) => {
+  const id = Number(req.params.id) || 0;
+  const quote = getQuoteRequestById(id);
+  if (!quote) {
+    return res.status(404).json({ ok: false, error: "quote_not_found" });
+  }
+
+  const credits = Math.max(1, Math.round(Number(req.body?.estimatedCredits) || 0));
+  const adminComment =
+    (req.body?.adminComment || "").toString().trim().slice(0, 600) || null;
+
+  let updated;
+  try {
+    updated = answerQuoteRequest(id, { estimatedCredits: credits, adminComment });
+  } catch (error) {
+    console.error("[adminApi] answerQuoteRequest:", error);
+    return res.status(500).json({ ok: false, error: "db_error" });
+  }
+
+  const client = getClientById(quote.clientId);
+  if (client) {
+    try {
+      await sendClientQuoteAnsweredEmail({
+        client,
+        estimatedCredits: credits,
+        adminComment,
+      });
+    } catch (error) {
+      console.error("[MAIL] notif devis client:", error);
+    }
+  }
+
+  return res.json({ ok: true, quote: updated });
+});
+
+// ── Devis : suppression d'une demande (admin) ───────────────────────────────
+router.delete("/quotes/:id", (req, res) => {
+  const id = Number(req.params.id) || 0;
+  deleteQuoteRequest(id);
+  return res.json({ ok: true });
 });
 
 router.post("/appointments/:id/status", async (req, res) => {

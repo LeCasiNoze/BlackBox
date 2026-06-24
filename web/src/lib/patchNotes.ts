@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.29.0";
+export const APP_VERSION = "1.30.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.30.0",
+    date: "2026-06-22",
+    title: "Devis : estimation en credits (BBX & fondateurs)",
+    changes: [
+      "Nouveau bouton « Obtenir un devis » sur l'accueil (BBX & fondateurs) : le client envoie des photos + une description, exactement comme pour une reservation.",
+      "L'admin recoit la demande (e-mail + notification) dans une nouvelle rubrique « Devis », chiffre l'estimation en credits en un geste (1/2/3… ou personnalise) et peut ajouter un commentaire.",
+      "Le client est notifie de la reponse : l'estimation « X credits » s'affiche en haut de sa demande, avec un bouton « Recharger X credits » qui mene a la recharge adaptee (packs pour les fondateurs, a l'unite pour les BBX).",
+    ],
+  },
   {
     version: "1.29.0",
     date: "2026-06-22",

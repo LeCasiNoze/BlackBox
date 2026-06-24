@@ -8,6 +8,7 @@ const express = require("express");
 const {
   EXPORTS_DIR,
   FOUNDERS_UPLOAD_DIR,
+  QUOTES_UPLOAD_DIR,
   UPLOADS_DIR,
   ensureDir,
 } = require("./config/storage");
@@ -58,6 +59,7 @@ const app = express();
 const distDir = path.join(__dirname, "../web/dist");
 ensureDir(UPLOADS_DIR);
 ensureDir(FOUNDERS_UPLOAD_DIR);
+ensureDir(QUOTES_UPLOAD_DIR);
 ensureDir(EXPORTS_DIR);
 startAppointmentReminderScheduler();
 startWeeklyExportScheduler();

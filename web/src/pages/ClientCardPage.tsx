@@ -14,6 +14,7 @@ import {
   CreditCard,
   Crown,
   ExternalLink,
+  FileText,
   Gift,
   House,
   Link2,
@@ -276,6 +277,20 @@ type ApiResponse = {
   founderCap?: number;
   foundersRemaining?: number;
   waitlist?: Array<{ date: string; slot: AppointmentSlot; createdAt: number }>;
+  quoteRequest?: QuoteRequest | null;
+};
+
+type QuoteRequest = {
+  id: number;
+  clientId: number;
+  description: string | null;
+  status: "pending" | "answered";
+  estimatedCredits: number | null;
+  adminComment: string | null;
+  createdAt: number;
+  updatedAt: number;
+  answeredAt: number | null;
+  photos: string[];
 };
 
 type ModalMode = "book" | "manage" | "past";
@@ -1356,6 +1371,13 @@ export function ClientCardPage() {
   const [clientBookingNote, setClientBookingNote] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
 
+  // Devis : modale, description, photos.
+  const [quoteModalOpen, setQuoteModalOpen] = React.useState(false);
+  const [quoteNote, setQuoteNote] = React.useState("");
+  const [quoteImageDrafts, setQuoteImageDrafts] = React.useState<BookingImageDraft[]>([]);
+  const [quoteBusy, setQuoteBusy] = React.useState(false);
+  const quoteImageInputRef = React.useRef<HTMLInputElement | null>(null);
+
   const [selectedAppointment, setSelectedAppointment] =
     React.useState<ClientAppointment | null>(null);
   const [appointmentPhotos, setAppointmentPhotos] = React.useState<AppointmentPhoto[]>([]);
@@ -1826,6 +1848,311 @@ export function ClientCardPage() {
     }
 
     event.target.value = "";
+  }
+
+  // ── Devis : photos + soumission ───────────────────────────────────────────
+  function clearQuoteImages() {
+    setQuoteImageDrafts((current) => {
+      current.forEach((draft) => URL.revokeObjectURL(draft.previewUrl));
+      return [];
+    });
+    if (quoteImageInputRef.current) {
+      quoteImageInputRef.current.value = "";
+    }
+  }
+
+  function removeQuoteImage(imageId: string) {
+    setQuoteImageDrafts((current) => {
+      const target = current.find((draft) => draft.id === imageId);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return current.filter((draft) => draft.id !== imageId);
+    });
+  }
+
+  function handleQuoteImageSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) return;
+    setQuoteImageDrafts((current) => {
+      const remaining = Math.max(0, 4 - current.length);
+      if (remaining <= 0) {
+        showToast("Maximum 4 images par demande.");
+        return current;
+      }
+      const imageFiles = selectedFiles
+        .filter((file) => file.type.startsWith("image/"))
+        .slice(0, remaining);
+      const drafts = imageFiles.map((file, index) => ({
+        id: `${Date.now()}-${current.length + index}-${file.name}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+      return [...current, ...drafts];
+    });
+    event.target.value = "";
+  }
+
+  async function submitQuote() {
+    if (!client) return;
+    setQuoteBusy(true);
+    try {
+      const formData = new FormData();
+      if (quoteNote.trim()) formData.set("description", quoteNote.trim());
+      quoteImageDrafts.forEach((draft) => formData.append("images", draft.file));
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/quote`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast(
+          json.error === "quote_already_exists"
+            ? "Une demande de devis est deja en cours."
+            : "Impossible d'envoyer la demande.",
+        );
+        return;
+      }
+      showToast("Demande de devis envoyee !");
+      clearQuoteImages();
+      setQuoteNote("");
+      setReloadToken((value) => value + 1);
+    } catch {
+      showToast("Erreur reseau pendant l'envoi.");
+    } finally {
+      setQuoteBusy(false);
+    }
+  }
+
+  async function closeQuoteRequest() {
+    setQuoteBusy(true);
+    try {
+      await fetch(`/api/client/${encodeURIComponent(slug)}/quote`, { method: "DELETE" });
+      setReloadToken((value) => value + 1);
+    } catch {
+      // silencieux
+    } finally {
+      setQuoteBusy(false);
+    }
+  }
+
+  function rechargeFromQuote() {
+    setQuoteModalOpen(false);
+    navigateView("shop");
+  }
+
+  // Bouton "Obtenir un devis" a cote de "Prendre rendez-vous" (BBX & fondateurs).
+  function renderQuoteCta() {
+    if (!client || client.clientType === "pro") return null;
+    const quote = data?.quoteRequest ?? null;
+    const answered = quote?.status === "answered";
+    return (
+      <button
+        className="bb-button-ghost w-full justify-center py-3"
+        onClick={() => setQuoteModalOpen(true)}
+        type="button"
+      >
+        <FileText className="mr-2 h-4 w-4" />
+        {quote
+          ? answered
+            ? "Voir mon estimation"
+            : "Voir ma demande de devis"
+          : "Obtenir un devis"}
+        {answered && <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-accent" />}
+      </button>
+    );
+  }
+
+  function renderQuoteModal() {
+    if (!quoteModalOpen || !client) return null;
+    const quote = data?.quoteRequest ?? null;
+    const isFounder = client.isFounder;
+    const credits = quote?.estimatedCredits ?? 0;
+
+    return (
+      <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4">
+        <div
+          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          onClick={() => setQuoteModalOpen(false)}
+        />
+        <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/12 bg-[var(--bb-glass-solid-2)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)] sm:rounded-3xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="bb-eyebrow">Devis</p>
+              <h3 className="mt-1 text-xl font-semibold text-white">
+                {quote
+                  ? quote.status === "answered"
+                    ? "Votre estimation"
+                    : "Demande envoyee"
+                  : "Obtenir un devis"}
+              </h3>
+            </div>
+            <button
+              aria-label="Fermer"
+              className="bb-icon-btn"
+              onClick={() => setQuoteModalOpen(false)}
+              type="button"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {quote?.status === "answered" ? (
+            <div className="mt-5 space-y-4">
+              <div className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5 text-center">
+                <p className="text-sm text-white/70">
+                  L&apos;estimation pour votre vehicule est de
+                </p>
+                <p className="mt-2 text-4xl font-bold text-accent">
+                  {credits}{" "}
+                  <span className="text-2xl">credit{credits > 1 ? "s" : ""}</span>
+                </p>
+              </div>
+              {quote.adminComment && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="bb-eyebrow mb-1">Note de Bryan Cars</p>
+                  <p className="text-sm leading-6 text-white/70">{quote.adminComment}</p>
+                </div>
+              )}
+              <button
+                className="bb-button-brand w-full justify-center py-3.5"
+                onClick={rechargeFromQuote}
+                type="button"
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                Recharger {credits} credit{credits > 1 ? "s" : ""}
+              </button>
+              <p className="text-center text-xs text-white/45">
+                {isFounder
+                  ? "Choisissez un pack puis prenez rendez-vous."
+                  : "Rechargez a l'unite puis prenez rendez-vous."}
+              </p>
+              <button
+                className="bb-button-ghost w-full justify-center"
+                disabled={quoteBusy}
+                onClick={() => void closeQuoteRequest()}
+                type="button"
+              >
+                Faire une nouvelle demande
+              </button>
+            </div>
+          ) : quote ? (
+            <div className="mt-5 space-y-4">
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-300/25 bg-amber-300/[0.07] p-4">
+                <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
+                <p className="text-sm leading-6 text-white/75">
+                  Votre demande a bien ete envoyee. Bryan Cars vous renverra une
+                  estimation en credits — vous serez notifie ici et par e-mail.
+                </p>
+              </div>
+              {quote.description && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="bb-eyebrow mb-1">Votre description</p>
+                  <p className="text-sm leading-6 text-white/70">{quote.description}</p>
+                </div>
+              )}
+              {quote.photos.length > 0 && (
+                <div className="grid grid-cols-4 gap-2">
+                  {quote.photos.map((url) => (
+                    <img
+                      alt=""
+                      className="aspect-square w-full rounded-xl border border-white/10 object-cover"
+                      key={url}
+                      src={url}
+                    />
+                  ))}
+                </div>
+              )}
+              <button
+                className="bb-button-ghost w-full justify-center"
+                disabled={quoteBusy}
+                onClick={() => void closeQuoteRequest()}
+                type="button"
+              >
+                Annuler ma demande
+              </button>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-4">
+              <p className="text-sm leading-6 text-white/60">
+                Envoyez quelques photos et une description : Bryan Cars vous renvoie une
+                estimation en credits, sans engagement.
+              </p>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-white">Description</span>
+                <textarea
+                  className="bb-textarea"
+                  maxLength={600}
+                  onChange={(event) => setQuoteNote(event.target.value)}
+                  placeholder="Ex: interieur a nettoyer en profondeur, taches sur les sieges, exterieur a polir..."
+                  value={quoteNote}
+                />
+              </label>
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-white">Photos du vehicule</span>
+                  <span className="bb-pill border-accent/25 bg-accent/12 text-accent">
+                    {quoteImageDrafts.length}/4
+                  </span>
+                </div>
+                <input
+                  accept="image/*"
+                  className="hidden"
+                  multiple
+                  onChange={handleQuoteImageSelection}
+                  ref={quoteImageInputRef}
+                  type="file"
+                />
+                <div className="flex gap-2">
+                  <button
+                    className="bb-button-ghost"
+                    onClick={() => quoteImageInputRef.current?.click()}
+                    type="button"
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Ajouter des photos
+                  </button>
+                  {quoteImageDrafts.length > 0 && (
+                    <button className="bb-button-ghost" onClick={clearQuoteImages} type="button">
+                      Tout retirer
+                    </button>
+                  )}
+                </div>
+                {quoteImageDrafts.length > 0 && (
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {quoteImageDrafts.map((draft) => (
+                      <div
+                        className="relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                        key={draft.id}
+                      >
+                        <img
+                          alt=""
+                          className="h-full w-full object-cover"
+                          src={draft.previewUrl}
+                        />
+                        <button
+                          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/70 text-white"
+                          onClick={() => removeQuoteImage(draft.id)}
+                          type="button"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                className="bb-button-brand w-full justify-center py-3.5"
+                disabled={quoteBusy || (!quoteNote.trim() && quoteImageDrafts.length === 0)}
+                onClick={() => void submitQuote()}
+                type="button"
+              >
+                {quoteBusy ? "Envoi..." : "Envoyer ma demande"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const client = data?.client ?? null;
@@ -4264,6 +4591,7 @@ export function ClientCardPage() {
               <p className="mt-2 text-center text-xs text-white/45">
                 Choisissez un jour et une demi-journee — c&apos;est tout.
               </p>
+              <div className="mt-3">{renderQuoteCta()}</div>
             </div>
 
             {/* Statut — 2 tuiles */}
@@ -4396,6 +4724,7 @@ export function ClientCardPage() {
                 <p className="mt-2 text-center text-xs text-white/45">
                   Choisissez un jour et une demi-journee — c&apos;est tout.
                 </p>
+                <div className="mt-3">{renderQuoteCta()}</div>
               </div>
 
               {/* Statut — 2 tuiles claires */}
@@ -7433,6 +7762,8 @@ export function ClientCardPage() {
       />
 
       {renderAssistant()}
+
+      {renderQuoteModal()}
 
       {/* Confirmation d'annulation (evite les annulations accidentelles) */}
       {cancelConfirm && (

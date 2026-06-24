@@ -735,6 +735,127 @@ Espace client : ${portalUrl || "Lien indisponible"}
   });
 }
 
+// Devis : notification admin a la reception d'une demande d'estimation.
+async function sendAdminQuoteRequestEmail({
+  client,
+  description = null,
+  photoCount = 0,
+  quoteId = null,
+}) {
+  const fullName = fallbackClientName(client);
+  const vehicle = vehicleSummary(client);
+  const adminUrl = `${ADMIN_DASHBOARD_URL}/devis${quoteId ? `?quoteId=${quoteId}` : ""}`;
+
+  pushAdmin({
+    title: "Nouvelle demande de devis",
+    body: `${fullName}${vehicle ? ` · ${vehicle}` : ""}`,
+    url: adminUrl,
+  });
+
+  const adminEmail = adminInboxEmail();
+  if (!adminEmail) {
+    console.warn("[MAIL] MAIL_ADMIN_TO / MAIL_FROM_EMAIL manquant, notif devis admin ignoree.");
+    return false;
+  }
+
+  const subject = `[Bryan Cars] Nouvelle demande de devis - ${fullName}`;
+  const text = `
+Nouvelle demande de devis
+
+Client : ${fullName}
+Telephone : ${client.phone || "-"}
+Vehicule : ${vehicle}
+Photos : ${photoCount > 0 ? `${photoCount} photo${photoCount > 1 ? "s" : ""}` : "-"}
+Description : ${description || "-"}
+
+Repondre : ${adminUrl}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Demande de devis",
+    title: "Nouvelle demande d'estimation",
+    subtitle: "Un client souhaite une estimation en credits pour son vehicule.",
+    preheader: `Devis · ${fullName}`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Client", value: fullName },
+        {
+          label: "Photos",
+          value: photoCount > 0 ? `${photoCount} photo${photoCount > 1 ? "s" : ""}` : "-",
+        },
+      ])}
+      ${panelCard({
+        title: "Demande",
+        description: "Estimez le nombre de credits depuis votre tableau de bord.",
+        bodyHtml: `
+          ${infoRows([
+            { label: "Telephone", value: client.phone || "-" },
+            { label: "Vehicule", value: vehicle },
+            { label: "Description", value: description || "-" },
+          ])}
+          ${actionButtons([{ label: "Estimer ce devis", href: adminUrl, tone: "primary" }])}
+        `,
+      })}
+    `,
+  });
+
+  return sendBrevoEmail({ to: [{ email: adminEmail }], subject, html, text });
+}
+
+// Devis : notification client quand l'admin a renvoye une estimation.
+async function sendClientQuoteAnsweredEmail({ client, estimatedCredits, adminComment = null }) {
+  const credits = Number(estimatedCredits) || 0;
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+
+  pushClient(client, {
+    title: "Votre devis est pret",
+    body: `Estimation : ${credits} credit${credits > 1 ? "s" : ""} pour votre vehicule.`,
+  });
+
+  if (!client?.email) return false;
+
+  const subject = `[Bryan Cars] Votre estimation est prete`;
+  const text = `
+Bonjour ${fullName},
+
+Votre demande de devis a recu une reponse.
+
+Estimation : ${credits} credit(s)${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
+
+Rechargez puis prenez rendez-vous depuis votre espace : ${portalUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Votre devis",
+    title: "Estimation prete",
+    subtitle:
+      "Voici l'estimation en credits pour votre vehicule. Rechargez puis prenez rendez-vous depuis votre espace.",
+    preheader: `${credits} credit${credits > 1 ? "s" : ""} estimes`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Estimation", value: `${credits} credit${credits > 1 ? "s" : ""}` },
+      ])}
+      ${
+        adminComment
+          ? panelCard({
+              title: "Note de l'admin",
+              description: "Precisions sur l'estimation de votre vehicule.",
+              bodyHtml: `<p style="margin:0;font-size:14px;line-height:22px;color:#cbd5f5;">${escapeHtml(
+                adminComment,
+              )}</p>`,
+            })
+          : ""
+      }
+      ${actionButtons([
+        portalUrl ? { label: "Voir mon devis", href: portalUrl, tone: "primary" } : null,
+      ])}
+    `,
+  });
+
+  return sendBrevoEmail({ to: [{ email: client.email, name: fullName }], subject, html, text });
+}
+
 async function sendAdminAppointmentReminderEmail({ appointment, client }) {
   const adminEmail = adminInboxEmail();
   if (!adminEmail || !appointment || !client) {
@@ -1635,6 +1756,8 @@ module.exports = {
   sendAdminDataExportEmail,
   sendAdminAppointmentReminderEmail,
   sendAdminNotification,
+  sendAdminQuoteRequestEmail,
+  sendClientQuoteAnsweredEmail,
   sendAdminRewardRedemption,
   sendClientPhotosRequestedEmail,
   sendClientPriceApprovalEmail,

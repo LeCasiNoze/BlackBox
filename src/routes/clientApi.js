@@ -4,7 +4,14 @@ const { optimizeUploadedImage } = require("../services/imageProcessing");
 const path = require("path");
 const router = express.Router();
 
-const { APPOINTMENTS_UPLOAD_DIR, ensureDir } = require("../config/storage");
+const { APPOINTMENTS_UPLOAD_DIR, QUOTES_UPLOAD_DIR, ensureDir } = require("../config/storage");
+const {
+  createQuoteRequest,
+  insertQuoteRequestPhoto,
+  getQuoteRequestPhotos,
+  getActiveQuoteRequestForClient,
+  deleteQuoteRequest,
+} = require("../db/quoteRequests");
 const {
   getTopupOfferForClient,
   getUnitTopupOfferForClient,
@@ -102,6 +109,7 @@ const {
 } = require("../db/partner_orders");
 const {
   sendAdminNotification,
+  sendAdminQuoteRequestEmail,
   sendAdminRewardRedemption,
   sendClientAppointmentStatusEmail,
   sendClientFormulaRecap,
@@ -201,6 +209,71 @@ async function attachClientBookingImages(appointmentId, files = []) {
   }
 
   return insertedCount;
+}
+
+// ── Devis : upload des photos (meme principe que la reservation) ────────────
+ensureDir(QUOTES_UPLOAD_DIR);
+
+const clientQuoteUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      callback(null, QUOTES_UPLOAD_DIR);
+    },
+    filename: (_req, file, callback) => {
+      const ext = path.extname(file.originalname) || ".jpg";
+      const base = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      callback(null, `${base}${ext.toLowerCase()}`);
+    },
+  }),
+  limits: { files: MAX_BOOKING_IMAGES, fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    if (typeof file.mimetype === "string" && file.mimetype.startsWith("image/")) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("invalid_file_type"));
+  },
+});
+
+function handleQuoteUpload(req, res, next) {
+  clientQuoteUpload.array("images", MAX_BOOKING_IMAGES)(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+    if (error instanceof multer.MulterError) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ ok: false, error: "image_too_large" });
+      }
+      if (error.code === "LIMIT_FILE_COUNT") {
+        return res.status(400).json({ ok: false, error: "too_many_images" });
+      }
+    }
+    if (error?.message === "invalid_file_type") {
+      return res.status(400).json({ ok: false, error: "invalid_image_type" });
+    }
+    return res.status(400).json({ ok: false, error: "image_upload_failed" });
+  });
+}
+
+async function attachQuoteImages(quoteId, files = []) {
+  if (!quoteId || !Array.isArray(files) || files.length === 0) return 0;
+  let count = 0;
+  for (const file of files) {
+    try {
+      const finalName = await optimizeUploadedImage(QUOTES_UPLOAD_DIR, file.filename);
+      insertQuoteRequestPhoto(quoteId, `/uploads/quotes/${finalName}`);
+      count += 1;
+    } catch (error) {
+      console.error("[QUOTE] attachQuoteImages:", error);
+    }
+  }
+  return count;
+}
+
+function quotePayload(quote) {
+  if (!quote) return null;
+  return { ...quote, photos: getQuoteRequestPhotos(quote.id) };
 }
 
 function parseMonthParam(value) {
@@ -660,7 +733,66 @@ router.get("/:idOrSlug", (req, res) => {
     foundersRemaining: Math.max(0, FOUNDER_CAP - foundersCount),
     waitlist: getClientWaitlist(client.id),
     month,
+    // Devis (BBX & fondateurs uniquement ; les pros passent par les forfaits).
+    quoteRequest:
+      (client.client_type || "bbx") === "pro"
+        ? null
+        : quotePayload(getActiveQuoteRequestForClient(client.id)),
   });
+});
+
+// ── Devis : creation d'une demande d'estimation (photos + description) ───────
+router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  if ((client.client_type || "bbx") === "pro") {
+    return res.status(403).json({ ok: false, error: "not_available_for_pro" });
+  }
+
+  // Une seule demande de devis active a la fois.
+  if (getActiveQuoteRequestForClient(client.id)) {
+    return res.status(409).json({ ok: false, error: "quote_already_exists" });
+  }
+
+  const description =
+    (req.body?.description || "").toString().trim().slice(0, 600) || null;
+  const uploadedImages = Array.isArray(req.files) ? req.files : [];
+
+  let quoteId;
+  try {
+    quoteId = createQuoteRequest({ clientId: client.id, description });
+  } catch (error) {
+    console.error("[QUOTE] createQuoteRequest:", error);
+    return res.status(500).json({ ok: false, error: "db_error" });
+  }
+
+  const photoCount = await attachQuoteImages(quoteId, uploadedImages);
+
+  try {
+    await sendAdminQuoteRequestEmail({ client, description, photoCount, quoteId });
+  } catch (error) {
+    console.error("[MAIL] notif devis admin:", error);
+  }
+
+  return res.json({
+    ok: true,
+    quoteRequest: quotePayload(getActiveQuoteRequestForClient(client.id)),
+  });
+});
+
+// ── Devis : fermeture de la demande par le client (pour en relancer une) ────
+router.delete("/:idOrSlug/quote", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  const existing = getActiveQuoteRequestForClient(client.id);
+  if (existing) {
+    deleteQuoteRequest(existing.id);
+  }
+  return res.json({ ok: true });
 });
 
 router.post("/:idOrSlug/terms/accept", (req, res) => {

@@ -15,6 +15,7 @@ import {
   Crown,
   Download,
   ExternalLink,
+  FileText,
   Gift,
   Inbox,
   Loader2,
@@ -358,6 +359,7 @@ type AdminSection =
   | "home"
   | "appointments"
   | "delivery"
+  | "devis"
   | "clients"
   | "stats"
   | "events"
@@ -373,12 +375,38 @@ const ADMIN_NAV_ITEMS: Array<{
   { key: "home", label: "Hall", shortLabel: "Hall", icon: Sparkles },
   { key: "appointments", label: "Agenda", shortLabel: "Agenda", icon: CalendarClock },
   { key: "delivery", label: "Livraison", shortLabel: "Livraison", icon: Truck },
+  { key: "devis", label: "Devis", shortLabel: "Devis", icon: FileText },
   { key: "clients", label: "Clients", shortLabel: "Clients", icon: Users },
   { key: "stats", label: "Stats", shortLabel: "Stats", icon: BarChart3 },
   { key: "events", label: "Événements", shortLabel: "Events", icon: Trophy },
   { key: "comms", label: "Emails", shortLabel: "Emails", icon: Mail },
   { key: "settings", label: "Réglages", shortLabel: "Réglages", icon: Settings },
 ];
+
+type AdminQuote = {
+  id: number;
+  clientId: number;
+  description: string | null;
+  status: "pending" | "answered";
+  estimatedCredits: number | null;
+  adminComment: string | null;
+  createdAt: number;
+  answeredAt: number | null;
+  photos: string[];
+  client: {
+    id: number;
+    fullName: string;
+    slug: string | null;
+    cardCode: string | null;
+    clientType: string;
+    isFounder: boolean;
+    phone: string | null;
+    email: string | null;
+    vehicleModel: string | null;
+    vehiclePlate: string | null;
+    formulaRemaining: number;
+  };
+};
 
 const CLEANLINESS_OPTIONS: Array<{
   value: CanonicalCleanlinessRating;
@@ -764,6 +792,11 @@ export function AdminDashboardPage() {
   const [goodies, setGoodies] = React.useState<AdminGoodie[]>([]);
   const [goodieFilter, setGoodieFilter] = React.useState<"pending" | "honored">("pending");
   const [goodiePending, setGoodiePending] = React.useState(0);
+  // Devis : liste + brouillons de reponse (credits / commentaire) par demande.
+  const [quotes, setQuotes] = React.useState<AdminQuote[]>([]);
+  const [quoteCreditDrafts, setQuoteCreditDrafts] = React.useState<Record<number, string>>({});
+  const [quoteCommentDrafts, setQuoteCommentDrafts] = React.useState<Record<number, string>>({});
+  const [quoteBusyId, setQuoteBusyId] = React.useState<number | null>(null);
   // LOT "RDV plus rapides" : id du RDV en attente de confirmation du tarif
   // (recap "tu vas facturer X credits" avant de valider). Retirable : supprimer
   // cet etat + le bloc recap dans la section "Tarif a valider".
@@ -1015,6 +1048,7 @@ export function AdminDashboardPage() {
       home: "/admin",
       appointments: `/admin/appointments${appointmentQuery}`,
       delivery: `/admin/delivery${appointmentQuery}`,
+      devis: "/admin/devis",
       clients: `/admin/clients${clientQuery}`,
       stats: "/admin/stats",
       events: "/admin/events",
@@ -1318,6 +1352,67 @@ export function AdminDashboardPage() {
       active = false;
     };
   }, [refreshToken, goodieFilter]);
+
+  // Devis : chargement de la liste.
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/quotes");
+        const json = await response.json();
+        if (active && response.ok && json.ok) {
+          setQuotes(json.quotes as AdminQuote[]);
+        }
+      } catch (_error) {
+        // silencieux
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshToken]);
+
+  async function answerQuote(quote: AdminQuote) {
+    const credits = Math.max(1, Math.round(Number(quoteCreditDrafts[quote.id]) || 0));
+    if (!credits) {
+      showToast("Indiquez un nombre de credits.");
+      return;
+    }
+    setQuoteBusyId(quote.id);
+    try {
+      const response = await fetch(`/api/admin/quotes/${quote.id}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estimatedCredits: credits,
+          adminComment: (quoteCommentDrafts[quote.id] || "").trim() || null,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        showToast("Impossible d'envoyer l'estimation.");
+        return;
+      }
+      showToast("Estimation envoyee au client.");
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur reseau.");
+    } finally {
+      setQuoteBusyId(null);
+    }
+  }
+
+  async function deleteQuote(id: number) {
+    setQuoteBusyId(id);
+    try {
+      await fetch(`/api/admin/quotes/${id}`, { method: "DELETE" });
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      // silencieux
+    } finally {
+      setQuoteBusyId(null);
+    }
+  }
 
   async function honorGoodie(id: number, honored: boolean) {
     try {
@@ -2133,10 +2228,12 @@ export function AdminDashboardPage() {
   }
 
   // Compteurs de notification par onglet de navigation admin.
+  const quotesPendingCount = quotes.filter((quote) => quote.status === "pending").length;
   const adminNavBadges: Record<string, number> = {
     home: goodiePending,
     appointments: pendingRequests.length,
     delivery: deliveryPendingCount,
+    devis: quotesPendingCount,
     clients: 0,
   };
 
@@ -2221,8 +2318,10 @@ export function AdminDashboardPage() {
     ? "appointments"
     : location.pathname.startsWith("/admin/delivery")
       ? "delivery"
-      : location.pathname.startsWith("/admin/clients")
-        ? "clients"
+      : location.pathname.startsWith("/admin/devis")
+        ? "devis"
+        : location.pathname.startsWith("/admin/clients")
+          ? "clients"
         : location.pathname.startsWith("/admin/stats")
           ? "stats"
           : location.pathname.startsWith("/admin/events")
@@ -2242,8 +2341,10 @@ export function AdminDashboardPage() {
       ? "Agenda"
       : adminSection === "delivery"
         ? "Livraison"
-        : adminSection === "clients"
-          ? "Clients"
+        : adminSection === "devis"
+          ? "Devis"
+          : adminSection === "clients"
+            ? "Clients"
           : adminSection === "stats"
             ? "Statistiques"
             : adminSection === "events"
@@ -2258,8 +2359,10 @@ export function AdminDashboardPage() {
       ? "Demandes en attente: validez le tarif et planifiez."
       : adminSection === "delivery"
         ? "Rendez-vous confirmés: compte-rendu, photos et passage en effectué."
-        : adminSection === "clients"
-          ? "Fiches, formules, BC'Coins et historique client."
+        : adminSection === "devis"
+          ? "Demandes d'estimation: chiffrez en credits, le client est notifie."
+          : adminSection === "clients"
+            ? "Fiches, formules, BC'Coins et historique client."
           : adminSection === "stats"
             ? "Statistiques par mois et analytics (conversion, rétention, créneaux)."
             : adminSection === "events"
@@ -2875,6 +2978,190 @@ export function AdminDashboardPage() {
     );
   }
 
+  // Devis : page admin — liste des demandes + estimation en credits.
+  function renderQuotesPage() {
+    const pendingQuotes = quotes.filter((quote) => quote.status === "pending");
+    return (
+      <section className="bb-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="bb-eyebrow">Devis</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
+              Demandes d&apos;estimation
+            </h2>
+            <p className="mt-2 text-sm text-white/55">
+              Chiffrez chaque demande en credits : le client est notifie (push + e-mail)
+              et peut recharger directement.
+            </p>
+          </div>
+          <span
+            className={cn(
+              "bb-pill",
+              pendingQuotes.length > 0
+                ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
+                : "border-emerald-300/25 bg-emerald-300/10 text-emerald-200",
+            )}
+          >
+            {pendingQuotes.length} en attente
+          </span>
+        </div>
+
+        {quotes.length === 0 ? (
+          <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
+            <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/40">
+              <FileText className="h-6 w-6" />
+            </span>
+            <p className="text-sm text-white/55">Aucune demande de devis pour le moment.</p>
+          </div>
+        ) : (
+          <div className="mt-5 space-y-4">
+            {quotes.map((quote) => {
+              const answered = quote.status === "answered";
+              const creditValue =
+                quoteCreditDrafts[quote.id] ??
+                (answered && quote.estimatedCredits ? String(quote.estimatedCredits) : "");
+              const busy = quoteBusyId === quote.id;
+              return (
+                <article
+                  key={quote.id}
+                  className={cn(
+                    "rounded-2xl border p-4",
+                    answered
+                      ? "border-white/10 bg-white/[0.02]"
+                      : "border-amber-300/20 bg-amber-300/[0.04]",
+                  )}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold text-white">
+                          {quote.client.fullName || "Client"}
+                        </h3>
+                        <span className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
+                          {quote.client.isFounder
+                            ? "Fondateur"
+                            : (quote.client.clientType || "bbx").toUpperCase()}
+                        </span>
+                        {answered ? (
+                          <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                            Estime {quote.estimatedCredits} cr.
+                          </span>
+                        ) : (
+                          <span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
+                            En attente
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-white/45">
+                        {quote.client.vehicleModel || "Vehicule non renseigne"}
+                        {quote.client.phone ? ` · ${quote.client.phone}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      className="text-xs font-medium text-white/40 transition hover:text-rose-300"
+                      disabled={busy}
+                      onClick={() => void deleteQuote(quote.id)}
+                      type="button"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+
+                  {quote.description && (
+                    <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/70">
+                      {quote.description}
+                    </p>
+                  )}
+
+                  {quote.photos.length > 0 && (
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {quote.photos.map((url) => (
+                        <a
+                          className="block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                          href={url}
+                          key={url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <img alt="" className="h-full w-full object-cover" src={url} />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                      Estimation en credits
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          className={cn(
+                            "grid h-9 w-9 place-items-center rounded-lg border text-sm font-semibold transition",
+                            creditValue === String(n)
+                              ? "border-accent/45 bg-accent/15 text-white"
+                              : "border-white/12 bg-black/20 text-white/65 hover:bg-white/[0.05]",
+                          )}
+                          key={n}
+                          onClick={() =>
+                            setQuoteCreditDrafts((current) => ({
+                              ...current,
+                              [quote.id]: String(n),
+                            }))
+                          }
+                          type="button"
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <input
+                        className="bb-input w-24"
+                        min={1}
+                        onChange={(event) =>
+                          setQuoteCreditDrafts((current) => ({
+                            ...current,
+                            [quote.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Autre"
+                        type="number"
+                        value={creditValue}
+                      />
+                    </div>
+                    <input
+                      className="bb-input mt-2"
+                      onChange={(event) =>
+                        setQuoteCommentDrafts((current) => ({
+                          ...current,
+                          [quote.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Commentaire pour le client (optionnel)"
+                      value={quoteCommentDrafts[quote.id] ?? quote.adminComment ?? ""}
+                    />
+                    <button
+                      className="bb-button-brand mt-3 justify-center"
+                      disabled={busy}
+                      onClick={() => void answerQuote(quote)}
+                      type="button"
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      {busy
+                        ? "Envoi..."
+                        : answered
+                          ? "Mettre a jour l'estimation"
+                          : "Envoyer l'estimation"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   function renderStatsPage() {
     return (
       <>
@@ -2922,7 +3209,8 @@ export function AdminDashboardPage() {
       topPending.length === 0 &&
       topDeliveries.length === 0 &&
       lowCreditClients.length === 0 &&
-      goodiePending === 0;
+      goodiePending === 0 &&
+      quotesPendingCount === 0;
 
     const attentionCard = (
       appointment: AdminAppointment,
@@ -2997,8 +3285,17 @@ export function AdminDashboardPage() {
           </p>
         ) : (
           <>
-            {(lowCreditClients.length > 0 || goodiePending > 0) && (
+            {(lowCreditClients.length > 0 || goodiePending > 0 || quotesPendingCount > 0) && (
               <div className="mt-4 flex flex-wrap gap-2">
+                {quotesPendingCount > 0 && (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full border border-sky-300/30 bg-sky-300/10 px-3.5 py-1.5 text-xs font-semibold text-sky-100 transition hover:border-sky-300/50"
+                    to="/admin/devis"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {quotesPendingCount} devis a estimer
+                  </Link>
+                )}
                 {lowCreditClients.length > 0 && (
                   <Link
                     className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3.5 py-1.5 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45"
@@ -5545,7 +5842,9 @@ export function AdminDashboardPage() {
 
             {adminSection === "appointments" || adminSection === "delivery"
               ? renderAppointmentsPage()
-              : adminSection === "clients"
+              : adminSection === "devis"
+                ? renderQuotesPage()
+                : adminSection === "clients"
                 ? renderClientsPage()
                 : adminSection === "stats"
                   ? renderStatsPage()

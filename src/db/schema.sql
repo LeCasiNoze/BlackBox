@@ -166,6 +166,39 @@ CREATE INDEX IF NOT EXISTS idx_photos_appointment
   ON appointment_photos(appointment_id);
 
 -- ============================
+-- TABLE quote_requests (devis)
+-- Demande d'estimation client (photos + description). L'admin repond avec une
+-- estimation en credits ; le client recharge ensuite (unite BBX / packs fondateur).
+-- ============================
+CREATE TABLE IF NOT EXISTS quote_requests (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  description       TEXT,
+  status            TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'answered')),
+  estimated_credits INTEGER,
+  admin_comment     TEXT,
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  answered_at       INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_quote_requests_client
+  ON quote_requests(client_id);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_status
+  ON quote_requests(status);
+
+CREATE TABLE IF NOT EXISTS quote_request_photos (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  quote_request_id INTEGER NOT NULL REFERENCES quote_requests(id) ON DELETE CASCADE,
+  url              TEXT NOT NULL,
+  created_at       INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_quote_photos_request
+  ON quote_request_photos(quote_request_id);
+
+-- ============================
 -- TABLE reward_redemptions
 -- ============================
 CREATE TABLE IF NOT EXISTS reward_redemptions (
