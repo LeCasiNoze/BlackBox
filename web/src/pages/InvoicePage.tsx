@@ -22,6 +22,7 @@ type InvoiceData = {
   paymentMethod: string;
   company: InvoiceCompany;
   client: {
+    company: string | null;
     name: string;
     email: string;
     address: string;
@@ -135,7 +136,18 @@ export function InvoicePage() {
 
           <div className="mt-8 rounded-md bg-neutral-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Facturé à</p>
-            <p className="mt-1 font-semibold text-neutral-900">{invoice.client.name}</p>
+            {invoice.client.company && (
+              <p className="mt-1 font-bold text-neutral-900">{invoice.client.company}</p>
+            )}
+            <p
+              className={
+                invoice.client.company
+                  ? "text-sm text-neutral-700"
+                  : "mt-1 font-semibold text-neutral-900"
+              }
+            >
+              {invoice.client.name}
+            </p>
             {invoice.client.address && (
               <p className="text-sm text-neutral-600">{invoice.client.address}</p>
             )}
@@ -150,7 +162,7 @@ export function InvoicePage() {
             <thead>
               <tr className="border-b-2 border-neutral-300 text-left text-neutral-500">
                 <th className="py-2">Désignation</th>
-                <th className="py-2 text-center">Crédits</th>
+                <th className="py-2 text-center">Quantité</th>
                 <th className="py-2 text-right">Montant</th>
               </tr>
             </thead>

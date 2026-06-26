@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.30.2";
+export const APP_VERSION = "1.31.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.31.0",
+    date: "2026-06-26",
+    title: "Factures : societe du client + designation service",
+    changes: [
+      "Quand le client a une societe renseignee, son nom de societe s'affiche au-dessus de son nom sur la facture.",
+      "La designation est desormais « Nettoyage véhicule » sur toutes les factures (au lieu de l'intitule des credits). Les factures deja passees s'adaptent automatiquement (elles sont generees a la demande).",
+    ],
+  },
   {
     version: "1.30.2",
     date: "2026-06-24",

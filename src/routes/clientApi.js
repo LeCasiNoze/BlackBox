@@ -1231,13 +1231,17 @@ router.get("/:idOrSlug/invoices/:orderId", (req, res) => {
     invoice: {
       number: invoiceNumberFor(order),
       issuedAt: order.paid_at ?? order.created_at ?? null,
-      label: order.offer_label || "Paiement",
+      // Designation generique "service" pour toutes les factures (au lieu de
+      // l'intitule de l'offre de credits) : s'applique aussi aux factures deja
+      // passees (la facture est generee a la demande, rien n'est fige).
+      label: "Nettoyage véhicule",
       credits: order.credits ?? 0,
       amountCents: order.amount_cents ?? 0,
       currency: order.currency || "EUR",
       paymentMethod: "Carte (SumUp)",
       company: getCompanyInfo(),
       client: {
+        company: client.company || null,
         name:
           client.full_name ||
           `${client.first_name || ""} ${client.last_name || ""}`.trim() ||
