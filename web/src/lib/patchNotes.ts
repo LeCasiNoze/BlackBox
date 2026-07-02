@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.32.0";
+export const APP_VERSION = "1.33.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,20 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.33.0",
+    date: "2026-07-03",
+    title: "Design : carte membre & accueil repense (3 univers)",
+    changes: [
+      "Nouvel accueil client : carte membre BlackBox (palier BBX / Fondateur / Pro, solde de lavages avec jauge, bouton Recharger, BC'Coins pour les fondateurs) avec reflet anime.",
+      "Nouvelle carte « Prochain rendez-vous » avec pastille date : ouvre directement la fiche du RDV ; sinon propose la prochaine dispo.",
+      "Navigation (mobile et desktop) : barre pilule tokenisee par univers, onglet actif avec halo — plus aucun hex code en dur.",
+      "Boutique fondateur : chaque pack affiche ses recompenses (+80 BC/credit immediat, +20 differes, 1 case a ouvrir).",
+      "Le halo de la carte evenement s'accorde desormais au theme du compte (violet / rose / bleu).",
+      "Admin : teintes champagne figees remplacees par les tokens du theme, menu avec etat actif lumineux.",
+      "Reflet de la carte membre en pause sur mobile (performances preservees).",
+    ],
+  },
   {
     version: "1.32.0",
     date: "2026-07-02",

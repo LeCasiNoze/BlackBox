@@ -3911,7 +3911,7 @@ export function ClientCardPage() {
           </div>
         </header>
 
-        <nav className={cn("hidden gap-2 rounded-[28px] border border-white/10 bg-white/[0.03] p-2 backdrop-blur-xl md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <nav className={cn("bb-tabbar hidden gap-2 rounded-[28px] p-2 backdrop-blur-xl md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -3919,9 +3919,7 @@ export function ClientCardPage() {
               <Link
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-[22px] px-4 py-3 text-sm font-semibold transition duration-200",
-                  active
-                    ? "bg-accent/12 text-white shadow-[0_12px_28px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "text-white/68 hover:bg-white/[0.05]",
+                  active ? "bb-tab-active" : "text-white/68 hover:bg-white/[0.05]",
                 )}
                 key={item.view}
                 to={portalHref(item.view)}
@@ -4474,8 +4472,8 @@ export function ClientCardPage() {
     if (!pushSupported) return null;
 
     return (
-      <div className="bb-rise flex items-center justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="bb-rise flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
+        <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/40 bg-accent/15 text-accentSoft">
             <Bell className="h-5 w-5" />
           </span>
@@ -4543,6 +4541,129 @@ export function ClientCardPage() {
     );
   }
 
+  // Carte membre — identite du compte (wordmark, palier, solde) sur l'accueil.
+  // Meme composant pour les 3 univers, seuls le palier et la ligne solde changent.
+  function renderMemberCard() {
+    const isPro = clientData.clientType === "pro";
+    const tier = isPro ? "Pro" : clientData.isFounder ? "Fondateur" : "BBX";
+    const remaining = clientData.formulaRemaining;
+    return (
+      <div className="bb-member bb-rise">
+        <div className="bb-member-in p-5">
+          <div className="flex items-center justify-between">
+            <p className="bb-display text-[13px] font-extrabold uppercase tracking-[0.26em] text-white">
+              Black<span className="text-accent">Box</span>
+            </p>
+            <span className="bb-member-tier">{tier}</span>
+          </div>
+          <p className="mt-6 text-xs text-white/50">
+            Titulaire
+            <span className="mt-0.5 block truncate text-[15px] font-bold tracking-wide text-white">
+              {clientData.fullName || clientData.firstName || "Client"}
+            </span>
+          </p>
+          <div className="mt-4 flex items-end justify-between gap-3">
+            {isPro ? (
+              <div className="min-w-0">
+                <p className="bb-display text-xl font-extrabold text-white">Compte pro</p>
+                <p className="mt-1 text-xs text-white/50">Rendez-vous directs, sans credits</p>
+              </div>
+            ) : (
+              <div className="min-w-0">
+                <p className="leading-none">
+                  <span className="bb-display text-[40px] font-extrabold tracking-tight text-white">
+                    {remaining}
+                  </span>
+                  <span className="ml-2 text-xs font-semibold text-white/55">
+                    lavage{remaining > 1 ? "s" : ""} restant{remaining > 1 ? "s" : ""}
+                  </span>
+                </p>
+                <div className="mt-3 h-1.5 w-36 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-accentSoft"
+                    style={{ width: `${Math.max(6, creditsRatio * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {!isPro && (
+              <button
+                className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-accent/35 bg-accent/10 px-4 text-xs font-bold text-accentSoft transition duration-200 hover:bg-accent/20 active:scale-95"
+                onClick={() => (clientData.isFounder ? navigateView("shop") : openTopupFlow())}
+                type="button"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Recharger
+              </button>
+            )}
+          </div>
+          {clientData.isFounder && (
+            <div className="mt-4 flex items-center justify-between rounded-2xl border border-accent/20 bg-black/25 px-3.5 py-2.5">
+              <span className="text-xs font-semibold text-white/60">BC&apos;Coins</span>
+              <span className="text-sm font-extrabold text-accentSoft">{clientData.bcPoints} BC</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Carte "prochain rendez-vous" : pastille date + statut, ouvre la fiche RDV.
+  function renderNextAppointmentCard() {
+    const appt = upcomingAppointment;
+    if (!appt) {
+      return (
+        <button
+          className="bb-surface bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
+          onClick={() => navigateView("booking")}
+          type="button"
+        >
+          <span className="bb-date-block">
+            <CalendarClock className="h-5 w-5 text-accent" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-white">Aucun rendez-vous prevu</span>
+            <span className="mt-0.5 block text-xs text-white/55">
+              {freeSlot
+                ? `Libre des le ${formatDateFR(freeSlot.date, { day: "numeric", month: "long" })}`
+                : "Choisis ton prochain passage"}
+            </span>
+          </span>
+          <ArrowRight className="h-5 w-5 shrink-0 text-white/40" />
+        </button>
+      );
+    }
+    return (
+      <button
+        className="bb-surface bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
+        onClick={() => {
+          void openAppointmentModal(appt);
+        }}
+        type="button"
+      >
+        <span className="bb-date-block">
+          <span className="bb-display text-[22px] font-extrabold leading-none text-white">
+            {formatDateFR(appt.date, { day: "numeric" })}
+          </span>
+          <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+            {formatDateFR(appt.date, { month: "short" }).replace(".", "")}
+          </span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-white">Prochain rendez-vous</span>
+          <span className="mt-0.5 block truncate text-xs text-white/55">
+            {slotLabel(appt.slot)} · {formatTimeHHMM(appt.time)} ·{" "}
+            {appt.vehicleModel || clientData.vehicleModel || "Vehicule"}
+          </span>
+          <span className={cn("bb-pill mt-2", appointmentStatusClasses(appt.status))}>
+            {appointmentStatusLabel(appt.status)}
+          </span>
+        </span>
+        <ArrowRight className="h-5 w-5 shrink-0 text-white/40" />
+      </button>
+    );
+  }
+
   function renderProHomeView() {
     return (
       <section className="space-y-4">
@@ -4550,73 +4671,48 @@ export function ClientCardPage() {
         {renderNotifBanner()}
         {renderEventTeaser()}
 
-        {/* HERO PRO — Blueprint (grille technique) */}
-        <article className="bb-rise bb-gold-frame bb-pro-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
-          <div className="bb-grid-motif pointer-events-none absolute inset-0" />
-          <div className="bb-pro-orb bb-pro-orb-steel" />
-          <div className="bb-pro-orb bb-pro-orb-cyan" />
-
-          <div className="relative z-10 space-y-5">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Acces pro
-                </div>
-                {activeVehicle && (
-                  <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
-                    <CarFront className="h-3.5 w-3.5 text-accent" />
-                    {vehicleTitle(activeVehicle)}
-                  </div>
-                )}
-              </div>
-              <h1 className="bb-title-xl mt-3">
-                Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
-              </h1>
-              <p className="bb-subtitle mt-2">
-                Compte pro : vos rendez-vous sont directs, sans consommation de credits.
-              </p>
+        {/* Accueil PRO — Blueprint : salutation compacte + carte membre */}
+        <div className="bb-rise relative">
+          <div className="bb-grid-motif pointer-events-none absolute inset-x-[-1rem] top-[-1.5rem] h-40" />
+          <div className="relative flex flex-wrap items-center gap-2">
+            <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+              <Sparkles className="h-3.5 w-3.5" />
+              Acces pro
             </div>
-
-            {/* Action principale — dominante et guidee */}
-            <div>
-              <button
-                className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
-                onClick={() => navigateView("booking")}
-                type="button"
-              >
-                <CalendarClock className="mr-2 h-5 w-5" />
-                Prendre rendez-vous
-              </button>
-              <p className="mt-2 text-center text-xs text-white/45">
-                Choisissez un jour et une demi-journee — c&apos;est tout.
-              </p>
-              <div className="mt-3">{renderQuoteCta()}</div>
-            </div>
-
-            {/* Statut — 2 tuiles */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Prochain passage</p>
-                <p className="mt-1.5 text-lg font-bold text-white">
-                  {upcomingAppointment
-                    ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
-                    : "Aucun"}
-                </p>
-                <p className="mt-1 text-xs text-white/45">
-                  {upcomingAppointment
-                    ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(upcomingAppointment.time)}`
-                    : "Rien de prevu"}
-                </p>
+            {activeVehicle && (
+              <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
+                <CarFront className="h-3.5 w-3.5 text-accent" />
+                {vehicleTitle(activeVehicle)}
               </div>
-              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Compte Pro</p>
-                <p className="mt-1.5 text-lg font-bold text-white">Sans credits</p>
-                <p className="mt-1 text-xs text-white/45">Rendez-vous directs</p>
-              </div>
-            </div>
+            )}
           </div>
-        </article>
+          <h1 className="bb-display relative mt-3 text-3xl font-extrabold leading-tight text-white md:text-4xl">
+            Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
+          </h1>
+          <p className="bb-subtitle relative mt-1.5">
+            Vos rendez-vous sont directs, sans consommation de credits.
+          </p>
+        </div>
+
+        {renderMemberCard()}
+
+        {/* Action principale — dominante et guidee */}
+        <div className="bb-rise bb-rise-2">
+          <button
+            className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
+            onClick={() => navigateView("booking")}
+            type="button"
+          >
+            <CalendarClock className="mr-2 h-5 w-5" />
+            Prendre rendez-vous
+          </button>
+          <p className="mt-2 text-center text-xs text-white/45">
+            Choisissez un jour et une demi-journee — c&apos;est tout.
+          </p>
+          <div className="mt-3">{renderQuoteCta()}</div>
+        </div>
+
+        {renderNextAppointmentCard()}
 
         {/* Actions rapides — grille 2x2 */}
         <section className="bb-rise bb-rise-2 grid grid-cols-2 gap-3">
@@ -4678,83 +4774,47 @@ export function ClientCardPage() {
           {renderEventTeaser()}
           {renderLeaderboardTeaser()}
 
-          {/* HERO — identite + statut + action principale dominante */}
-          <article className="bb-rise bb-gold-frame bb-founder-hero bb-surface-strong relative overflow-hidden p-5 md:p-7">
-            <div className="bb-founder-orb bb-founder-orb-gold" />
-            <div className="bb-founder-orb bb-founder-orb-blue" />
-            <div className="bb-founder-orb bb-founder-orb-ember" />
-
-            <div className="relative z-10 space-y-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
-                      <Crown className="h-3.5 w-3.5" />
-                      Acces fondateur
-                    </div>
-                    <div className="bb-pill border-white/10 bg-white/[0.04] text-white/70">
-                      <span className="font-bold text-accent">{clientData.bcPoints}</span> BC&apos;Coins
-                    </div>
-                  </div>
-                  <h1 className="bb-title-xl mt-3">
-                    Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "fondateur"}</span>,
-                  </h1>
-                  <p className="bb-subtitle mt-2">
-                    Bienvenue dans votre espace. Tout commence par un rendez-vous.
-                  </p>
-                </div>
-                <img
-                  alt=""
-                  aria-hidden="true"
-                  className="hidden h-16 w-16 shrink-0 rounded-2xl border border-accent/25 object-cover sm:block"
-                  src={clientData.founderMediaUrl || "/bryan-cars-logo.png"}
-                />
+          {/* Accueil FONDATEUR — salutation compacte + carte membre */}
+          <div className="bb-rise">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+                <Crown className="h-3.5 w-3.5" />
+                Acces fondateur
               </div>
-
-              {/* Action principale — dominante et guidee */}
-              <div>
-                <button
-                  className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
-                  onClick={() => navigateView("booking")}
-                  type="button"
-                >
-                  <CalendarClock className="mr-2 h-5 w-5" />
-                  Prendre rendez-vous
-                </button>
-                <p className="mt-2 text-center text-xs text-white/45">
-                  Choisissez un jour et une demi-journee — c&apos;est tout.
-                </p>
-                <div className="mt-3">{renderQuoteCta()}</div>
-              </div>
-
-              {/* Statut — 2 tuiles claires */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Lavages restants</p>
-                  <p className="mt-1.5 text-2xl font-bold text-white">{clientData.formulaRemaining}</p>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-accent to-accentSoft"
-                      style={{ width: `${Math.max(6, creditsRatio * 100)}%` }}
-                    />
-                  </div>
+              {activeVehicle && (
+                <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
+                  <CarFront className="h-3.5 w-3.5 text-accent" />
+                  {vehicleTitle(activeVehicle)}
                 </div>
-                <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Prochain passage</p>
-                  <p className="mt-1.5 text-lg font-bold text-white">
-                    {upcomingAppointment
-                      ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
-                      : "Aucun"}
-                  </p>
-                  <p className="mt-1 text-xs text-white/45">
-                    {upcomingAppointment
-                      ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(upcomingAppointment.time)}`
-                      : "Rien de prevu"}
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
-          </article>
+            <h1 className="bb-display mt-3 text-3xl font-extrabold leading-tight text-white md:text-4xl">
+              Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "fondateur"}</span>,
+            </h1>
+            <p className="bb-subtitle mt-1.5">
+              Bienvenue dans votre espace. Tout commence par un rendez-vous.
+            </p>
+          </div>
+
+          {renderMemberCard()}
+
+          {/* Action principale — dominante et guidee */}
+          <div className="bb-rise bb-rise-2">
+            <button
+              className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
+              onClick={() => navigateView("booking")}
+              type="button"
+            >
+              <CalendarClock className="mr-2 h-5 w-5" />
+              Prendre rendez-vous
+            </button>
+            <p className="mt-2 text-center text-xs text-white/45">
+              Choisissez un jour et une demi-journee — c&apos;est tout.
+            </p>
+            <div className="mt-3">{renderQuoteCta()}</div>
+          </div>
+
+          {renderNextAppointmentCard()}
 
           {/* Actions rapides — grille 2x2 mobile, claire et tappable.
               "Prendre rendez-vous" est deja l'action principale ci-dessus. */}
@@ -4827,118 +4887,76 @@ export function ClientCardPage() {
         {renderNotifBanner()}
         {renderEventTeaser()}
 
-        {/* HERO BBX — identite + action principale (caractere Neon Violet) */}
-        <article className="bb-rise bb-gold-frame bb-surface-strong relative overflow-hidden p-5 md:p-7">
-          <div className="pointer-events-none absolute left-[-4rem] top-[-3rem] h-56 w-56 rounded-full bg-accent/14 blur-3xl" />
-          <div
-            className="pointer-events-none absolute right-[-4rem] top-8 h-56 w-56 rounded-full blur-3xl"
-            style={{ background: "rgb(var(--bb-accent2-rgb) / 0.16)" }}
-          />
-
-          <div className="relative z-10 space-y-5">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Espace client
-                </div>
-                {activeVehicle && (
-                  <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
-                    <CarFront className="h-3.5 w-3.5 text-accent" />
-                    {vehicleTitle(activeVehicle)}
-                  </div>
-                )}
-              </div>
-              <h1 className="bb-title-xl mt-3">
-                Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
-              </h1>
-              <p className="bb-subtitle mt-2">
-                Bienvenue dans votre espace. Tout commence par un rendez-vous.
-              </p>
+        {/* Accueil BBX — salutation compacte + carte membre (Neon Violet) */}
+        <div className="bb-rise">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">
+              <Sparkles className="h-3.5 w-3.5" />
+              Espace client
             </div>
+            {activeVehicle && (
+              <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
+                <CarFront className="h-3.5 w-3.5 text-accent" />
+                {vehicleTitle(activeVehicle)}
+              </div>
+            )}
+          </div>
+          <h1 className="bb-display mt-3 text-3xl font-extrabold leading-tight text-white md:text-4xl">
+            Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
+          </h1>
+          <p className="bb-subtitle mt-1.5">
+            Bienvenue dans votre espace. Tout commence par un rendez-vous.
+          </p>
+        </div>
 
-            {/* Action principale — dominante et guidee */}
-            <div>
-              <button
-                className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
-                onClick={() => navigateView("booking")}
-                type="button"
-              >
-                <CalendarClock className="mr-2 h-5 w-5" />
-                Prendre rendez-vous
-              </button>
-              <p className="mt-2 text-center text-xs text-white/45">
-                Choisissez un jour et une demi-journee — c&apos;est tout.
-              </p>
-              <div className="mt-3">{renderQuoteCta()}</div>
+        {renderMemberCard()}
+
+        {/* Action principale — dominante et guidee */}
+        <div className="bb-rise bb-rise-2">
+          <button
+            className="bb-button-brand bb-cta-pulse w-full justify-center py-4 text-base"
+            onClick={() => navigateView("booking")}
+            type="button"
+          >
+            <CalendarClock className="mr-2 h-5 w-5" />
+            Prendre rendez-vous
+          </button>
+          <p className="mt-2 text-center text-xs text-white/45">
+            Choisissez un jour et une demi-journee — c&apos;est tout.
+          </p>
+          <div className="mt-3">{renderQuoteCta()}</div>
+        </div>
+
+        {/* Devenir fondateur — juste sous l'action principale */}
+        <button
+          className="bb-rise bb-rise-2 group flex w-full items-center justify-between gap-4 rounded-[22px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.12),rgba(255,255,255,0.02))] p-4 text-left transition duration-200 hover:border-accent/45"
+          onClick={() => setFounderModalOpen(true)}
+          type="button"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-accent/35 bg-accent/12 p-2.5 text-accentSoft">
+              <Crown className="h-5 w-5" />
             </div>
-
-            {/* Devenir fondateur — juste sous l'action principale */}
-            <button
-              className="group flex w-full items-center justify-between gap-4 rounded-[22px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.12),rgba(255,255,255,0.02))] p-4 text-left transition duration-200 hover:border-accent/45"
-              onClick={() => setFounderModalOpen(true)}
-              type="button"
-            >
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-accent/35 bg-accent/12 p-2.5 text-accentSoft">
-                  <Crown className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">Devenir fondateur</p>
-                  <p className="mt-0.5 text-xs leading-5 text-white/62">
-                    Carte premium, BC&apos;Coins et avantages exclusifs.
-                  </p>
-                  {typeof data?.foundersRemaining === "number" && (
-                    <span className="mt-1 inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">
-                      {data.foundersRemaining > 0
-                        ? `${data.foundersRemaining} place${
-                            data.foundersRemaining > 1 ? "s" : ""
-                          } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${data.founderCap ?? 50}`
-                        : "Complet — plus de places"}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
-            </button>
-
-            {/* Statut — 2 tuiles claires */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-[22px] border border-accent/20 bg-black/25 p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Lavages restants</p>
-                <p
-                  className={cn(
-                    "mt-1.5 text-2xl font-bold",
-                    clientData.formulaRemaining > 0 ? "text-white" : "text-amber-300",
-                  )}
-                >
-                  {clientData.formulaRemaining}
-                </p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-accent to-accentSoft"
-                    style={{ width: `${Math.max(6, creditsRatio * 100)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="rounded-[22px] border border-white/10 bg-black/25 p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-white/40">Prochain passage</p>
-                <p className="mt-1.5 text-lg font-bold text-white">
-                  {upcomingAppointment
-                    ? formatDateFR(upcomingAppointment.date, { day: "numeric", month: "short" })
-                    : "Aucun"}
-                </p>
-                <p className="mt-1 text-xs text-white/45">
-                  {upcomingAppointment
-                    ? `${slotLabel(upcomingAppointment.slot)} · ${formatTimeHHMM(upcomingAppointment.time)}`
-                    : freeSlot
-                      ? `Libre des le ${formatDateFR(freeSlot.date, { day: "numeric", month: "short" })}`
-                      : "Rien de prevu"}
-                </p>
-              </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Devenir fondateur</p>
+              <p className="mt-0.5 text-xs leading-5 text-white/62">
+                Carte premium, BC&apos;Coins et avantages exclusifs.
+              </p>
+              {typeof data?.foundersRemaining === "number" && (
+                <span className="mt-1 inline-block text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">
+                  {data.foundersRemaining > 0
+                    ? `${data.foundersRemaining} place${
+                        data.foundersRemaining > 1 ? "s" : ""
+                      } restante${data.foundersRemaining > 1 ? "s" : ""} sur ${data.founderCap ?? 50}`
+                    : "Complet — plus de places"}
+                </span>
+              )}
             </div>
           </div>
-        </article>
+          <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
+        </button>
+
+        {renderNextAppointmentCard()}
 
         {/* Actions rapides — grille 2x2 mobile (booking est deja l'action principale) */}
         <section className="bb-rise bb-rise-2 grid grid-cols-2 gap-3">
@@ -5643,6 +5661,14 @@ export function ClientCardPage() {
                           Ajout de crédits
                         </div>
                       </div>
+                      {/* Recompenses fondateur (miroir de src/config/bcoins.js :
+                          +80 BC/credit immediat, +20 differes, 1 case par achat). */}
+                      <div className="mt-2.5 flex items-center gap-2 rounded-2xl border border-dashed border-accent/35 bg-accent/[0.07] px-3 py-2 text-[11px] font-semibold text-accentSoft">
+                        <Gift className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          +{offer.credits * 80} BC immediat · +{offer.credits * 20} BC differes · 1 case a ouvrir
+                        </span>
+                      </div>
                     </div>
                     <button
                       className="bb-button-brand px-4 py-2"
@@ -6159,17 +6185,15 @@ export function ClientCardPage() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className={cn("mx-auto grid max-w-xl rounded-[28px] border border-white/12 bg-[#14110d]/94 p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.46)] backdrop-blur-2xl", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <div className={cn("bb-tabbar mx-auto grid max-w-xl rounded-[28px] p-1.5 backdrop-blur-2xl", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
             return (
               <Link
                 className={cn(
-                  "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[20px] px-1.5 py-2 text-[10px] font-semibold transition duration-200",
-                  active
-                    ? "bg-gradient-to-b from-accent/18 to-[#d99a4e]/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.12)]"
-                    : "text-white/54",
+                  "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[22px] px-1.5 py-2 text-[10px] font-semibold transition duration-200 active:scale-95",
+                  active ? "bb-tab-active" : "text-white/54",
                 )}
                 key={item.view}
                 to={portalHref(item.view)}

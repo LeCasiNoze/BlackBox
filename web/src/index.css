@@ -605,6 +605,85 @@ select {
     animation: bb-founder-float 6.5s ease-in-out infinite;
   }
 
+  /* =====================================================================
+     Carte membre (accueil) — bord degrade accent, fond nocturne du theme,
+     reflet anime qui balaye la carte. Entierement pilotee par tokens.
+     ===================================================================== */
+  .bb-member {
+    position: relative;
+    border-radius: 26px;
+    padding: 1px;
+    background: linear-gradient(
+      140deg,
+      rgb(var(--bb-accent-soft-rgb) / 0.55),
+      rgb(var(--bb-accent-rgb) / 0.12) 35%,
+      rgb(var(--bb-accent2-rgb) / 0.42)
+    );
+    box-shadow: 0 26px 60px -26px rgba(0, 0, 0, 0.75);
+  }
+
+  .bb-member-in {
+    position: relative;
+    overflow: hidden;
+    border-radius: 25px;
+    background:
+      radial-gradient(420px 220px at 88% -20%, rgb(var(--bb-accent2-rgb) / 0.16), transparent 60%),
+      radial-gradient(400px 240px at -10% 125%, rgb(var(--bb-accent-rgb) / 0.2), transparent 60%),
+      var(--bb-glass-solid-2);
+  }
+
+  .bb-member-in::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 32%,
+      rgba(255, 255, 255, 0.07) 46%,
+      rgb(var(--bb-accent-soft-rgb) / 0.12) 51%,
+      transparent 66%
+    );
+    transform: translateX(-100%);
+    animation: bb-member-sheen 6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .bb-member-tier {
+    color: var(--bb-button-ink);
+    background: linear-gradient(135deg, var(--bb-accent), rgb(var(--bb-accent2-rgb) / 1));
+    letter-spacing: 0.18em;
+    @apply inline-flex rounded-lg px-2.5 py-1 text-[9.5px] font-extrabold uppercase;
+  }
+
+  /* Pastille date (carte "prochain rendez-vous"). */
+  .bb-date-block {
+    background: rgb(var(--bb-accent-rgb) / 0.13);
+    border: 1px solid rgb(var(--bb-accent-rgb) / 0.3);
+    @apply flex w-[60px] shrink-0 flex-col items-center justify-center rounded-2xl px-1 py-2.5 text-center;
+  }
+
+  /* Bandeau compact (installation, notifications) : rangee icone/texte/action. */
+  .bb-banner-ico {
+    background: rgb(var(--bb-accent-rgb) / 0.15);
+    color: var(--bb-accent-soft, var(--bb-accent));
+    @apply grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/35 text-accentSoft;
+  }
+
+  /* Barre d'onglets (nav) : conteneur pilule + onglet actif lumineux. */
+  .bb-tabbar {
+    background: var(--bb-glass-solid-2);
+    border: 1px solid var(--bb-border-strong);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  }
+
+  .bb-tab-active {
+    color: var(--bb-accent-soft);
+    background: rgb(var(--bb-accent-rgb) / 0.15);
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--bb-accent-rgb) / 0.3),
+      0 0 22px rgb(var(--bb-glow-rgb) / 0.22);
+  }
+
   .bb-founder-shimmer {
     position: absolute;
     inset: -32% auto auto -42%;
@@ -712,6 +791,18 @@ select {
   }
   50% {
     transform: translate3d(0, -10px, 0);
+  }
+}
+
+/* Reflet de la carte membre : long temps mort puis balayage rapide. */
+@keyframes bb-member-sheen {
+  0%,
+  58% {
+    transform: translateX(-100%);
+  }
+  88%,
+  100% {
+    transform: translateX(100%);
   }
 }
 
@@ -912,7 +1003,9 @@ select {
   inset: 2px;
   z-index: 1;
   border-radius: inherit;
-  background: rgba(20, 17, 13, 0.97);
+  /* Fond du theme (et non un brun fixe) pour que le halo s'accorde
+     a chaque univers (bbx violet / founder rose / pro bleu). */
+  background: var(--bb-glass-solid-2);
 }
 
 @keyframes bb-glow-rotate {
@@ -983,7 +1076,8 @@ select {
   .bb-pro-orb,
   .bb-founder-orb,
   .bb-founder-media,
-  .bb-founder-shimmer {
+  .bb-founder-shimmer,
+  .bb-member-in::after {
     animation: none !important;
   }
   /* Halo evenement conserve mais ralenti pour menager le GPU. */

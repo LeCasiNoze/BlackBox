@@ -2912,9 +2912,7 @@ export function AdminDashboardPage() {
               <Link
                 className={cn(
                   "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
-                  active
-                    ? "bg-accent/12 text-white shadow-[0_10px_24px_rgb(var(--bb-accent-rgb)/0.1)]"
-                    : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+                  active ? "bb-tab-active text-white" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
                 )}
                 key={item.key}
                 onClick={onNavigate}
@@ -4483,7 +4481,7 @@ export function AdminDashboardPage() {
                   <div className="mt-4 rounded-[28px] border border-accent/18 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-[#ffe8a8]">
+                        <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
                           <Inbox className="h-4 w-4" />
                         </span>
                         <div>
@@ -4805,7 +4803,7 @@ export function AdminDashboardPage() {
                   {/* Photos a ajouter (plusieurs, sans bouton d'upload) */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
-                      <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-[#ffe8a8]">
+                      <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
                         <Camera className="h-4 w-4" />
                       </span>
                       <div className="flex-1">
@@ -4843,7 +4841,7 @@ export function AdminDashboardPage() {
                               key={entry.url}
                             >
                               <img alt="" className="h-24 w-full object-cover" src={entry.url} />
-                              <span className="bb-pill absolute left-2 top-2 border-accent/25 bg-accent/15 text-[10px] text-[#ffe8a8]">
+                              <span className="bb-pill absolute left-2 top-2 border-accent/25 bg-accent/15 text-[10px] text-accentSoft">
                                 A envoyer
                               </span>
                               <button
@@ -4892,7 +4890,7 @@ export function AdminDashboardPage() {
                                   className={cn(
                                     "flex-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] transition",
                                     photo.category === cat
-                                      ? "border-accent/45 bg-accent/15 text-[#ffe8a8]"
+                                      ? "border-accent/45 bg-accent/15 text-accentSoft"
                                       : "border-white/10 bg-white/[0.03] text-white/55 hover:bg-white/[0.07]",
                                   )}
                                   key={cat}
@@ -5093,7 +5091,7 @@ export function AdminDashboardPage() {
         {/* ── Metriques rapides ── */}
         <section className="hidden gap-3 md:grid md:grid-cols-3">
           <article className="bb-metric bb-rise">
-            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-[#ffe8a8]">
+            <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
               <Users className="h-5 w-5" />
             </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
@@ -5254,7 +5252,7 @@ export function AdminDashboardPage() {
                         <span className={cn(
                           "inline-grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-[13px] font-bold",
                           active
-                            ? "border-accent/35 bg-accent/15 text-[#ffe8a8]"
+                            ? "border-accent/35 bg-accent/15 text-accentSoft"
                             : "border-white/12 bg-white/[0.06] text-white/60",
                         )}>
                           {initials}
@@ -5265,7 +5263,7 @@ export function AdminDashboardPage() {
                               {fullClientName(client)}
                             </p>
                             {client.isFounder && (
-                              <span className="bb-pill border-accent/35 bg-accent/10 text-[#ffe8a8]">
+                              <span className="bb-pill border-accent/35 bg-accent/10 text-accentSoft">
                                 <Crown className="h-3 w-3" />
                               </span>
                             )}
@@ -5351,7 +5349,7 @@ export function AdminDashboardPage() {
                       <div className={cn(
                         "inline-grid h-14 w-14 shrink-0 place-items-center rounded-2xl border text-lg font-bold",
                         managedClient.isFounder
-                          ? "border-accent/35 bg-accent/[0.12] text-[#ffe8a8]"
+                          ? "border-accent/35 bg-accent/[0.12] text-accentSoft"
                           : "border-white/12 bg-white/[0.06] text-white/60",
                       )}>
                         {([managedClient.firstName, managedClient.lastName]
@@ -5370,7 +5368,7 @@ export function AdminDashboardPage() {
                                 : managedClient.cardCode || "Sans code"}
                           </div>
                           {managedClient.isFounder && (
-                            <div className="bb-pill border-accent/35 bg-accent/10 text-[#ffe8a8]">
+                            <div className="bb-pill border-accent/35 bg-accent/10 text-accentSoft">
                               <Crown className="h-3.5 w-3.5" />
                               Fondateur
                             </div>
@@ -5592,7 +5590,7 @@ export function AdminDashboardPage() {
                             Ajuster le solde ou suivre les demandes
                           </p>
                         </div>
-                        <div className="bb-pill border-accent/25 bg-accent/10 text-[#ffe8a8]">
+                        <div className="bb-pill border-accent/25 bg-accent/10 text-accentSoft">
                           {managedClient.bcPoints} points
                         </div>
                       </div>
@@ -5733,7 +5731,7 @@ export function AdminDashboardPage() {
                   {/* Notes internes */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-start gap-3">
-                      <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-[#ffe8a8]">
+                      <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
                         <PencilLine className="h-4 w-4" />
                       </span>
                       <div className="min-w-0 flex-1">

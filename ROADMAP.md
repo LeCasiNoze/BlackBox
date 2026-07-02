@@ -10,6 +10,12 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Design v2 — carte membre & accueil repensé (v1.33.0)** : carte membre
+  BlackBox sur l'accueil (palier BBX/Fondateur/Pro, jauge de lavages, Recharger,
+  BC'Coins fondateur, reflet animé), carte « Prochain rendez-vous » avec pastille
+  date (ouvre la fiche RDV), navs pilule 100 % tokenisées (halo actif par univers),
+  récompenses BC affichées sur les packs fondateur, halo événement thémé,
+  admin tokenisé (`#ffe8a8` → accentSoft) + menu actif lumineux.
 - ✅ **Admin — navigation repensée (v1.20.0)** : Hall allégé (aperçu + lanceur),
   pages dédiées Statistiques / Événements / Communication / Réglages, barre
   d'onglets (toutes les sections) + barre du bas mobile (sections principales).
