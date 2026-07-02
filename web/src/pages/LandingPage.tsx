@@ -283,7 +283,25 @@ export function LandingPage() {
                     type="checkbox"
                   />
                   <span>
-                    J&apos;accepte les conditions generales et la politique de confidentialite de Bryan Cars.
+                    J&apos;accepte les{" "}
+                    <a
+                      className="text-white underline underline-offset-2"
+                      href="/conditions"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      conditions generales
+                    </a>{" "}
+                    et la{" "}
+                    <a
+                      className="text-white underline underline-offset-2"
+                      href="/confidentialite"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      politique de confidentialite
+                    </a>{" "}
+                    de Bryan Cars.
                   </span>
                 </label>
 
@@ -427,6 +445,23 @@ export function LandingPage() {
         <footer className="flex flex-col items-center gap-2 pt-2 text-center">
           <p className="text-xs text-white/35">Bryan Cars · Detailing premium · A domicile</p>
           <p className="text-[11px] text-white/25">L&apos;exigence du detail, a chaque passage.</p>
+          <nav className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-white/30">
+            <a className="transition hover:text-white/60" href="/mentions-legales">
+              Mentions legales
+            </a>
+            <span aria-hidden>·</span>
+            <a className="transition hover:text-white/60" href="/confidentialite">
+              Confidentialite
+            </a>
+            <span aria-hidden>·</span>
+            <a className="transition hover:text-white/60" href="/cookies">
+              Cookies
+            </a>
+            <span aria-hidden>·</span>
+            <a className="transition hover:text-white/60" href="/conditions">
+              Conditions
+            </a>
+          </nav>
         </footer>
       </main>
     </div>

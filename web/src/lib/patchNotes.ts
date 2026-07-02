@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.31.0";
+export const APP_VERSION = "1.32.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,17 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.32.0",
+    date: "2026-07-02",
+    title: "Conformite : mentions legales, confidentialite & cookies",
+    changes: [
+      "Nouvelles pages legales publiques : Mentions legales, Politique de confidentialite (RGPD) et Politique de cookies, accessibles depuis le pied de page de l'accueil et le formulaire d'inscription.",
+      "Les mentions legales se remplissent automatiquement depuis les Reglages (Societe) : deux nouveaux champs (Directeur de la publication, Immatriculation) a completer. Au passage en SARL, il suffira de mettre a jour ces champs.",
+      "La case d'inscription renvoie desormais reellement vers les conditions et la politique de confidentialite.",
+      "Aucune banniere cookies n'est requise : le site n'utilise que des cookies techniques essentiels (aucun traceur), ce qui est precise dans la politique de cookies.",
+    ],
+  },
   {
     version: "1.31.0",
     date: "2026-06-26",

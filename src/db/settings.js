@@ -13,7 +13,7 @@ function setSetting(key, value) {
 }
 
 const COMPANY_KEY = "company_info";
-// Champs de la societe utilises sur les factures.
+// Champs de la societe utilises sur les factures ET les mentions legales.
 const COMPANY_FIELDS = [
   "name",
   "legalForm",
@@ -23,6 +23,9 @@ const COMPANY_FIELDS = [
   "vatNote",
   "email",
   "phone",
+  // Ajouts pour les mentions legales :
+  "publisher", // Directeur de la publication (nom prenom)
+  "rcs", // Immatriculation (ex: "Immatriculee au RNE" ou "RCS Paris 807 723 614")
 ];
 
 function getCompanyInfo() {

@@ -3686,10 +3686,17 @@ export function AdminDashboardPage() {
   function renderCompanySettingsPanel() {
     const fields: Array<{ key: string; label: string; placeholder: string; full?: boolean }> = [
       { key: "name", label: "Raison sociale", placeholder: "Bryan Cars" },
-      { key: "legalForm", label: "Forme / statut", placeholder: "Auto-entrepreneur" },
+      { key: "legalForm", label: "Forme / statut", placeholder: "Auto-entrepreneur (EI)" },
+      { key: "publisher", label: "Directeur de la publication", placeholder: "Prenom Nom" },
       { key: "address", label: "Adresse", placeholder: "12 rue ...", full: true },
       { key: "city", label: "Code postal + ville", placeholder: "71500 Louhans" },
       { key: "siret", label: "SIRET", placeholder: "123 456 789 00012" },
+      {
+        key: "rcs",
+        label: "Immatriculation",
+        placeholder: "Immatriculee au RNE / RCS Paris 807 723 614",
+        full: true,
+      },
       { key: "email", label: "E-mail", placeholder: "contact@..." },
       { key: "phone", label: "Telephone", placeholder: "06 ..." },
       {
@@ -3704,9 +3711,11 @@ export function AdminDashboardPage() {
         <div className="bb-section-head">
           <div>
             <p className="bb-eyebrow">Société</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">Mentions des factures</h2>
+            <h2 className="mt-1 text-xl font-semibold text-white">Société & mentions légales</h2>
             <p className="mt-1 text-sm text-white/55">
-              Ces informations apparaissent sur les factures clients.
+              Ces informations alimentent les factures ET les pages légales (mentions
+              légales, confidentialité). Au passage en SARL : mettez à jour « Forme /
+              statut » (ex. « SARL au capital de 5 000 € ») et « Immatriculation ».
             </p>
           </div>
         </div>

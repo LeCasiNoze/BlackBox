@@ -22,6 +22,7 @@ const clientApiRoutes = require("./routes/clientApi");
 const adminApiRoutes = require("./routes/adminApi");
 const paymentRoutes = require("./routes/payments");
 const { ensureDemoClient, renumberCardCodes, expireTemporaryFounders } = require("./db/clients");
+const { getCompanyInfo } = require("./db/settings");
 const { startAppointmentReminderScheduler } = require("./services/appointmentReminderScheduler");
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 const { startInactivityReminderScheduler } = require("./services/inactivityReminderScheduler");
@@ -75,6 +76,16 @@ app.use("/api/client", clientApiRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", requireAdminApiAuth, adminApiRoutes);
 app.use("/", authRoutes);
+
+// Infos legales publiques (mentions legales / editeur) — donnees destinees a etre
+// publiees, alimentees par les Reglages admin (Societe).
+app.get("/api/legal-info", (_req, res) => {
+  try {
+    return res.json({ ok: true, company: getCompanyInfo() });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
 
 function pwaManifest(req, res) {
   const rawStartUrl = typeof req.query.startUrl === "string" ? req.query.startUrl : "/";
@@ -137,5 +148,13 @@ app.get(/^\/forfait(\/.*)?$/, (req, res) => {
 app.get(/^\/demo(\/.*)?$/, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
+
+// Pages legales publiques (mentions legales, confidentialite, cookies, CGU).
+app.get(
+  /^\/(mentions-legales|confidentialite|cookies|conditions)$/,
+  (req, res) => {
+    res.sendFile(path.join(distDir, "index.html"));
+  },
+);
 
 module.exports = app;
