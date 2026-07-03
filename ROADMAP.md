@@ -10,6 +10,13 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Réservation 100 % séquentielle + admin étape par étape (v1.37.0)** :
+  calendrier direct (sans textes d'aide ni étape demi-journée), déroulé un
+  clic = un bloc (heure → véhicule → lieu → estimation+note → photos →
+  envoi), historique véhicule replié en lignes compactes, admin
+  Agenda/Livraison en une étape à la fois sur mobile (liste ⇄ panneau,
+  flèches précédent/suivant avec compteur), pastilles date + numéros
+  d'étape côté admin, helper `dateBlockParts` (fix pastilles).
 - ✅ **Étape par étape + ergonomie (v1.36.0)** : réservation verrouillée clic
   par clic (heure à confirmer avant les détails, étape validée = résumé +
   Modifier), scroll remis en haut à chaque changement d'onglet (client +

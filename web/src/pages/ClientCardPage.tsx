@@ -42,6 +42,7 @@ import {
   canChangeDay,
   clampNumber,
   cn,
+  dateBlockParts,
   defaultTimeForSlot,
   dayStatusClasses,
   formatDateFR,
@@ -1376,6 +1377,9 @@ export function ClientCardPage() {
   // Verrouillage etape par etape : l'heure doit etre confirmee (un clic)
   // avant que les details ne se devoilent.
   const [timeConfirmed, setTimeConfirmed] = React.useState(false);
+  // Deroule sequentiel des details : 2=vehicule, 3=lieu, 4=estimation+note,
+  // 5=photos+envoi. Chaque choix debloque le bloc suivant.
+  const [bookingStep, setBookingStep] = React.useState(2);
 
   // Devis : modale, description, photos.
   const [quoteModalOpen, setQuoteModalOpen] = React.useState(false);
@@ -2582,6 +2586,7 @@ export function ClientCardPage() {
   // Changer de jour ou de demi-journee re-verrouille l'etape des details.
   React.useEffect(() => {
     setTimeConfirmed(false);
+    setBookingStep(2);
   }, [selectedDay, selectedSlot]);
 
   // L'heure confirmee devoile les details : on y descend en douceur.
@@ -3978,10 +3983,10 @@ export function ClientCardPage() {
         <div className="flex items-start gap-4">
           <span className="bb-date-block">
             <span className="bb-display text-[22px] font-extrabold leading-none text-white">
-              {formatDateFR(appointment.date, { day: "numeric" })}
+              {dateBlockParts(appointment.date).day}
             </span>
             <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
-              {formatDateFR(appointment.date, { month: "short" }).replace(".", "")}
+              {dateBlockParts(appointment.date).month}
             </span>
           </span>
 
@@ -4714,10 +4719,10 @@ export function ClientCardPage() {
       >
         <span className="bb-date-block">
           <span className="bb-display text-[22px] font-extrabold leading-none text-white">
-            {formatDateFR(appt.date, { day: "numeric" })}
+            {dateBlockParts(appt.date).day}
           </span>
           <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
-            {formatDateFR(appt.date, { month: "short" }).replace(".", "")}
+            {dateBlockParts(appt.date).month}
           </span>
         </span>
         <span className="min-w-0 flex-1">
@@ -5119,23 +5124,6 @@ export function ClientCardPage() {
           <div>
             <p className="bb-eyebrow">Prendre rendez-vous</p>
             <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez votre creneau</h2>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <div className="flex items-center gap-3 rounded-2xl border border-accent/25 bg-accent/[0.07] px-3.5 py-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-xs font-extrabold text-[color:var(--bb-button-ink)]">
-                  1
-                </span>
-                <p className="text-sm leading-5 text-white/75">Choisissez le jour</p>
-              </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-accent/40 bg-accent/10 text-xs font-extrabold text-accentSoft">
-                  2
-                </span>
-                <p className="text-sm leading-5 text-white/75">
-                  Touchez une demi-journee <span className="font-semibold text-emerald-200">libre</span>{" "}
-                  — matin 9h-12h, apres-midi 14h-18h
-                </p>
-              </div>
-            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -5325,106 +5313,42 @@ export function ClientCardPage() {
             Meme payload que l'ancienne modale (date/slot/time/lieu/etat/vehicule/photos). */}
         {selectedDay && currentDaySlot && selectedMode === "book" && (
           <div className="space-y-4" ref={bookingFlowRef}>
-            {/* Etape 2 — periode */}
-            <article className="bb-rise bb-surface p-5 md:p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="bb-eyebrow">Etape 2 · Demi-journee</p>
-                  <h3 className="bb-display mt-2 text-xl font-semibold text-white">
-                    {formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })}
-                  </h3>
-                </div>
-                <button
-                  aria-label="Changer de jour"
-                  className="bb-icon-btn"
-                  onClick={closeDayModal}
-                  type="button"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {SLOT_ORDER.map((slot) => {
-                  const slotInfo = selectedDay.slots[slot];
-                  const free = slotInfo.status === "free";
-                  const mine = slotInfo.status === "mine";
-                  const isSel = selectedSlot === slot;
-                  const alreadyWaiting = (data?.waitlist ?? []).some(
-                    (w) => w.date === selectedDay.date && w.slot === slot,
-                  );
-                  return (
-                    <div
-                      className={cn(
-                        "rounded-[22px] border p-4 transition duration-200",
-                        free && isSel
-                          ? "border-accent bg-accent/15 shadow-[0_0_0_1px_var(--bb-accent)]"
-                          : free || mine
-                            ? "border-white/10 bg-white/[0.03]"
-                            : "border-white/10 bg-white/[0.02] opacity-70",
-                      )}
-                      key={slot}
-                    >
-                      <button
-                        className="w-full text-left"
-                        disabled={!free && !mine}
-                        onClick={() => selectDaySlot(slot)}
-                        type="button"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-bold text-white">{slotLabel(slot)}</p>
-                          {free ? (
-                            isSel && <CheckCircle2 className="h-4 w-4 text-accent" />
-                          ) : (
-                            <span className="bb-pill border-white/12 bg-black/20 text-white/60">
-                              {mine ? "A vous" : slotInfo.status === "busy" ? "Complet" : "Passe"}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs text-white/55">
-                          Arrivee entre {slotWindowLabel(slot)}
-                        </p>
-                      </button>
-                      {slotInfo.status === "busy" &&
-                        (alreadyWaiting ? (
-                          <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-accentSoft">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Sur liste d&apos;attente
-                          </p>
-                        ) : (
-                          <button
-                            className="mt-3 inline-flex min-h-[38px] items-center gap-1.5 rounded-full border border-accent/35 bg-accent/10 px-3.5 text-xs font-bold text-accentSoft transition hover:bg-accent/20"
-                            disabled={waitlistBusy}
-                            onClick={() => {
-                              void joinWaitlist(selectedDay.date, slot);
-                            }}
-                            type="button"
-                          >
-                            <Bell className="h-3.5 w-3.5" />
-                            {waitlistBusy ? "..." : "Me prevenir si ca se libere"}
-                          </button>
-                        ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-
             {currentDaySlot.status === "free" && (
               <>
                 {/* Etape 3 — heure d'arrivee : stepper puis confirmation.
                     Une fois validee, l'etape se replie en resume (Modifier). */}
-                <article className="bb-rise bb-rise-2 bb-surface p-5 md:p-6">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="bb-eyebrow">Etape 3 · Heure d&apos;arrivee</p>
-                    {timeConfirmed && (
+                <article className="bb-rise bb-surface p-5 md:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="bb-eyebrow">Etape 1 · Heure d&apos;arrivee</p>
+                      <p className="mt-1.5 text-sm font-bold text-white">
+                        {formatDateFR(selectedDay.date, {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        })}{" "}
+                        · {slotLabel(selectedSlot)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {timeConfirmed && (
+                        <button
+                          className="text-xs font-bold text-accentSoft underline-offset-2 hover:underline"
+                          onClick={() => setTimeConfirmed(false)}
+                          type="button"
+                        >
+                          Modifier
+                        </button>
+                      )}
                       <button
-                        className="text-xs font-bold text-accentSoft underline-offset-2 hover:underline"
-                        onClick={() => setTimeConfirmed(false)}
+                        aria-label="Changer de jour"
+                        className="bb-icon-btn h-9 w-9"
+                        onClick={closeDayModal}
                         type="button"
                       >
-                        Modifier
+                        <X className="h-4 w-4" />
                       </button>
-                    )}
+                    </div>
                   </div>
                   {timeConfirmed ? (
                     <div className="mt-3 flex items-center gap-3">
@@ -5468,7 +5392,10 @@ export function ClientCardPage() {
                       </div>
                       <button
                         className="bb-button-brand mt-4 w-full justify-center"
-                        onClick={() => setTimeConfirmed(true)}
+                        onClick={() => {
+                          setTimeConfirmed(true);
+                          setBookingStep(vehicles.length > 0 ? 2 : 3);
+                        }}
                         type="button"
                       >
                         Continuer avec {timeParts.hour} h {timeParts.minute}
@@ -5484,8 +5411,6 @@ export function ClientCardPage() {
                   className="bb-rise bb-surface space-y-4 p-5 md:p-6"
                   ref={bookingDetailsRef}
                 >
-                  <p className="bb-eyebrow">Etape 4 · Details</p>
-
                   {!termsAccepted && (
                     <div className="rounded-[22px] border border-amber-300/25 bg-amber-300/10 p-4">
                       <p className="text-sm font-semibold text-white">Conditions a accepter</p>
@@ -5512,9 +5437,7 @@ export function ClientCardPage() {
 
                   {vehicles.length > 0 && (
                     <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Vehicule concerne
-                      </p>
+                      <p className="bb-eyebrow">Etape 2 · Vehicule</p>
                       {vehicles.length > 3 && (
                         <div className="relative mt-3">
                           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -5536,7 +5459,10 @@ export function ClientCardPage() {
                                 : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]",
                             )}
                             key={vehicle.id}
-                            onClick={() => setActiveVehicleId(vehicle.id)}
+                            onClick={() => {
+                              setActiveVehicleId(vehicle.id);
+                              setBookingStep((step) => Math.max(step, 3));
+                            }}
                             type="button"
                           >
                             <CarFront className="h-4 w-4" />
@@ -5555,8 +5481,9 @@ export function ClientCardPage() {
                     </div>
                   )}
 
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu souhaite</p>
+                  {bookingStep >= 3 && (
+                  <div className="bb-rise">
+                    <p className="bb-eyebrow">Etape 3 · Lieu souhaite</p>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       {[
                         {
@@ -5578,7 +5505,10 @@ export function ClientCardPage() {
                               : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
                           )}
                           key={option.value}
-                          onClick={() => setAppointmentLocation(option.value)}
+                          onClick={() => {
+                            setAppointmentLocation(option.value);
+                            setBookingStep((step) => Math.max(step, 4));
+                          }}
                           type="button"
                         >
                           <div className="flex items-center justify-between">
@@ -5592,12 +5522,13 @@ export function ClientCardPage() {
                       ))}
                     </div>
                   </div>
+                  )}
 
+                  {bookingStep >= 4 && (
+                  <div className="bb-rise space-y-4">
                   {clientData.clientType !== "pro" && (
                     <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Etat estime du vehicule
-                      </p>
+                      <p className="bb-eyebrow">Etape 4 · Etat estime du vehicule</p>
                       <div className="mt-3 grid grid-cols-3 gap-2">
                         {SERVICE_LEVEL_OPTIONS.map((option) => (
                           <button
@@ -5640,10 +5571,25 @@ export function ClientCardPage() {
                     />
                   </div>
 
+                  {bookingStep < 5 && (
+                    <button
+                      className="bb-button-brand w-full justify-center"
+                      onClick={() => setBookingStep(5)}
+                      type="button"
+                    >
+                      Continuer
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </button>
+                  )}
+                  </div>
+                  )}
+
+                  {bookingStep >= 5 && (
+                  <div className="bb-rise space-y-4">
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Photos <span className="normal-case">(optionnel — aide a chiffrer juste)</span>
+                      <p className="bb-eyebrow">
+                        Etape 5 · Photos <span className="normal-case">(optionnel)</span>
                       </p>
                       <div className="bb-pill shrink-0 border-accent/25 bg-accent/12 text-accentSoft">
                         {bookingImageDrafts.length}/8
@@ -5722,6 +5668,8 @@ export function ClientCardPage() {
                     Bryan confirme le tarif selon l&apos;etat du vehicule — tu valides toujours
                     avant que le credit soit utilise.
                   </p>
+                  </div>
+                  )}
                 </article>
                 )}
               </>
@@ -5916,9 +5864,44 @@ export function ClientCardPage() {
               {activeVehicleAppointments.length === 0 ? (
                 <AppointmentsEmpty copy="Aucune prestation n'est encore reliee a ce véhicule." />
               ) : (
-                <div className="grid gap-3">
-                  {activeVehicleAppointments.map((appointment) => renderAppointmentCard(appointment))}
-                </div>
+                /* Historique du vehicule replie par defaut : lignes compactes,
+                   la fiche complete s'ouvre au tap (divulgation progressive). */
+                <details className="group/veh rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                    <p className="bb-eyebrow">Historique du vehicule</p>
+                    <span className="flex items-center gap-2">
+                      <span className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
+                        {activeVehicleAppointments.length}
+                      </span>
+                      <ArrowRight className="h-4 w-4 rotate-90 text-white/40 transition-transform duration-200 group-open/veh:-rotate-90" />
+                    </span>
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    {activeVehicleAppointments.map((appointment) => (
+                      <button
+                        className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-3.5 py-3 text-left transition duration-150 hover:bg-white/[0.04] active:scale-[0.99]"
+                        key={appointment.id}
+                        onClick={() => {
+                          void openAppointmentModal(appointment);
+                        }}
+                        type="button"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-bold text-white">
+                            {formatDateFR(appointment.date)}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-white/50">
+                            {slotLabel(appointment.slot)} · {formatTimeHHMM(appointment.time)}
+                          </span>
+                        </span>
+                        <span className={cn("bb-pill shrink-0", appointmentStatusClasses(appointment.status))}>
+                          {appointmentStatusLabel(appointment.status)}
+                        </span>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-white/30" />
+                      </button>
+                    ))}
+                  </div>
+                </details>
               )}
             </div>
           ) : (

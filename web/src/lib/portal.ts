@@ -54,6 +54,19 @@ export function canChangeDay(dateStr: string) {
   return Date.now() < limit.getTime();
 }
 
+// Pastille date (jour + mois court) : formatDateFR garde toujours mois/annee
+// par defaut, donc on expose les deux morceaux separement.
+export function dateBlockParts(dateStr: string) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (!dateStr || Number.isNaN(date.getTime())) {
+    return { day: "--", month: "" };
+  }
+  return {
+    day: String(date.getDate()),
+    month: date.toLocaleDateString("fr-FR", { month: "short" }).replace(".", ""),
+  };
+}
+
 export function formatDateFR(dateStr: string, options: DateLabelOptions = {}) {
   if (!dateStr) return "--";
 

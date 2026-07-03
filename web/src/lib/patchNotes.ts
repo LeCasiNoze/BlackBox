@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.36.0";
+export const APP_VERSION = "1.37.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,20 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.37.0",
+    date: "2026-07-03",
+    title: "Reservation 100% sequentielle & admin etape par etape",
+    changes: [
+      "Reservation : plus de textes d'aide ni d'etape demi-journee redondante — le calendrier suffit. Ensuite chaque clic devoile UNIQUEMENT le bloc suivant : heure -> vehicule -> lieu -> etat estime + demande particuliere -> photos -> envoi.",
+      "Choisir le vehicule ou le lieu fait avancer automatiquement ; l'en-tete de l'etape Heure rappelle le jour et la demi-journee choisis (croix pour changer de jour).",
+      "Vehicules : l'historique du vehicule est desormais replie (lignes compactes date + statut, la fiche s'ouvre au tap) — fini le foutoir sous la fiche.",
+      "Admin Agenda/Livraison sur telephone : une etape a la fois — la liste laisse place au panneau de traitement des qu'un rendez-vous est choisi (bouton retour Liste).",
+      "Admin : fleches precedent/suivant (avec compteur 2/7) pour passer d'un rendez-vous a l'autre sans revenir a la liste.",
+      "Admin : demandes en attente avec pastille date (comme cote client), numeros d'etape 1/2, panneau accentue quand un dossier est ouvert.",
+      "Correction : les pastilles date affichaient la date complete au lieu de jour + mois.",
+    ],
+  },
   {
     version: "1.36.0",
     date: "2026-07-03",

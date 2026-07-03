@@ -52,6 +52,7 @@ import {
   appointmentStatusLabel,
   clampNumber,
   cn,
+  dateBlockParts,
   formatDateFR,
   formatTimeHHMM,
   formatUnixDateTimeFR,
@@ -3961,13 +3962,20 @@ export function AdminDashboardPage() {
     );
     return (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-          <div className="order-2 space-y-4 xl:order-none">
+          {/* Etape par etape sur mobile : la liste disparait quand un RDV est
+              selectionne (le panneau prend le relais avec un bouton retour). */}
+          <div className={cn("order-2 space-y-4 xl:order-none", selectedAppointment && "hidden xl:block")}>
             {/* ── Inbox prioritaire ── */}
             <article className="bb-surface p-6">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="bb-eyebrow">Étape 1</p>
+                    <p className="bb-eyebrow flex items-center gap-2">
+                      <span className="grid h-6 w-6 place-items-center rounded-full bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-[10px] font-extrabold normal-nums text-[color:var(--bb-button-ink)]">
+                        1
+                      </span>
+                      Étape 1
+                    </p>
                     <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
                       Choisir un rendez-vous
                     </h2>
@@ -4053,13 +4061,21 @@ export function AdminDashboardPage() {
                             type="button"
                           >
                             <div className="flex items-start gap-3">
-                              <span className={cn(
-                                "mt-0.5 inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border",
-                                active
-                                  ? "border-amber-300/35 bg-amber-300/15 text-amber-200"
-                                  : "border-amber-300/20 bg-amber-300/[0.08] text-amber-300",
-                              )}>
-                                <Clock3 className="h-4 w-4" />
+                              {/* Pastille date — meme signature que le portail client */}
+                              <span
+                                className={cn(
+                                  "flex w-[52px] shrink-0 flex-col items-center justify-center rounded-2xl border px-1 py-2 text-center",
+                                  active
+                                    ? "border-accent/45 bg-accent/15"
+                                    : "border-accent/25 bg-accent/[0.08]",
+                                )}
+                              >
+                                <span className="bb-display text-lg font-extrabold leading-none text-white">
+                                  {dateBlockParts(appointment.date).day}
+                                </span>
+                                <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-accent">
+                                  {dateBlockParts(appointment.date).month}
+                                </span>
                               </span>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -4354,13 +4370,78 @@ export function AdminDashboardPage() {
           </div>
 
           {/* ── Panneau de traitement ── */}
-          <aside className="order-1 xl:sticky xl:top-6 xl:order-none xl:self-start">
-            <article className="bb-surface self-start p-6" ref={appointmentWorkspaceRef}>
+          <aside
+            className={cn(
+              "order-1 xl:sticky xl:top-6 xl:order-none xl:self-start",
+              !selectedAppointment && "hidden xl:block",
+            )}
+          >
+            <article
+              className={cn(
+                "bb-surface self-start p-6",
+                selectedAppointment && "border-accent/30 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.1)]",
+              )}
+              ref={appointmentWorkspaceRef}
+            >
+              {/* Navigation rapide : retour a la liste (mobile) + RDV precedent/suivant */}
+              {selectedAppointment && (
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <button
+                    className="bb-button-ghost px-3 py-2 text-xs xl:hidden"
+                    onClick={() => setSelectedAppointmentId(null)}
+                    type="button"
+                  >
+                    <ArrowRight className="mr-1.5 h-3.5 w-3.5 rotate-180" />
+                    Liste
+                  </button>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {(() => {
+                      const idx = boardAppointments.findIndex(
+                        (appointment) => appointment.id === selectedAppointment.id,
+                      );
+                      return (
+                        <>
+                          <button
+                            aria-label="Rendez-vous precedent"
+                            className="bb-icon-btn h-9 w-9"
+                            disabled={idx <= 0}
+                            onClick={() =>
+                              setSelectedAppointmentId(boardAppointments[idx - 1]?.id ?? null)
+                            }
+                            type="button"
+                          >
+                            <ArrowRight className="h-4 w-4 rotate-180" />
+                          </button>
+                          <span className="text-xs font-semibold tabular-nums text-white/45">
+                            {idx + 1}/{boardAppointments.length}
+                          </span>
+                          <button
+                            aria-label="Rendez-vous suivant"
+                            className="bb-icon-btn h-9 w-9"
+                            disabled={idx < 0 || idx >= boardAppointments.length - 1}
+                            onClick={() =>
+                              setSelectedAppointmentId(boardAppointments[idx + 1]?.id ?? null)
+                            }
+                            type="button"
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
               <div className="bb-section-head">
                 <div>
-                  <p className="bb-eyebrow">Étape 2</p>
+                  <p className="bb-eyebrow flex items-center gap-2">
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-[10px] font-extrabold normal-nums text-[color:var(--bb-button-ink)]">
+                      2
+                    </span>
+                    Étape 2
+                  </p>
                   <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
-                    {selectedAppointment ? "Traiter ce rendez-vous" : "Traiter ce rendez-vous"}
+                    Traiter ce rendez-vous
                   </h2>
                 </div>
                 {selectedAppointment && (
