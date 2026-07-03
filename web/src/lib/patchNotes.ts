@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.37.0";
+export const APP_VERSION = "1.37.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.37.1",
+    date: "2026-07-03",
+    title: "Reservation : etape vehicule sautee si un seul vehicule",
+    changes: [
+      "Quand le compte n'a qu'un vehicule, il est selectionne automatiquement et la reservation passe directement au choix du lieu — une etape de moins.",
+    ],
+  },
   {
     version: "1.37.0",
     date: "2026-07-03",

@@ -5394,7 +5394,12 @@ export function ClientCardPage() {
                         className="bb-button-brand mt-4 w-full justify-center"
                         onClick={() => {
                           setTimeConfirmed(true);
-                          setBookingStep(vehicles.length > 0 ? 2 : 3);
+                          // Un seul vehicule : on le selectionne d'office et on
+                          // passe directement au lieu (pas d'etape inutile).
+                          if (vehicles.length === 1) {
+                            setActiveVehicleId(vehicles[0].id);
+                          }
+                          setBookingStep(vehicles.length > 1 ? 2 : 3);
                         }}
                         type="button"
                       >
@@ -5435,7 +5440,8 @@ export function ClientCardPage() {
                     </div>
                   )}
 
-                  {vehicles.length > 0 && (
+                  {/* Etape sautee s'il n'y a qu'un vehicule (selectionne d'office). */}
+                  {vehicles.length > 1 && (
                     <div>
                       <p className="bb-eyebrow">Etape 2 · Vehicule</p>
                       {vehicles.length > 3 && (
