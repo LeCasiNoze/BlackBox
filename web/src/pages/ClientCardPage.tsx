@@ -1274,9 +1274,9 @@ function ChoiceField({
         {options.map((option) => (
           <button
             className={cn(
-              "rounded-[18px] border px-3 py-3 text-sm font-semibold transition duration-200",
+              "min-h-[46px] rounded-[16px] border px-3 py-2.5 text-sm font-bold transition duration-150 active:scale-95",
               option.value === value
-                ? "border-accent/45 bg-accent/10 text-white shadow-[0_12px_28px_rgb(var(--bb-accent-rgb)/0.12)]"
+                ? "border-transparent bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-[color:var(--bb-button-ink)] shadow-[0_10px_24px_rgb(var(--bb-glow-rgb)/0.35)]"
                 : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]",
             )}
             key={option.value}
@@ -3937,15 +3937,24 @@ export function ClientCardPage() {
   function renderAppointmentCard(appointment: ClientAppointment) {
     return (
       <button
-        className="bb-surface w-full p-5 text-left transition duration-200 hover:-translate-y-1"
+        className="bb-surface bb-hover-lift w-full p-4 text-left md:p-5"
         key={appointment.id}
         onClick={() => {
           void openAppointmentModal(appointment);
         }}
         type="button"
       >
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-3">
+        <div className="flex items-start gap-4">
+          <span className="bb-date-block">
+            <span className="bb-display text-[22px] font-extrabold leading-none text-white">
+              {formatDateFR(appointment.date, { day: "numeric" })}
+            </span>
+            <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-accent">
+              {formatDateFR(appointment.date, { month: "short" }).replace(".", "")}
+            </span>
+          </span>
+
+          <div className="min-w-0 flex-1 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2">
               <div className={cn("bb-pill", appointmentStatusClasses(appointment.status))}>
                 {appointmentStatusLabel(appointment.status)}
@@ -3964,9 +3973,11 @@ export function ClientCardPage() {
             </div>
 
             <div>
-              <h3 className="text-xl font-semibold text-white">{formatDateFR(appointment.date)}</h3>
-              <p className="mt-2 text-sm text-white/60">
-                {slotWindowLabel(appointment.slot)} · {formatTimeHHMM(appointment.time)} -{" "}
+              <h3 className="text-base font-bold text-white md:text-lg">
+                {formatDateFR(appointment.date)}
+              </h3>
+              <p className="mt-1 text-sm text-white/60">
+                {slotWindowLabel(appointment.slot)} · {formatTimeHHMM(appointment.time)} ·{" "}
                 {appointment.vehicleModel || clientData.vehicleModel || "Vehicule"}
               </p>
             </div>
@@ -3981,22 +3992,34 @@ export function ClientCardPage() {
                 <span>Cadeau a recuperer : {appointment.goodies.join(", ")}</span>
               </div>
             )}
+
+            <div className="flex flex-wrap gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
+                  appointment.hasPhotos
+                    ? "border-accent/35 bg-accent/10 text-accentSoft"
+                    : "border-white/10 bg-white/[0.03] text-white/45",
+                )}
+              >
+                <Camera className="h-3 w-3" />
+                {appointment.hasPhotos ? "Photos disponibles" : "Pas de photos"}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
+                  appointment.userRating
+                    ? "border-accent/35 bg-accent/10 text-accentSoft"
+                    : "border-white/10 bg-white/[0.03] text-white/45",
+                )}
+              >
+                <Star className="h-3 w-3" />
+                {appointment.userRating ? `Votre avis : ${appointment.userRating}/5` : "Avis a laisser"}
+              </span>
+            </div>
           </div>
 
-          <div className="min-w-[150px] space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
-              <p className="text-xs uppercase tracking-[0.16em] text-white/35">Photos</p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {appointment.hasPhotos ? "Oui" : "Non"}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
-              <p className="text-xs uppercase tracking-[0.16em] text-white/35">Avis</p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {appointment.userRating ? `${appointment.userRating}/5` : "--"}
-              </p>
-            </div>
-          </div>
+          <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-white/35" />
         </div>
       </button>
     );
@@ -4344,15 +4367,18 @@ export function ClientCardPage() {
         )}
         {assistantOpen && (
           <div
-            className="fixed bottom-20 right-4 z-[58] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[24px] border border-white/12 shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6"
-            style={{ backgroundColor: "#16120c" }}
+            className="bb-modal-panel fixed bottom-20 right-4 z-[58] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[26px] border border-[color:var(--bb-border-strong)] shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6"
+            style={{ background: "var(--bb-glass-solid-2)" }}
           >
             <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/15 text-accentSoft">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-9 w-9 place-items-center rounded-[14px] bg-[linear-gradient(135deg,rgb(var(--bb-accent2-rgb)/1),var(--bb-accent))] text-[color:var(--bb-button-ink)]">
                   <Sparkles className="h-4 w-4" />
                 </span>
-                <p className="text-sm font-semibold text-white">Assistant Bryan Cars</p>
+                <div>
+                  <p className="text-sm font-bold text-white">Assistant Bryan Cars</p>
+                  <p className="text-[11px] text-white/45">Reponse immediate</p>
+                </div>
               </div>
               <button
                 className="bb-button-ghost h-8 w-8 rounded-full px-0"
@@ -4363,17 +4389,17 @@ export function ClientCardPage() {
               </button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-4">
-              <div className="whitespace-pre-line rounded-[16px] rounded-tl-sm border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-white/85">
+              <div className="whitespace-pre-line rounded-[18px] rounded-tl-[4px] border border-[color:var(--bb-border)] bg-accent/[0.09] p-3.5 text-sm leading-6 text-white/85">
                 {botText}
               </div>
               <div className="mt-3 flex flex-col gap-2">
                 {chips.map((chip, index) => (
                   <button
                     className={cn(
-                      "rounded-full px-4 py-2 text-left text-sm font-semibold transition",
+                      "min-h-[44px] rounded-full px-4 py-2 text-left text-sm font-semibold transition active:scale-[0.98]",
                       chip.brand
                         ? "bb-button-brand justify-start"
-                        : "border border-white/12 bg-white/[0.04] text-white hover:bg-white/[0.08]",
+                        : "border border-[color:var(--bb-border-strong)] bg-accent/[0.06] text-white hover:bg-accent/[0.14]",
                     )}
                     key={index}
                     onClick={chip.onClick}
@@ -4394,7 +4420,7 @@ export function ClientCardPage() {
     const year = new Date().getFullYear();
     return (
       <button
-        className="bb-rise bb-gold-frame bb-hover-lift group flex w-full items-center justify-between gap-4 overflow-hidden rounded-[26px] bg-[#16120c]/80 p-5 text-left"
+        className="bb-rise bb-gold-frame bb-hover-lift group flex w-full items-center justify-between gap-4 overflow-hidden rounded-[26px] bg-[color:var(--bb-glass-solid)] p-5 text-left"
         onClick={() => {
           void openRecap();
         }}
@@ -4589,7 +4615,7 @@ export function ClientCardPage() {
             {!isPro && (
               <button
                 className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-accent/35 bg-accent/10 px-4 text-xs font-bold text-accentSoft transition duration-200 hover:bg-accent/20 active:scale-95"
-                onClick={() => (clientData.isFounder ? navigateView("shop") : openTopupFlow())}
+                onClick={() => navigateView("shop")}
                 type="button"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -4981,7 +5007,7 @@ export function ClientCardPage() {
             })}
           <button
             className="bb-hover-lift group rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-left transition duration-200 hover:border-accent/40 hover:bg-accent/[0.07] active:scale-[0.98]"
-            onClick={openTopupFlow}
+            onClick={() => navigateView("shop")}
             type="button"
           >
             <span className="inline-flex rounded-xl border border-white/10 bg-white/[0.05] p-2.5 text-accent transition duration-200 group-hover:scale-110">
@@ -5035,15 +5061,22 @@ export function ClientCardPage() {
           <div>
             <p className="bb-eyebrow">Prendre rendez-vous</p>
             <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Choisissez votre creneau</h2>
-            <div className="mt-3 space-y-1.5 text-sm leading-6 text-white/65">
-              <p>
-                <span className="mr-1.5 font-bold text-accent">1.</span>
-                Choisissez le jour (fleches ou calendrier).
-              </p>
-              <p>
-                <span className="mr-1.5 font-bold text-accent">2.</span>
-                Touchez une demi-journee <span className="font-semibold text-emerald-200">libre</span>.
-              </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="flex items-center gap-3 rounded-2xl border border-accent/25 bg-accent/[0.07] px-3.5 py-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-xs font-extrabold text-[color:var(--bb-button-ink)]">
+                  1
+                </span>
+                <p className="text-sm leading-5 text-white/75">Choisissez le jour</p>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-accent/40 bg-accent/10 text-xs font-extrabold text-accentSoft">
+                  2
+                </span>
+                <p className="text-sm leading-5 text-white/75">
+                  Touchez une demi-journee <span className="font-semibold text-emerald-200">libre</span>{" "}
+                  — matin 9h-12h, apres-midi 14h-18h
+                </p>
+              </div>
             </div>
           </div>
 
@@ -5281,16 +5314,28 @@ export function ClientCardPage() {
                     type="button"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-lg font-semibold text-white">{vehicleTitle(vehicle)}</p>
-                          {vehicle.isPrimary && (
-                            <div className="bb-pill border-emerald-400/35 bg-emerald-300/10 text-emerald-100">
-                              Principal
-                            </div>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className={cn(
+                            "grid h-14 w-14 shrink-0 place-items-center rounded-[18px] border",
+                            active
+                              ? "border-accent/40 bg-[linear-gradient(150deg,rgb(var(--bb-accent-rgb)/0.24),rgb(var(--bb-accent2-rgb)/0.1))] text-accentSoft"
+                              : "border-white/10 bg-white/[0.05] text-white/55",
                           )}
+                        >
+                          <CarFront className="h-6 w-6" />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-lg font-semibold text-white">{vehicleTitle(vehicle)}</p>
+                            {vehicle.isPrimary && (
+                              <div className="bb-pill border-emerald-400/35 bg-emerald-300/10 text-emerald-100">
+                                Principal
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-white/58">{vehicleSubtitle(vehicle)}</p>
                         </div>
-                        <p className="mt-2 text-sm text-white/58">{vehicleSubtitle(vehicle)}</p>
                       </div>
                       <div className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/60">
                         {
@@ -5345,6 +5390,15 @@ export function ClientCardPage() {
                 les rendez-vous au bon vehicule.
               </div>
             )}
+
+            <button
+              className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[24px] border-[1.5px] border-dashed border-accent/40 bg-transparent text-sm font-bold text-accentSoft transition duration-200 hover:bg-accent/[0.06] active:scale-[0.99]"
+              onClick={openVehicleCreate}
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+              Ajouter un vehicule
+            </button>
           </div>
         </article>
 
@@ -5611,6 +5665,13 @@ export function ClientCardPage() {
   }
 
   function renderShopView() {
+    // Pack au meilleur prix par credit (badge honnete, calcule sur les vraies offres).
+    const bestOfferKey =
+      topupOffers.length > 1
+        ? topupOffers.reduce((best, offer) =>
+            offer.priceCents / offer.credits < best.priceCents / best.credits ? offer : best,
+          ).key
+        : null;
     return (
       <section className="grid gap-4 xl:grid-cols-[1.06fr_0.94fr]">
         <article className="bb-surface p-6">
@@ -5638,9 +5699,19 @@ export function ClientCardPage() {
               topupOffers.length > 0 &&
               topupOffers.map((offer) => (
                 <div
-                  className="rounded-[24px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))] p-4"
+                  className={cn(
+                    "relative rounded-[24px] border p-4",
+                    offer.key === bestOfferKey
+                      ? "border-accent/45 bg-[radial-gradient(320px_120px_at_100%_0%,rgb(var(--bb-accent2-rgb)/0.13),transparent_70%),linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.12),rgba(255,255,255,0.02))]"
+                      : "border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))]",
+                  )}
                   key={offer.key}
                 >
+                  {offer.key === bestOfferKey && (
+                    <span className="absolute -top-2.5 right-4 rounded-full bg-[linear-gradient(135deg,rgb(var(--bb-accent2-rgb)/1),var(--bb-accent))] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--bb-button-ink)] shadow-[0_6px_16px_rgb(var(--bb-accent2-rgb)/0.35)]">
+                      Meilleur tarif
+                    </span>
+                  )}
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold text-white">{offer.label}</p>
@@ -5686,31 +5757,71 @@ export function ClientCardPage() {
                 </div>
               ))}
 
-            {/* Non-fondateur: achat de credits a l'unite (bbx, data, pro). */}
+            {/* Non-fondateur: achat de credits a l'unite (bbx, data, pro).
+                Cartes d'offres calculees depuis l'offre unitaire SumUp (prix reel). */}
             {!clientData.isFounder && paymentsReady && topupOffers[0] && (
-              <div className="rounded-[24px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))] p-4">
-                <p className="text-lg font-semibold text-white">Achat de credits a l&apos;unite</p>
-                <p className="mt-2 text-sm leading-6 text-white/58">
-                  Choisissez le nombre de crédits a acheter au tarif unitaire.
-                </p>
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {[1, 2, 3, 5, 10].map((quantity) => {
-                    const key = `${topupOffers[0].key}-x${quantity}`;
-                    return (
+              <div className="space-y-3">
+                {[
+                  { qty: 1, note: "Pour un passage ponctuel" },
+                  { qty: 3, note: "Une petite reserve d'avance" },
+                  { qty: 5, note: "Le choix le plus frequent", hot: true },
+                  { qty: 10, note: "La tranquillite pour l'annee" },
+                ].map(({ qty, note, hot }) => {
+                  const key = `${topupOffers[0].key}-x${qty}`;
+                  const busy = busyTopupKey === key;
+                  return (
+                    <div
+                      className={cn(
+                        "relative flex items-center gap-4 rounded-[24px] border p-4",
+                        hot
+                          ? "border-accent/45 bg-[radial-gradient(320px_120px_at_100%_0%,rgb(var(--bb-accent2-rgb)/0.13),transparent_70%),linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.1),rgba(255,255,255,0.02))]"
+                          : "border-white/10 bg-white/[0.03]",
+                      )}
+                      key={qty}
+                    >
+                      {hot && (
+                        <span className="absolute -top-2.5 right-4 rounded-full bg-[linear-gradient(135deg,rgb(var(--bb-accent2-rgb)/1),var(--bb-accent))] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[color:var(--bb-button-ink)] shadow-[0_6px_16px_rgb(var(--bb-accent2-rgb)/0.35)]">
+                          Populaire
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "grid h-12 w-12 shrink-0 place-items-center rounded-2xl border",
+                          hot
+                            ? "border-accent/40 bg-accent/15 text-accentSoft"
+                            : "border-white/10 bg-white/[0.05] text-accent",
+                        )}
+                      >
+                        <CreditCard className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-bold text-white">
+                          {qty} credit{qty > 1 ? "s" : ""}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-5 text-white/55">{note}</p>
+                      </div>
                       <button
-                        className="bb-button-ghost justify-center px-3 py-2"
-                        disabled={busyTopupKey === key}
-                        key={quantity}
+                        className={cn(
+                          "shrink-0 px-4 py-2 text-sm font-bold",
+                          hot ? "bb-button-brand" : "bb-button-ghost",
+                        )}
+                        disabled={busy}
                         onClick={() => {
-                          void startTopupCheckout(topupOffers[0], quantity);
+                          void startTopupCheckout(topupOffers[0], qty);
                         }}
                         type="button"
                       >
-                        {quantity} credit{quantity > 1 ? "s" : ""}
+                        {busy
+                          ? "Ouverture..."
+                          : formatMoneyCents(topupOffers[0].priceCents * qty, topupOffers[0].currency)}
                       </button>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
+                <p className="px-1 text-xs leading-5 text-white/45">
+                  Paiement securise SumUp — Apple Pay et Google Pay disponibles sur la page de
+                  paiement. Les credits sont ajoutes automatiquement apres validation.
+                </p>
               </div>
             )}
 
@@ -5775,17 +5886,24 @@ export function ClientCardPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
-                <div className="mt-0.5 shrink-0">
-                  <Gift className="h-4 w-4 text-white/40" />
+              <div className="mt-4 flex items-center gap-4 rounded-[24px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.1),rgba(255,255,255,0.02))] p-4">
+                <div
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-extrabold shadow-[0_8px_20px_rgb(var(--bb-glow-rgb)/0.35)]"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 32% 28%, var(--bb-accent-hi), var(--bb-accent-strong))",
+                    color: "var(--bb-button-ink)",
+                  }}
+                >
+                  BC
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">
-                    BC en attente :{" "}
-                    <span className="text-accent">{clientData.bcPending} BC</span>
+                <div className="min-w-0">
+                  <p className="bb-display text-xl font-extrabold text-white">
+                    {clientData.bcPoints} BC
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-white/48">
-                    Debloques au fur et a mesure de vos passages.
+                  <p className="mt-0.5 text-xs leading-5 text-white/55">
+                    + <span className="font-bold text-accentSoft">{clientData.bcPending} BC</span>{" "}
+                    en attente — debloques a chaque passage effectue.
                   </p>
                 </div>
               </div>
@@ -5839,10 +5957,24 @@ export function ClientCardPage() {
                   className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
                   key={reward.key}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold text-white">{reward.label}</p>
-                      <p className="mt-2 text-sm text-white/58">{reward.pointsCost} BC&apos;Coins</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={cn(
+                          "grid h-11 w-11 shrink-0 place-items-center rounded-2xl border",
+                          affordable
+                            ? "border-accent/40 bg-accent/15 text-accentSoft"
+                            : "border-white/10 bg-white/[0.05] text-white/40",
+                        )}
+                      >
+                        <Gift className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-base font-bold text-white">{reward.label}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-accentSoft">
+                          {reward.pointsCost} BC&apos;Coins
+                        </p>
+                      </div>
                     </div>
                     <button
                       className={affordable ? "bb-button-brand px-4 py-2" : "bb-button-ghost px-4 py-2"}
@@ -6126,11 +6258,14 @@ export function ClientCardPage() {
             <div className="mt-5 space-y-2">
               {invoices.map((inv) => (
                 <Link
-                  className="bb-hairline bb-hover-lift flex items-center justify-between gap-3 p-4"
+                  className="bb-hairline bb-hover-lift flex items-center gap-3 p-4"
                   key={inv.id}
                   to={`/card/${encodeURIComponent(slug)}/facture/${inv.id}`}
                 >
-                  <div className="min-w-0">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-accent/30 bg-accent/10 text-accentSoft">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-white">{inv.label}</p>
                     <p className="text-xs text-white/45">
                       {inv.number}
@@ -6140,7 +6275,7 @@ export function ClientCardPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-sm font-semibold text-accentSoft">
+                    <span className="text-sm font-bold text-accentSoft">
                       {(inv.amountCents / 100).toFixed(2).replace(".", ",")} €
                     </span>
                     <ArrowRight className="h-4 w-4 text-accent" />
@@ -6170,7 +6305,7 @@ export function ClientCardPage() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-7rem] top-28 h-72 w-72 rounded-full bg-accent/12 blur-3xl" />
         <div className="absolute right-[-7rem] top-0 h-80 w-80 rounded-full bg-sky-400/12 blur-3xl" />
-        <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#d99a4e]/10 blur-3xl" />
+        <div className="absolute bottom-10 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[rgb(var(--bb-glow-rgb)/0.1)] blur-3xl" />
       </div>
 
       <main className="bb-content relative z-10 space-y-5 md:space-y-6">
@@ -7461,7 +7596,7 @@ export function ClientCardPage() {
               </span>
               <input
                 checked={!!leaderboardData?.optIn}
-                className="h-5 w-5 shrink-0 rounded border-white/20 bg-black/30 accent-[#e8c98a]"
+                className="h-5 w-5 shrink-0 rounded border-white/20 bg-black/30 accent-[color:var(--bb-accent)]"
                 disabled={leaderboardOptBusy}
                 onChange={(event) => {
                   void toggleLeaderboardOptIn(event.target.checked);

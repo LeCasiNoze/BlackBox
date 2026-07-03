@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.33.0";
+export const APP_VERSION = "1.34.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,22 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.34.0",
+    date: "2026-07-03",
+    title: "Design v2 partout : boutique, vehicules, suivi, admin",
+    changes: [
+      "Boutique credits (BBX) : vraies cartes d'offres (1 / 3 / 5 / 10 credits) avec badge « Populaire », prix calcules depuis l'offre SumUp — fini l'achat a l'unite austere.",
+      "Le bouton « Recharger » (carte membre + raccourci accueil) ouvre desormais la boutique au lieu du paiement direct.",
+      "Boutique fondateur : badge « Meilleur tarif » automatique sur le pack le plus avantageux, portefeuille BC'Coins avec piece et differes, recompenses avec vignettes.",
+      "Vehicules : vignette voiture sur chaque carte, bouton « Ajouter un vehicule » en pointilles.",
+      "Suivi : cartes de rendez-vous avec pastille date, chips photos/avis, factures avec icone document.",
+      "Reservation : etapes 1-2 visuelles avec fenetres horaires (9h-12h / 14h-18h), heures/minutes en boutons pleins.",
+      "Assistant : panneau accorde au theme du compte (fini le brun fixe), bulle et reponses rapides restylees.",
+      "Modales mobiles : poignee de bottom-sheet sur tous les paneaux.",
+      "Admin : bandeau de section facon carte membre avec badge Admin.",
+    ],
+  },
   {
     version: "1.33.0",
     date: "2026-07-03",

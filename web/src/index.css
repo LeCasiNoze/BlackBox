@@ -941,6 +941,27 @@ select {
   will-change: transform, opacity;
 }
 
+/* Sur mobile, les modales s'ancrent en bas (items-end) : on ajoute la
+   poignee de bottom-sheet pour signifier le geste, sans toucher au JSX. */
+@media (max-width: 767px) {
+  .bb-modal-panel {
+    position: relative;
+  }
+  .bb-modal-panel::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgb(var(--bb-accent-soft-rgb) / 0.28);
+    z-index: 5;
+    pointer-events: none;
+  }
+}
+
 /* Confettis de victoire (ouverture de box). */
 @keyframes bb-confetti-fall {
   0% {

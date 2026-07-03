@@ -10,6 +10,13 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Design v2 étendu à tout le portail + admin (v1.34.0)** : boutique crédits
+  BBX en cartes d'offres (1/3/5/10, badge Populaire, prix réels SumUp),
+  « Recharger » → boutique, badge « Meilleur tarif » auto sur les packs
+  fondateur, portefeuille BC'Coins, véhicules avec vignettes + ajout en
+  pointillés, suivi avec pastilles date + chips photos/avis, stepper de
+  réservation, assistant thémé (plus de brun fixe), poignée bottom-sheet sur
+  toutes les modales mobiles, bandeau admin façon carte membre.
 - ✅ **Design v2 — carte membre & accueil repensé (v1.33.0)** : carte membre
   BlackBox sur l'accueil (palier BBX/Fondateur/Pro, jauge de lavages, Recharger,
   BC'Coins fondateur, reflet animé), carte « Prochain rendez-vous » avec pastille

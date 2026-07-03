@@ -5836,15 +5836,18 @@ export function AdminDashboardPage() {
 
           {/* Colonne contenu */}
           <div className="min-w-0 flex-1 space-y-6 md:space-y-8">
-            <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
-              <div className="flex flex-col gap-6">
-            <div className="max-w-4xl">
-              <p className="bb-eyebrow">Operations Bryan Cars</p>
-              <h1 className="bb-title mt-3">{sectionTitle}</h1>
-              <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
-            </div>
-
-          </div>
+            {/* Bandeau de section — meme signature que la carte membre client. */}
+            <section className="bb-member">
+              <div className="bb-member-in p-6 md:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-4xl">
+                    <p className="bb-eyebrow">Operations Bryan Cars</p>
+                    <h1 className="bb-title mt-3">{sectionTitle}</h1>
+                    <p className="bb-subtitle mt-3 max-w-3xl">{sectionSubtitle}</p>
+                  </div>
+                  <span className="bb-member-tier">Admin</span>
+                </div>
+              </div>
             </section>
 
             {adminSection === "appointments" || adminSection === "delivery"
