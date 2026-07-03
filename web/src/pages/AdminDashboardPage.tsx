@@ -5239,8 +5239,13 @@ export function AdminDashboardPage() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-          {/* ── Liste clients ── */}
-          <aside className="order-2 bb-surface p-5 xl:order-none">
+          {/* ── Liste clients — masquee sur mobile quand une fiche est ouverte ── */}
+          <aside
+            className={cn(
+              "order-2 bb-surface p-5 xl:order-none",
+              selectedClientId != null && "hidden xl:block",
+            )}
+          >
             <div className="bb-section-head">
               <div>
                 <p className="bb-eyebrow">Clients</p>
@@ -5415,9 +5420,71 @@ export function AdminDashboardPage() {
             </div>
           </aside>
 
-          {/* ── Fiche client detaillee ── */}
-          <section className="order-1 space-y-4 xl:order-none">
-            <article className="bb-surface p-6">
+          {/* ── Fiche client detaillee — plein ecran sur mobile quand ouverte ── */}
+          <section
+            className={cn(
+              "order-1 space-y-4 xl:order-none",
+              selectedClientId == null && "hidden xl:block",
+            )}
+          >
+            <article
+              className={cn(
+                "bb-surface p-6",
+                selectedClientId != null &&
+                  "border-accent/30 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.1)]",
+              )}
+            >
+              {/* Navigation rapide : retour a la liste (mobile) + client precedent/suivant */}
+              {selectedClientId != null && (
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <button
+                    className="bb-button-ghost px-3 py-2 text-xs xl:hidden"
+                    onClick={() => setSelectedClientId(null)}
+                    type="button"
+                  >
+                    <ArrowRight className="mr-1.5 h-3.5 w-3.5 rotate-180" />
+                    Liste
+                  </button>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {(() => {
+                      const idx = filteredClients.findIndex(
+                        (client) => client.id === selectedClientId,
+                      );
+                      return (
+                        <>
+                          <button
+                            aria-label="Client precedent"
+                            className="bb-icon-btn h-9 w-9"
+                            disabled={idx <= 0}
+                            onClick={() => {
+                              const previous = filteredClients[idx - 1];
+                              if (previous) focusClient(previous);
+                            }}
+                            type="button"
+                          >
+                            <ArrowRight className="h-4 w-4 rotate-180" />
+                          </button>
+                          <span className="text-xs font-semibold tabular-nums text-white/45">
+                            {idx + 1}/{filteredClients.length}
+                          </span>
+                          <button
+                            aria-label="Client suivant"
+                            className="bb-icon-btn h-9 w-9"
+                            disabled={idx < 0 || idx >= filteredClients.length - 1}
+                            onClick={() => {
+                              const next = filteredClients[idx + 1];
+                              if (next) focusClient(next);
+                            }}
+                            type="button"
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
               <div className="bb-section-head">
                 <div>
                   <p className="bb-eyebrow">Client actif</p>
@@ -5452,8 +5519,8 @@ export function AdminDashboardPage() {
                 </div>
               ) : managedClient ? (
                 <>
-                  {/* Identite + credits */}
-                  <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  {/* Identite + credits — signature carte membre */}
+                  <div className="bb-gold-frame mt-6 rounded-[28px] border border-white/10 bg-[var(--bb-glass-solid)] p-5">
                     <div className="flex items-start gap-4">
                       {/* Avatar large */}
                       <div className={cn(

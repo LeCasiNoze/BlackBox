@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.37.1";
+export const APP_VERSION = "1.38.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.38.0",
+    date: "2026-07-03",
+    title: "Page Clients admin + landing repensee",
+    changes: [
+      "Admin Clients : sur telephone, la liste laisse place a la fiche des qu'un client est choisi (bouton retour Liste) ; fleches precedent/suivant avec compteur pour enchainer les fiches ; bloc identite avec cadre dore signature.",
+      "Landing : sur mobile, la carte d'inscription s'affiche directement en haut de page (plus besoin de scroller).",
+      "Landing : carte d'inscription habillee comme la carte membre du portail (bord degrade + reflet anime), paliers Fondateur/BBX/Pro avec cadre aux couleurs de leur univers, nouveau bandeau « Comment ca marche » en 3 etapes.",
+    ],
+  },
   {
     version: "1.37.1",
     date: "2026-07-03",

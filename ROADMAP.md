@@ -10,6 +10,11 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Clients admin + landing (v1.38.0)** : page Clients en wizard mobile
+  (liste ⇄ fiche, précédent/suivant avec compteur, identité en cadre doré) ;
+  landing avec inscription en tête sur mobile, carte membre animée, paliers
+  aux couleurs de leur univers, bandeau « Comment ça marche ». Étape véhicule
+  sautée quand le compte n'a qu'un véhicule (v1.37.1).
 - ✅ **Réservation 100 % séquentielle + admin étape par étape (v1.37.0)** :
   calendrier direct (sans textes d'aide ni étape demi-journée), déroulé un
   clic = un bloc (heure → véhicule → lieu → estimation+note → photos →

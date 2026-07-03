@@ -174,8 +174,8 @@ export function LandingPage() {
 
         {/* HERO */}
         <section className="grid items-start gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12">
-          {/* Pitch */}
-          <div>
+          {/* Pitch — passe sous la carte d'inscription sur mobile */}
+          <div className="order-2 lg:order-none">
             <p className="bb-eyebrow bb-rise flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5" /> Lavage &amp; detailing a domicile
             </p>
@@ -212,7 +212,7 @@ export function LandingPage() {
                 const TierIcon = tier.Icon;
                 return (
                   <div
-                    className="bb-hover-lift rounded-2xl border border-accent/20 bg-accent/[0.06] p-4"
+                    className="bb-hover-lift bb-gold-frame rounded-2xl border border-white/10 bg-[var(--bb-glass-solid)] p-4"
                     data-theme={tier.theme}
                     key={tier.name}
                   >
@@ -228,11 +228,13 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* Carte d'inscription (logique inchangee) */}
+          {/* Carte d'inscription (logique inchangee) — en PREMIER sur mobile,
+              habillee comme la carte membre du portail (bord degrade + reflet). */}
           <div
-            className="bb-rise bb-rise-2 bb-gold-frame relative scroll-mt-4 overflow-hidden rounded-[30px] border border-white/10 bg-[var(--bb-glass-solid-2)] p-5 shadow-[0_44px_100px_-44px_rgba(0,0,0,0.92)] md:p-6"
+            className="bb-member bb-rise order-1 scroll-mt-4 lg:order-none"
             ref={signupCardRef}
           >
+            <div className="bb-member-in p-5 md:p-6">
             <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-accent/10 blur-3xl" />
             <div className="relative mb-5 flex items-start justify-between gap-4">
               <div>
@@ -382,7 +384,27 @@ export function LandingPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
+        </section>
+
+        {/* Comment ca marche — 3 etapes guidees */}
+        <section className="bb-rise grid gap-3 sm:grid-cols-3">
+          {[
+            { n: "1", title: "Cree ton espace", copy: "2 minutes, un code recu par mail — c'est tout." },
+            { n: "2", title: "Reserve ton creneau", copy: "Jour, demi-journee, heure : tout se deroule etape par etape." },
+            { n: "3", title: "Suis tout en direct", copy: "Photos avant/apres, avis, factures et rappels automatiques." },
+          ].map((item) => (
+            <article className="bb-surface bb-hover-lift flex items-start gap-3.5 p-5" key={item.n}>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-sm font-extrabold text-[color:var(--bb-button-ink)]">
+                {item.n}
+              </span>
+              <div>
+                <p className="text-sm font-bold text-white">{item.title}</p>
+                <p className="mt-1 text-xs leading-5 text-white/55">{item.copy}</p>
+              </div>
+            </article>
+          ))}
         </section>
 
         {/* Liens rapides */}
