@@ -749,6 +749,9 @@ export function AdminDashboardPage() {
   const [livraisonFilter, setLivraisonFilter] = React.useState<"all" | "confirmed" | "done">(
     "all",
   );
+  // Liste complete par jour repliee par defaut (divulgation progressive) :
+  // les demandes en attente + le panneau de traitement suffisent au quotidien.
+  const [fullListOpen, setFullListOpen] = React.useState(false);
 
   const [selectedAppointmentId, setSelectedAppointmentId] =
     React.useState<number | null>(null);
@@ -2331,6 +2334,12 @@ export function AdminDashboardPage() {
               : location.pathname.startsWith("/admin/settings")
                 ? "settings"
                 : "home";
+
+  // Changement de section : on repart toujours du haut de la page.
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [adminSection]);
+
   const selectedAppointmentActions = selectedAppointment
     ? appointmentWorkflowActions(selectedAppointment.status)
     : null;
@@ -3968,6 +3977,7 @@ export function AdminDashboardPage() {
                     <button
                       className="bb-metric text-left transition duration-200 hover:border-amber-300/30"
                       onClick={() => {
+                        setFullListOpen(true);
                         (pendingRef.current ?? appointmentListRef.current)?.scrollIntoView({
                           behavior: "smooth",
                           block: "start",
@@ -4116,18 +4126,35 @@ export function AdminDashboardPage() {
 
             {/* ── Liste complete par jour ── */}
             <section className="bb-surface p-6" ref={appointmentListRef}>
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              {/* En-tete cliquable : la liste complete se deplie a la demande. */}
+              <button
+                className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
+                onClick={() => setFullListOpen((open) => !open)}
+                type="button"
+              >
                 <div>
                   <p className="bb-eyebrow">Liste complete</p>
                   <h3 className="bb-display mt-2 text-xl font-semibold text-white">
                     {boardTab === "agenda" ? "Rendez-vous en attente" : "Rendez-vous confirmés"}
                   </h3>
                 </div>
-                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                  {filteredAgendaAppointments.length} resultat(s)
+                <div className="flex items-center gap-2">
+                  <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+                    {filteredAgendaAppointments.length} resultat(s)
+                  </div>
+                  <span className="bb-icon-btn h-9 w-9">
+                    <ArrowRight
+                      className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        fullListOpen ? "-rotate-90" : "rotate-90",
+                      )}
+                    />
+                  </span>
                 </div>
-              </div>
+              </button>
 
+              {fullListOpen && (
+              <>
               <div className="mt-5">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -4321,6 +4348,8 @@ export function AdminDashboardPage() {
                   ))
                 )}
               </div>
+              </>
+              )}
             </section>
           </div>
 
@@ -5669,10 +5698,18 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  {/* Historique rendez-vous */}
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
-                    <p className="bb-eyebrow mb-4">Historique rapide du client</p>
-                    <div className="space-y-3">
+                  {/* Historique rendez-vous — replie par defaut (divulgation progressive) */}
+                  <details className="group/hist mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                      <p className="bb-eyebrow">Historique rapide du client</p>
+                      <span className="flex items-center gap-2">
+                        <span className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
+                          {selectedClientAppointments.length}
+                        </span>
+                        <ArrowRight className="h-4 w-4 rotate-90 text-white/40 transition-transform duration-200 group-open/hist:-rotate-90" />
+                      </span>
+                    </summary>
+                    <div className="mt-4 space-y-3">
                       {selectedClientAppointments.length === 0 ? (
                         <div className="flex flex-col items-center gap-3 rounded-[22px] border border-white/10 bg-black/20 p-6 text-center">
                           <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-white/12 bg-white/[0.04] text-white/30">
@@ -5726,7 +5763,7 @@ export function AdminDashboardPage() {
                         })
                       )}
                     </div>
-                  </div>
+                  </details>
 
                   {/* Notes internes */}
                   <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">

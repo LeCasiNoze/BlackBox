@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.35.0";
+export const APP_VERSION = "1.36.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,20 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.36.0",
+    date: "2026-07-03",
+    title: "Etape par etape, scroll corrige & ecrans desencombres",
+    changes: [
+      "Reservation : chaque clic debloque la suite. L'heure doit etre confirmee (« Continuer avec 9 h 30 ») avant que les details n'apparaissent ; l'etape validee se replie en resume avec un bouton Modifier.",
+      "Changer d'onglet ramene toujours en haut de la page (client et admin) — fini d'arriver au milieu d'un ecran.",
+      "Vehicules : les boutons (Principal, Modifier, Supprimer) n'apparaissent que sur le vehicule selectionne — la liste reste aeree.",
+      "Suivi : en-tete unique, filtres et compteur sur une seule ligne.",
+      "Carte membre : l'image personnalisee du compte (fondateur/pro, definie par l'admin) s'affiche en fond de carte, fondue dans le theme.",
+      "Admin — Agenda : la « Liste complete par jour » est repliee par defaut, un clic la deplie (le raccourci « en attente » l'ouvre automatiquement).",
+      "Admin — Clients : l'historique rapide du client se deplie a la demande.",
+    ],
+  },
   {
     version: "1.35.0",
     date: "2026-07-03",

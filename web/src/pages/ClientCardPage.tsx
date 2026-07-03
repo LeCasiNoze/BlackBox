@@ -1372,6 +1372,10 @@ export function ClientCardPage() {
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
   // Flow de reservation inline (etapes sous le calendrier) : cible du scroll.
   const bookingFlowRef = React.useRef<HTMLDivElement>(null);
+  const bookingDetailsRef = React.useRef<HTMLElement>(null);
+  // Verrouillage etape par etape : l'heure doit etre confirmee (un clic)
+  // avant que les details ne se devoilent.
+  const [timeConfirmed, setTimeConfirmed] = React.useState(false);
 
   // Devis : modale, description, photos.
   const [quoteModalOpen, setQuoteModalOpen] = React.useState(false);
@@ -2574,6 +2578,23 @@ export function ClientCardPage() {
       bookingFlowRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [selectedDay, selectedMode]);
+
+  // Changer de jour ou de demi-journee re-verrouille l'etape des details.
+  React.useEffect(() => {
+    setTimeConfirmed(false);
+  }, [selectedDay, selectedSlot]);
+
+  // L'heure confirmee devoile les details : on y descend en douceur.
+  React.useEffect(() => {
+    if (timeConfirmed) {
+      bookingDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [timeConfirmed]);
+
+  // Changement d'onglet : on repart toujours du haut de la page.
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [requestedView]);
 
   function portalHref(
     view: PortalView,
@@ -4586,19 +4607,33 @@ export function ClientCardPage() {
     return (
       <div className="bb-member bb-rise">
         <div className="bb-member-in p-5">
-          <div className="flex items-center justify-between">
+          {/* Image personnalisee du compte (fondateur/pro) : fond droit de la
+              carte, fondue vers le theme pour garder le texte lisible. */}
+          {clientData.founderMediaUrl && (
+            <img
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 z-0 w-3/5 object-cover opacity-30"
+              src={clientData.founderMediaUrl}
+              style={{
+                maskImage: "linear-gradient(90deg, transparent, black 60%)",
+                WebkitMaskImage: "linear-gradient(90deg, transparent, black 60%)",
+              }}
+            />
+          )}
+          <div className="relative z-10 flex items-center justify-between">
             <p className="bb-display text-[13px] font-extrabold uppercase tracking-[0.26em] text-white">
               Black<span className="text-accent">Box</span>
             </p>
             <span className="bb-member-tier">{tier}</span>
           </div>
-          <p className="mt-6 text-xs text-white/50">
+          <p className="relative z-10 mt-6 text-xs text-white/50">
             Titulaire
             <span className="mt-0.5 block truncate text-[15px] font-bold tracking-wide text-white">
               {clientData.fullName || clientData.firstName || "Client"}
             </span>
           </p>
-          <div className="mt-4 flex items-end justify-between gap-3">
+          <div className="relative z-10 mt-4 flex items-end justify-between gap-3">
             {isPro ? (
               <div className="min-w-0">
                 <p className="bb-display text-xl font-extrabold text-white">Compte pro</p>
@@ -4634,7 +4669,7 @@ export function ClientCardPage() {
             )}
           </div>
           {clientData.isFounder && (
-            <div className="mt-4 flex items-center justify-between rounded-2xl border border-accent/20 bg-black/25 px-3.5 py-2.5">
+            <div className="relative z-10 mt-4 flex items-center justify-between rounded-2xl border border-accent/20 bg-black/25 px-3.5 py-2.5">
               <span className="text-xs font-semibold text-white/60">BC&apos;Coins</span>
               <span className="text-sm font-extrabold text-accentSoft">{clientData.bcPoints} BC</span>
             </div>
@@ -5376,41 +5411,79 @@ export function ClientCardPage() {
 
             {currentDaySlot.status === "free" && (
               <>
-                {/* Etape 3 — heure d'arrivee (stepper 30 min dans la fenetre) */}
+                {/* Etape 3 — heure d'arrivee : stepper puis confirmation.
+                    Une fois validee, l'etape se replie en resume (Modifier). */}
                 <article className="bb-rise bb-rise-2 bb-surface p-5 md:p-6">
-                  <p className="bb-eyebrow">Etape 3 · Heure d&apos;arrivee</p>
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <button
-                      aria-label="Plus tot"
-                      className="bb-icon-btn h-12 w-12"
-                      disabled={timeIndex <= 0}
-                      onClick={() => setSelectedTime(timeOptions[timeIndex - 1])}
-                      type="button"
-                    >
-                      <ArrowLeft className="h-5 w-5" />
-                    </button>
-                    <div className="text-center">
-                      <p className="bb-display text-3xl font-extrabold tracking-tight text-white">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="bb-eyebrow">Etape 3 · Heure d&apos;arrivee</p>
+                    {timeConfirmed && (
+                      <button
+                        className="text-xs font-bold text-accentSoft underline-offset-2 hover:underline"
+                        onClick={() => setTimeConfirmed(false)}
+                        type="button"
+                      >
+                        Modifier
+                      </button>
+                    )}
+                  </div>
+                  {timeConfirmed ? (
+                    <div className="mt-3 flex items-center gap-3">
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" />
+                      <p className="bb-display text-xl font-extrabold text-white">
                         {timeParts.hour} h {timeParts.minute}
                       </p>
-                      <p className="mt-1 text-xs text-white/45">
-                        Fenetre libre : {slotWindowLabel(selectedSlot)} · pas de 30 min
-                      </p>
+                      <span className="text-xs text-white/50">
+                        arrivee {slotLabel(selectedSlot).toLowerCase()}
+                      </span>
                     </div>
-                    <button
-                      aria-label="Plus tard"
-                      className="bb-icon-btn h-12 w-12"
-                      disabled={timeIndex >= timeOptions.length - 1}
-                      onClick={() => setSelectedTime(timeOptions[timeIndex + 1])}
-                      type="button"
-                    >
-                      <ArrowRight className="h-5 w-5" />
-                    </button>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <button
+                          aria-label="Plus tot"
+                          className="bb-icon-btn h-12 w-12"
+                          disabled={timeIndex <= 0}
+                          onClick={() => setSelectedTime(timeOptions[timeIndex - 1])}
+                          type="button"
+                        >
+                          <ArrowLeft className="h-5 w-5" />
+                        </button>
+                        <div className="text-center">
+                          <p className="bb-display text-3xl font-extrabold tracking-tight text-white">
+                            {timeParts.hour} h {timeParts.minute}
+                          </p>
+                          <p className="mt-1 text-xs text-white/45">
+                            Fenetre libre : {slotWindowLabel(selectedSlot)} · pas de 30 min
+                          </p>
+                        </div>
+                        <button
+                          aria-label="Plus tard"
+                          className="bb-icon-btn h-12 w-12"
+                          disabled={timeIndex >= timeOptions.length - 1}
+                          onClick={() => setSelectedTime(timeOptions[timeIndex + 1])}
+                          type="button"
+                        >
+                          <ArrowRight className="h-5 w-5" />
+                        </button>
+                      </div>
+                      <button
+                        className="bb-button-brand mt-4 w-full justify-center"
+                        onClick={() => setTimeConfirmed(true)}
+                        type="button"
+                      >
+                        Continuer avec {timeParts.hour} h {timeParts.minute}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </button>
+                    </>
+                  )}
                 </article>
 
-                {/* Etape 4 — details */}
-                <article className="bb-rise bb-rise-3 bb-surface space-y-4 p-5 md:p-6">
+                {/* Etape 4 — details : ne se devoile qu'apres confirmation de l'heure */}
+                {timeConfirmed && (
+                <article
+                  className="bb-rise bb-surface space-y-4 p-5 md:p-6"
+                  ref={bookingDetailsRef}
+                >
                   <p className="bb-eyebrow">Etape 4 · Details</p>
 
                   {!termsAccepted && (
@@ -5650,6 +5723,7 @@ export function ClientCardPage() {
                     avant que le credit soit utilise.
                   </p>
                 </article>
+                )}
               </>
             )}
           </div>
@@ -5739,40 +5813,44 @@ export function ClientCardPage() {
                     </div>
                   </button>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {!vehicle.isPrimary && (
+                  {/* Divulgation progressive : les actions n'apparaissent que sur
+                      le vehicule selectionne — la liste reste aeree. */}
+                  {active && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {!vehicle.isPrimary && (
+                        <button
+                          className="bb-button-ghost px-4 py-2"
+                          onClick={() => {
+                            void makeVehiclePrimary(vehicle.id);
+                          }}
+                          type="button"
+                        >
+                          Principal
+                        </button>
+                      )}
                       <button
                         className="bb-button-ghost px-4 py-2"
-                        onClick={() => {
-                          void makeVehiclePrimary(vehicle.id);
-                        }}
+                        onClick={() => openVehicleEdit(vehicle)}
                         type="button"
                       >
-                        Principal
+                        <PencilLine className="mr-2 h-4 w-4" />
+                        Modifier
                       </button>
-                    )}
-                    <button
-                      className="bb-button-ghost px-4 py-2"
-                      onClick={() => openVehicleEdit(vehicle)}
-                      type="button"
-                    >
-                      <PencilLine className="mr-2 h-4 w-4" />
-                      Modifier
-                    </button>
-                    {vehicles.length > 1 && (
-                      <button
-                        className="bb-button-ghost px-4 py-2 text-rose-100"
-                        disabled={deletingVehicleId === vehicle.id}
-                        onClick={() => {
-                          void deleteVehicle(vehicle.id);
-                        }}
-                        type="button"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {deletingVehicleId === vehicle.id ? "Suppression..." : "Supprimer"}
-                      </button>
-                    )}
-                  </div>
+                      {vehicles.length > 1 && (
+                        <button
+                          className="bb-button-ghost px-4 py-2 text-rose-100"
+                          disabled={deletingVehicleId === vehicle.id}
+                          onClick={() => {
+                            void deleteVehicle(vehicle.id);
+                          }}
+                          type="button"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {deletingVehicleId === vehicle.id ? "Suppression..." : "Supprimer"}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -6476,20 +6554,8 @@ export function ClientCardPage() {
 
         {historyTab === "mine" ? (
           <article className="bb-surface p-6">
-            <div className="bb-section-head">
-              <div>
-                <p className="bb-eyebrow">Mes rendez-vous</p>
-                <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
-                  Suivi de vos prestations
-                </h2>
-              </div>
-              <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                {filteredHistoryAppointments.length} fiche
-                {filteredHistoryAppointments.length > 1 ? "s" : ""}
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
+            {/* Rangee unique : filtres + compteur (l'en-tete de page suffit). */}
+            <div className="flex flex-wrap items-center gap-2">
               {(
                 [
                   { key: "all", label: "Tous" },
@@ -6511,6 +6577,10 @@ export function ClientCardPage() {
                   {filter.label}
                 </button>
               ))}
+              <div className="bb-pill ml-auto border-white/12 bg-white/[0.04] text-white/60">
+                {filteredHistoryAppointments.length} fiche
+                {filteredHistoryAppointments.length > 1 ? "s" : ""}
+              </div>
             </div>
 
             <div

@@ -10,6 +10,12 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Étape par étape + ergonomie (v1.36.0)** : réservation verrouillée clic
+  par clic (heure à confirmer avant les détails, étape validée = résumé +
+  Modifier), scroll remis en haut à chaque changement d'onglet (client +
+  admin), véhicules aérés (actions sur la sélection uniquement), image perso
+  fondateur/pro en fond de carte membre, admin désencombré (liste complète
+  agenda + historique client repliés par défaut).
 - ✅ **Réservation progressive + suivi timeline (v1.35.0)** : le flow de
   réservation se déroule inline sous le calendrier (demi-journée → heure en
   stepper 30 min → détails → récap), la modale ne sert plus qu'à
