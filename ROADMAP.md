@@ -10,6 +10,11 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Réservation progressive + suivi timeline (v1.35.0)** : le flow de
+  réservation se déroule inline sous le calendrier (demi-journée → heure en
+  stepper 30 min → détails → récap), la modale ne sert plus qu'à
+  gérer/annuler ; liste d'attente en un tap sur créneau complet ; suivi en
+  timeline (fil + points) ; en-têtes de pages allégés.
 - ✅ **Design v2 étendu à tout le portail + admin (v1.34.0)** : boutique crédits
   BBX en cartes d'offres (1/3/5/10, badge Populaire, prix réels SumUp),
   « Recharger » → boutique, badge « Meilleur tarif » auto sur les packs

@@ -669,6 +669,35 @@ select {
     @apply grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/35 text-accentSoft;
   }
 
+  /* Timeline du suivi : rail vertical + point accent devant chaque fiche. */
+  .bb-timeline {
+    position: relative;
+    padding-left: 22px;
+  }
+
+  .bb-timeline::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 14px;
+    bottom: 14px;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--bb-accent), rgb(var(--bb-accent-rgb) / 0.05));
+  }
+
+  .bb-timeline > *::before {
+    content: "";
+    position: absolute;
+    left: -20px;
+    top: 26px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bb-accent);
+    box-shadow: 0 0 0 4px rgb(var(--bb-accent-rgb) / 0.18);
+  }
+
   /* Barre d'onglets (nav) : conteneur pilule + onglet actif lumineux. */
   .bb-tabbar {
     background: var(--bb-glass-solid-2);

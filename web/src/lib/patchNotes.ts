@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.34.0";
+export const APP_VERSION = "1.35.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,18 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.35.0",
+    date: "2026-07-03",
+    title: "Reservation progressive & suivi en timeline",
+    changes: [
+      "La reservation se fait desormais directement sous le calendrier, etape par etape : le jour choisi devoile la demi-journee, puis l'heure d'arrivee (molette -/+ par pas de 30 min dans la fenetre 9h-12h ou 14h-18h), puis les details (vehicule en un tap, lieu, etat estime, note, photos) et le recapitulatif avant envoi.",
+      "Plus de grande fenetre qui recouvre tout pour reserver : la modale ne sert plus qu'a modifier ou annuler un rendez-vous existant.",
+      "Creneau complet : bouton « Me prevenir si ca se libere » directement sur la demi-journee.",
+      "Suivi : les fiches s'affichent sur une timeline (fil + points), en-tete allege « Suivi & factures ».",
+      "En-tetes de pages allegees (Reserver, Suivi) : titre clair au lieu d'un gros bloc.",
+    ],
+  },
   {
     version: "1.34.0",
     date: "2026-07-03",

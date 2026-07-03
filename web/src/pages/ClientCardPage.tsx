@@ -1370,6 +1370,8 @@ export function ClientCardPage() {
   const [serviceLevel, setServiceLevel] = React.useState<ServiceLevel>("clean");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
+  // Flow de reservation inline (etapes sous le calendrier) : cible du scroll.
+  const bookingFlowRef = React.useRef<HTMLDivElement>(null);
 
   // Devis : modale, description, photos.
   const [quoteModalOpen, setQuoteModalOpen] = React.useState(false);
@@ -2564,6 +2566,14 @@ export function ClientCardPage() {
   const currentDaySlot = selectedDay ? selectedDay.slots[selectedSlot] : null;
   const timeParts = splitTime(selectedTime, selectedSlot);
   const availableHours = SLOT_HOURS[selectedSlot];
+
+  // Quand une demi-journee libre est choisie, le flow inline se devoile
+  // sous le calendrier : on y amene l'oeil en douceur.
+  React.useEffect(() => {
+    if (selectedDay && selectedMode === "book") {
+      bookingFlowRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selectedDay, selectedMode]);
 
   function portalHref(
     view: PortalView,
@@ -5035,13 +5045,26 @@ export function ClientCardPage() {
   }
 
   function renderBookingView() {
+    // Heures d'arrivee proposees dans la fenetre de la demi-journee choisie
+    // (memes combinaisons hour x minute que l'ancien selecteur : payload inchange).
+    const timeOptions = availableHours.flatMap((hour) =>
+      MINUTES.map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
+    );
+    const timeIndex = Math.max(0, timeOptions.indexOf(selectedTime));
+    const estimatedCredits =
+      SERVICE_LEVEL_OPTIONS.find((option) => option.value === serviceLevel)?.credits ?? 1;
     return (
       <section className="space-y-4">
-        <article className="bb-surface-strong p-5 md:p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="bb-pill border-white/12 bg-white/[0.04] text-white">
-              Agenda
-            </div>
+        {/* En-tete leger : titre de page + contexte, sans carte de verre. */}
+        <div className="bb-rise">
+          <h1 className="bb-display text-3xl font-extrabold leading-tight text-white md:text-4xl">
+            Reserver <span className="bb-text-gold">un passage</span>
+          </h1>
+          <p className="bb-subtitle mt-1.5">
+            Un jour, une demi-journee, ton heure d&apos;arrivee — le reste se devoile au fur et a
+            mesure.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {clientData.clientType !== "pro" && (
               <div className="bb-pill border-accent/30 bg-accent/10 text-white">
                 {clientData.formulaRemaining} credit
@@ -5055,7 +5078,7 @@ export function ClientCardPage() {
               </div>
             )}
           </div>
-        </article>
+        </div>
 
         <article className="bb-surface p-5 md:p-6">
           <div>
@@ -5261,6 +5284,376 @@ export function ClientCardPage() {
             </div>
           </div>
         </article>
+
+        {/* ================= Flow de reservation progressif (inline) =================
+            Le creneau libre choisi devoile : periode -> heure -> details -> recap.
+            Meme payload que l'ancienne modale (date/slot/time/lieu/etat/vehicule/photos). */}
+        {selectedDay && currentDaySlot && selectedMode === "book" && (
+          <div className="space-y-4" ref={bookingFlowRef}>
+            {/* Etape 2 — periode */}
+            <article className="bb-rise bb-surface p-5 md:p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="bb-eyebrow">Etape 2 · Demi-journee</p>
+                  <h3 className="bb-display mt-2 text-xl font-semibold text-white">
+                    {formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })}
+                  </h3>
+                </div>
+                <button
+                  aria-label="Changer de jour"
+                  className="bb-icon-btn"
+                  onClick={closeDayModal}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {SLOT_ORDER.map((slot) => {
+                  const slotInfo = selectedDay.slots[slot];
+                  const free = slotInfo.status === "free";
+                  const mine = slotInfo.status === "mine";
+                  const isSel = selectedSlot === slot;
+                  const alreadyWaiting = (data?.waitlist ?? []).some(
+                    (w) => w.date === selectedDay.date && w.slot === slot,
+                  );
+                  return (
+                    <div
+                      className={cn(
+                        "rounded-[22px] border p-4 transition duration-200",
+                        free && isSel
+                          ? "border-accent bg-accent/15 shadow-[0_0_0_1px_var(--bb-accent)]"
+                          : free || mine
+                            ? "border-white/10 bg-white/[0.03]"
+                            : "border-white/10 bg-white/[0.02] opacity-70",
+                      )}
+                      key={slot}
+                    >
+                      <button
+                        className="w-full text-left"
+                        disabled={!free && !mine}
+                        onClick={() => selectDaySlot(slot)}
+                        type="button"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-bold text-white">{slotLabel(slot)}</p>
+                          {free ? (
+                            isSel && <CheckCircle2 className="h-4 w-4 text-accent" />
+                          ) : (
+                            <span className="bb-pill border-white/12 bg-black/20 text-white/60">
+                              {mine ? "A vous" : slotInfo.status === "busy" ? "Complet" : "Passe"}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-white/55">
+                          Arrivee entre {slotWindowLabel(slot)}
+                        </p>
+                      </button>
+                      {slotInfo.status === "busy" &&
+                        (alreadyWaiting ? (
+                          <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-accentSoft">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Sur liste d&apos;attente
+                          </p>
+                        ) : (
+                          <button
+                            className="mt-3 inline-flex min-h-[38px] items-center gap-1.5 rounded-full border border-accent/35 bg-accent/10 px-3.5 text-xs font-bold text-accentSoft transition hover:bg-accent/20"
+                            disabled={waitlistBusy}
+                            onClick={() => {
+                              void joinWaitlist(selectedDay.date, slot);
+                            }}
+                            type="button"
+                          >
+                            <Bell className="h-3.5 w-3.5" />
+                            {waitlistBusy ? "..." : "Me prevenir si ca se libere"}
+                          </button>
+                        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+
+            {currentDaySlot.status === "free" && (
+              <>
+                {/* Etape 3 — heure d'arrivee (stepper 30 min dans la fenetre) */}
+                <article className="bb-rise bb-rise-2 bb-surface p-5 md:p-6">
+                  <p className="bb-eyebrow">Etape 3 · Heure d&apos;arrivee</p>
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <button
+                      aria-label="Plus tot"
+                      className="bb-icon-btn h-12 w-12"
+                      disabled={timeIndex <= 0}
+                      onClick={() => setSelectedTime(timeOptions[timeIndex - 1])}
+                      type="button"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <div className="text-center">
+                      <p className="bb-display text-3xl font-extrabold tracking-tight text-white">
+                        {timeParts.hour} h {timeParts.minute}
+                      </p>
+                      <p className="mt-1 text-xs text-white/45">
+                        Fenetre libre : {slotWindowLabel(selectedSlot)} · pas de 30 min
+                      </p>
+                    </div>
+                    <button
+                      aria-label="Plus tard"
+                      className="bb-icon-btn h-12 w-12"
+                      disabled={timeIndex >= timeOptions.length - 1}
+                      onClick={() => setSelectedTime(timeOptions[timeIndex + 1])}
+                      type="button"
+                    >
+                      <ArrowRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                </article>
+
+                {/* Etape 4 — details */}
+                <article className="bb-rise bb-rise-3 bb-surface space-y-4 p-5 md:p-6">
+                  <p className="bb-eyebrow">Etape 4 · Details</p>
+
+                  {!termsAccepted && (
+                    <div className="rounded-[22px] border border-amber-300/25 bg-amber-300/10 p-4">
+                      <p className="text-sm font-semibold text-white">Conditions a accepter</p>
+                      <p className="mt-1.5 text-sm leading-6 text-white/70">
+                        Elles ne sont demandees qu&apos;une fois, au moment de reserver.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <button
+                          className="bb-button-brand justify-center"
+                          onClick={() => openTermsModal()}
+                          type="button"
+                        >
+                          Lire et accepter
+                        </button>
+                        <Link
+                          className="bb-button-ghost justify-center"
+                          to={`/card/${encodeURIComponent(slug)}/conditions?intent=terms`}
+                        >
+                          Page complete
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {vehicles.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Vehicule concerne
+                      </p>
+                      {vehicles.length > 3 && (
+                        <div className="relative mt-3">
+                          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                          <input
+                            className="bb-input pl-11"
+                            onChange={(event) => setBookingVehicleQuery(event.target.value)}
+                            placeholder="Rechercher par modèle"
+                            value={bookingVehicleQuery}
+                          />
+                        </div>
+                      )}
+                      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+                        {bookingVisibleVehicles.map((vehicle) => (
+                          <button
+                            className={cn(
+                              "flex min-h-[46px] shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition duration-150 active:scale-95",
+                              activeVehicleId === vehicle.id
+                                ? "border-transparent bg-[linear-gradient(135deg,var(--bb-accent),var(--bb-accent-strong))] text-[color:var(--bb-button-ink)] shadow-[0_10px_24px_rgb(var(--bb-glow-rgb)/0.3)]"
+                                : "border-white/10 bg-black/20 text-white/70 hover:bg-white/[0.05]",
+                            )}
+                            key={vehicle.id}
+                            onClick={() => setActiveVehicleId(vehicle.id)}
+                            type="button"
+                          >
+                            <CarFront className="h-4 w-4" />
+                            {vehicleTitle(vehicle)}
+                          </button>
+                        ))}
+                        <button
+                          className="flex min-h-[46px] shrink-0 items-center gap-1.5 rounded-2xl border border-dashed border-accent/40 px-4 text-sm font-bold text-accentSoft transition hover:bg-accent/[0.06]"
+                          onClick={openVehicleCreate}
+                          type="button"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Ajouter
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu souhaite</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {[
+                        {
+                          value: "atelier" as const,
+                          label: "Au studio",
+                          copy: "Deposez le véhicule au centre detailing.",
+                        },
+                        {
+                          value: "domicile" as const,
+                          label: "A domicile",
+                          copy: "Intervention sur site si le planning le permet.",
+                        },
+                      ].map((option) => (
+                        <button
+                          className={cn(
+                            "rounded-[20px] border px-4 py-3.5 text-left transition duration-200",
+                            appointmentLocation === option.value
+                              ? "border-accent/60 bg-accent/12 text-white shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.4)]"
+                              : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
+                          )}
+                          key={option.value}
+                          onClick={() => setAppointmentLocation(option.value)}
+                          type="button"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-white">{option.label}</span>
+                            {appointmentLocation === option.value && (
+                              <CheckCircle2 className="h-4 w-4 text-accent" />
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-white/60">{option.copy}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {clientData.clientType !== "pro" && (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Etat estime du vehicule
+                      </p>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        {SERVICE_LEVEL_OPTIONS.map((option) => (
+                          <button
+                            className={cn(
+                              "flex flex-col items-center gap-1 rounded-[18px] border px-2 py-3 text-center transition duration-200",
+                              serviceLevel === option.value
+                                ? "border-accent/60 bg-accent/15 shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.4)]"
+                                : "border-white/10 bg-black/20 hover:bg-white/[0.04]",
+                            )}
+                            key={option.value}
+                            onClick={() => setServiceLevel(option.value)}
+                            type="button"
+                          >
+                            <span className="text-sm font-bold text-white">{option.label}</span>
+                            <span className="text-[10px] font-semibold text-accentSoft">
+                              {option.credits} credit{option.credits > 1 ? "s" : ""}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-white/45">
+                        Ton estimation aide Bryan a chiffrer — aucun credit n&apos;est debite tant
+                        que le tarif n&apos;est pas confirme par tes soins.
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Demande particuliere <span className="normal-case">(optionnel)</span>
+                      </p>
+                    </div>
+                    <textarea
+                      className="bb-textarea mt-3 min-h-[76px]"
+                      maxLength={300}
+                      onChange={(event) => setClientBookingNote(event.target.value)}
+                      placeholder="Acces, code portail, extra (ceramique, cuir, taches tenaces)..."
+                      value={clientBookingNote}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                        Photos <span className="normal-case">(optionnel — aide a chiffrer juste)</span>
+                      </p>
+                      <div className="bb-pill shrink-0 border-accent/25 bg-accent/12 text-accentSoft">
+                        {bookingImageDrafts.length}/8
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        className="bb-button-ghost"
+                        onClick={() => bookingImageInputRef.current?.click()}
+                        type="button"
+                      >
+                        <Camera className="mr-2 h-4 w-4" />
+                        Ajouter des photos
+                      </button>
+                      {bookingImageDrafts.length > 0 && (
+                        <button className="bb-button-ghost" onClick={clearBookingImages} type="button">
+                          Tout retirer
+                        </button>
+                      )}
+                    </div>
+                    {bookingImageDrafts.length > 0 && (
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        {bookingImageDrafts.map((draft) => (
+                          <div
+                            className="relative overflow-hidden rounded-[18px] border border-white/10 bg-black/30"
+                            key={draft.id}
+                          >
+                            <img
+                              alt={draft.file.name}
+                              className="h-24 w-full object-cover"
+                              src={draft.previewUrl}
+                            />
+                            <button
+                              className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white transition hover:bg-black/75"
+                              onClick={() => removeBookingImage(draft.id)}
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recap + envoi */}
+                  <div className="flex items-center justify-between gap-3 rounded-[18px] border border-dashed border-[color:var(--bb-border-strong)] bg-[rgb(var(--bb-accent-soft-rgb)/0.06)] px-4 py-3.5">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white/50">Recapitulatif</p>
+                      <p className="mt-0.5 text-sm font-bold leading-5 text-white">
+                        {formatDateFR(selectedDay.date, { day: "numeric", month: "long" })} ·{" "}
+                        {slotLabel(selectedSlot)} · {timeParts.hour} h {timeParts.minute}
+                      </p>
+                    </div>
+                    <span className="bb-pill shrink-0 border-accent/35 bg-accent/12 text-accentSoft">
+                      {clientData.clientType === "pro"
+                        ? "Sans credits"
+                        : `~${estimatedCredits} credit${estimatedCredits > 1 ? "s" : ""}`}
+                    </span>
+                  </div>
+                  <button
+                    className="bb-button-brand w-full justify-center py-4 text-base"
+                    disabled={busyAction || bookingLocked}
+                    onClick={() => {
+                      void submitBooking(selectedDay.date, selectedSlot, selectedTime);
+                    }}
+                    type="button"
+                  >
+                    {busyAction
+                      ? "Envoi..."
+                      : !termsAccepted
+                        ? "Conditions requises"
+                        : "Envoyer la demande"}
+                  </button>
+                  <p className="text-center text-xs leading-5 text-white/45">
+                    Bryan confirme le tarif selon l&apos;etat du vehicule — tu valides toujours
+                    avant que le credit soit utilise.
+                  </p>
+                </article>
+              </>
+            )}
+          </div>
+        )}
       </section>
     );
   }
@@ -6044,16 +6437,15 @@ export function ClientCardPage() {
     return (
       <section className="space-y-4">
         {renderRecapTeaser()}
-        <article className="bb-surface-strong p-6 md:p-7">
+        {/* En-tete leger (titre + onglets), sans grosse carte de verre. */}
+        <div className="bb-rise">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="bb-eyebrow">Historique et suivi</p>
-              <h1 className="bb-display mt-2 text-3xl font-semibold text-white">
-                Vos fiches et les retours visibles
+              <h1 className="bb-display text-3xl font-extrabold leading-tight text-white md:text-4xl">
+                Suivi <span className="bb-text-gold">&amp; factures</span>
               </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/62">
-                Retrouvez ici vos rendez-vous a venir, vos archives, puis les photos et avis
-                partages par les autres clients.
+              <p className="bb-subtitle mt-1.5">
+                Touche un rendez-vous pour le detail, la note ou les photos.
               </p>
             </div>
 
@@ -6080,7 +6472,7 @@ export function ClientCardPage() {
               </button>
             </div>
           </div>
-        </article>
+        </div>
 
         {historyTab === "mine" ? (
           <article className="bb-surface p-6">
@@ -6121,7 +6513,12 @@ export function ClientCardPage() {
               ))}
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div
+              className={cn(
+                "mt-6 grid gap-3",
+                !appointmentsLoading && filteredHistoryAppointments.length > 0 && "bb-timeline",
+              )}
+            >
               {appointmentsLoading ? (
                 <div className="bb-surface flex items-center gap-3 px-5 py-4 text-sm text-white/70">
                   <Loader2 className="h-4 w-4 animate-spin text-accent" />
@@ -6341,7 +6738,9 @@ export function ClientCardPage() {
         </div>
       </nav>
 
-      {selectedDay && currentDaySlot && (
+      {/* La modale ne sert plus qu'a gerer un RDV existant (manage/past) :
+          la reservation d'un creneau libre se fait inline sous le calendrier. */}
+      {selectedDay && currentDaySlot && selectedMode !== "book" && (
         <div
           className="fixed inset-0 z-40 flex items-end justify-center bg-black/75 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
           onClick={closeDayModal}
@@ -6353,18 +6752,12 @@ export function ClientCardPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="bb-eyebrow">
-                  {selectedMode === "book"
-                    ? "Reservation"
-                    : selectedMode === "manage"
-                      ? "Gestion du rendez-vous"
-                      : "Archive"}
+                  {selectedMode === "manage" ? "Gestion du rendez-vous" : "Archive"}
                 </p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
                   {formatDateFR(selectedDay.date)}
                 </h3>
                 <p className="mt-2 text-sm text-white/60">
-                  {selectedMode === "book" &&
-                    "Choisissez votre demi-journee, l'heure et le véhicule pour envoyer la demande."}
                   {selectedMode === "manage" &&
                     "Votre demande existe déjà sur ce jour. Vous pouvez l'ajuster ou l'annuler."}
                   {selectedMode === "past" &&
@@ -6470,315 +6863,6 @@ export function ClientCardPage() {
                     </div>
                   );
                 })()}
-
-              {selectedMode === "book" && (
-                <>
-                  {!termsAccepted && (
-                    <div className="rounded-[24px] border border-amber-300/25 bg-amber-300/10 p-4">
-                      <p className="text-sm font-semibold text-white">Conditions a accepter</p>
-                      <p className="mt-2 text-sm leading-6 text-white/70">
-                        Le reglement n&apos;est plus affiche en permanence. Il vous sera demande ici,
-                        uniquement au moment de reserver.
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <button
-                          className="bb-button-brand justify-center"
-                          onClick={() => openTermsModal()}
-                          type="button"
-                        >
-                          Lire et accepter
-                        </button>
-                        <Link
-                          className="bb-button-ghost justify-center"
-                          to={`/card/${encodeURIComponent(slug)}/conditions?intent=terms`}
-                        >
-                          Ouvrir la page complete
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-
-                  {vehicles.length > 0 && (
-                    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Véhicule concerne
-                      </p>
-
-                      {vehicles.length > 1 && (
-                        <div className="relative mt-4">
-                          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                          <input
-                            className="bb-input pl-11"
-                            onChange={(event) => setBookingVehicleQuery(event.target.value)}
-                            placeholder="Rechercher par modèle"
-                            value={bookingVehicleQuery}
-                          />
-                        </div>
-                      )}
-
-                      <div className="mt-4 grid gap-3">
-                        {bookingVisibleVehicles.map((vehicle) => (
-                          <button
-                            className={cn(
-                              "rounded-[20px] border px-4 py-4 text-left transition duration-200",
-                              activeVehicleId === vehicle.id
-                                ? "border-accent/45 bg-accent/10 text-white"
-                                : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
-                            )}
-                            key={vehicle.id}
-                            onClick={() => setActiveVehicleId(vehicle.id)}
-                            type="button"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-base font-semibold text-white">
-                                {vehicleTitle(vehicle)}
-                              </span>
-                              {vehicle.isPrimary && (
-                                <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                                  Principal
-                                </div>
-                              )}
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-white/60">
-                              {vehicleSubtitle(vehicle)}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        className="bb-button-ghost mt-4 w-full justify-center"
-                        onClick={openVehicleCreate}
-                        type="button"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Ajouter un véhicule
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu souhaite</p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {[
-                        {
-                          value: "atelier" as const,
-                          label: "Au studio",
-                          copy: "Deposez le véhicule au centre detailing.",
-                        },
-                        {
-                          value: "domicile" as const,
-                          label: "A domicile",
-                          copy: "Intervention sur site si le planning le permet.",
-                        },
-                      ].map((option) => (
-                        <button
-                          className={cn(
-                            "rounded-[22px] border px-4 py-4 text-left transition duration-200",
-                            appointmentLocation === option.value
-                              ? "border-accent/45 bg-accent/10 text-white"
-                              : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
-                          )}
-                          key={option.value}
-                          onClick={() => setAppointmentLocation(option.value)}
-                          type="button"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-base font-semibold text-white">{option.label}</span>
-                            {appointmentLocation === option.value && (
-                              <CheckCircle2 className="h-4 w-4 text-accent" />
-                            )}
-                          </div>
-                          <p className="mt-2 text-sm leading-6 text-white/60">{option.copy}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {clientData.clientType !== "pro" && (
-                    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Etat estime du véhicule
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-white/60">
-                        Cette estimation aide l&apos;admin a valider plus vite. Aucun credit n&apos;est
-                        consomme tant que le tarif n&apos;est pas confirme.
-                      </p>
-                      <div className="mt-4 grid gap-3 md:grid-cols-3">
-                        {SERVICE_LEVEL_OPTIONS.map((option) => (
-                          <button
-                            className={cn(
-                              "rounded-[22px] border px-4 py-4 text-left transition duration-200",
-                              serviceLevel === option.value
-                                ? "border-accent/45 bg-accent/10 text-white"
-                                : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
-                            )}
-                            key={option.value}
-                            onClick={() => setServiceLevel(option.value)}
-                            type="button"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-base font-semibold text-white">{option.label}</span>
-                              <span className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                                {option.credits} credit{option.credits > 1 ? "s" : ""}
-                              </span>
-                            </div>
-                            <p className="mt-3 text-sm leading-6 text-white/58">{option.copy}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid gap-4">
-                    <ChoiceField
-                      columnsClassName="grid-cols-4 sm:grid-cols-5"
-                      label="Heure"
-                      onChange={(value) => setSelectedTime(`${value}:${timeParts.minute}`)}
-                      options={availableHours.map((hour) => ({
-                        value: String(hour).padStart(2, "0"),
-                        label: `${String(hour).padStart(2, "0")}h`,
-                      }))}
-                      value={timeParts.hour}
-                    />
-                    <ChoiceField
-                      columnsClassName="grid-cols-2"
-                      label="Minutes"
-                      onChange={(value) => setSelectedTime(`${timeParts.hour}:${value}`)}
-                      options={MINUTES.map((minute) => ({
-                        value: minute,
-                        label: minute,
-                      }))}
-                      value={timeParts.minute}
-                    />
-                  </div>
-
-                  <div className="rounded-[24px] border border-accent/30 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.09),rgba(255,255,255,0.02))] p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent/12 text-accent">
-                        <MessageCircle className="h-5 w-5" />
-                      </span>
-                      <label className="block min-w-0 flex-1">
-                        <span className="text-base font-semibold text-white">
-                          Une demande particuliere ?
-                        </span>
-                        <p className="mt-1 text-sm leading-6 text-white/70">
-                          Indiquez un accès (portail, etage, code...) ou demandez un
-                          <span className="font-semibold text-accentSoft"> extra</span> : ceramique,
-                          siege a nettoyer en priorite, traitement cuir, taches tenaces...
-                        </p>
-                        <textarea
-                          className="bb-textarea mt-4"
-                          maxLength={300}
-                          onChange={(event) => setClientBookingNote(event.target.value)}
-                          placeholder="Ex: ceramique sur le capot + siege bebe a nettoyer en priorite"
-                          value={clientBookingNote}
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-accent/30 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.09),rgba(255,255,255,0.02))] p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent/12 text-accent">
-                        <Camera className="h-5 w-5" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-base font-semibold text-white">Ajoutez des photos</p>
-                            <p className="mt-1 text-sm leading-6 text-white/70">
-                              Montrez une tache, une rayure ou la zone a traiter — ça aide a chiffrer
-                              juste (jusqu'a 8 photos).
-                            </p>
-                          </div>
-                          <div className="bb-pill shrink-0 border-accent/25 bg-accent/12 text-accentSoft">
-                            {bookingImageDrafts.length}/8
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <input
-                      accept="image/*"
-                      className="hidden"
-                      multiple
-                      onChange={handleBookingImageSelection}
-                      ref={bookingImageInputRef}
-                      type="file"
-                    />
-
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        className="bb-button-ghost"
-                        onClick={() => bookingImageInputRef.current?.click()}
-                        type="button"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Ajouter des photos
-                      </button>
-                      {bookingImageDrafts.length > 0 && (
-                        <button
-                          className="bb-button-ghost"
-                          onClick={clearBookingImages}
-                          type="button"
-                        >
-                          Tout retirer
-                        </button>
-                      )}
-                    </div>
-
-                    {bookingImageDrafts.length > 0 && (
-                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        {bookingImageDrafts.map((draft) => (
-                          <div
-                            className="relative overflow-hidden rounded-[20px] border border-white/10 bg-black/30"
-                            key={draft.id}
-                          >
-                            <img
-                              alt={draft.file.name}
-                              className="h-28 w-full object-cover"
-                              src={draft.previewUrl}
-                            />
-                            <button
-                              className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white transition hover:bg-black/75"
-                              onClick={() => removeBookingImage(draft.id)}
-                              type="button"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <button
-                      className="bb-button-brand justify-center"
-                      disabled={busyAction || bookingLocked}
-                      onClick={() => {
-                        void submitBooking(selectedDay.date, selectedSlot, selectedTime);
-                      }}
-                      type="button"
-                    >
-                      {busyAction
-                        ? "Envoi..."
-                          : !termsAccepted
-                            ? "Conditions requises"
-                            : "Demander ce rendez-vous"}
-                    </button>
-                    <button
-                      className="bb-button-ghost justify-center"
-                      disabled={busyAction}
-                      onClick={closeDayModal}
-                      type="button"
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                </>
-              )}
 
               {selectedMode === "manage" && currentDayAppointment && (
                 <>
