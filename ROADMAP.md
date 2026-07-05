@@ -10,6 +10,9 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Nouveau logo (v1.40.1)** : logo BC doré (cercle brossé) fourni par Lucas,
+  rogné serré et centré (retrait de la marge noire excédentaire) ; remplace
+  `app-icon-192.png` / `app-icon-512.png` — favicon, icône PWA, avatars header.
 - ✅ **Bandeau accueil « Photos demandées » (v1.40.0)** : quand l'admin demande
   des photos pour valider un tarif, un bandeau bien visible apparaît en haut
   de l'accueil client (au-dessus du bandeau tarif) ; un tap ouvre directement

@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.40.0";
+export const APP_VERSION = "1.40.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.40.1",
+    date: "2026-07-05",
+    title: "Nouveau logo",
+    changes: [
+      "Nouveau logo BC dore (cercle brosse) : favicon, icone d'app et avatars remplaces, rogne serre et centre.",
+    ],
+  },
   {
     version: "1.40.0",
     date: "2026-07-05",
