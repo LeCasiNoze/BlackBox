@@ -21,7 +21,15 @@ function pushClient(client, { title, body, appointmentId = null } = {}) {
 
 // Notification push couplee a un email admin.
 function pushAdmin({ title, body, url = "/admin/appointments" } = {}) {
-  void sendAdminPush({ title, body, url }).catch(() => {});
+  void sendAdminPush({ title, body, url })
+    .then((result) => {
+      if (result?.ok && result.sent === 0) {
+        console.warn(
+          "[PUSH] Notif admin non delivree : aucun appareil admin abonne en base (push_subscriptions role=admin vide).",
+        );
+      }
+    })
+    .catch(() => {});
 }
 
 function normalizePhoneForTel(phone) {

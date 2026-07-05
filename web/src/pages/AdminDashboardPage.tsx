@@ -44,6 +44,7 @@ import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "../lib/calen
 import {
   adminPushPermission,
   adminPushSupported,
+  checkAdminPushServerStatus,
   enableAdminPush,
 } from "../lib/adminPush";
 import {
@@ -735,6 +736,11 @@ export function AdminDashboardPage() {
     NotificationPermission | "unsupported"
   >(() => adminPushPermission());
   const [pushBusy, setPushBusy] = React.useState(false);
+  const [pushServerSubscribed, setPushServerSubscribed] = React.useState<boolean | null>(null);
+  // Le navigateur peut afficher "granted" alors que la ligne d'abonnement a ete
+  // supprimee en base (endpoint expire) : on ne considere actif que si les deux
+  // signaux concordent.
+  const pushEffectivelyActive = pushPermission === "granted" && pushServerSubscribed !== false;
 
   const [filterClientQuery, setFilterClientQuery] = React.useState("");
   const deferredClientQuery = React.useDeferredValue(filterClientQuery);
@@ -1126,17 +1132,31 @@ export function AdminDashboardPage() {
     };
   }, []);
 
-
   // Si l'admin a deja autorise les notifications, on re-synchronise silencieusement
-  // l'abonnement push cote serveur (utile apres un nouveau deploiement).
+  // l'abonnement push cote serveur (l'endpoint local peut avoir ete regenere, ou la
+  // ligne cote serveur supprimee apres un envoi en echec). On revalide aussi a chaque
+  // retour au premier plan, pas seulement au montage : sur mobile l'app reste souvent
+  // "ouverte" en arriere-plan pendant des jours sans jamais se recharger.
   React.useEffect(() => {
-    if (adminPushPermission() === "granted") {
-      void enableAdminPush().then((result) => {
-        if (result.ok) {
-          setPushPermission("granted");
-        }
+    const resync = () => {
+      if (document.visibilityState !== "visible") return;
+      if (adminPushPermission() === "granted") {
+        void enableAdminPush().then((result) => {
+          setPushPermission(adminPushPermission());
+          if (!result.ok) setPushServerSubscribed(false);
+        });
+      }
+      void checkAdminPushServerStatus().then((subscribed) => {
+        setPushServerSubscribed(subscribed);
       });
-    }
+    };
+    resync();
+    window.addEventListener("focus", resync);
+    document.addEventListener("visibilitychange", resync);
+    return () => {
+      window.removeEventListener("focus", resync);
+      document.removeEventListener("visibilitychange", resync);
+    };
   }, []);
 
   function showToast(message: string) {
@@ -2945,17 +2965,17 @@ export function AdminDashboardPage() {
             <button
               className={cn(
                 "flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
-                pushPermission === "granted"
+                pushEffectivelyActive
                   ? "text-emerald-100"
                   : "text-white/60 hover:bg-white/[0.05] hover:text-white",
               )}
-              disabled={pushBusy || pushPermission === "granted"}
+              disabled={pushBusy || pushEffectivelyActive}
               onClick={() => {
                 void handleEnablePush();
               }}
               type="button"
             >
-              {pushPermission === "granted" ? (
+              {pushEffectivelyActive ? (
                 <BellRing className="h-4 w-4 shrink-0 text-emerald-200" />
               ) : (
                 <Bell className="h-4 w-4 shrink-0 text-white/45" />
@@ -2963,9 +2983,11 @@ export function AdminDashboardPage() {
               <span className="flex-1 text-left">
                 {pushBusy
                   ? "Activation..."
-                  : pushPermission === "granted"
+                  : pushEffectivelyActive
                     ? "Notifications activées"
-                    : "Activer les notifications"}
+                    : pushPermission === "granted"
+                      ? "Notifications à réactiver"
+                      : "Activer les notifications"}
               </span>
             </button>
           )}
@@ -3418,8 +3440,9 @@ export function AdminDashboardPage() {
     return (
       <>
         {/* LOT "Notifications" : banniere d'activation (retirable). S'affiche tant
-            que les notifications push ne sont pas actives sur cet appareil. */}
-        {pushPermission !== "granted" && (
+            que les notifications push ne sont pas actives sur cet appareil, ou que
+            le serveur n'a plus d'abonnement valide (permission locale trompeuse). */}
+        {!pushEffectivelyActive && (
           <section className="bb-surface border border-amber-300/30 bg-amber-300/[0.06] p-5 md:p-6">
             <div className="flex items-start gap-4">
               <span className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-300/30 bg-amber-300/10 text-amber-200">
@@ -3427,11 +3450,14 @@ export function AdminDashboardPage() {
               </span>
               <div className="min-w-0 flex-1">
                 <h2 className="text-lg font-semibold text-white">
-                  Notifications desactivees sur cet appareil
+                  {pushPermission === "granted"
+                    ? "Notifications a reactiver sur cet appareil"
+                    : "Notifications desactivees sur cet appareil"}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-white/65">
-                  Activez-les pour etre prevenu directement sur votre telephone des
-                  qu'un client reserve, modifie ou annule un rendez-vous.
+                  {pushPermission === "granted"
+                    ? "L'autorisation est accordee mais l'abonnement cote serveur a expire (changement d'appareil, reinstallation de l'app...). Reactivez-les pour continuer a etre prevenu des reservations."
+                    : "Activez-les pour etre prevenu directement sur votre telephone des qu'un client reserve, modifie ou annule un rendez-vous."}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-white/45">
                   Sur iPhone : ajoutez d'abord l'app a l'ecran d'accueil (bouton

@@ -115,6 +115,7 @@ const { getVapidPublicKey, isPushConfigured } = require("../services/webPush");
 const {
   saveSubscription,
   deleteSubscriptionByEndpoint,
+  listSubscriptions,
 } = require("../db/pushSubscriptions");
 
 ensureDir(APPOINTMENTS_UPLOAD_DIR);
@@ -1131,6 +1132,15 @@ router.get("/push/public-key", (req, res) => {
     ok: true,
     configured: isPushConfigured(),
     publicKey: getVapidPublicKey(),
+  });
+});
+
+// Etat reel cote serveur : le navigateur peut afficher "granted" alors que
+// l'abonnement a ete supprime en base (endpoint expire/nettoye apres 404/410).
+router.get("/push/status", (req, res) => {
+  return res.json({
+    ok: true,
+    subscribed: listSubscriptions("admin").length > 0,
   });
 });
 

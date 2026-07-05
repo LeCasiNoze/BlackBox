@@ -10,6 +10,15 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Fiabilisation notifications push admin (v1.38.1)** : le statut affiché
+  (bouton menu + bandeau accueil) reflète l'état réel côté serveur, pas
+  seulement la permission navigateur — un abonnement supprimé en base
+  (endpoint expiré) est maintenant détecté même si le navigateur pense encore
+  être autorisé. Resynchronisation à chaque retour au premier plan (pas
+  seulement à l'ouverture). Log serveur explicite quand une notif ne peut
+  atteindre aucun appareil admin abonné. Suite à l'incident RDV Chantal Sieuw
+  (10/08 après-midi) sans notif admin — cause : 0 abonnement `role='admin'`
+  en base malgré la permission navigateur affichée comme accordée.
 - ✅ **Clients admin + landing (v1.38.0)** : page Clients en wizard mobile
   (liste ⇄ fiche, précédent/suivant avec compteur, identité en cadre doré) ;
   landing avec inscription en tête sur mobile, carte membre animée, paliers

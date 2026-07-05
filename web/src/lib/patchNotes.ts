@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.38.0";
+export const APP_VERSION = "1.38.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.38.1",
+    date: "2026-07-05",
+    title: "Fiabilisation des notifications push admin",
+    changes: [
+      "Le bandeau/bouton notifications reflete desormais l'etat reel cote serveur (et pas seulement la permission du navigateur) : si l'abonnement a ete supprime en base (endpoint expire), l'app le detecte et propose de reactiver, meme si le navigateur affichait deja \"autorise\".",
+      "La resynchronisation de l'abonnement se relance a chaque retour au premier plan de l'app (pas seulement a l'ouverture), pour limiter les periodes silencieuses sans notification.",
+      "Ajout d'un log serveur explicite quand un evenement (nouvelle reservation, etc.) ne peut declencher aucune notification push admin faute d'appareil abonne, pour diagnostiquer plus vite.",
+    ],
+  },
   {
     version: "1.38.0",
     date: "2026-07-03",

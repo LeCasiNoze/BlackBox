@@ -33,6 +33,19 @@ export function adminPushPermission(): NotificationPermission | "unsupported" {
   return Notification.permission;
 }
 
+// Verite serveur : le navigateur peut rester "granted" alors que l'abonnement
+// a ete supprime en base (endpoint expire nettoye apres un envoi en echec).
+export async function checkAdminPushServerStatus(): Promise<boolean | null> {
+  try {
+    const resp = await fetch("/api/admin/push/status");
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json.ok) return null;
+    return Boolean(json.subscribed);
+  } catch {
+    return null;
+  }
+}
+
 export async function enableAdminPush(): Promise<AdminPushResult> {
   if (!adminPushSupported()) {
     return { ok: false, reason: "unsupported" };
