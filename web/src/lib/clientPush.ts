@@ -33,6 +33,19 @@ export function clientPushPermission(): NotificationPermission | "unsupported" {
   return Notification.permission;
 }
 
+// Verite serveur : le navigateur peut rester "granted" alors que l'abonnement
+// a ete supprime ou reassigne en base (endpoint partage avec un autre role).
+export async function checkClientPushServerStatus(slug: string): Promise<boolean | null> {
+  try {
+    const resp = await fetch(`/api/client/${encodeURIComponent(slug)}/push/status`);
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json.ok) return null;
+    return Boolean(json.subscribed);
+  } catch {
+    return null;
+  }
+}
+
 export async function enableClientPush(slug: string): Promise<ClientPushResult> {
   if (!clientPushSupported()) {
     return { ok: false, reason: "unsupported" };

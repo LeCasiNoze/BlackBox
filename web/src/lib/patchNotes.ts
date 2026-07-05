@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.39.1";
+export const APP_VERSION = "1.39.2";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.39.2",
+    date: "2026-07-05",
+    title: "Meme fiabilisation cote notifications client",
+    changes: [
+      "Le meme correctif que cote admin est applique cote client : le bandeau/icone notifications reflete l'etat reel du serveur (pas seulement la permission navigateur), et se resynchronise a chaque retour au premier plan de l'app.",
+      "Protege aussi les clients contre le meme cas de figure que l'admin (abonnement reassigne si le meme appareil sert plusieurs comptes).",
+    ],
+  },
   {
     version: "1.39.1",
     date: "2026-07-05",

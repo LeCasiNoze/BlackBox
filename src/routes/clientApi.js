@@ -121,6 +121,7 @@ const { getVapidPublicKey, isPushConfigured } = require("../services/webPush");
 const {
   saveSubscription,
   deleteSubscriptionByEndpoint,
+  listSubscriptionsByClient,
 } = require("../db/pushSubscriptions");
 const { listPendingCaseOpenings, openCaseOpening } = require("../db/caseOpenings");
 const { caseTiersForCredits } = require("../config/bcoins");
@@ -2092,6 +2093,20 @@ router.get("/:idOrSlug/push/public-key", (req, res) => {
     ok: true,
     configured: isPushConfigured(),
     publicKey: getVapidPublicKey(),
+  });
+});
+
+// Etat reel cote serveur : le navigateur peut rester "granted" alors que
+// l'abonnement a ete supprime en base (endpoint expire nettoye apres 404/410),
+// ou reassigne a un autre role si le meme appareil sert aussi l'admin.
+router.get("/:idOrSlug/push/status", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  return res.json({
+    ok: true,
+    subscribed: listSubscriptionsByClient(client.id).length > 0,
   });
 });
 

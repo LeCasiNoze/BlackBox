@@ -66,6 +66,7 @@ import {
   TERMS_UPDATED_LABEL,
 } from "../lib/terms";
 import {
+  checkClientPushServerStatus,
   clientPushPermission,
   clientPushSupported,
   enableClientPush,
@@ -1409,6 +1410,11 @@ export function ClientCardPage() {
     () => clientPushPermission(),
   );
   const [pushBusy, setPushBusy] = React.useState(false);
+  const [pushServerSubscribed, setPushServerSubscribed] = React.useState<boolean | null>(null);
+  // Le navigateur peut afficher "granted" alors que la ligne d'abonnement a ete
+  // supprimee ou reassignee en base (endpoint partage avec un autre role) : on ne
+  // considere actif que si les deux signaux concordent.
+  const pushEffectivelyActive = pushPermission === "granted" && pushServerSubscribed !== false;
   const [notifPromptOpen, setNotifPromptOpen] = React.useState(false);
   const [notifBannerDismissed, setNotifBannerDismissed] = React.useState<boolean>(() => {
     try {
@@ -2333,10 +2339,32 @@ export function ClientCardPage() {
     }, 0);
   }, [client, launchTopupParam, navigate, paymentsReady, query, slug, topupOffers]);
 
-  // Re-synchronise l'abonnement push si la permission a deja ete accordee.
+  // Re-synchronise l'abonnement push si la permission a deja ete accordee, et
+  // revalide l'etat reel cote serveur. Se relance a chaque retour au premier
+  // plan (pas seulement a l'ouverture) : sur mobile l'app reste souvent
+  // "ouverte" en arriere-plan des jours sans jamais se recharger, et l'abonnement
+  // peut avoir ete reassigne entre-temps (meme appareil utilise pour l'admin).
   React.useEffect(() => {
-    if (!slug || clientPushPermission() !== "granted") return;
-    void enableClientPush(slug);
+    if (!slug) return undefined;
+    const resync = () => {
+      if (document.visibilityState !== "visible") return;
+      if (clientPushPermission() === "granted") {
+        void enableClientPush(slug).then((result) => {
+          setPushPermission(clientPushPermission());
+          if (!result.ok) setPushServerSubscribed(false);
+        });
+      }
+      void checkClientPushServerStatus(slug).then((subscribed) => {
+        setPushServerSubscribed(subscribed);
+      });
+    };
+    resync();
+    window.addEventListener("focus", resync);
+    document.addEventListener("visibilitychange", resync);
+    return () => {
+      window.removeEventListener("focus", resync);
+      document.removeEventListener("visibilitychange", resync);
+    };
   }, [slug]);
 
   // Une fois l'application installee et lancee (mode standalone), propose une
@@ -3918,7 +3946,7 @@ export function ClientCardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {clientPushSupported() && pushPermission !== "granted" && (
+            {clientPushSupported() && !pushEffectivelyActive && (
               <button
                 aria-label="Activer les notifications"
                 className="bb-icon-btn"
@@ -4492,7 +4520,7 @@ export function ClientCardPage() {
   // sur l'ecran d'accueil -> on invite d'abord a installer.
   function renderNotifBanner() {
     if (notifBannerDismissed) return null;
-    if (pushPermission === "granted") return null;
+    if (pushEffectivelyActive) return null;
 
     const nav = window.navigator as Navigator & { standalone?: boolean };
     const isStandalone =

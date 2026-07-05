@@ -10,6 +10,11 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Fiabilisation notifications client, en miroir de l'admin (v1.39.2)** :
+  même correctif « statut réel serveur + resync au retour au premier plan »
+  appliqué au bandeau/icône notifications du portail client (`ClientCardPage`)
+  — jusque-là seule la permission navigateur était vérifiée, avec le même
+  angle mort que l'admin avant v1.39.1.
 - ✅ **Notifications admin et client indépendantes (v1.39.1)** : vraie cause
   trouvée pour les notifs admin qui se désactivaient « toutes seules » — sur
   un même téléphone, l'abonnement push admin et un abonnement push client
