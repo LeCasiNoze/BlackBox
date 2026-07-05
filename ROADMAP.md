@@ -10,6 +10,11 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Bandeau accueil « Photos demandées » (v1.40.0)** : quand l'admin demande
+  des photos pour valider un tarif, un bandeau bien visible apparaît en haut
+  de l'accueil client (au-dessus du bandeau tarif) ; un tap ouvre directement
+  la fiche du RDV concerné. Avant, seul un email/push signalait la demande —
+  rien de visible en permanence tant que le client n'ouvrait pas la fiche.
 - ✅ **Fiabilisation notifications client, en miroir de l'admin (v1.39.2)** :
   même correctif « statut réel serveur + resync au retour au premier plan »
   appliqué au bandeau/icône notifications du portail client (`ClientCardPage`)

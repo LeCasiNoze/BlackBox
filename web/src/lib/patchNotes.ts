@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.39.2";
+export const APP_VERSION = "1.40.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.40.0",
+    date: "2026-07-05",
+    title: "Bandeau accueil pour les photos demandees",
+    changes: [
+      "Quand l'admin demande des photos du vehicule pour valider un tarif, un bandeau bien visible apparait desormais tout en haut de l'accueil client (avant le bandeau de validation tarif) — un tap ouvre directement la fiche du rendez-vous concerne avec le message de l'admin et l'upload de photos.",
+    ],
+  },
   {
     version: "1.39.2",
     date: "2026-07-05",

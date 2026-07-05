@@ -2464,6 +2464,12 @@ export function ClientCardPage() {
     [appointments],
   );
 
+  // Rendez-vous en attente de photos demandees par l'admin (avant le tarif).
+  const photosPendingAppointment = React.useMemo(
+    () => appointments.find((a) => a.priceStatus === "waiting_photos") ?? null,
+    [appointments],
+  );
+
   const sortedAppointments = React.useMemo(() => {
     const next = [...appointments];
     next.sort(
@@ -4598,6 +4604,38 @@ export function ClientCardPage() {
     );
   }
 
+  // Bandeau d'accueil: photos demandees par l'admin (ouvre directement la fiche).
+  function renderPhotosRequestBanner() {
+    const appt = photosPendingAppointment;
+    if (!appt) return null;
+    return (
+      <button
+        className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[26px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
+        onClick={() => {
+          void openAppointmentModal(appt);
+        }}
+        type="button"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-300/40 bg-amber-300/15 text-amber-200">
+            <Camera className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.16em] text-amber-200/80">Action requise</p>
+            <p className="mt-1 text-base font-semibold text-white">
+              Photos demandees — RDV du{" "}
+              {formatDateFR(appt.date, { day: "numeric", month: "long" })}
+            </p>
+            <p className="mt-0.5 text-sm text-white/65 line-clamp-2">
+              {appt.photosRequestMessage || "Ajoute quelques photos du vehicule pour valider le tarif."}
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-amber-200 transition group-hover:translate-x-1" />
+      </button>
+    );
+  }
+
   // Bandeau d'accueil: tarif a valider sur un RDV (ouvre directement la fiche).
   function renderPriceValidationBanner() {
     const appt = pricePendingAppointment;
@@ -4771,6 +4809,7 @@ export function ClientCardPage() {
   function renderProHomeView() {
     return (
       <section className="space-y-4">
+        {renderPhotosRequestBanner()}
         {renderPriceValidationBanner()}
         {renderNotifBanner()}
         {renderEventTeaser()}
@@ -4873,6 +4912,7 @@ export function ClientCardPage() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
+          {renderPhotosRequestBanner()}
           {renderPriceValidationBanner()}
           {renderNotifBanner()}
           {renderEventTeaser()}
@@ -4987,6 +5027,7 @@ export function ClientCardPage() {
 
     return (
       <section className="space-y-4">
+        {renderPhotosRequestBanner()}
         {renderPriceValidationBanner()}
         {renderNotifBanner()}
         {renderEventTeaser()}
