@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.38.1";
+export const APP_VERSION = "1.39.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.39.0",
+    date: "2026-07-06",
+    title: "A l'atelier & adresse client pour les RDV a domicile",
+    changes: [
+      "Le lieu « Au studio » devient « A l'atelier » partout (reservation, fiches, emails).",
+      "RDV a domicile : l'adresse du client apparait desormais dans la notification push admin, dans l'email de nouvelle reservation (ligne Adresse dediee), et dans le Resume de la fiche RDV admin — avec lien direct vers Google Maps pour s'y rendre en un clic.",
+      "Si l'adresse n'est pas renseignee sur la fiche client, l'admin en est averti clairement.",
+    ],
+  },
   {
     version: "1.38.1",
     date: "2026-07-05",

@@ -10,6 +10,10 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **« À l'atelier » + adresse domicile (v1.39.0)** : libellé « Au studio »
+  remplacé par « À l'atelier » partout ; pour les RDV à domicile, l'adresse du
+  client est affichée dans la push admin, l'email de réservation (ligne
+  Adresse) et le Résumé de la fiche RDV admin avec lien Google Maps.
 - ✅ **Fiabilisation notifications push admin (v1.38.1)** : le statut affiché
   (bouton menu + bandeau accueil) reflète l'état réel côté serveur, pas
   seulement la permission navigateur — un abonnement supprimé en base

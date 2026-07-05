@@ -21,6 +21,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  MapPin,
   Menu,
   PencilLine,
   Phone,
@@ -4535,6 +4536,37 @@ export function AdminDashboardPage() {
                           {slotWindowLabel(appointmentSlot(selectedAppointment))} &middot;{" "}
                           {formatTimeHHMM(selectedAppointment.time)}
                         </p>
+                        {/* A domicile : l'adresse du client, mise en avant pour
+                            savoir immediatement ou se rendre. */}
+                        {selectedAppointment.location === "domicile" &&
+                          (() => {
+                            const appointmentClient = clients.find(
+                              (clientRow) => clientRow.id === selectedAppointment.clientId,
+                            );
+                            const address = [
+                              appointmentClient?.addressLine1,
+                              appointmentClient?.addressLine2,
+                              appointmentClient?.postalCode,
+                              appointmentClient?.city,
+                            ]
+                              .filter(Boolean)
+                              .join(", ");
+                            return (
+                              <a
+                                className="mt-3 inline-flex items-start gap-2 rounded-2xl border border-sky-300/25 bg-sky-300/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-300/20"
+                                href={
+                                  address
+                                    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+                                    : undefined
+                                }
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                                {address || "Adresse non renseignee — voir la fiche client"}
+                              </a>
+                            );
+                          })()}
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">

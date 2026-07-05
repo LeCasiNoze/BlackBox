@@ -5494,7 +5494,7 @@ export function ClientCardPage() {
                       {[
                         {
                           value: "atelier" as const,
-                          label: "Au studio",
+                          label: "A l'atelier",
                           copy: "Deposez le véhicule au centre detailing.",
                         },
                         {
@@ -6929,7 +6929,7 @@ export function ClientCardPage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu de prestation</p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {[
-                        { value: "atelier" as const, label: "Au studio" },
+                        { value: "atelier" as const, label: "A l'atelier" },
                         { value: "domicile" as const, label: "A domicile" },
                       ].map((option) => (
                         <button

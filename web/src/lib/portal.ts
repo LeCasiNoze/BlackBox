@@ -217,7 +217,7 @@ export function appointmentStatusClasses(status: AppointmentStatus) {
 export function locationLabel(location: AppointmentLocation | null | undefined) {
   switch (location) {
     case "atelier":
-      return "Au studio";
+      return "A l'atelier";
     case "domicile":
       return "A domicile";
     default:

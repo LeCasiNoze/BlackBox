@@ -92,7 +92,7 @@ function formatUnixDateTimeFr(timestamp) {
 function locationLabel(location) {
   const normalized = typeof location === "string" ? location.toLowerCase() : "";
   if (normalized === "domicile") return "A domicile";
-  if (normalized === "atelier") return "Au studio";
+  if (normalized === "atelier") return "A l'atelier";
   return "Non precise";
 }
 
@@ -494,6 +494,21 @@ async function sendAdminNotification({
   const fullName = fallbackClientName(client);
   const vehicle = vehicleSummary(client);
 
+  // A domicile : l'adresse du client est mise en avant partout (push + email)
+  // pour que l'admin sache immediatement ou se rendre.
+  const isDomicile = String(location || "").toLowerCase() === "domicile";
+  const addressSummary = [
+    client.address_line1 || client.addressLine1,
+    [client.postal_code || client.postalCode, client.city]
+      .filter((part) => part && String(part).trim() !== "")
+      .join(" "),
+  ]
+    .filter((part) => part && String(part).trim() !== "")
+    .join(", ");
+  const locationText = isDomicile
+    ? `A domicile${addressSummary ? ` — ${addressSummary}` : " (adresse non renseignee)"}`
+    : locationLabel(location);
+
   const action =
     type === "book"
       ? "Nouveau rendez-vous reserve"
@@ -510,7 +525,9 @@ async function sendAdminNotification({
   if (type !== "test") {
     pushAdmin({
       title: action,
-      body: `${fullName} · ${formattedDate} ${safeTime}`,
+      body: `${fullName} · ${formattedDate} ${safeTime}${
+        isDomicile ? ` · ${addressSummary || "A domicile"}` : ""
+      }`,
       url: adminUrl,
     });
   }
@@ -524,7 +541,7 @@ Telephone : ${client.phone || "-"}
 Email : ${client.email || "-"}
 Date : ${formattedDate}
 Heure : ${safeTime}
-Lieu : ${locationLabel(location)}
+Lieu : ${locationText}
 Vehicule : ${vehicle}
 Commentaire client : ${clientNote || "-"}
 Photos client : ${
@@ -553,7 +570,10 @@ Admin : ${adminUrl}
           ${infoRows([
             { label: "Telephone", value: client.phone || "-" },
             { label: "Email", value: client.email || "-" },
-            { label: "Lieu", value: locationLabel(location) },
+            { label: "Lieu", value: locationText },
+            ...(isDomicile
+              ? [{ label: "Adresse", value: addressSummary || "Non renseignee" }]
+              : []),
             { label: "Vehicule", value: vehicle },
             { label: "Commentaire client", value: clientNote || "-" },
             {
