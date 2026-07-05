@@ -10,6 +10,15 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Notifications admin et client indépendantes (v1.39.1)** : vraie cause
+  trouvée pour les notifs admin qui se désactivaient « toutes seules » — sur
+  un même téléphone, l'abonnement push admin et un abonnement push client
+  (ex. fiche d'un client consultée sur le même appareil) partageaient le même
+  service worker/endpoint ; la dernière activation écrasait silencieusement
+  l'autre côté serveur (`push_subscriptions`, rôle exclusif par endpoint).
+  Chaque espace a maintenant sa propre portée de service worker (`/admin/`
+  vs `/`), donc son propre abonnement. Réactivation ponctuelle nécessaire
+  une dernière fois après la mise à jour.
 - ✅ **« À l'atelier » + adresse domicile (v1.39.0)** : libellé « Au studio »
   remplacé par « À l'atelier » partout ; pour les RDV à domicile, l'adresse du
   client est affichée dans la push admin, l'email de réservation (ligne

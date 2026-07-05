@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.39.0";
+export const APP_VERSION = "1.39.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.39.1",
+    date: "2026-07-05",
+    title: "Notifications admin et client desormais independantes",
+    changes: [
+      "Correction de la vraie cause des notifications admin qui se desactivaient : sur un meme telephone, activer les notifications sur une fiche client et sur le tableau de bord admin partageaient le meme abonnement technique — la derniere activation ecrasait silencieusement l'autre. Chaque espace a maintenant son propre abonnement, ils ne s'ecrasent plus mutuellement.",
+      "Une reactivation ponctuelle des notifications admin peut etre necessaire une derniere fois apres cette mise a jour.",
+    ],
+  },
   {
     version: "1.39.0",
     date: "2026-07-06",

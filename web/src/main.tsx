@@ -37,6 +37,12 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    // Portee dediee pour l'admin : un abonnement push est unique par
+    // enregistrement de service worker, pas par "role". Sans ca, activer les
+    // notifications sur une fiche client depuis le meme appareil ecrase
+    // silencieusement l'abonnement admin (et vice versa), car les deux
+    // partageraient le meme endpoint cote serveur.
+    const scope = window.location.pathname.startsWith("/admin") ? "/admin/" : "/";
+    navigator.serviceWorker.register("/sw.js", { scope }).catch(() => undefined);
   });
 }
