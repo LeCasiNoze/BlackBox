@@ -10,6 +10,10 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Réservation : aucun lieu présélectionné (v1.41.3)** : à l'étape « Lieu
+  souhaité », ni Atelier ni Domicile n'apparaît plus coché par défaut — le
+  client doit cliquer explicitement. Avant, l'atelier semblait déjà choisi
+  visuellement dès l'affichage de l'étape, donnant l'impression d'un blocage.
 - ✅ **Fix bandeau notifications + badge goodies déplacé (v1.41.2)** : le
   bandeau restait bloqué sur "à activer" après un clic réussi sur Activer
   (l'état local n'était pas mis à jour) — passe maintenant bien au vert. Badge

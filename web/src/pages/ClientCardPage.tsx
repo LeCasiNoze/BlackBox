@@ -1367,8 +1367,11 @@ export function ClientCardPage() {
   const [selectedSlot, setSelectedSlot] = React.useState<AppointmentSlot>("morning");
   const [selectedMode, setSelectedMode] = React.useState<ModalMode>("book");
   const [selectedTime, setSelectedTime] = React.useState(defaultTimeForSlot("morning"));
+  // Pas de pre-selection : le client doit cliquer explicitement sur "A l'atelier"
+  // ou "A domicile" pour choisir (sinon l'un des deux semblait deja choisi et le
+  // client pouvait croire l'etape validee sans avoir clique).
   const [appointmentLocation, setAppointmentLocation] =
-    React.useState<AppointmentLocation>("atelier");
+    React.useState<AppointmentLocation | null>(null);
   const [serviceLevel, setServiceLevel] = React.useState<ServiceLevel>("clean");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
@@ -2688,7 +2691,7 @@ export function ClientCardPage() {
     setSelectedTime(
       appointmentForSlot?.time ?? slotInfo.time ?? defaultTimeForSlot(normalizedSlot),
     );
-    setAppointmentLocation(appointmentForSlot?.location ?? slotInfo.location ?? "atelier");
+    setAppointmentLocation(appointmentForSlot?.location ?? slotInfo.location ?? null);
 
     if (slotInfo.status === "mine" && !slotPast) {
       setSelectedMode("manage");
@@ -3535,7 +3538,7 @@ export function ClientCardPage() {
       formData.set("date", date);
       formData.set("slot", slot);
       formData.set("time", time);
-      formData.set("location", appointmentLocation);
+      formData.set("location", appointmentLocation ?? "atelier");
       formData.set("serviceLevel", serviceLevel);
       if (activeVehicleId) {
         formData.set("vehicleId", String(activeVehicleId));

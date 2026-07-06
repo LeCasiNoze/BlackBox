@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.41.2";
+export const APP_VERSION = "1.41.3";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.41.3",
+    date: "2026-07-06",
+    title: "Reservation : aucun lieu preselectionne",
+    changes: [
+      "Etape \"Lieu souhaite\" de la reservation : ni \"A l'atelier\" ni \"A domicile\" n'est plus preselectionne par defaut. Le client doit desormais cliquer explicitement sur l'un des deux — avant, l'atelier apparaissait deja choisi visuellement, ce qui pouvait donner l'impression que l'etape etait bloquee.",
+    ],
+  },
   {
     version: "1.41.2",
     date: "2026-07-06",
