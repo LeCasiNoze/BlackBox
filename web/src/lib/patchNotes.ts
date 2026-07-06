@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.40.1";
+export const APP_VERSION = "1.41.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.41.0",
+    date: "2026-07-05",
+    title: "Filtre clients toujours visible + preuve d'etat des notifications",
+    changes: [
+      "Admin Clients : le filtre BBX / Fondateur / Pro / Tout est desormais toujours visible (avant, il disparaissait des qu'une fiche client etait ouverte sur telephone, le rendant quasi introuvable).",
+      "Le bandeau notifications de l'accueil admin ne disparait plus une fois actif : il affiche desormais clairement \"Notifications activees\" en vert, avec un bouton \"Envoyer une notification test\" pour verifier soi-meme la reception sans attendre une vraie reservation.",
+    ],
+  },
   {
     version: "1.40.1",
     date: "2026-07-05",

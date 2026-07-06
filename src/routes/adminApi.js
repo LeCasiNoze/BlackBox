@@ -111,7 +111,7 @@ const {
   createDataExportFile,
   markExportJobEmailSent,
 } = require("../services/dataExport");
-const { getVapidPublicKey, isPushConfigured } = require("../services/webPush");
+const { getVapidPublicKey, isPushConfigured, sendAdminPush } = require("../services/webPush");
 const {
   saveSubscription,
   deleteSubscriptionByEndpoint,
@@ -1142,6 +1142,23 @@ router.get("/push/status", (req, res) => {
     ok: true,
     subscribed: listSubscriptions("admin").length > 0,
   });
+});
+
+// Envoie une vraie notif push a tous les appareils admin abonnes, pour que
+// l'admin puisse verifier lui-meme la reception (au lieu de devoir attendre
+// une vraie reservation ou demander a Claude de simuler un test).
+router.post("/push/test", async (req, res) => {
+  try {
+    const result = await sendAdminPush({
+      title: "Test Bryan Cars",
+      body: "Si tu vois cette notification, tout fonctionne correctement.",
+      url: "/admin",
+    });
+    return res.json({ ok: true, sent: result?.sent ?? 0 });
+  } catch (error) {
+    console.error("[adminApi] POST /push/test:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
 });
 
 router.post("/push/subscribe", (req, res) => {

@@ -10,6 +10,14 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Filtre clients toujours visible + preuve d'état notifications (v1.41.0)** :
+  le filtre de type de compte (BBX/Fondateur/Pro/Tout) dans Admin → Clients ne
+  disparaît plus quand une fiche est ouverte sur mobile (il était piégé dans le
+  panneau liste, masqué dès l'ouverture auto de la première fiche). Le bandeau
+  notifications de l'accueil admin reste désormais visible même une fois actif
+  (vert, « Notifications activées ») au lieu de disparaître — avec un bouton
+  « Envoyer une notification test » pour vérifier soi-même sans attendre une
+  vraie réservation.
 - ✅ **Nouveau logo (v1.40.1)** : logo BC doré (cercle brossé) fourni par Lucas,
   rogné serré et centré (retrait de la marge noire excédentaire) ; remplace
   `app-icon-192.png` / `app-icon-512.png` — favicon, icône PWA, avatars header.

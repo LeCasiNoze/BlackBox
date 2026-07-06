@@ -737,6 +737,7 @@ export function AdminDashboardPage() {
     NotificationPermission | "unsupported"
   >(() => adminPushPermission());
   const [pushBusy, setPushBusy] = React.useState(false);
+  const [pushTestBusy, setPushTestBusy] = React.useState(false);
   const [pushServerSubscribed, setPushServerSubscribed] = React.useState<boolean | null>(null);
   // Le navigateur peut afficher "granted" alors que la ligne d'abonnement a ete
   // supprimee en base (endpoint expire) : on ne considere actif que si les deux
@@ -1606,6 +1607,25 @@ export function AdminDashboardPage() {
       }
     } finally {
       setPushBusy(false);
+    }
+  }
+
+  async function handleTestPush() {
+    setPushTestBusy(true);
+    try {
+      const response = await fetch("/api/admin/push/test", { method: "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (response.ok && json.ok && json.sent > 0) {
+        showToast("Notification test envoyee — verifie ton telephone.");
+      } else if (response.ok && json.ok) {
+        showToast("Aucun appareil abonne n'a pu etre atteint.");
+      } else {
+        showToast("Impossible d'envoyer la notification test.");
+      }
+    } catch {
+      showToast("Erreur reseau.");
+    } finally {
+      setPushTestBusy(false);
     }
   }
 
@@ -3440,10 +3460,38 @@ export function AdminDashboardPage() {
   function renderHomePage() {
     return (
       <>
-        {/* LOT "Notifications" : banniere d'activation (retirable). S'affiche tant
-            que les notifications push ne sont pas actives sur cet appareil, ou que
-            le serveur n'a plus d'abonnement valide (permission locale trompeuse). */}
-        {!pushEffectivelyActive && (
+        {/* LOT "Notifications" : bandeau d'etat toujours visible (pas seulement
+            tant que desactive) — sert de preuve fiable de l'etat reel, l'admin
+            n'a pas a se demander si ca marche encore. */}
+        {pushEffectivelyActive ? (
+          <section className="bb-surface border border-emerald-300/30 bg-emerald-300/[0.06] p-5 md:p-6">
+            <div className="flex items-start gap-4">
+              <span className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-emerald-300/30 bg-emerald-300/10 text-emerald-200">
+                <BellRing className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-semibold text-white">
+                  Notifications activees sur cet appareil
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-white/65">
+                  Tu seras prevenu directement sur ce telephone des qu'un client reserve,
+                  modifie ou annule un rendez-vous.
+                </p>
+                <button
+                  className="bb-button-ghost mt-4"
+                  disabled={pushTestBusy}
+                  onClick={() => {
+                    void handleTestPush();
+                  }}
+                  type="button"
+                >
+                  <BellRing className="mr-2 h-4 w-4" />
+                  {pushTestBusy ? "Envoi..." : "Envoyer une notification test"}
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : (
           <section className="bb-surface border border-amber-300/30 bg-amber-300/[0.06] p-5 md:p-6">
             <div className="flex items-start gap-4">
               <span className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-300/30 bg-amber-300/10 text-amber-200">
@@ -5296,6 +5344,31 @@ export function AdminDashboardPage() {
           </article>
         </section>
 
+        {/* ── Filtre type de compte — toujours visible (meme fiche client ouverte
+            sur mobile), pour pouvoir changer d'univers sans repasser par "Liste" ── */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "bbx" as const, label: "BBX" },
+            { key: "founder" as const, label: "Fondateur" },
+            { key: "pro" as const, label: "Pro" },
+            { key: "all" as const, label: "Tout" },
+          ].map((filter) => (
+            <button
+              className={cn(
+                "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
+                clientTypeFilter === filter.key
+                  ? "border-accent/45 bg-accent/10 text-white"
+                  : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
+              )}
+              key={filter.key}
+              onClick={() => setClientTypeFilter(filter.key)}
+              type="button"
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
         <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
           {/* ── Liste clients — masquee sur mobile quand une fiche est ouverte ── */}
           <aside
@@ -5336,28 +5409,6 @@ export function AdminDashboardPage() {
               <p className="text-sm leading-6 text-white/50">
                 Export hebdomadaire automatique le dimanche a 10h, plus export manuel ici.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: "bbx" as const, label: "BBX" },
-                  { key: "founder" as const, label: "Fondateur" },
-                  { key: "pro" as const, label: "Pro" },
-                  { key: "all" as const, label: "Tout" },
-                ].map((filter) => (
-                  <button
-                    className={cn(
-                      "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                      clientTypeFilter === filter.key
-                        ? "border-accent/45 bg-accent/10 text-white"
-                        : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
-                    )}
-                    key={filter.key}
-                    onClick={() => setClientTypeFilter(filter.key)}
-                    type="button"
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                 <input
