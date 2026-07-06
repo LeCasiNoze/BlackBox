@@ -10,6 +10,10 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Fix filtre clients qui ne rafraîchissait pas la liste (v1.41.1)** :
+  changer de filtre revient maintenant directement à la liste à jour au lieu
+  de laisser la fiche du client précédent affichée jusqu'à un tap manuel sur
+  « Liste ».
 - ✅ **Filtre clients toujours visible + preuve d'état notifications (v1.41.0)** :
   le filtre de type de compte (BBX/Fondateur/Pro/Tout) dans Admin → Clients ne
   disparaît plus quand une fiche est ouverte sur mobile (il était piégé dans le

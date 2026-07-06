@@ -5361,7 +5361,13 @@ export function AdminDashboardPage() {
                   : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
               )}
               key={filter.key}
-              onClick={() => setClientTypeFilter(filter.key)}
+              onClick={() => {
+                setClientTypeFilter(filter.key);
+                // Revient a la liste : sur mobile, la fiche ouverte masquait
+                // le panneau liste, donnant l'impression que le changement de
+                // filtre ne faisait rien tant qu'on ne retournait pas a la liste.
+                setSelectedClientId(null);
+              }}
               type="button"
             >
               {filter.label}

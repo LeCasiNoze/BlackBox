@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.41.0";
+export const APP_VERSION = "1.41.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,14 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.41.1",
+    date: "2026-07-06",
+    title: "Fix : le filtre clients ne rafraichissait pas la liste",
+    changes: [
+      "Admin Clients : changer de filtre (BBX/Fondateur/Pro/Tout) revient desormais directement a la liste a jour, au lieu de laisser affichee la fiche du client precedent jusqu'a un tap manuel sur \"Liste\".",
+    ],
+  },
   {
     version: "1.41.0",
     date: "2026-07-05",
