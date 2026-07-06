@@ -10,6 +10,10 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Fix bandeau notifications + badge goodies déplacé (v1.41.2)** : le
+  bandeau restait bloqué sur "à activer" après un clic réussi sur Activer
+  (l'état local n'était pas mis à jour) — passe maintenant bien au vert. Badge
+  des lots/goodies à remettre déplacé de l'onglet Hall vers Événements.
 - ✅ **Fix filtre clients qui ne rafraîchissait pas la liste (v1.41.1)** :
   changer de filtre revient maintenant directement à la liste à jour au lieu
   de laisser la fiche du client précédent affichée jusqu'à un tap manuel sur

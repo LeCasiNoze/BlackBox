@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.41.1";
+export const APP_VERSION = "1.41.2";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.41.2",
+    date: "2026-07-06",
+    title: "Fix bandeau notifications + badge goodies deplace",
+    changes: [
+      "Le bandeau notifications admin restait bloque sur \"a activer\" apres avoir clique sur Activer (le succes n'etait pas repercute dans l'etat local) : il passe maintenant correctement au vert \"Notifications activees\".",
+      "Le badge de notification des lots/goodies a remettre etait sur l'onglet Hall : deplace sur l'onglet Evenements, plus coherent.",
+    ],
+  },
   {
     version: "1.41.1",
     date: "2026-07-06",

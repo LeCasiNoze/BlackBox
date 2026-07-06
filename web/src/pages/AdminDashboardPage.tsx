@@ -1595,6 +1595,7 @@ export function AdminDashboardPage() {
       const result = await enableAdminPush();
       setPushPermission(adminPushPermission());
       if (result.ok) {
+        setPushServerSubscribed(true);
         showToast("Notifications activees sur cet appareil.");
       } else if (result.reason === "denied") {
         showToast("Notifications refusees. Autorisez-les dans les réglages du navigateur.");
@@ -2275,11 +2276,11 @@ export function AdminDashboardPage() {
   // Compteurs de notification par onglet de navigation admin.
   const quotesPendingCount = quotes.filter((quote) => quote.status === "pending").length;
   const adminNavBadges: Record<string, number> = {
-    home: goodiePending,
     appointments: pendingRequests.length,
     delivery: deliveryPendingCount,
     devis: quotesPendingCount,
     clients: 0,
+    events: goodiePending,
   };
 
   const filteredClients = React.useMemo(() => {
