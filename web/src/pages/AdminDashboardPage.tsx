@@ -3127,16 +3127,24 @@ export function AdminDashboardPage() {
 
                   {quote.photos.length > 0 && (
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                      {quote.photos.map((url) => (
-                        <a
-                          className="block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30"
-                          href={url}
+                      {quote.photos.map((url, i) => (
+                        <button
+                          className="block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30 hover:border-[#e8c98a] transition-all cursor-pointer"
                           key={url}
-                          rel="noreferrer"
-                          target="_blank"
+                          onClick={() =>
+                            openLightbox(
+                              quote.photos.map((imgUrl, idx) => ({
+                                id: `quote-${quote.id}-${idx}`,
+                                url: imgUrl,
+                                label: `Photo Devis ${quote.clientName || ""} (${idx + 1}/${quote.photos.length})`,
+                              })),
+                              url,
+                            )
+                          }
+                          type="button"
                         >
-                          <img alt="" className="h-full w-full object-cover" src={url} />
-                        </a>
+                          <img alt={`Photo devis ${i + 1}`} className="h-full w-full object-cover hover:scale-105 transition-transform" src={url} />
+                        </button>
                       ))}
                     </div>
                   )}
@@ -5054,11 +5062,25 @@ export function AdminDashboardPage() {
                         <div className="mt-4 grid gap-3 sm:grid-cols-3">
                           {stagedPhotos.map((entry) => (
                             <div
-                              className="relative overflow-hidden rounded-[22px] border border-accent/30 bg-black/30"
+                              className="relative overflow-hidden rounded-[22px] border border-accent/30 bg-black/30 group"
                               key={entry.url}
                             >
-                              <img alt="" className="h-24 w-full object-cover" src={entry.url} />
-                              <span className="bb-pill absolute left-2 top-2 border-accent/25 bg-accent/15 text-[10px] text-accentSoft">
+                              <img
+                                alt=""
+                                className="h-24 w-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                onClick={() =>
+                                  openLightbox(
+                                    stagedPhotos.map((s, idx) => ({
+                                      id: `staged-${idx}`,
+                                      url: s.url,
+                                      label: `Photo en attente d'envoi (${idx + 1}/${stagedPhotos.length})`,
+                                    })),
+                                    entry.url,
+                                  )
+                                }
+                                src={entry.url}
+                              />
+                              <span className="bb-pill absolute left-2 top-2 border-accent/25 bg-accent/15 text-[10px] text-accentSoft pointer-events-none">
                                 A envoyer
                               </span>
                               <button

@@ -1,6 +1,5 @@
 import * as React from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
-
+import { ArrowLeft, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "../lib/portal";
 
 export type LightboxImage = {
@@ -63,83 +62,134 @@ export function ImageLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/[0.92] px-3 py-6 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex flex-col justify-between bg-black/95 px-3 py-4 backdrop-blur-xl select-none"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
-      <button
-        aria-label="Fermer"
-        className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white transition hover:bg-white/10"
-        onClick={onClose}
-        type="button"
+      {/* ── BARRE DE NAVIGATION SUPÉRIEURE AVEC BOUTON RETOUR ── */}
+      <div
+        className="relative z-20 flex items-center justify-between gap-3 border-b border-white/10 pb-3 max-w-7xl w-full mx-auto"
+        onClick={(e) => e.stopPropagation()}
       >
-        <X className="h-5 w-5" />
-      </button>
-
-      {canNavigate && (
         <button
-          aria-label="Photo précédente"
-          className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white transition hover:bg-white/10 md:left-6"
-          onClick={(event) => {
-            event.stopPropagation();
-            goTo(-1);
-          }}
+          aria-label="Retour à l'écran"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/20 bg-white/10 text-white font-bold text-xs uppercase tracking-wider hover:bg-white/20 hover:border-white transition-all cursor-pointer shadow-lg"
+          onClick={onClose}
           type="button"
         >
-          <ChevronLeft className="h-6 w-6" />
+          <ArrowLeft className="h-4 w-4" />
+          <span>RETOUR À L&apos;ÉCRAN</span>
         </button>
-      )}
 
-      <div
-        className="relative flex max-h-[92vh] w-full max-w-6xl items-center justify-center"
-        onClick={(event) => event.stopPropagation()}
-        onTouchEnd={(event) => {
-          if (touchStartX.current == null || touchStartY.current == null) return;
-          const touch = event.changedTouches[0];
-          const deltaX = touch.clientX - touchStartX.current;
-          const deltaY = touch.clientY - touchStartY.current;
-          touchStartX.current = null;
-          touchStartY.current = null;
+        <div className="text-center min-w-0 flex-1 px-2">
+          {currentImage.label && (
+            <p className="text-xs sm:text-sm font-bold text-white truncate">
+              {currentImage.label}
+            </p>
+          )}
+          {canNavigate && (
+            <span className="text-[11px] font-mono text-[#e8c98a] font-semibold">
+              Photo {currentIndex + 1} sur {images.length}
+            </span>
+          )}
+        </div>
 
-          if (Math.abs(deltaX) > 55 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
-            goTo(deltaX > 0 ? -1 : 1);
-          }
-        }}
-        onTouchStart={(event) => {
-          const touch = event.touches[0];
-          touchStartX.current = touch.clientX;
-          touchStartY.current = touch.clientY;
-        }}
-      >
-        <img
-          alt={currentImage.label || "Photo prestation"}
-          className="max-h-[88vh] max-w-full select-none rounded-[22px] border border-white/10 object-contain shadow-[0_30px_120px_rgba(0,0,0,0.65)]"
-          draggable={false}
-          src={currentImage.url}
-        />
+        <button
+          aria-label="Fermer"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white transition hover:bg-white/20 cursor-pointer"
+          onClick={onClose}
+          type="button"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* ── ZONE DE L'IMAGE PRINCIPALE ET SWIPE ── */}
+      <div className="relative flex-1 flex items-center justify-center py-2 max-w-6xl w-full mx-auto overflow-hidden">
+        {canNavigate && (
+          <button
+            aria-label="Photo précédente"
+            className="absolute left-2 sm:left-4 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition hover:bg-[#e8c98a] hover:text-black hover:scale-110 shadow-2xl cursor-pointer"
+            onClick={(event) => {
+              event.stopPropagation();
+              goTo(-1);
+            }}
+            type="button"
+          >
+            <ChevronLeft className="h-7 w-7" />
+          </button>
+        )}
+
+        <div
+          className="relative flex h-full w-full items-center justify-center p-2"
+          onClick={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => {
+            if (touchStartX.current == null || touchStartY.current == null) return;
+            const touch = event.changedTouches[0];
+            const deltaX = touch.clientX - touchStartX.current;
+            const deltaY = touch.clientY - touchStartY.current;
+            touchStartX.current = null;
+            touchStartY.current = null;
+
+            if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+              goTo(deltaX > 0 ? -1 : 1);
+            }
+          }}
+          onTouchStart={(event) => {
+            const touch = event.touches[0];
+            touchStartX.current = touch.clientX;
+            touchStartY.current = touch.clientY;
+          }}
+        >
+          <img
+            alt={currentImage.label || "Photo grand format"}
+            className="max-h-[75vh] sm:max-h-[78vh] max-w-full select-none rounded-2xl border border-white/15 object-contain shadow-[0_20px_80px_rgba(0,0,0,0.8)] transition-all duration-200"
+            draggable={false}
+            src={currentImage.url}
+          />
+        </div>
 
         {canNavigate && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-semibold text-white/75">
-            {currentIndex + 1} / {images.length}
-          </div>
+          <button
+            aria-label="Photo suivante"
+            className="absolute right-2 sm:right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition hover:bg-[#e8c98a] hover:text-black hover:scale-110 shadow-2xl cursor-pointer"
+            onClick={(event) => {
+              event.stopPropagation();
+              goTo(1);
+            }}
+            type="button"
+          >
+            <ChevronRight className="h-7 w-7" />
+          </button>
         )}
       </div>
 
+      {/* ── BARRE DE MINIATURES EN BAS DE L'ÉCRAN (CARROUSEL) ── */}
       {canNavigate && (
-        <button
-          aria-label="Photo suivante"
-          className={cn(
-            "absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white transition hover:bg-white/10 md:right-6",
-          )}
-          onClick={(event) => {
-            event.stopPropagation();
-            goTo(1);
-          }}
-          type="button"
+        <div
+          className="relative z-20 max-w-4xl w-full mx-auto flex items-center justify-center gap-2 overflow-x-auto py-2 px-4 border-t border-white/10"
+          onClick={(e) => e.stopPropagation()}
         >
-          <ChevronRight className="h-6 w-6" />
-        </button>
+          {images.map((img, idx) => {
+            const isActive = idx === currentIndex;
+            return (
+              <button
+                key={img.id || idx}
+                onClick={() => onChange(img.url)}
+                className={cn(
+                  "relative h-14 w-14 shrink-0 rounded-xl overflow-hidden border-2 transition-all cursor-pointer",
+                  isActive
+                    ? "border-[#e8c98a] scale-110 shadow-[0_0_12px_rgba(232,201,138,0.5)]"
+                    : "border-white/20 opacity-50 hover:opacity-100 hover:border-white/50"
+                )}
+                type="button"
+              >
+                <img alt="" className="h-full w-full object-cover" src={img.url} />
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );
