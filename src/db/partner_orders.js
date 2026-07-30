@@ -266,9 +266,19 @@ function listPendingPartnerOrdersWithCheckout({ partnerClientId, limit = 15 } = 
   return rows.map(mapPartnerOrderRow);
 }
 
+function deletePartnerOrder(id, partnerClientId = null) {
+  if (partnerClientId) {
+    return db
+      .prepare(`DELETE FROM partner_orders WHERE id = ? AND partner_client_id = ?`)
+      .run(id, partnerClientId).changes;
+  }
+  return db.prepare(`DELETE FROM partner_orders WHERE id = ?`).run(id).changes;
+}
+
 module.exports = {
   attachPartnerCheckoutSession,
   createPartnerOrder,
+  deletePartnerOrder,
   getPartnerOrderByCheckoutId,
   getPartnerOrderByCheckoutReference,
   getPartnerOrderById,

@@ -1215,7 +1215,7 @@ export function LandingPage() {
               <MapPin className="h-5 w-5 text-[#e8c98a]" />
               <h4 className="text-sm font-bold text-white uppercase">Secteur d&apos;intervention</h4>
               <p className="text-xs text-white/60 leading-relaxed">
-                Atelier &amp; À Domicile — Louhans (71500), Saône-et-Loire, Bresse &amp; Région parisienne.
+                Atelier &amp; À Domicile — Louhans (71500), Saône-et-Loire &amp; Bresse.
               </p>
               <a
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#e8c98a] hover:underline pt-1"
@@ -1249,7 +1249,7 @@ export function LandingPage() {
               <ShieldCheck className="h-5 w-5 text-[#e8c98a]" />
               <h4 className="text-sm font-bold text-white uppercase">Engagement Qualité BC</h4>
               <p className="text-xs text-white/60 leading-relaxed">
-                Produits professionnels haut de gamme, polisseuses Rupes, céramiques certifiées.
+                Produits professionnels haut de gamme, céramiques accrédité Carpro.
               </p>
             </div>
           </div>

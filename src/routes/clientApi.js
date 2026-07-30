@@ -956,6 +956,23 @@ router.post("/:idOrSlug/forfaits/link", (req, res) => {
   });
 });
 
+router.delete("/:idOrSlug/forfaits/orders/:orderId", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensureProClient(client, res)) {
+    return;
+  }
+
+  const orderId = Number(req.params.orderId);
+  if (!orderId || !Number.isInteger(orderId)) {
+    return res.status(400).json({ ok: false, error: "invalid_order_id" });
+  }
+
+  const { deletePartnerOrder } = require("../db/partner_orders");
+  const deleted = deletePartnerOrder(orderId, client.id);
+
+  return res.json({ ok: true, deleted: Boolean(deleted) });
+});
+
 router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {

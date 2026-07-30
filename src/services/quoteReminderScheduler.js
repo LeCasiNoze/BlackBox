@@ -51,8 +51,7 @@ async function checkAndSendQuoteReminders() {
 }
 
 function startQuoteReminderScheduler() {
-  // Exécution initiale puis récurrente
-  void checkAndSendQuoteReminders();
+  // Exécution uniquement sur l'intervalle horaire (ne déclenche pas au reboot du serveur)
   setInterval(() => {
     void checkAndSendQuoteReminders();
   }, CHECK_INTERVAL_MS);

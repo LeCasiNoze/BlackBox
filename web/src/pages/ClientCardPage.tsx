@@ -6308,6 +6308,29 @@ export function ClientCardPage() {
                     <span className={cn("bb-pill", forfaitStatusClasses(order.status))}>
                       {forfaitStatusLabel(order.status)}
                     </span>
+                    <button
+                      aria-label="Supprimer ce suivi"
+                      className="p-1.5 text-white/40 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                      onClick={async () => {
+                        if (!window.confirm("Supprimer ce suivi de paiement ?")) return;
+                        try {
+                          const targetSlug = slug || clientData?.slug || clientData?.cardCode;
+                          const res = await fetch(`/api/client/${targetSlug}/forfaits/orders/${order.id}`, {
+                            method: "DELETE",
+                          });
+                          const json = await res.json().catch(() => ({}));
+                          if (json.ok) {
+                            setReloadToken((t) => t + 1);
+                            showToast("Suivi de paiement supprimé.");
+                          }
+                        } catch {
+                          /* best effort */
+                        }
+                      }}
+                      type="button"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
                 </li>
               ))}
