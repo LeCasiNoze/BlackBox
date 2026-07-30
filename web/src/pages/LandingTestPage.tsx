@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import * as THREE from "three";
-import { ArrowUpRight, Sparkles, Shield, Award, Layers, Eye, RefreshCw, ChevronDown } from "lucide-react";
+import { ArrowUpRight, Sparkles, ChevronDown } from "lucide-react";
 
 gsap.registerPlugin(ScrollTrigger);
 
