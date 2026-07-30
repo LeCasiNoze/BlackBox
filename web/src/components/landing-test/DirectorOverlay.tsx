@@ -93,6 +93,7 @@ export function DirectorOverlay({
 }: DirectorOverlayProps) {
   const [activeTab, setActiveTab] = useState<"shots" | "telemetry" | "nodes">("shots");
   const [copied, setCopied] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
   const dist = Math.sqrt(
     Math.pow(cameraPosition[0] - cameraTarget[0], 2) +
@@ -101,6 +102,12 @@ export function DirectorOverlay({
   );
 
   const currentShot = shots[currentShotIndex] || shots[0];
+
+  const handleSaveClick = () => {
+    onSaveCurrentShot();
+    setSaveNotice(`✓ Prise "${currentShot?.label || currentShotIndex + 1}" enregistrée avec succès !`);
+    setTimeout(() => setSaveNotice(null), 2500);
+  };
 
   const handleCopy = () => {
     onCopyJson();
@@ -353,12 +360,19 @@ export function DirectorOverlay({
                 </button>
               </div>
 
+              {/* Notification Toast Confirmation d'Enregistrement */}
+              {saveNotice && (
+                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-2 text-center text-[11px] font-bold text-emerald-300 animate-pulse">
+                  {saveNotice}
+                </div>
+              )}
+
               {/* Contrôles de mise à jour de la prise actuelle */}
               <div className="flex flex-wrap gap-2 text-[10px]">
                 <button
                   type="button"
-                  onClick={onSaveCurrentShot}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#e8c98a] bg-[#e8c98a]/20 py-2 font-bold text-[#e8c98a] hover:bg-[#e8c98a] hover:text-black transition"
+                  onClick={handleSaveClick}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#e8c98a] bg-[#e8c98a]/20 py-2 font-bold text-[#e8c98a] hover:bg-[#e8c98a] hover:text-black transition cursor-pointer"
                 >
                   <Save className="h-3.5 w-3.5" />
                   <span>Enregistrer Cadrage Actuel</span>

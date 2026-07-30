@@ -195,7 +195,6 @@ export function LandingTestPage() {
   const [showAxes, setShowAxes] = useState(false);
   const [showTargetDot, setShowTargetDot] = useState(false);
   const [isTransitionPlaying, setIsTransitionPlaying] = useState(false);
-  const [transitionProgress, setTransitionProgress] = useState(0);
 
   // Modale Lightbox Photo
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -402,7 +401,6 @@ export function LandingTestPage() {
     if (!fromShot || !toShot) return;
 
     setIsTransitionPlaying(true);
-    setTransitionProgress(0);
 
     const duration = toShot.duration || 2.5;
 
@@ -413,7 +411,6 @@ export function LandingTestPage() {
         ease: toShot.easing || "power2.inOut",
         onUpdate: function () {
           const p = this.progress();
-          setTransitionProgress(p);
 
           setCameraPos([
             fromShot.cameraPosition[0] + (toShot.cameraPosition[0] - fromShot.cameraPosition[0]) * p,
