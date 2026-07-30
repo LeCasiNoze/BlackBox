@@ -55,6 +55,15 @@ function DirectorCameraControls({
   const vecCam = useRef(new THREE.Vector3());
   const vecTarget = useRef(new THREE.Vector3());
 
+  // Force la réinitialisation de la position de la caméra et de la cible dans OrbitControls lors des changements externes (sélection de prise)
+  useEffect(() => {
+    if (isDirector && orbitRef.current) {
+      camera.position.set(cameraPos[0], cameraPos[1], cameraPos[2]);
+      orbitRef.current.target.set(targetPos[0], targetPos[1], targetPos[2]);
+      orbitRef.current.update();
+    }
+  }, [isDirector, cameraPos[0], cameraPos[1], cameraPos[2], targetPos[0], targetPos[1], targetPos[2], camera]);
+
   // Gestionnaires des touches du clavier pour ZQSD / WASD / Flèches
   useEffect(() => {
     if (!isDirector || !enableZqsd) return;
@@ -219,16 +228,17 @@ export function LandingTestPage() {
   }, [shots]);
 
   // Synchronisation de la prise sélectionnée vers les états de la caméra
-  useEffect(() => {
-    if (shots[currentShotIndex]) {
-      const shot = shots[currentShotIndex];
-      setCameraPos(shot.cameraPosition);
-      setTargetPos(shot.cameraTarget);
+  const handleSelectShot = (idx: number) => {
+    setCurrentShotIndex(idx);
+    const shot = shots[idx];
+    if (shot) {
+      setCameraPos([...shot.cameraPosition]);
+      setTargetPos([...shot.cameraTarget]);
       setFov(shot.fov);
-      setCarPosition(shot.carPosition);
-      setCarRotation(shot.carRotation);
+      setCarPosition([...shot.carPosition]);
+      setCarRotation([...shot.carRotation]);
     }
-  }, [currentShotIndex, shots]);
+  };
 
   // ── GSAP SCROLLTRIGGER SUR LA SÉQUENCE EN MODE NORMAL (NON DIRECTOR) ──
   useEffect(() => {
@@ -346,18 +356,18 @@ export function LandingTestPage() {
     }
   };
 
-  // Gestion des Prises de Vue (Ajouter, Sauvegarder, Supprimer)
+  // Enregistrer le cadrage actuel exact sur la prise sélectionnée
   const handleSaveCurrentShot = () => {
     setShots((prev) => {
       const updated = [...prev];
       if (updated[currentShotIndex]) {
         updated[currentShotIndex] = {
           ...updated[currentShotIndex],
-          cameraPosition: cameraPos,
-          cameraTarget: targetPos,
+          cameraPosition: [...cameraPos],
+          cameraTarget: [...targetPos],
           fov,
-          carPosition,
-          carRotation,
+          carPosition: [...carPosition],
+          carRotation: [...carRotation],
           selectedFocusNode: selectedNodeName,
         };
       }
@@ -369,11 +379,11 @@ export function LandingTestPage() {
     const newShot: CameraShot = {
       id: `shot-${Date.now()}`,
       label: `${shots.length + 1}. Prise Sur-Mesure`,
-      cameraPosition: cameraPos,
-      cameraTarget: targetPos,
+      cameraPosition: [...cameraPos],
+      cameraTarget: [...targetPos],
       fov,
-      carPosition,
-      carRotation,
+      carPosition: [...carPosition],
+      carRotation: [...carRotation],
       selectedFocusNode: selectedNodeName,
       duration: 2.5,
       hold: 1.0,
@@ -386,22 +396,25 @@ export function LandingTestPage() {
   const handleDeleteShot = (index: number) => {
     if (shots.length <= 1) return;
     setShots((prev) => prev.filter((_, i) => i !== index));
-    setCurrentShotIndex(Math.max(0, index - 1));
+    handleSelectShot(Math.max(0, index - 1));
   };
 
-  // TESTER LES TRANSITIONS ENTRE PRISES
+  // TESTER LES TRANSITIONS ENTRE PRISES (Démarrage depuis la position réelle instantanée)
   const handlePlayTransition = (forward = true) => {
     if (isTransitionPlaying) return;
     const nextIdx = forward
       ? (currentShotIndex + 1) % shots.length
       : (currentShotIndex - 1 + shots.length) % shots.length;
 
-    const fromShot = shots[currentShotIndex];
+    const startCamPos: [number, number, number] = [...cameraPos];
+    const startTargetPos: [number, number, number] = [...targetPos];
+    const startFov = fov;
+    const startCarRot: [number, number, number] = [...carRotation];
+
     const toShot = shots[nextIdx];
-    if (!fromShot || !toShot) return;
+    if (!toShot) return;
 
     setIsTransitionPlaying(true);
-
     const duration = toShot.duration || 2.5;
 
     gsap.to(
@@ -413,23 +426,23 @@ export function LandingTestPage() {
           const p = this.progress();
 
           setCameraPos([
-            fromShot.cameraPosition[0] + (toShot.cameraPosition[0] - fromShot.cameraPosition[0]) * p,
-            fromShot.cameraPosition[1] + (toShot.cameraPosition[1] - fromShot.cameraPosition[1]) * p,
-            fromShot.cameraPosition[2] + (toShot.cameraPosition[2] - fromShot.cameraPosition[2]) * p,
+            startCamPos[0] + (toShot.cameraPosition[0] - startCamPos[0]) * p,
+            startCamPos[1] + (toShot.cameraPosition[1] - startCamPos[1]) * p,
+            startCamPos[2] + (toShot.cameraPosition[2] - startCamPos[2]) * p,
           ]);
 
           setTargetPos([
-            fromShot.cameraTarget[0] + (toShot.cameraTarget[0] - fromShot.cameraTarget[0]) * p,
-            fromShot.cameraTarget[1] + (toShot.cameraTarget[1] - fromShot.cameraTarget[1]) * p,
-            fromShot.cameraTarget[2] + (toShot.cameraTarget[2] - fromShot.cameraTarget[2]) * p,
+            startTargetPos[0] + (toShot.cameraTarget[0] - startTargetPos[0]) * p,
+            startTargetPos[1] + (toShot.cameraTarget[1] - startTargetPos[1]) * p,
+            startTargetPos[2] + (toShot.cameraTarget[2] - startTargetPos[2]) * p,
           ]);
 
-          setFov(fromShot.fov + (toShot.fov - fromShot.fov) * p);
+          setFov(startFov + (toShot.fov - startFov) * p);
 
           setCarRotation([
-            fromShot.carRotation[0] + (toShot.carRotation[0] - fromShot.carRotation[0]) * p,
-            fromShot.carRotation[1] + (toShot.carRotation[1] - fromShot.carRotation[1]) * p,
-            fromShot.carRotation[2] + (toShot.carRotation[2] - fromShot.carRotation[2]) * p,
+            startCarRot[0] + (toShot.carRotation[0] - startCarRot[0]) * p,
+            startCarRot[1] + (toShot.carRotation[1] - startCarRot[1]) * p,
+            startCarRot[2] + (toShot.carRotation[2] - startCarRot[2]) * p,
           ]);
         },
         onComplete: () => {
@@ -568,7 +581,7 @@ export function LandingTestPage() {
           onZoomOut={handleZoomOut}
           onSelectNode={(nodeName) => setSelectedNodeName(nodeName)}
           onRecenterOnNode={handleRecenterOnNode}
-          onSelectShot={(idx) => setCurrentShotIndex(idx)}
+          onSelectShot={handleSelectShot}
           onAddShot={handleAddShot}
           onSaveCurrentShot={handleSaveCurrentShot}
           onDeleteShot={handleDeleteShot}
@@ -577,7 +590,7 @@ export function LandingTestPage() {
           onCopyJson={handleCopyJson}
           onResetShotsToDefault={() => {
             setShots(INITIAL_CAMERA_SHOTS);
-            setCurrentShotIndex(0);
+            handleSelectShot(0);
           }}
           onChangeDuration={(dur) => {
             setShots((prev) => {
