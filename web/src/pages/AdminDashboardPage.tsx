@@ -3136,7 +3136,7 @@ export function AdminDashboardPage() {
                               quote.photos.map((imgUrl, idx) => ({
                                 id: `quote-${quote.id}-${idx}`,
                                 url: imgUrl,
-                                label: `Photo Devis ${quote.clientName || ""} (${idx + 1}/${quote.photos.length})`,
+                                label: `Photo Devis ${fullClientName(quote.client)} (${idx + 1}/${quote.photos.length})`,
                               })),
                               url,
                             )
