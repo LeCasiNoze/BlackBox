@@ -6518,23 +6518,35 @@ export function ClientCardPage() {
               </div>
             )}
 
-            {!clientData.isFounder && paymentsReady && topupOffers[0] && (
+            {paymentsReady && topupOffers[0] && (
               <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-lg font-semibold text-white">Completer un devis personnalise</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-lg font-semibold text-white">Recharge de crédits sur-mesure</p>
+                  {clientData.isFounder && (
+                    <span className="rounded-full bg-[#e8c98a]/10 border border-[#e8c98a]/40 px-3 py-1 text-[11px] font-bold text-[#e8c98a]">
+                      Tarif Fondateur (-20% : 40 € / crédit)
+                    </span>
+                  )}
+                </div>
                 <p className="mt-2 text-sm leading-6 text-white/58">
-                  Si l'admin validé un tarif special, indiquez exactement le nombre de crédits a acheter.
+                  Indiquez exactement le nombre de crédits à acheter (pour valider un devis personnalisé ou recharger le montant souhaité).
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-                  <input
-                    className="bb-input"
-                    min={1}
-                    onChange={(event) => setCustomTopupQuantity(event.target.value)}
-                    placeholder="Nombre de crédits"
-                    type="number"
-                    value={customTopupQuantity}
-                  />
+                  <div className="relative">
+                    <input
+                      className="bb-input pr-24"
+                      min={1}
+                      onChange={(event) => setCustomTopupQuantity(event.target.value)}
+                      placeholder="Nombre de crédits"
+                      type="number"
+                      value={customTopupQuantity}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#e8c98a]">
+                      = {Number(customTopupQuantity || 1) * (clientData.isFounder ? 40 : 50)} €
+                    </span>
+                  </div>
                   <button
-                    className="bb-button-brand justify-center"
+                    className="bb-button-brand justify-center cursor-pointer"
                     disabled={
                       busyTopupKey === `${topupOffers[0].key}-x${Number(customTopupQuantity || 1)}` ||
                       Number(customTopupQuantity || 0) <= 0
@@ -6544,7 +6556,7 @@ export function ClientCardPage() {
                     }}
                     type="button"
                   >
-                    Acheter
+                    Acheter ({Number(customTopupQuantity || 1) * (clientData.isFounder ? 40 : 50)} €)
                   </button>
                 </div>
               </div>
