@@ -665,6 +665,29 @@ function ensurePushSubscriptionsSchema() {
   }
 }
 
+function ensureQuoteRequestsExtraColumns() {
+  try {
+    const cols = getTableColumns("quote_requests");
+    if (cols.length === 0) return;
+    const colNames = cols.map((c) => c.name);
+
+    const addColumnIfMissing = (name, ddl) => {
+      if (!colNames.includes(name)) {
+        console.log(`[DB] Ajout de la colonne quote_requests.${name}`);
+        db.exec(`ALTER TABLE quote_requests ADD COLUMN ${ddl};`);
+      }
+    };
+
+    addColumnIfMissing("accepted_at", "accepted_at INTEGER");
+    addColumnIfMissing("refused_at", "refused_at INTEGER");
+    addColumnIfMissing("refusal_reason", "refusal_reason TEXT");
+    addColumnIfMissing("refusal_comment", "refusal_comment TEXT");
+    addColumnIfMissing("reminder_sent_at", "reminder_sent_at INTEGER");
+  } catch (error) {
+    console.error("[DB] Erreur ensureQuoteRequestsExtraColumns:", error);
+  }
+}
+
 ensureAppointmentsTimeColumn();
 ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
@@ -677,6 +700,7 @@ ensureEventParticipationsExtraColumns();
 ensureEventsExtraColumns();
 ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
+ensureQuoteRequestsExtraColumns();
 
 module.exports = {
   db,

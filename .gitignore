@@ -1,13 +1,15 @@
 node_modules/
 web/node_modules/
 
-# Secrets / env
+# Secrets / env (mais on garde les .env.example)
 .env
 .env.*
 src/.env
 src/.env.*
+!.env.example
+!src/.env.example
 
-# Local SQLite data
+# Donnees locales : base SQLite + uploads clients — NE JAMAIS committer
 data/
 src/data/
 *.sqlite
@@ -21,3 +23,12 @@ server-*.err.log
 
 # Build output
 web/dist/
+graphify-out/
+
+# OS / editeur
+.DS_Store
+Thumbs.db
+
+# Heavy raw media files
+*.mov
+/*.mp4

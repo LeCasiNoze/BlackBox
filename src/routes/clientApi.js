@@ -10,6 +10,8 @@ const {
   insertQuoteRequestPhoto,
   getQuoteRequestPhotos,
   getActiveQuoteRequestForClient,
+  acceptQuoteRequest,
+  refuseQuoteRequest,
   deleteQuoteRequest,
 } = require("../db/quoteRequests");
 const {
@@ -616,12 +618,14 @@ function ensureProClient(client, res) {
   return true;
 }
 
-router.post("/signup/request-code", async (req, res) => {
+router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   const body = req.body || {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ ok: false, error: "invalid_email" });
   }
+
+  const uploadedImages = Array.isArray(req.files) ? req.files.map((f) => f.filename) : [];
 
   const payload = {
     firstName: body.firstName,
@@ -634,6 +638,8 @@ router.post("/signup/request-code", async (req, res) => {
     city: body.city,
     vehicleModel: body.vehicleModel,
     vehiclePlate: body.vehiclePlate,
+    quoteDescription: typeof body.quoteDescription === "string" ? body.quoteDescription.trim().slice(0, 600) : null,
+    quoteImageFilenames: uploadedImages,
     clientType: "bbx",
     formulaTotal: 0,
     formulaRemaining: 0,
@@ -674,6 +680,23 @@ router.post("/signup/verify", async (req, res) => {
       }
     } catch (mailError) {
       console.error("[API] signup welcome email:", mailError);
+    }
+
+    // Auto-creation de la demande de devis si une description ou des images ont ete fournies
+    if (payload.quoteDescription || (payload.quoteImageFilenames && payload.quoteImageFilenames.length > 0)) {
+      try {
+        const quoteId = createQuoteRequest({ clientId: client.id, description: payload.quoteDescription || null });
+        let photoCount = 0;
+        if (Array.isArray(payload.quoteImageFilenames) && payload.quoteImageFilenames.length > 0) {
+          photoCount = await attachQuoteImages(
+            quoteId,
+            payload.quoteImageFilenames.map((filename) => ({ filename }))
+          );
+        }
+        await sendAdminQuoteRequestEmail({ client, description: payload.quoteDescription || null, photoCount, quoteId });
+      } catch (quoteError) {
+        console.error("[API] auto quote request error:", quoteError);
+      }
     }
 
     return res.json({
@@ -794,6 +817,37 @@ router.delete("/:idOrSlug/quote", (req, res) => {
     deleteQuoteRequest(existing.id);
   }
   return res.json({ ok: true });
+});
+
+// ── Devis : acceptation du devis par le client ──────────────────────────────
+router.post("/:idOrSlug/quote/accept", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  const existing = getActiveQuoteRequestForClient(client.id);
+  if (!existing || existing.status !== "answered") {
+    return res.status(404).json({ ok: false, error: "no_answered_quote" });
+  }
+  const updated = acceptQuoteRequest(existing.id);
+  return res.json({ ok: true, quoteRequest: quotePayload(updated) });
+});
+
+// ── Devis : refus du devis par le client avec motif ─────────────────────────
+router.post("/:idOrSlug/quote/refuse", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+  const existing = getActiveQuoteRequestForClient(client.id);
+  if (!existing || existing.status !== "answered") {
+    return res.status(404).json({ ok: false, error: "no_answered_quote" });
+  }
+  const refusalReason = (req.body?.refusalReason || "").toString().trim() || null;
+  const refusalComment = (req.body?.refusalComment || "").toString().trim() || null;
+
+  const updated = refuseQuoteRequest(existing.id, { refusalReason, refusalComment });
+  return res.json({ ok: true, quoteRequest: quotePayload(updated) });
 });
 
 router.post("/:idOrSlug/terms/accept", (req, res) => {
@@ -1479,6 +1533,29 @@ router.get("/public/reviews", (_req, res) => {
     return res.json({ ok: true, reviews });
   } catch (error) {
     console.error("[API] public reviews:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ── Espace membre : recherche par email (Landing page) ─────────────────────
+router.post("/public/find-portal", (req, res) => {
+  try {
+    const email = (req.body?.email || "").toString().trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ ok: false, error: "email_required" });
+    }
+
+    const { getClientByEmail } = require("../db/clients");
+    const client = getClientByEmail(email);
+
+    if (!client) {
+      return res.status(404).json({ ok: false, error: "client_not_found" });
+    }
+
+    const portalUrl = client.slug ? `/c/${client.slug}` : `/card/${client.card_code}`;
+    return res.json({ ok: true, portalUrl });
+  } catch (error) {
+    console.error("[API] find-portal error:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });

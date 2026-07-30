@@ -12,6 +12,11 @@ function mapQuoteRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     answeredAt: row.answered_at ?? null,
+    acceptedAt: row.accepted_at ?? null,
+    refusedAt: row.refused_at ?? null,
+    refusalReason: row.refusal_reason || null,
+    refusalComment: row.refusal_comment || null,
+    reminderSentAt: row.reminder_sent_at ?? null,
   };
 }
 
@@ -52,8 +57,7 @@ function getQuoteRequestById(id) {
   );
 }
 
-// La demande "active" d'un client = la plus recente (pending ou answered).
-// Le client n'en a qu'une a la fois ; il la ferme pour en relancer une.
+// La demande "active" d'un client = la plus récente (pending ou answered).
 function getActiveQuoteRequestForClient(clientId) {
   return mapQuoteRow(
     db
@@ -75,11 +79,65 @@ function answerQuoteRequest(id, { estimatedCredits, adminComment = null }) {
   return getQuoteRequestById(id);
 }
 
+function acceptQuoteRequest(id) {
+  const now = nowUnix();
+  db.prepare(
+    `UPDATE quote_requests
+       SET status = 'accepted', accepted_at = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(now, now, id);
+  return getQuoteRequestById(id);
+}
+
+function refuseQuoteRequest(id, { refusalReason = null, refusalComment = null }) {
+  const now = nowUnix();
+  db.prepare(
+    `UPDATE quote_requests
+       SET status = 'refused', refusal_reason = ?, refusal_comment = ?,
+           refused_at = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(refusalReason || null, refusalComment || null, now, now, id);
+  return getQuoteRequestById(id);
+}
+
+function markQuoteReminderSent(id) {
+  const now = nowUnix();
+  db.prepare(
+    `UPDATE quote_requests
+       SET reminder_sent_at = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(now, now, id);
+}
+
+function getAnsweredQuotesPendingReminder(minAgeSeconds = 172800) {
+  const cutoff = nowUnix() - minAgeSeconds; // e.g. 48 hours ago
+  const rows = db
+    .prepare(
+      `SELECT q.*, c.full_name, c.first_name, c.email, c.vehicle_model
+         FROM quote_requests q
+         JOIN clients c ON c.id = q.client_id
+        WHERE q.status = 'answered'
+          AND q.answered_at IS NOT NULL
+          AND q.answered_at <= ?
+          AND q.reminder_sent_at IS NULL`,
+    )
+    .all(cutoff);
+
+  return rows.map((row) => ({
+    ...mapQuoteRow(row),
+    client: {
+      id: row.client_id,
+      fullName: row.full_name || row.first_name,
+      email: row.email,
+      vehicleModel: row.vehicle_model,
+    },
+  }));
+}
+
 function deleteQuoteRequest(id) {
   return db.prepare(`DELETE FROM quote_requests WHERE id = ?`).run(id).changes;
 }
 
-// Liste admin : toutes les demandes, avec infos client + photos, recentes d'abord.
 function listQuoteRequestsForAdmin() {
   const rows = db
     .prepare(
@@ -127,6 +185,10 @@ module.exports = {
   getQuoteRequestById,
   getActiveQuoteRequestForClient,
   answerQuoteRequest,
+  acceptQuoteRequest,
+  refuseQuoteRequest,
+  markQuoteReminderSent,
+  getAnsweredQuotesPendingReminder,
   deleteQuoteRequest,
   listQuoteRequestsForAdmin,
   countPendingQuoteRequests,

@@ -143,12 +143,16 @@ const MAX_UNIT_TOPUP_QUANTITY = 99;
 function getUnitTopupOfferForClient(client, quantity = 1) {
   const qty = Math.max(1, Math.min(MAX_UNIT_TOPUP_QUANTITY, Math.floor(Number(quantity) || 1)));
   const unitOffer =
-    listTopupOffersForClient(client).find((offer) => offer.credits === 1 && offer.applyMode === "add") ||
-    null;
-
-  if (!unitOffer) {
-    return null;
-  }
+    listTopupOffersForClient(client).find((offer) => offer.credits === 1 && offer.applyMode === "add") || {
+      key: "unit-credit",
+      label: "1 crédit",
+      description: "Achat à l'unité (50 € / crédit)",
+      credits: 1,
+      priceCents: 5000,
+      currency: "EUR",
+      applyMode: "add",
+      durationDays: null,
+    };
 
   return {
     ...unitOffer,
@@ -156,14 +160,14 @@ function getUnitTopupOfferForClient(client, quantity = 1) {
     label:
       qty === 1
         ? unitOffer.label
-        : `${qty} credits a l'unite`,
+        : `${qty} crédits à l'unité`,
     description:
       qty === 1
         ? unitOffer.description
-        : `Achat de ${qty} credit${qty > 1 ? "s" : ""} au tarif unitaire.`,
+        : `Achat de ${qty} crédit${qty > 1 ? "s" : ""} au tarif unitaire (50 € / crédit).`,
     credits: qty,
-    priceCents: unitOffer.priceCents * qty,
-    durationDays: unitOffer.durationDays,
+    priceCents: (unitOffer.priceCents || 5000) * qty,
+    durationDays: unitOffer.durationDays || null,
   };
 }
 

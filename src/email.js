@@ -884,6 +884,47 @@ Rechargez puis prenez rendez-vous depuis votre espace : ${portalUrl || "Lien ind
   return sendBrevoEmail({ to: [{ email: client.email, name: fullName }], subject, html, text });
 }
 
+async function sendClientQuoteReminderEmail({ client, quote }) {
+  const credits = Number(quote?.estimatedCredits) || 0;
+  const priceEur = credits * 50;
+  const fullName = fallbackClientName(client);
+  const portalUrl = clientPortalUrl(client);
+
+  pushClient(client, {
+    title: "Rappel : Votre devis Bryan Cars vous attend",
+    body: `Estimation : ${credits} credit${credits > 1 ? "s" : ""} (${priceEur} €). Acceptez ou refusez directement depuis votre espace.`,
+  });
+
+  if (!client?.email) return false;
+
+  const subject = `[Bryan Cars] Rappel de votre devis pour votre véhicule`;
+  const text = `
+Bonjour ${fullName},
+
+Nous vous rappelons que votre devis de ${credits} crédit(s) (${priceEur} €) pour votre véhicule est en attente de votre réponse.
+
+Acceptez ou refusez l'estimation depuis votre espace : ${portalUrl || "Lien indisponible"}
+  `.trim();
+
+  const html = brandEmailShell({
+    eyebrow: "Rappel devis",
+    title: "Votre estimation en attente",
+    subtitle:
+      "Votre devis sur-mesure pour votre véhicule est toujours disponible. Vous pouvez l'accepter ou le refuser en un clic.",
+    preheader: `Devis ${credits} credit${credits > 1 ? "s" : ""} (${priceEur} €)`,
+    bodyHtml: `
+      ${metricRows([
+        { label: "Estimation", value: `${credits} credit${credits > 1 ? "s" : ""} (${priceEur} €)` },
+      ])}
+      ${actionButtons([
+        portalUrl ? { label: "Consulter mon devis", href: portalUrl, tone: "primary" } : null,
+      ])}
+    `,
+  });
+
+  return sendBrevoEmail({ to: [{ email: client.email, name: fullName }], subject, html, text });
+}
+
 async function sendAdminAppointmentReminderEmail({ appointment, client }) {
   const adminEmail = adminInboxEmail();
   if (!adminEmail || !appointment || !client) {
@@ -1786,6 +1827,7 @@ module.exports = {
   sendAdminNotification,
   sendAdminQuoteRequestEmail,
   sendClientQuoteAnsweredEmail,
+  sendClientQuoteReminderEmail,
   sendAdminRewardRedemption,
   sendClientPhotosRequestedEmail,
   sendClientPriceApprovalEmail,

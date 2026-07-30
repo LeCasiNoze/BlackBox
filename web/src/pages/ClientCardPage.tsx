@@ -1495,6 +1495,9 @@ export function ClientCardPage() {
     entries: Array<{ rank: number; name: string; bc: number; isYou: boolean }>;
   } | null>(null);
   const [assistantOpen, setAssistantOpen] = React.useState(false);
+  const [refusingQuote, setRefusingQuote] = React.useState(false);
+  const [refusalReason, setRefusalReason] = React.useState("trop_cher");
+  const [refusalComment, setRefusalComment] = React.useState("");
   // Bulle assistant deplaçable (drag & drop). chatPos null = position par defaut.
   const [chatPos, setChatPos] = React.useState<{ x: number; y: number } | null>(null);
   const chatDragRef = React.useRef<{ startX: number; startY: number; moved: boolean } | null>(null);
@@ -2018,32 +2021,151 @@ export function ClientCardPage() {
             <div className="mt-5 space-y-4">
               <div className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5 text-center">
                 <p className="text-sm text-white/70">
-                  L&apos;estimation pour votre vehicule est de
+                  L&apos;estimation pour votre véhicule est de
                 </p>
                 <p className="mt-2 text-4xl font-bold text-accent">
-                  {credits}{" "}
-                  <span className="text-2xl">credit{credits > 1 ? "s" : ""}</span>
+                  {credits} <span className="text-2xl">crédit{credits > 1 ? "s" : ""}</span>
+                  <span className="block text-lg font-semibold text-white/80 mt-1">
+                    ({credits * 50} €)
+                  </span>
                 </p>
               </div>
+
+              {/* CADRANT COMPARATIF MEMBRE FONDATEUR */}
+              {!isFounder && (
+                <div className="rounded-2xl border border-[#e8c98a]/40 bg-[#e8c98a]/10 p-4 text-xs space-y-2 text-left">
+                  <div className="flex items-center gap-2 font-bold text-[#e8c98a]">
+                    <Crown className="h-4 w-4 shrink-0 text-[#e8c98a]" />
+                    <span>
+                      Ça vous aurait coûté {credits * 40} € ({credits * 10} € d&apos;économie) si vous étiez Membre Fondateur !
+                    </span>
+                  </div>
+                  <p className="text-white/70 text-[11px] leading-relaxed">
+                    Les membres fondateurs bénéficient de -20% sur les crédits, d&apos;une priorité sur le planning et de BC&apos;Coins bonus.
+                  </p>
+                  <button
+                    className="inline-flex items-center gap-1.5 text-[#e8c98a] font-bold hover:underline cursor-pointer pt-1"
+                    onClick={() => {
+                      setQuoteModalOpen(false);
+                      navigateView("shop");
+                    }}
+                    type="button"
+                  >
+                    <span>Découvrir l&apos;Espace Fondateur</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
               {quote.adminComment && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="bb-eyebrow mb-1">Note de Bryan Cars</p>
                   <p className="text-sm leading-6 text-white/70">{quote.adminComment}</p>
                 </div>
               )}
-              <button
-                className="bb-button-brand w-full justify-center py-3.5"
-                onClick={rechargeFromQuote}
-                type="button"
-              >
-                <CreditCard className="mr-2 h-4 w-4" />
-                Recharger {credits} credit{credits > 1 ? "s" : ""}
-              </button>
-              <p className="text-center text-xs text-white/45">
-                {isFounder
-                  ? "Choisissez un pack puis prenez rendez-vous."
-                  : "Rechargez a l'unite puis prenez rendez-vous."}
-              </p>
+
+              {refusingQuote ? (
+                <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 space-y-3">
+                  <h4 className="text-xs font-bold text-white uppercase">Pourquoi souhaitez-vous refuser ce devis ?</h4>
+                  <div className="space-y-2">
+                    {[
+                      { id: "trop_cher", label: "Tarif trop élevé / Hors budget" },
+                      { id: "delai_incompatible", label: "Délai ou indisponibilité" },
+                      { id: "autre_prestataire", label: "Choix d'un autre prestataire" },
+                      { id: "changement_avis", label: "Changement d'avis" },
+                      { id: "autre", label: "Autre raison" },
+                    ].map((opt) => (
+                      <label key={opt.id} className="flex items-center gap-2.5 p-2.5 rounded-xl border border-white/10 bg-black/40 cursor-pointer hover:border-white/20">
+                        <input
+                          type="radio"
+                          name="refusalReason"
+                          value={opt.id}
+                          checked={refusalReason === opt.id}
+                          onChange={(e) => setRefusalReason(e.target.value)}
+                          className="accent-[#e8c98a]"
+                        />
+                        <span className="text-xs font-semibold text-white">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <textarea
+                    placeholder="Précision ou commentaire (optionnel)..."
+                    value={refusalComment}
+                    onChange={(e) => setRefusalComment(e.target.value)}
+                    className="w-full p-3 bg-black/60 border border-white/15 rounded-xl text-xs text-white resize-none h-16 focus:border-[#e8c98a] focus:outline-none"
+                  />
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => setRefusingQuote(false)}
+                      className="py-2.5 border border-white/20 text-white font-bold text-xs rounded-xl cursor-pointer"
+                      type="button"
+                    >
+                      RETOUR
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setQuoteBusy(true);
+                        try {
+                          const targetSlug = slug || client?.slug || client?.cardCode;
+                          const res = await fetch(`/api/client/${targetSlug}/quote/refuse`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ refusalReason, refusalComment }),
+                          });
+                          const json = await res.json().catch(() => ({}));
+                          if (json.ok) {
+                            setRefusingQuote(false);
+                            setReloadToken((t) => t + 1);
+                            showToast("Devis refusé. Merci pour votre retour !");
+                          }
+                        } catch {
+                          /* best-effort */
+                        } finally {
+                          setQuoteBusy(false);
+                        }
+                      }}
+                      disabled={quoteBusy}
+                      className="py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
+                      type="button"
+                    >
+                      CONFIRMER LE REFUS
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button
+                    className="bb-button-brand w-full justify-center py-3.5 cursor-pointer"
+                    onClick={async () => {
+                      setQuoteBusy(true);
+                      try {
+                        const targetSlug = slug || client?.slug || client?.cardCode;
+                        await fetch(`/api/client/${targetSlug}/quote/accept`, { method: "POST" });
+                      } catch {
+                        /* best-effort */
+                      } finally {
+                        setQuoteBusy(false);
+                        rechargeFromQuote();
+                      }
+                    }}
+                    type="button"
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    ACCEPTER & RECHARGER ({credits * 50} €)
+                  </button>
+
+                  <button
+                    className="w-full py-3 border border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-colors"
+                    onClick={() => setRefusingQuote(true)}
+                    type="button"
+                  >
+                    REFUSER CE DEVIS
+                  </button>
+                </>
+              )}
+
               <button
                 className="bb-button-ghost w-full justify-center"
                 disabled={quoteBusy}

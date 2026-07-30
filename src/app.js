@@ -27,6 +27,7 @@ const { startAppointmentReminderScheduler } = require("./services/appointmentRem
 const { startWeeklyExportScheduler } = require("./services/weeklyExportScheduler");
 const { startInactivityReminderScheduler } = require("./services/inactivityReminderScheduler");
 const { startReviewRequestScheduler } = require("./services/reviewRequestScheduler");
+const { startQuoteReminderScheduler } = require("./services/quoteReminderScheduler");
 
 if (process.env.SEED_DEMO_CLIENT === "true") {
   ensureDemoClient();
@@ -66,6 +67,7 @@ startAppointmentReminderScheduler();
 startWeeklyExportScheduler();
 startInactivityReminderScheduler();
 startReviewRequestScheduler();
+startQuoteReminderScheduler();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
