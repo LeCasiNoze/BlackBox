@@ -90,7 +90,6 @@ export function BugattiCarModel({
         "Quad_Exhausts"
       );
     }
-    setNodesList(list);
     if (onNodesLoaded) onNodesLoaded(list);
   }, [gltfResult, onNodesLoaded]);
 
