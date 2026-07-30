@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
@@ -13,10 +13,9 @@ export type CarExplodedOffsets = {
 type Segmented3DCarProps = {
   rotationY: number;
   exploded: CarExplodedOffsets;
-  isHydrophobicActive?: boolean;
 };
 
-export function Segmented3DCar({ rotationY, exploded, isHydrophobicActive }: Segmented3DCarProps) {
+export function Segmented3DCar({ rotationY, exploded }: Segmented3DCarProps) {
   const groupRef = useRef<THREE.Group>(null);
   const frontGroupRef = useRef<THREE.Group>(null);
   const sideLeftGroupRef = useRef<THREE.Group>(null);

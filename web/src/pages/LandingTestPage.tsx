@@ -1,28 +1,19 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
-  ArrowRight,
-  ArrowUpRight,
-  Shield,
   Sparkles,
-  Star,
-  MapPin,
-  MessageCircle,
   CheckCircle2,
-  ChevronDown,
   Calendar,
-  Layers,
-  RotateCcw,
   Eye,
 } from "lucide-react";
 
 import {
   Segmented3DCar,
-  CarExplodedOffsets,
+  type CarExplodedOffsets,
 } from "../components/landing-test/Segmented3DCar";
 import { ContextualGallery } from "../components/landing-test/ContextualGallery";
 import {
@@ -101,7 +92,7 @@ export function LandingTestPage() {
     if (!sequenceRef.current) return;
 
     const ctx = gsap.context(() => {
-      const tl = gsap.timeline({
+      gsap.timeline({
         scrollTrigger: {
           trigger: sequenceRef.current,
           start: "top top",

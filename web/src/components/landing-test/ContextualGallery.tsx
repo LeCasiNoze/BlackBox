@@ -1,6 +1,5 @@
-import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ZoomIn, CheckCircle2 } from "lucide-react";
+import { Sparkles, ZoomIn } from "lucide-react";
 
 export type ZonePhoto = {
   id: string;
