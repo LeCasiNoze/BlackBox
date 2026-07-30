@@ -28,10 +28,6 @@ import {
 
 gsap.registerPlugin(ScrollTrigger);
 
-const GOOGLE_MAPS_URL =
-  "https://www.google.com/maps/place/Bryan+Cars+Detailing+%E2%80%93+Nettoyage+voiture+%C3%A0+Louhans/@46.6343847,5.2423649,13z/data=!4m8!3m7!1s0x47f327b91eec4c27:0x81bd1ae9f5024543!8m2!3d46.6343847!4d5.2423649!9m1!1b1!16s%2Fg%2F11nxrbfcrd!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDcyNy4wIKXMDSoASAFQAw%3D%3D";
-const WHATSAPP_URL = "https://wa.me/33649520862";
-
 // ── COMPOSANT CAMÉRA ANIMÉE R3F (Smooth Camera Rig) ──
 function CameraRig({
   cameraPos,
