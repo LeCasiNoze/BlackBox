@@ -11,6 +11,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { ForfaitPayPage } from "./pages/ForfaitPayPage";
 import { InvoicePage } from "./pages/InvoicePage";
 import { LegalPage } from "./pages/LegalPage";
+import { LandingTestPage } from "./pages/LandingTestPage";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/landing-test" element={<LandingTestPage />} />
         <Route path="/card/:slug" element={<ClientCardPage />} />
         <Route path="/card/:slug/conditions" element={<ClientTermsPage />} />
         <Route path="/card/:slug/facture/:orderId" element={<InvoicePage />} />

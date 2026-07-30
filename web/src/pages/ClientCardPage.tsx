@@ -6392,26 +6392,9 @@ export function ClientCardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold text-white">{offer.label}</p>
-                      <p className="mt-2 text-sm text-white/58">
-                        {offer.description ||
-                          `${offer.credits} credit${offer.credits > 1 ? "s" : ""} detailing`}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                          {offer.credits} credit{offer.credits > 1 ? "s" : ""}
-                        </div>
-                        {offer.durationDays && (
-                          <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                            {offer.durationDays} jours
-                          </div>
-                        )}
-                        <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-                          Ajout de crédits
-                        </div>
-                      </div>
                       {/* Recompenses fondateur (miroir de src/config/bcoins.js :
                           +80 BC/credit immediat, +20 differes, 1 case par achat). */}
-                      <div className="mt-2.5 flex items-center gap-2 rounded-2xl border border-dashed border-accent/35 bg-accent/[0.07] px-3 py-2 text-[11px] font-semibold text-accentSoft">
+                      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-dashed border-accent/35 bg-accent/[0.07] px-3 py-2 text-[11px] font-semibold text-accentSoft">
                         <Gift className="h-3.5 w-3.5 shrink-0" />
                         <span>
                           +{offer.credits * 80} BC immediat · +{offer.credits * 20} BC differes · 1 case a ouvrir
