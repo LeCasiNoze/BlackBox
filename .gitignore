@@ -29,6 +29,10 @@ graphify-out/
 .DS_Store
 Thumbs.db
 
-# Heavy raw media files
+# Heavy raw media & 3D source files
 *.mov
 /*.mp4
+*.zip
+tools/3d-source/
+tools/3d-reports/
+!web/public/models/
