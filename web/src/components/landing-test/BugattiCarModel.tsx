@@ -61,11 +61,25 @@ export function BugattiCarModel({
     /* fallback sur modèle segmenté PBR */
   }
 
-  // Traitement et inventaire des Nodes
+  // Traitement, nettoyage du sol ("Plane") et inventaire des Nodes
   useEffect(() => {
     const list: string[] = [];
     if (gltfResult && gltfResult.scene) {
       gltfResult.scene.traverse((obj: THREE.Object3D) => {
+        // Masquer le sol "Plane" pour ne garder QUE la voiture volante pure
+        if (obj.name.toLowerCase().includes("plane") || obj.name.toLowerCase().includes("floor") || obj.name.toLowerCase().includes("ground")) {
+          obj.visible = false;
+        }
+
+        // Optimisation des matériaux PBR
+        if (obj instanceof THREE.Mesh && obj.material) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+          if (obj.material instanceof THREE.MeshStandardMaterial || obj.material instanceof THREE.MeshPhysicalMaterial) {
+            obj.material.needsUpdate = true;
+          }
+        }
+
         if (obj.name && !list.includes(obj.name)) {
           list.push(obj.name);
         }
@@ -124,20 +138,20 @@ export function BugattiCarModel({
     });
   };
 
-  // Matériaux PBR Bugatti Chiron Super Sport
+  // Matériaux PBR Bugatti Chiron Super Sport (Obsidienne & Or)
   const bodyMaterial = (
     <meshPhysicalMaterial
-      color="#0b0b0e"
-      metalness={0.95}
-      roughness={0.1}
+      color="#0c0c10"
+      metalness={0.96}
+      roughness={0.08}
       clearcoat={1.0}
-      clearcoatRoughness={0.05}
+      clearcoatRoughness={0.03}
       reflectivity={1.0}
     />
   );
 
   const goldAccentMaterial = (
-    <meshStandardMaterial color="#e8c98a" metalness={0.9} roughness={0.15} />
+    <meshStandardMaterial color="#e8c98a" metalness={0.92} roughness={0.12} />
   );
 
   const chromeMaterial = (
@@ -156,11 +170,11 @@ export function BugattiCarModel({
   );
 
   const headlightMaterial = (
-    <meshStandardMaterial color="#ffffff" emissive="#e8c98a" emissiveIntensity={3.0} />
+    <meshStandardMaterial color="#ffffff" emissive="#e8c98a" emissiveIntensity={3.5} />
   );
 
   const taillightMaterial = (
-    <meshStandardMaterial color="#ef4444" emissive="#f87171" emissiveIntensity={3.5} />
+    <meshStandardMaterial color="#ef4444" emissive="#f87171" emissiveIntensity={4.0} />
   );
 
   const leatherMaterial = (
@@ -340,19 +354,19 @@ export function BugattiCarModel({
             rotation={[Math.PI / 2, 0, 0]}
             onPointerDown={(e) => handlePointerDownNode(e, "Quad_Exhausts")}
           >
-            <cylinderGeometry args={[0.05, 0.05, 0.18, 16]} />
+            <cylinderGeometry args={[0.06, 0.06, 0.18, 16]} />
             {chromeMaterial}
           </mesh>
           <mesh position={[-0.3, 0.14, -1.95]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.18, 16]} />
+            <cylinderGeometry args={[0.06, 0.06, 0.18, 16]} />
             {chromeMaterial}
           </mesh>
           <mesh position={[0.3, 0.25, -1.95]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.18, 16]} />
+            <cylinderGeometry args={[0.06, 0.06, 0.18, 16]} />
             {chromeMaterial}
           </mesh>
           <mesh position={[0.3, 0.14, -1.95]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.18, 16]} />
+            <cylinderGeometry args={[0.06, 0.06, 0.18, 16]} />
             {chromeMaterial}
           </mesh>
         </group>

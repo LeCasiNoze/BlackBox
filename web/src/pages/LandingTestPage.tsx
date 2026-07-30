@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -240,9 +240,9 @@ export function LandingTestPage() {
     }
   };
 
-  // ── GSAP SCROLLTRIGGER SUR LA SÉQUENCE EN MODE NORMAL (NON DIRECTOR) ──
+  // ── GSAP SCROLLTRIGGER SUR LA SÉQUENCE EN MODE NORMAL (INTERPOLATION DES 10 PRISES ENREGISTRÉES) ──
   useEffect(() => {
-    if (isDirectorMode || !sequenceRef.current) return;
+    if (isDirectorMode || !sequenceRef.current || shots.length === 0) return;
 
     const ctx = gsap.context(() => {
       gsap.timeline({
@@ -254,54 +254,51 @@ export function LandingTestPage() {
           scrub: 0.8,
           onUpdate: (self) => {
             const p = self.progress;
+            const count = shots.length;
 
-            // 0% - 15%: INTRO DARK
-            if (p < 0.15) {
-              setActiveStage(0);
-              const subP = p / 0.15;
-              setCarRotation([0, 0.3 + subP * 0.15, 0]);
-              setCameraPos([0, 1.8 - subP * 0.8, 8.5 - subP * 5.0]);
-              setTargetPos([0, 0.4, 0]);
-            }
-            // 15% - 40%: 01 — FACE AVANT
-            else if (p < 0.4) {
-              setActiveStage(0);
-              const subP = (p - 0.15) / 0.25;
-              setCarRotation([0, 0.45 + subP * 0.2, 0]);
-              setCameraPos([1.8, 1.0, 3.5]);
-              setTargetPos([0.0, 0.4, 1.1]);
-            }
-            // 40% - 65%: 02 — LA LIGNE / PROFIL
-            else if (p < 0.65) {
-              setActiveStage(1);
-              const subP = (p - 0.4) / 0.25;
-              setCarRotation([0, 0.65 + subP * 0.92, 0]);
-              setCameraPos([4.2, 1.1, 0.2]);
-              setTargetPos([0.0, 0.4, 0.0]);
-            }
-            // 65% - 85%: 03 — INTÉRIEUR CONDUCTEUR
-            else if (p < 0.85) {
-              setActiveStage(2);
-              const subP = (p - 0.65) / 0.2;
-              setCarRotation([0, 1.57 + subP * 0.28, 0]);
-              setCameraPos([-0.65, 1.15, 0.55]);
-              setTargetPos([-0.4, 0.85, -0.15]);
-            }
-            // 85% - 95%: 04 — LA SIGNATURE / ARRIÈRE
-            else if (p < 0.95) {
-              setActiveStage(3);
-              const subP = (p - 0.85) / 0.1;
-              setCarRotation([0, 1.85 + subP * 1.6, 0]);
-              setCameraPos([-2.2, 1.25, -3.5]);
-              setTargetPos([0.0, 0.45, -1.2]);
-            }
-            // 95% - 100%: 05 — RÉASSEMBLAGE & CTA
-            else {
-              setActiveStage(4);
-              const subP = (p - 0.95) / 0.05;
-              setCarRotation([0, 3.45 + subP * 2.83, 0]);
-              setCameraPos([2.8, 1.4, 4.2]);
-              setTargetPos([0.0, 0.4, 0.0]);
+            if (count < 2) return;
+
+            const totalSegments = count - 1;
+            const rawSeg = p * totalSegments;
+            const segment = Math.min(totalSegments - 1, Math.floor(rawSeg));
+            const subP = rawSeg - segment;
+
+            const shotA = shots[segment];
+            const shotB = shots[segment + 1] || shots[segment];
+
+            if (shotA && shotB) {
+              setCameraPos([
+                shotA.cameraPosition[0] + (shotB.cameraPosition[0] - shotA.cameraPosition[0]) * subP,
+                shotA.cameraPosition[1] + (shotB.cameraPosition[1] - shotA.cameraPosition[1]) * subP,
+                shotA.cameraPosition[2] + (shotB.cameraPosition[2] - shotA.cameraPosition[2]) * subP,
+              ]);
+
+              setTargetPos([
+                shotA.cameraTarget[0] + (shotB.cameraTarget[0] - shotA.cameraTarget[0]) * subP,
+                shotA.cameraTarget[1] + (shotB.cameraTarget[1] - shotA.cameraTarget[1]) * subP,
+                shotA.cameraTarget[2] + (shotB.cameraTarget[2] - shotA.cameraTarget[2]) * subP,
+              ]);
+
+              setFov(shotA.fov + (shotB.fov - shotA.fov) * subP);
+
+              setCarRotation([
+                shotA.carRotation[0] + (shotB.carRotation[0] - shotA.carRotation[0]) * subP,
+                shotA.carRotation[1] + (shotB.carRotation[1] - shotA.carRotation[1]) * subP,
+                shotA.carRotation[2] + (shotB.carRotation[2] - shotA.carRotation[2]) * subP,
+              ]);
+
+              setCarPosition([
+                shotA.carPosition[0] + (shotB.carPosition[0] - shotA.carPosition[0]) * subP,
+                shotA.carPosition[1] + (shotB.carPosition[1] - shotA.carPosition[1]) * subP,
+                shotA.carPosition[2] + (shotB.carPosition[2] - shotA.carPosition[2]) * subP,
+              ]);
+
+              // Définition de l'étape active en fonction du segment
+              if (p < 0.25) setActiveStage(0);
+              else if (p < 0.5) setActiveStage(1);
+              else if (p < 0.75) setActiveStage(2);
+              else if (p < 0.9) setActiveStage(3);
+              else setActiveStage(4);
             }
           },
         },
@@ -309,7 +306,7 @@ export function LandingTestPage() {
     });
 
     return () => ctx.revert();
-  }, [isDirectorMode]);
+  }, [isDirectorMode, shots]);
 
   // Callback mise à jour télémétrie en Director mode
   const handleTelemetryUpdate = useCallback(
@@ -638,11 +635,12 @@ export function LandingTestPage() {
             <Canvas camera={{ position: cameraPos, fov }}>
               <color attach="background" args={["#060608"]} />
 
-              {/* Éclairage Studio Automobile */}
+              {/* Éclairage Studio Automobile & Reflets Environnement HDRI */}
               <ambientLight intensity={0.4} />
               <directionalLight position={[4, 6, 4]} intensity={3.5} color="#e8c98a" />
               <directionalLight position={[-5, 3, -3]} intensity={1.8} color="#38bdf8" />
               <pointLight position={[0, 4, 2]} intensity={4.5} color="#ffffff" />
+              <Environment preset="studio" environmentIntensity={0.8} />
 
               {showAxes && <axesHelper args={[4]} />}
 
@@ -863,7 +861,7 @@ export function LandingTestPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-4 bg-[#e8c98a] text-black font-bold uppercase text-xs tracking-wider rounded-xl hover:bg-white transition-all shadow-[0_0_25px_rgba(232,201,138,0.3)] cursor-pointer"
+                  className="w-full py-4 bg-[#e8c98a] text-black font-bold uppercase text-xs tracking-wider rounded-xl hover:bg-[#e8c98a] hover:bg-white transition-all shadow-[0_0_25px_rgba(232,201,138,0.3)] cursor-pointer"
                 >
                   {submitting ? "Traitement..." : "Valider ma demande de rendez-vous"}
                 </button>
