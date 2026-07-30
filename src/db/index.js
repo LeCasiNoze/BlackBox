@@ -683,6 +683,7 @@ function ensureQuoteRequestsExtraColumns() {
     addColumnIfMissing("refusal_reason", "refusal_reason TEXT");
     addColumnIfMissing("refusal_comment", "refusal_comment TEXT");
     addColumnIfMissing("reminder_sent_at", "reminder_sent_at INTEGER");
+    addColumnIfMissing("second_reminder_sent_at", "second_reminder_sent_at INTEGER");
   } catch (error) {
     console.error("[DB] Erreur ensureQuoteRequestsExtraColumns:", error);
   }

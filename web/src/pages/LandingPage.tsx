@@ -87,27 +87,27 @@ interface VideoReelExample {
 const VIDEO_REELS: VideoReelExample[] = [
   {
     id: "reel-1",
-    title: "Vidéo #1 — Polissage & Finitions Carrosserie",
-    subtitle: "Extrait TikTok / Reels officiel Bryan Cars (avec son)",
+    title: "Vidéo 1",
+    subtitle: "",
     src: "/reel-1.mp4",
     poster: "/tiktok_10s.jpg",
-    badge: "VIDÉO 1 (TIKTOK)",
+    badge: "VIDÉO 1",
   },
   {
     id: "reel-2",
-    title: "Vidéo #2 — Chevrolet Corvette C8 Studio",
-    subtitle: "Rénovation complète & polissage miroir (avec son)",
+    title: "Vidéo 2",
+    subtitle: "",
     src: "/reel-2.mp4",
     poster: "/corvette_5s.jpg",
-    badge: "VIDÉO 2 (CORVETTE)",
+    badge: "VIDÉO 2",
   },
   {
     id: "reel-3",
-    title: "Vidéo #3 — Lustrage & Protection Sur-Mesure",
-    subtitle: "Soin minutieux sur supercar & sportive (avec son)",
+    title: "Vidéo 3",
+    subtitle: "",
     src: "/reel-3.mp4",
     poster: "/tiktok_30s.jpg",
-    badge: "VIDÉO 3 (FINITION)",
+    badge: "VIDÉO 3",
   },
 ];
 
@@ -633,7 +633,9 @@ export function LandingPage() {
               <h3 className="text-lg sm:text-2xl font-black uppercase text-white">
                 {activeReel.title}
               </h3>
-              <p className="text-xs text-white/60">{activeReel.subtitle}</p>
+              {activeReel.subtitle ? (
+                <p className="text-xs text-white/60">{activeReel.subtitle}</p>
+              ) : null}
             </div>
 
             {/* Cadre Spécifique Vertical 9:16 (Smartphones / Reels) */}

@@ -134,6 +134,42 @@ function getAnsweredQuotesPendingReminder(minAgeSeconds = 172800) {
   }));
 }
 
+function getAnsweredQuotesPendingSecondReminder(minAgeSeconds = 604800) {
+  const cutoff = nowUnix() - minAgeSeconds; // e.g. 7 days (604800s) ago
+  const rows = db
+    .prepare(
+      `SELECT q.*, c.full_name, c.first_name, c.email, c.vehicle_model
+         FROM quote_requests q
+         JOIN clients c ON c.id = q.client_id
+        WHERE q.status = 'answered'
+          AND q.answered_at IS NOT NULL
+          AND q.answered_at <= ?
+          AND q.reminder_sent_at IS NOT NULL
+          AND q.second_reminder_sent_at IS NULL`,
+    )
+    .all(cutoff);
+
+  return rows.map((row) => ({
+    ...mapQuoteRow(row),
+    client: {
+      id: row.client_id,
+      fullName: row.full_name || row.first_name,
+      email: row.email,
+      vehicleModel: row.vehicle_model,
+    },
+  }));
+}
+
+function markQuoteSecondReminderSent(id) {
+  return db
+    .prepare(
+      `UPDATE quote_requests
+          SET second_reminder_sent_at = ?
+        WHERE id = ?`,
+    )
+    .run(nowUnix(), id).changes;
+}
+
 function deleteQuoteRequest(id) {
   return db.prepare(`DELETE FROM quote_requests WHERE id = ?`).run(id).changes;
 }
@@ -189,6 +225,8 @@ module.exports = {
   refuseQuoteRequest,
   markQuoteReminderSent,
   getAnsweredQuotesPendingReminder,
+  markQuoteSecondReminderSent,
+  getAnsweredQuotesPendingSecondReminder,
   deleteQuoteRequest,
   listQuoteRequestsForAdmin,
   countPendingQuoteRequests,

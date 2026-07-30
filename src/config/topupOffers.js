@@ -1,5 +1,120 @@
 const DEFAULT_CURRENCY = "EUR";
 
+const DEFAULT_TOPUP_OFFERS = [
+  {
+    key: "credit-1",
+    label: "1 crédit",
+    description: "Pour un passage ponctuel",
+    credits: 1,
+    priceCents: 5000, // 50,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: false,
+    clientTypes: ["bbx", "pro", "data"],
+  },
+  {
+    key: "credit-2",
+    label: "Pack 2 crédits",
+    description: "2 passages véhicule",
+    credits: 2,
+    priceCents: 10000, // 100,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: false,
+    clientTypes: ["bbx", "pro", "data"],
+  },
+  {
+    key: "credit-6",
+    label: "Pack 6 crédits",
+    description: "Formule intermédiaire",
+    credits: 6,
+    priceCents: 30000, // 300,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: false,
+    clientTypes: ["bbx", "pro", "data"],
+  },
+  {
+    key: "credit-10",
+    label: "Pack 10 crédits",
+    description: "La tranquillité pour l'année",
+    credits: 10,
+    priceCents: 50000, // 500,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: false,
+    clientTypes: ["bbx", "pro", "data"],
+  },
+  {
+    key: "credit-20",
+    label: "Pack 20 crédits",
+    description: "Pack Premium complet",
+    credits: 20,
+    priceCents: 100000, // 1000,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: false,
+    clientTypes: ["bbx", "pro", "data"],
+  },
+
+  // ── OFFRES MEMBRE FONDATEUR (-20% : 40€ / crédit) ──
+  {
+    key: "founder-credit-1",
+    label: "1 crédit Fondateur",
+    description: "Tarif membre fondateur (-20%)",
+    credits: 1,
+    priceCents: 4000, // 40,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: true,
+    clientTypes: ["bbx"],
+  },
+  {
+    key: "founder-credit-2",
+    label: "Pack 2 crédits Fondateur",
+    description: "Tarif membre fondateur (-20%)",
+    credits: 2,
+    priceCents: 8000, // 80,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: true,
+    clientTypes: ["bbx"],
+  },
+  {
+    key: "founder-credit-6",
+    label: "Pack 6 crédits Fondateur",
+    description: "Tarif membre fondateur (-20%)",
+    credits: 6,
+    priceCents: 24000, // 240,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: true,
+    clientTypes: ["bbx"],
+  },
+  {
+    key: "founder-credit-10",
+    label: "Pack 10 crédits Fondateur",
+    description: "Tarif membre fondateur (-20%)",
+    credits: 10,
+    priceCents: 40000, // 400,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: true,
+    clientTypes: ["bbx"],
+  },
+  {
+    key: "founder-credit-20",
+    label: "Pack 20 crédits Fondateur",
+    description: "Tarif membre fondateur (-20%)",
+    credits: 20,
+    priceCents: 80000, // 800,00 €
+    currency: "EUR",
+    applyMode: "add",
+    founderOnly: true,
+    clientTypes: ["bbx"],
+  },
+];
+
 function positiveInteger(value, fallback = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -22,11 +137,15 @@ function normalizeOffer(rawOffer, index) {
       ? rawOffer.label.trim()
       : null;
   const credits = positiveInteger(rawOffer.credits, 0);
-  const priceCents = positiveInteger(rawOffer.priceCents, 0);
 
-  if (!label || credits <= 0 || priceCents <= 0) {
+  if (!label || credits <= 0) {
     return null;
   }
+
+  const founderOnly = rawOffer.founderOnly === true;
+  // Ajustement automatique à 50€/crédit (ou 40€ pour fondateur)
+  const unitRateCents = founderOnly ? 4000 : 5000;
+  const priceCents = credits * unitRateCents;
 
   const currency =
     typeof rawOffer.currency === "string" && rawOffer.currency.trim() !== ""
@@ -42,7 +161,6 @@ function normalizeOffer(rawOffer, index) {
     typeof rawOffer.description === "string" && rawOffer.description.trim() !== ""
       ? rawOffer.description.trim()
       : null;
-  const founderOnly = rawOffer.founderOnly === true;
   const clientTypes = Array.isArray(rawOffer.clientTypes)
     ? rawOffer.clientTypes
         .map((value) => (typeof value === "string" ? value.trim().toLowerCase() : ""))
@@ -69,41 +187,41 @@ let cachedOffers = [];
 
 function loadConfiguredTopupOffers() {
   const source = process.env.SUMUP_TOPUP_OFFERS || "";
-  if (source === cachedSource) {
+  if (source === cachedSource && cachedOffers.length > 0) {
     return cachedOffers;
   }
 
   cachedSource = source;
 
   if (!source.trim()) {
-    cachedOffers = [];
+    cachedOffers = DEFAULT_TOPUP_OFFERS;
     return cachedOffers;
   }
 
   try {
     const parsed = JSON.parse(source);
-    if (!Array.isArray(parsed)) {
-      console.warn("[TOPUP] SUMUP_TOPUP_OFFERS doit etre un tableau JSON.");
-      cachedOffers = [];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      cachedOffers = DEFAULT_TOPUP_OFFERS;
       return cachedOffers;
     }
 
     const seenKeys = new Set();
-    cachedOffers = parsed
+    const loaded = parsed
       .map((offer, index) => normalizeOffer(offer, index))
       .filter(Boolean)
       .filter((offer) => {
         if (seenKeys.has(offer.key)) {
-          console.warn(`[TOPUP] Offre ignoree, cle dupliquee: ${offer.key}`);
           return false;
         }
         seenKeys.add(offer.key);
         return true;
       });
+
+    cachedOffers = loaded.length > 0 ? loaded : DEFAULT_TOPUP_OFFERS;
     return cachedOffers;
   } catch (error) {
     console.error("[TOPUP] Impossible de parser SUMUP_TOPUP_OFFERS:", error.message);
-    cachedOffers = [];
+    cachedOffers = DEFAULT_TOPUP_OFFERS;
     return cachedOffers;
   }
 }
@@ -117,14 +235,16 @@ function listTopupOffersForClient(client) {
   const clientType = (client.client_type || client.clientType || "bbx").toLowerCase();
   const isFounder = !!(client.is_founder || client.isFounder);
 
+  // Si le client n'est pas fondateur, on ne lui montre que les offres standards
+  // Si le client est fondateur, on lui montre ses offres réservées à 40€/crédit
   return offers.filter((offer) => {
     if (!offer.clientTypes.includes(clientType)) {
       return false;
     }
-    if (offer.founderOnly && !isFounder) {
-      return false;
+    if (isFounder) {
+      return offer.founderOnly === true;
     }
-    return true;
+    return offer.founderOnly === false;
   });
 }
 
@@ -135,39 +255,22 @@ function getTopupOfferForClient(client, offerKey) {
   );
 }
 
-// Plafond de securite sur l'achat de credits a l'unite (evite un montant
-// aberrant en cas de typo), assez haut pour couvrir un tarif eleve valide
-// par l'admin (ex: 30 credits a recharger pour accepter un tarif).
 const MAX_UNIT_TOPUP_QUANTITY = 99;
 
 function getUnitTopupOfferForClient(client, quantity = 1) {
   const qty = Math.max(1, Math.min(MAX_UNIT_TOPUP_QUANTITY, Math.floor(Number(quantity) || 1)));
-  const unitOffer =
-    listTopupOffersForClient(client).find((offer) => offer.credits === 1 && offer.applyMode === "add") || {
-      key: "unit-credit",
-      label: "1 crédit",
-      description: "Achat à l'unité (50 € / crédit)",
-      credits: 1,
-      priceCents: 5000,
-      currency: "EUR",
-      applyMode: "add",
-      durationDays: null,
-    };
+  const isFounder = !!(client?.is_founder || client?.isFounder);
+  const unitRateCents = isFounder ? 4000 : 5000;
 
   return {
-    ...unitOffer,
-    key: `${unitOffer.key}-x${qty}`,
-    label:
-      qty === 1
-        ? unitOffer.label
-        : `${qty} crédits à l'unité`,
-    description:
-      qty === 1
-        ? unitOffer.description
-        : `Achat de ${qty} crédit${qty > 1 ? "s" : ""} au tarif unitaire (50 € / crédit).`,
+    key: `unit-x${qty}`,
+    label: qty === 1 ? "1 crédit" : `${qty} crédits à l'unité`,
+    description: `Achat de ${qty} crédit${qty > 1 ? "s" : ""} (${isFounder ? "40" : "50"} € / crédit).`,
     credits: qty,
-    priceCents: (unitOffer.priceCents || 5000) * qty,
-    durationDays: unitOffer.durationDays || null,
+    priceCents: unitRateCents * qty,
+    currency: "EUR",
+    applyMode: "add",
+    durationDays: null,
   };
 }
 
@@ -187,8 +290,7 @@ function listPublicTopupOffersForClient(client) {
 function isSumupTopupReady() {
   return Boolean(
     process.env.SUMUP_API_KEY &&
-      process.env.SUMUP_MERCHANT_CODE &&
-      loadConfiguredTopupOffers().length > 0,
+      process.env.SUMUP_MERCHANT_CODE,
   );
 }
 

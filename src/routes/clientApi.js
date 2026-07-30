@@ -1552,7 +1552,7 @@ router.post("/public/find-portal", (req, res) => {
       return res.status(404).json({ ok: false, error: "client_not_found" });
     }
 
-    const portalUrl = client.slug ? `/c/${client.slug}` : `/card/${client.card_code}`;
+    const portalUrl = client.card_code ? `/card/${client.card_code}` : `/c/${client.slug}`;
     return res.json({ ok: true, portalUrl });
   } catch (error) {
     console.error("[API] find-portal error:", error);

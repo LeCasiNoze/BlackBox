@@ -884,37 +884,45 @@ Rechargez puis prenez rendez-vous depuis votre espace : ${portalUrl || "Lien ind
   return sendBrevoEmail({ to: [{ email: client.email, name: fullName }], subject, html, text });
 }
 
-async function sendClientQuoteReminderEmail({ client, quote }) {
+async function sendClientQuoteReminderEmail({ client, quote, isSecondReminder = false }) {
   const credits = Number(quote?.estimatedCredits) || 0;
   const priceEur = credits * 50;
   const fullName = fallbackClientName(client);
   const portalUrl = clientPortalUrl(client);
 
+  const titleText = isSecondReminder
+    ? "Dernier rappel : Votre devis Bryan Cars"
+    : "Rappel : Votre devis Bryan Cars vous attend";
+
   pushClient(client, {
-    title: "Rappel : Votre devis Bryan Cars vous attend",
-    body: `Estimation : ${credits} credit${credits > 1 ? "s" : ""} (${priceEur} €). Acceptez ou refusez directement depuis votre espace.`,
+    title: titleText,
+    body: `Estimation : ${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €). Acceptez ou refusez directement depuis votre espace.`,
   });
 
   if (!client?.email) return false;
 
-  const subject = `[Bryan Cars] Rappel de votre devis pour votre véhicule`;
+  const subject = isSecondReminder
+    ? `[Bryan Cars] Dernier relance pour votre devis (${credits} crédits · ${priceEur} €)`
+    : `[Bryan Cars] Rappel de votre devis pour votre véhicule`;
+
   const text = `
 Bonjour ${fullName},
 
-Nous vous rappelons que votre devis de ${credits} crédit(s) (${priceEur} €) pour votre véhicule est en attente de votre réponse.
+${isSecondReminder ? "Ceci est une dernière relance concernant" : "Nous vous rappelons que"} votre devis de ${credits} crédit(s) (${priceEur} €) pour votre véhicule qui est toujours en attente de votre réponse.
 
-Acceptez ou refusez l'estimation depuis votre espace : ${portalUrl || "Lien indisponible"}
+Vous pouvez valider ou refuser cette estimation directement depuis votre espace : ${portalUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
-    eyebrow: "Rappel devis",
-    title: "Votre estimation en attente",
-    subtitle:
-      "Votre devis sur-mesure pour votre véhicule est toujours disponible. Vous pouvez l'accepter ou le refuser en un clic.",
-    preheader: `Devis ${credits} credit${credits > 1 ? "s" : ""} (${priceEur} €)`,
+    eyebrow: isSecondReminder ? "Dernier rappel devis" : "Rappel devis",
+    title: isSecondReminder ? "Dernière relance pour votre devis" : "Votre estimation en attente",
+    subtitle: isSecondReminder
+      ? "Votre estimation expire bientôt. Souhaitez-vous confirmer ou décliner cette proposition ?"
+      : "Votre devis sur-mesure pour votre véhicule est toujours disponible. Vous pouvez l'accepter ou le refuser en un clic.",
+    preheader: `Devis ${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €)`,
     bodyHtml: `
       ${metricRows([
-        { label: "Estimation", value: `${credits} credit${credits > 1 ? "s" : ""} (${priceEur} €)` },
+        { label: "Estimation", value: `${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €)` },
       ])}
       ${actionButtons([
         portalUrl ? { label: "Consulter mon devis", href: portalUrl, tone: "primary" } : null,
