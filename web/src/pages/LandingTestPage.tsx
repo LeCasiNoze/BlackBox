@@ -33,7 +33,7 @@ import {
 
 gsap.registerPlugin(ScrollTrigger);
 
-// ── COMPOSANT CAMÉRA ANIMÉE & SUIVI DE TÉLÉMÉTRIE R3F AVEC NAV ZQSD & ZOOM ──
+// ── COMPOSANT CAMÉRA ANIMÉE ULTRALISSE & SUIVI DE TÉLÉMÉTRIE R3F ──
 function DirectorCameraControls({
   isDirector,
   enableZqsd,
@@ -54,6 +54,7 @@ function DirectorCameraControls({
   const keysRef = useRef<{ [key: string]: boolean }>({});
   const vecCam = useRef(new THREE.Vector3());
   const vecTarget = useRef(new THREE.Vector3());
+  const currentLookAt = useRef(new THREE.Vector3(targetPos[0], targetPos[1], targetPos[2]));
 
   // Force la réinitialisation de la position de la caméra et de la cible dans OrbitControls lors des changements externes (sélection de prise)
   useEffect(() => {
@@ -97,10 +98,14 @@ function DirectorCameraControls({
 
   useFrame((_, delta) => {
     if (!isDirector) {
+      // Amortissement exponentiel ultra-lisse pour éliminer tout saccadement (60 FPS / 120 FPS Fluidité Pro)
+      const factor = THREE.MathUtils.clamp(delta * 8.0, 0.05, 1.0);
       vecCam.current.set(...cameraPos);
       vecTarget.current.set(...targetPos);
-      camera.position.lerp(vecCam.current, delta * 5);
-      camera.lookAt(vecTarget.current);
+
+      camera.position.lerp(vecCam.current, factor);
+      currentLookAt.current.lerp(vecTarget.current, factor);
+      camera.lookAt(currentLookAt.current);
     } else if (orbitRef.current) {
       // DÉPLACEMENT VOLANT CLAVIER ZQSD / WASD SI ACTIF
       if (enableZqsd) {
@@ -240,11 +245,16 @@ export function LandingTestPage() {
     }
   };
 
-  // ── GSAP SCROLLTRIGGER SUR LA SÉQUENCE EN MODE NORMAL (INTERPOLATION DES 10 PRISES ENREGISTRÉES) ──
+  // ── GSAP SCROLLTRIGGER AVEC SNAP AUTOMATIQUE PRISE-À-PRISE ET FLUIDITÉ SANS SACCADE ──
   useEffect(() => {
     if (isDirectorMode || !sequenceRef.current || shots.length === 0) return;
 
     const ctx = gsap.context(() => {
+      const count = shots.length;
+      if (count < 2) return;
+
+      const totalSegments = count - 1;
+
       gsap.timeline({
         scrollTrigger: {
           trigger: sequenceRef.current,
@@ -252,13 +262,16 @@ export function LandingTestPage() {
           end: "+=600%",
           pin: true,
           scrub: 0.8,
+          // SNAP CINÉMATIQUE SUR LES PRISES DE VUE: Un coup de scroll déclenche un mouvement fluide complet d'une prise à l'autre !
+          snap: {
+            snapTo: 1 / totalSegments,
+            duration: { min: 0.8, max: 1.4 },
+            delay: 0.05,
+            ease: "power2.inOut",
+          },
           onUpdate: (self) => {
             const p = self.progress;
-            const count = shots.length;
 
-            if (count < 2) return;
-
-            const totalSegments = count - 1;
             const rawSeg = p * totalSegments;
             const segment = Math.min(totalSegments - 1, Math.floor(rawSeg));
             const subP = rawSeg - segment;
@@ -616,7 +629,7 @@ export function LandingTestPage() {
 
           <h1 className="text-4xl sm:text-6xl font-extrabold uppercase tracking-tight leading-[0.95] text-white">
             ENTREZ DANS LA <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-[#e8c98a] to-[#99793d]">
+            <span className="text-transparent bg-clip-text bg-[#e8c98a] bg-gradient-to-r from-white via-[#e8c98a] to-[#99793d]">
               BLACK BOX.
             </span>
           </h1>
