@@ -27,7 +27,6 @@ export function BugattiCarModel({
 }: BugattiCarModelProps) {
   const rootRef = useRef<THREE.Group>(null);
   const [gltfLoaded, setGltfLoaded] = useState(false);
-  const [nodesList, setNodesList] = useState<string[]>([]);
 
   // Essai de chargement du GLB Bugatti officiel s'il existe
   useEffect(() => {
