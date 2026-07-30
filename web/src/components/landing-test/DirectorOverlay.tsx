@@ -14,13 +14,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
+  ZoomIn,
+  ZoomOut,
+  Navigation,
+  Move,
 } from "lucide-react";
 
 export type DirectorOverlayProps = {
   cameraPosition: [number, number, number];
   cameraTarget: [number, number, number];
   fov: number;
-  carPosition: [number, number, number];
   carRotation: [number, number, number];
   selectedNodeName: string | null;
   selectedNodeInfo: { width: number; height: number; depth: number } | null;
@@ -30,11 +33,15 @@ export type DirectorOverlayProps = {
   showGrid: boolean;
   showAxes: boolean;
   showTargetDot: boolean;
+  enableZqsd: boolean;
   isTransitionPlaying: boolean;
-  transitionProgress: number;
   onToggleGrid: () => void;
   onToggleAxes: () => void;
   onToggleTargetDot: () => void;
+  onToggleZqsd: () => void;
+  onChangeFov: (newFov: number) => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   onSelectNode: (nodeName: string | null) => void;
   onRecenterOnNode: (nodeName: string) => void;
   onSelectShot: (index: number) => void;
@@ -42,8 +49,6 @@ export type DirectorOverlayProps = {
   onSaveCurrentShot: () => void;
   onDeleteShot: (index: number) => void;
   onPlayTransition: (forward: boolean) => void;
-  onPauseTransition: () => void;
-  onResetTransition: () => void;
   onExportShots: () => void;
   onCopyJson: () => void;
   onResetShotsToDefault: () => void;
@@ -64,10 +69,15 @@ export function DirectorOverlay({
   showGrid,
   showAxes,
   showTargetDot,
+  enableZqsd,
   isTransitionPlaying,
   onToggleGrid,
   onToggleAxes,
   onToggleTargetDot,
+  onToggleZqsd,
+  onChangeFov,
+  onZoomIn,
+  onZoomOut,
   onSelectNode,
   onRecenterOnNode,
   onSelectShot,
@@ -117,7 +127,7 @@ export function DirectorOverlay({
       )}
 
       {/* ── BARRE DE CONTRÔLE SUPÉRIEURE (HUD HEADER) ── */}
-      <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/15 bg-black/80 p-3 shadow-2xl backdrop-blur-xl">
+      <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/15 bg-black/85 p-3 shadow-2xl backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <span className="flex h-3 w-3 items-center justify-center rounded-full bg-[#e8c98a]">
             <span className="h-1.5 w-1.5 animate-ping rounded-full bg-black" />
@@ -127,8 +137,45 @@ export function DirectorOverlay({
           </span>
         </div>
 
-        {/* Boutons d'outils visuels */}
-        <div className="flex items-center gap-2 text-xs">
+        {/* Outils visuels & Bouton Nav ZQSD */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {/* BOUTON ZQSD DÉPLACEMENT VOLANT */}
+          <button
+            type="button"
+            onClick={onToggleZqsd}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold transition ${
+              enableZqsd
+                ? "border-[#e8c98a] bg-[#e8c98a] text-black shadow-[0_0_15px_rgba(232,201,138,0.4)]"
+                : "border-white/20 bg-white/5 text-white/70 hover:bg-white/10"
+            }`}
+          >
+            <Navigation className="h-3.5 w-3.5" />
+            <span>ZQSD / WASD: {enableZqsd ? "ACTIF (Vol)" : "OFF"}</span>
+          </button>
+
+          {/* CONTROLES DE ZOOM PAR BOUTONS & FOV */}
+          <div className="flex items-center gap-1 border border-white/15 bg-black/60 rounded-xl px-2 py-1">
+            <button
+              type="button"
+              onClick={onZoomIn}
+              title="Zoom Avancer (Rapprocher)"
+              className="p-1 hover:text-[#e8c98a] transition"
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+
+            <span className="text-[10px] text-white/50 px-1">ZOOM</span>
+
+            <button
+              type="button"
+              onClick={onZoomOut}
+              title="Zoom Reculer (Éloigner)"
+              className="p-1 hover:text-[#e8c98a] transition"
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={onToggleGrid}
@@ -148,7 +195,7 @@ export function DirectorOverlay({
             }`}
           >
             <Compass className="h-3.5 w-3.5" />
-            <span>Repères Repère XYZ</span>
+            <span>XYZ Repères</span>
           </button>
 
           <button
@@ -164,13 +211,43 @@ export function DirectorOverlay({
         </div>
       </div>
 
+      {/* LÉGENDE ZQSD GUIDAGE SI ACTIF */}
+      {enableZqsd && (
+        <div className="pointer-events-auto self-start mt-3 rounded-2xl border border-[#e8c98a]/40 bg-black/85 p-3 text-[10px] text-white/90 shadow-2xl backdrop-blur-xl space-y-1">
+          <p className="font-bold text-[#e8c98a] flex items-center gap-1.5">
+            <Move className="h-3.5 w-3.5" />
+            COMMANDES VOL ZQSD / WASD ACTIVES :
+          </p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-white/70">
+            <span>• <b className="text-white">Z / W / ↑</b> : Avancer Caméra</span>
+            <span>• <b className="text-white">S / ↓</b> : Reculer Caméra</span>
+            <span>• <b className="text-white">Q / A / ←</b> : Déplacer Gauche</span>
+            <span>• <b className="text-white">D / →</b> : Déplacer Droite</span>
+            <span>• <b className="text-white">Espace</b> : Monter (Altitude +)</span>
+            <span>• <b className="text-white">Shift</b> : Descendre (Altitude -)</span>
+            <span className="col-span-2 text-[#e8c98a]">• <b className="text-[#e8c98a]">Molette Souris</b> : Zoom Continu (Rapprocher / Éloigner)</span>
+          </div>
+        </div>
+      )}
+
       {/* ── PANNEAU PRINCIPAL ET DE RÉGLAGES (FLOTTANT À DROITE) ── */}
       <div className="pointer-events-auto flex items-end justify-between gap-4">
         {/* TÉLÉMÉTRIE EN DIRECT (Bas Gauche) */}
         <div className="w-80 space-y-2 rounded-2xl border border-white/15 bg-black/85 p-4 text-[11px] text-white/80 shadow-2xl backdrop-blur-xl">
-          <div className="flex justify-between border-b border-white/10 pb-2 font-bold text-[#e8c98a]">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2 font-bold text-[#e8c98a]">
             <span>TÉLÉMÉTRIE CAMÉRA &amp; SCÈNE</span>
-            <span>FOV: {fov}°</span>
+            <div className="flex items-center gap-1">
+              <span>FOV:</span>
+              <input
+                type="number"
+                min="15"
+                max="90"
+                value={fov}
+                onChange={(e) => onChangeFov(Number(e.target.value))}
+                className="w-12 bg-black border border-white/20 rounded text-center text-white text-[10px]"
+              />
+              <span>°</span>
+            </div>
           </div>
           <div className="space-y-1">
             <p>
@@ -306,7 +383,7 @@ export function DirectorOverlay({
                 </button>
               </div>
 
-              {/* Reglage de la durée et de l'easing de la prise */}
+              {/* Réglage de la durée et de l'easing de la prise */}
               {currentShot && (
                 <div className="grid grid-cols-2 gap-2 text-[11px] rounded-xl border border-white/10 bg-white/5 p-2.5">
                   <div>

@@ -33,15 +33,17 @@ import {
 
 gsap.registerPlugin(ScrollTrigger);
 
-// ── COMPOSANT CAMÉRA ANIMÉE & SUIVI DE TÉLÉMÉTRIE R3F ──
+// ── COMPOSANT CAMÉRA ANIMÉE & SUIVI DE TÉLÉMÉTRIE R3F AVEC NAV ZQSD & ZOOM ──
 function DirectorCameraControls({
   isDirector,
+  enableZqsd,
   cameraPos,
   targetPos,
   fov,
   onTelemetryUpdate,
 }: {
   isDirector: boolean;
+  enableZqsd: boolean;
   cameraPos: [number, number, number];
   targetPos: [number, number, number];
   fov: number;
@@ -49,8 +51,32 @@ function DirectorCameraControls({
 }) {
   const { camera } = useThree();
   const orbitRef = useRef<any>(null);
+  const keysRef = useRef<{ [key: string]: boolean }>({});
   const vecCam = useRef(new THREE.Vector3());
   const vecTarget = useRef(new THREE.Vector3());
+
+  // Gestionnaires des touches du clavier pour ZQSD / WASD / Flèches
+  useEffect(() => {
+    if (!isDirector || !enableZqsd) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) return;
+      keysRef.current[e.key.toLowerCase()] = true;
+      keysRef.current[e.code.toLowerCase()] = true;
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysRef.current[e.key.toLowerCase()] = false;
+      keysRef.current[e.code.toLowerCase()] = false;
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isDirector, enableZqsd]);
 
   // Mise à jour du FOV
   useEffect(() => {
@@ -67,6 +93,47 @@ function DirectorCameraControls({
       camera.position.lerp(vecCam.current, delta * 5);
       camera.lookAt(vecTarget.current);
     } else if (orbitRef.current) {
+      // DÉPLACEMENT VOLANT CLAVIER ZQSD / WASD SI ACTIF
+      if (enableZqsd) {
+        const speed = 3.5 * delta;
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+
+        const sideDir = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+        const move = new THREE.Vector3();
+
+        // Z / W / ArrowUp -> Avancer
+        if (keysRef.current["z"] || keysRef.current["w"] || keysRef.current["arrowup"] || keysRef.current["keyw"] || keysRef.current["keyz"]) {
+          move.addScaledVector(dir, speed);
+        }
+        // S / ArrowDown -> Reculer
+        if (keysRef.current["s"] || keysRef.current["arrowdown"] || keysRef.current["keys"]) {
+          move.addScaledVector(dir, -speed);
+        }
+        // Q / A / ArrowLeft -> Gauche
+        if (keysRef.current["q"] || keysRef.current["a"] || keysRef.current["arrowleft"] || keysRef.current["keya"] || keysRef.current["keyq"]) {
+          move.addScaledVector(sideDir, -speed);
+        }
+        // D / ArrowRight -> Droite
+        if (keysRef.current["d"] || keysRef.current["arrowright"] || keysRef.current["keyd"]) {
+          move.addScaledVector(sideDir, speed);
+        }
+        // Espace -> Monter
+        if (keysRef.current["space"] || keysRef.current[" "]) {
+          move.y += speed;
+        }
+        // Shift -> Descendre
+        if (keysRef.current["shift"] || keysRef.current["shiftleft"]) {
+          move.y -= speed;
+        }
+
+        if (move.lengthSq() > 0) {
+          camera.position.add(move);
+          orbitRef.current.target.add(move);
+          orbitRef.current.update();
+        }
+      }
+
       const pos: [number, number, number] = [
         Number(camera.position.x.toFixed(2)),
         Number(camera.position.y.toFixed(2)),
@@ -88,6 +155,12 @@ function DirectorCameraControls({
         ref={orbitRef}
         makeDefault
         target={targetPos}
+        enableZoom={true}
+        zoomSpeed={1.5}
+        minDistance={0.2}
+        maxDistance={40.0}
+        enablePan={true}
+        screenSpacePanning={true}
         enableDamping
         dampingFactor={0.05}
       />
@@ -111,7 +184,8 @@ export function LandingTestPage() {
   const [targetPos, setTargetPos] = useState<[number, number, number]>([0, 0.4, 0]);
   const [fov, setFov] = useState<number>(45);
 
-  // ── DIRECTOR MODE CONTROLS & PRISES DE VUE ──
+  // ── DIRECTOR MODE CONTROLS ──
+  const [enableZqsd, setEnableZqsd] = useState(true);
   const [shots, setShots] = useState<CameraShot[]>(() => loadCameraShots());
   const [currentShotIndex, setCurrentShotIndex] = useState(0);
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
@@ -237,6 +311,23 @@ export function LandingTestPage() {
     },
     []
   );
+
+  // Zoom handlers (Boutons Zoom In / Zoom Out)
+  const handleZoomIn = () => {
+    setCameraPos((prev) => [
+      Number((prev[0] * 0.85).toFixed(2)),
+      Number((prev[1] * 0.85).toFixed(2)),
+      Number((prev[2] * 0.85).toFixed(2)),
+    ]);
+  };
+
+  const handleZoomOut = () => {
+    setCameraPos((prev) => [
+      Number((prev[0] * 1.18).toFixed(2)),
+      Number((prev[1] * 1.18).toFixed(2)),
+      Number((prev[2] * 1.18).toFixed(2)),
+    ]);
+  };
 
   // Recadrage automatique sur un Node sélectionné
   const handleRecenterOnNode = (nodeName: string) => {
@@ -424,7 +515,7 @@ export function LandingTestPage() {
         </Link>
 
         <div className="flex items-center gap-3">
-          {/* BOUTON SEUL TOGGLE MODE DIRECTOR (?director=1) */}
+          {/* BOUTON TOGGLE MODE DIRECTOR (?director=1) */}
           <button
             type="button"
             onClick={() => {
@@ -460,7 +551,6 @@ export function LandingTestPage() {
           cameraPosition={cameraPos}
           cameraTarget={targetPos}
           fov={fov}
-          carPosition={carPosition}
           carRotation={carRotation}
           selectedNodeName={selectedNodeName}
           selectedNodeInfo={selectedNodeInfo}
@@ -470,11 +560,15 @@ export function LandingTestPage() {
           showGrid={showGrid}
           showAxes={showAxes}
           showTargetDot={showTargetDot}
+          enableZqsd={enableZqsd}
           isTransitionPlaying={isTransitionPlaying}
-          transitionProgress={transitionProgress}
           onToggleGrid={() => setShowGrid(!showGrid)}
           onToggleAxes={() => setShowAxes(!showAxes)}
           onToggleTargetDot={() => setShowTargetDot(!showTargetDot)}
+          onToggleZqsd={() => setEnableZqsd(!enableZqsd)}
+          onChangeFov={(newFov) => setFov(newFov)}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
           onSelectNode={(nodeName) => setSelectedNodeName(nodeName)}
           onRecenterOnNode={handleRecenterOnNode}
           onSelectShot={(idx) => setCurrentShotIndex(idx)}
@@ -482,8 +576,6 @@ export function LandingTestPage() {
           onSaveCurrentShot={handleSaveCurrentShot}
           onDeleteShot={handleDeleteShot}
           onPlayTransition={handlePlayTransition}
-          onPauseTransition={() => setIsTransitionPlaying(false)}
-          onResetTransition={() => setTransitionProgress(0)}
           onExportShots={handleExportShots}
           onCopyJson={handleCopyJson}
           onResetShotsToDefault={() => {
@@ -559,9 +651,10 @@ export function LandingTestPage() {
                 onNodesLoaded={(list) => setNodesList(list)}
               />
 
-              {/* Contrôles de Caméra R3F (Director vs Smooth Rig) */}
+              {/* Contrôles de Caméra R3F (Director ZQSD + Orbit vs Smooth Rig) */}
               <DirectorCameraControls
                 isDirector={isDirectorMode}
+                enableZqsd={enableZqsd}
                 cameraPos={cameraPos}
                 targetPos={targetPos}
                 fov={fov}
@@ -578,7 +671,7 @@ export function LandingTestPage() {
           </div>
         </div>
 
-        {/* ── NOUVELLE COMPOSITION: GALERIES ET TEXTES PLACÉS SOUS LA VOITURE (SANS RECOUVRIR LA 3D) ── */}
+        {/* ── NOUVELLE COMPOSITION: GALERIES ET TEXTES PLACÉS SOUS LA VOITURE ── */}
         {!isDirectorMode && (
           <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-20 space-y-12">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
