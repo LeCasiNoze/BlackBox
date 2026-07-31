@@ -150,6 +150,23 @@ const SHOWCASE_ITEMS: ShowcaseItem[] = [
     },
   },
   {
+    id: "peugeot-208-interior",
+    title: "Nettoyage Extrême Habitacle & Dégraissage i-Cockpit",
+    category: "interieur",
+    categoryLabel: "Soin Habitacle Extrême",
+    vehicle: "Peugeot 208 GT i-Cockpit",
+    description:
+      "Rénovation complète d'un habitacle entièrement souillé par la boue. Dépoussiérage, shampouinage moquettes & sièges, dégraissage du volant et rénovation des plastiques.",
+    tag: "Avant / Après Choc",
+    coverImage: "/peugeot_208_clean_after.jpg",
+    galleries: {
+      ext_finished: ["/peugeot_208_clean_after.jpg"],
+      intext_finished: ["/peugeot_208_clean_after.jpg", "/peugeot_208_muddy_before.jpg"],
+      ext_beforeafter: [{ before: "/peugeot_208_muddy_before.jpg", after: "/peugeot_208_clean_after.jpg" }],
+      intext_beforeafter: [{ before: "/peugeot_208_muddy_before.jpg", after: "/peugeot_208_clean_after.jpg" }],
+    },
+  },
+  {
     id: "bc-tiktok-reel",
     title: "Detailing Intérieur & Soin Carrosserie",
     category: "interieur",
@@ -642,7 +659,6 @@ export function LandingPage() {
             <div className="relative max-w-[320px] aspect-[9/16] mx-auto rounded-3xl overflow-hidden shadow-2xl border-2 border-[#e8c98a]/40 bg-black">
               <video
                 key={activeReel.src}
-                autoPlay
                 controls
                 loop
                 playsInline
