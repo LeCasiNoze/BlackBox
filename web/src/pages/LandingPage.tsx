@@ -54,174 +54,104 @@ const initialForm: SignupForm = {
   quoteDescription: "",
 };
 
-type ShowcaseCategory = "all" | "polissage" | "ceramique" | "interieur" | "ppf";
-type GalleryTab = "ext_finished" | "intext_finished" | "ext_beforeafter" | "intext_beforeafter";
+type ShowcaseCategory = "tout" | "interieur" | "exterieur";
 
-interface ShowcaseItem {
+interface GalleryPair {
   id: string;
+  vehicleId: "peugeot-208" | "vw-golf-gti" | "chrysler-crossfire";
+  vehicleName: string;
   title: string;
-  category: ShowcaseCategory;
-  categoryLabel: string;
-  vehicle: string;
-  description: string;
-  tag: string;
-  coverImage: string;
-  galleries: {
-    ext_finished: string[];
-    intext_finished: string[];
-    ext_beforeafter: { before: string; after: string }[];
-    intext_beforeafter: { before: string; after: string }[];
-  };
+  category: "interieur" | "exterieur";
+  before: string;
+  after: string;
 }
 
-interface VideoReelExample {
-  id: string;
-  title: string;
+interface VehicleModelItem {
+  id: "peugeot-208" | "vw-golf-gti" | "chrysler-crossfire";
+  name: string;
   subtitle: string;
-  src: string;
-  poster: string;
-  badge: string;
+  coverImage: string;
+  pairs: GalleryPair[];
 }
 
-// 3 Vidéos Réelles Traitées avec Son Origine (Coupées 4s avant la fin)
-const VIDEO_REELS: VideoReelExample[] = [
+const GALLERY_PAIRS: GalleryPair[] = [
   {
-    id: "reel-1",
-    title: "Vidéo 1",
-    subtitle: "",
-    src: "/reel-1.mp4",
-    poster: "/tiktok_10s.jpg",
-    badge: "VIDÉO 1",
+    id: "peugeot-208-int",
+    vehicleId: "peugeot-208",
+    vehicleName: "Peugeot 208 GT i-Cockpit",
+    title: "Habitacle & i-Cockpit (Boue vs Neuf)",
+    category: "interieur",
+    before: "/peugeot_208_muddy_before.jpg",
+    after: "/peugeot_208_clean_after.jpg",
   },
   {
-    id: "reel-2",
-    title: "Vidéo 2",
-    subtitle: "",
-    src: "/reel-2.mp4",
-    poster: "/corvette_5s.jpg",
-    badge: "VIDÉO 2",
+    id: "golf-gti-front",
+    vehicleId: "vw-golf-gti",
+    vehicleName: "Volkswagen Golf 7 GTI",
+    title: "Poste de Conduite & Volant Cuir Surpiqué",
+    category: "interieur",
+    before: "/showcase/vw_golf_gti_front_before.png",
+    after: "/showcase/vw_golf_gti_front_after.png",
   },
   {
-    id: "reel-3",
-    title: "Vidéo 3",
-    subtitle: "",
-    src: "/reel-3.mp4",
-    poster: "/tiktok_30s.jpg",
-    badge: "VIDÉO 3",
+    id: "golf-gti-rear",
+    vehicleId: "vw-golf-gti",
+    vehicleName: "Volkswagen Golf 7 GTI",
+    title: "Places Arrière & Sièges Tissu Tartan",
+    category: "interieur",
+    before: "/showcase/vw_golf_gti_rear_before.png",
+    after: "/showcase/vw_golf_gti_rear_after.png",
+  },
+  {
+    id: "crossfire-driver",
+    vehicleId: "chrysler-crossfire",
+    vehicleName: "Chrysler Crossfire Black Metallic",
+    title: "Poste Conducteur Cuir Rouge Mat",
+    category: "interieur",
+    before: "/showcase/chrysler_crossfire_interior_driver_before.png",
+    after: "/showcase/chrysler_crossfire_interior_driver_after.png",
+  },
+  {
+    id: "crossfire-pass",
+    vehicleId: "chrysler-crossfire",
+    vehicleName: "Chrysler Crossfire Black Metallic",
+    title: "Poste Passager Cuir Rouge Mat",
+    category: "interieur",
+    before: "/showcase/chrysler_crossfire_interior_pass_before.png",
+    after: "/showcase/chrysler_crossfire_interior_pass_after.png",
+  },
+  {
+    id: "crossfire-hood",
+    vehicleId: "chrysler-crossfire",
+    vehicleName: "Chrysler Crossfire Black Metallic",
+    title: "Capot Noir Metallic - Polissage Miroir",
+    category: "exterieur",
+    before: "/showcase/chrysler_crossfire_hood_before.png",
+    after: "/showcase/chrysler_crossfire_hood_after.png",
   },
 ];
 
-const SHOWCASE_ITEMS: ShowcaseItem[] = [
+const VEHICLE_MODELS: VehicleModelItem[] = [
   {
-    id: "corvette-c8",
-    title: "Correction Peinture & Traitement Céramique 9H",
-    category: "ceramique",
-    categoryLabel: "Protection Céramique",
-    vehicle: "Chevrolet Corvette C8 Stingray",
-    description:
-      "Correction complète des micro-rayures, polissage 3 passes et pose d'une protection céramique bi-couche haute résistance.",
-    tag: "Projet Phare BC",
-    coverImage: "/corvette_5s.jpg",
-    galleries: {
-      ext_finished: ["/corvette_5s.jpg", "/corvette_40s.jpg"],
-      intext_finished: ["/corvette_5s.jpg", "/corvette_40s.jpg", "/tiktok_30s.jpg"],
-      ext_beforeafter: [{ before: "/corvette_20s.jpg", after: "/corvette_5s.jpg" }],
-      intext_beforeafter: [
-        { before: "/corvette_20s.jpg", after: "/corvette_5s.jpg" },
-        { before: "/tiktok_10s.jpg", after: "/tiktok_30s.jpg" },
-      ],
-    },
-  },
-
-  {
-    id: "peugeot-208-interior",
-    title: "Nettoyage Extrême Habitacle & Dégraissage i-Cockpit",
-    category: "interieur",
-    categoryLabel: "Soin Habitacle Extrême",
-    vehicle: "Peugeot 208 GT i-Cockpit",
-    description:
-      "Rénovation complète d'un habitacle entièrement souillé par la boue. Dépoussiérage, shampouinage moquettes & sièges, dégraissage du volant et rénovation des plastiques.",
-    tag: "Avant / Après Choc",
+    id: "peugeot-208",
+    name: "Peugeot 208 GT i-Cockpit",
+    subtitle: "Rénovation Intérieure Extrême",
     coverImage: "/peugeot_208_clean_after.jpg",
-    galleries: {
-      ext_finished: ["/peugeot_208_clean_after.jpg"],
-      intext_finished: ["/peugeot_208_clean_after.jpg", "/peugeot_208_muddy_before.jpg"],
-      ext_beforeafter: [{ before: "/peugeot_208_muddy_before.jpg", after: "/peugeot_208_clean_after.jpg" }],
-      intext_beforeafter: [{ before: "/peugeot_208_muddy_before.jpg", after: "/peugeot_208_clean_after.jpg" }],
-    },
+    pairs: GALLERY_PAIRS.filter((p) => p.vehicleId === "peugeot-208"),
   },
-
   {
-    id: "vw-golf-gti-interior",
-    title: "Soin Habitacle Complexe & Shampouinage Tartan",
-    category: "interieur",
-    categoryLabel: "Detailing Intérieur GT",
-    vehicle: "Volkswagen Golf 7 GTI",
-    description:
-      "Rénovation intégrale des sièges tissu Tartan, dégraissage du volant cuir surpiqué rouge et brossage haute précision des moquettes avec traçage de lignes d'atelier.",
-    tag: "Finition Atelier BC",
+    id: "vw-golf-gti",
+    name: "Volkswagen Golf 7 GTI",
+    subtitle: "Detailing Habitacle & Sièges Tartan",
     coverImage: "/showcase/vw_golf_gti_front_after.png",
-    galleries: {
-      ext_finished: ["/showcase/vw_golf_gti_front_after.png", "/showcase/vw_golf_gti_rear_after.png"],
-      intext_finished: [
-        "/showcase/vw_golf_gti_front_after.png",
-        "/showcase/vw_golf_gti_rear_after.png",
-        "/showcase/vw_golf_gti_front_before.png",
-      ],
-      ext_beforeafter: [{ before: "/showcase/vw_golf_gti_front_before.png", after: "/showcase/vw_golf_gti_front_after.png" }],
-      intext_beforeafter: [
-        { before: "/showcase/vw_golf_gti_front_before.png", after: "/showcase/vw_golf_gti_front_after.png" },
-        { before: "/showcase/vw_golf_gti_rear_before.png", after: "/showcase/vw_golf_gti_rear_after.png" },
-      ],
-    },
+    pairs: GALLERY_PAIRS.filter((p) => p.vehicleId === "vw-golf-gti"),
   },
   {
-    id: "chrysler-crossfire-full",
-    title: "Polissage Miroir Capot & Rénovation Cuir Rouge",
-    category: "polissage",
-    categoryLabel: "Polissage & Rénovation",
-    vehicle: "Chrysler Crossfire Black Metallic",
-    description:
-      "Correction complète de peinture noire vernie avec élimination des micro-rayures (effet miroir), rénovation intégrale du cuir rouge mat et protection synthétique.",
-    tag: "Rénovation Complète",
+    id: "chrysler-crossfire",
+    name: "Chrysler Crossfire Black Metallic",
+    subtitle: "Polissage Miroir Capot & Cuir Rouge",
     coverImage: "/showcase/chrysler_crossfire_rear_finished.png",
-    galleries: {
-      ext_finished: [
-        "/showcase/chrysler_crossfire_rear_finished.png",
-        "/showcase/chrysler_crossfire_hood_after.png",
-      ],
-      intext_finished: [
-        "/showcase/chrysler_crossfire_rear_finished.png",
-        "/showcase/chrysler_crossfire_hood_after.png",
-        "/showcase/chrysler_crossfire_interior_driver_after.png",
-        "/showcase/chrysler_crossfire_interior_pass_after.png",
-      ],
-      ext_beforeafter: [
-        { before: "/showcase/chrysler_crossfire_hood_before.png", after: "/showcase/chrysler_crossfire_hood_after.png" },
-      ],
-      intext_beforeafter: [
-        { before: "/showcase/chrysler_crossfire_hood_before.png", after: "/showcase/chrysler_crossfire_hood_after.png" },
-        { before: "/showcase/chrysler_crossfire_interior_driver_before.png", after: "/showcase/chrysler_crossfire_interior_driver_after.png" },
-        { before: "/showcase/chrysler_crossfire_interior_pass_before.png", after: "/showcase/chrysler_crossfire_interior_pass_after.png" },
-      ],
-    },
-  },
-  {
-    id: "bmw-m4-ppf",
-    title: "Pose Film de Protection PPF & Céramique",
-    category: "ppf",
-    categoryLabel: "Film PPF",
-    vehicle: "Sportive Haute Performance",
-    description:
-      "Pose d'un film PPF auto-cicatrisant + traitement céramique haute déperlance.",
-    tag: "Protection Ultime",
-    coverImage: "/corvette_60s.jpg",
-    galleries: {
-      ext_finished: ["/corvette_60s.jpg", "/hero-bg.png"],
-      intext_finished: ["/corvette_60s.jpg", "/hero-bg.png"],
-      ext_beforeafter: [{ before: "/corvette_20s.jpg", after: "/corvette_60s.jpg" }],
-      intext_beforeafter: [{ before: "/corvette_20s.jpg", after: "/corvette_60s.jpg" }],
-    },
+    pairs: GALLERY_PAIRS.filter((p) => p.vehicleId === "chrysler-crossfire"),
   },
 ];
 
@@ -245,11 +175,11 @@ export function LandingPage() {
   // Navigation Mobile
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-  // Lightbox Modal & 4 Options de Galerie
-  const [activeShowcase, setActiveShowcase] = React.useState<ShowcaseItem | null>(null);
-  const [activeGalleryTab, setActiveGalleryTab] = React.useState<GalleryTab>("ext_finished");
-  const [activeImageIndex, setActiveImageIndex] = React.useState(0);
-  const [selectedCategory, setSelectedCategory] = React.useState<ShowcaseCategory>("all");
+  // Galerie & Lightbox Slider
+  const [selectedCategory, setSelectedCategory] = React.useState<ShowcaseCategory>("tout");
+  const [activeVehicleModal, setActiveVehicleModal] = React.useState<VehicleModelItem | null>(null);
+  const [lightboxActiveIndex, setLightboxActiveIndex] = React.useState<number | null>(null);
+  const [lightboxPhotoList, setLightboxPhotoList] = React.useState<GalleryPair[]>([]);
 
   // State Vidéo 9:16 Vertical Reel Player
   const [activeReelIndex, setActiveReelIndex] = React.useState(0);
@@ -707,16 +637,14 @@ export function LandingPage() {
 
           <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
             {[
-              { id: "all", label: "TOUT" },
-              { id: "polissage", label: "POLISSAGE" },
-              { id: "ceramique", label: "CÉRAMIQUE" },
+              { id: "tout", label: "TOUT (PAR MODÈLE)" },
               { id: "interieur", label: "INTÉRIEUR" },
-              { id: "ppf", label: "FILM PPF" },
+              { id: "exterieur", label: "EXTÉRIEUR" },
             ].map((cat) => (
               <button
-                className={`px-3.5 py-2 text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer ${
+                className={`px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all border rounded-full cursor-pointer ${
                   selectedCategory === cat.id
-                    ? "bg-[#e8c98a] text-black border-[#e8c98a]"
+                    ? "bg-[#e8c98a] text-black border-[#e8c98a] shadow-[0_0_15px_rgba(232,201,138,0.3)]"
                     : "bg-[#120e0e] text-white/70 border-white/10 hover:border-white/30 hover:text-white"
                 }`}
                 key={cat.id}
@@ -727,184 +655,258 @@ export function LandingPage() {
             ))}
           </div>
 
-          {/* Grille Vitrine Mobile-First */}
-          <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredItems.map((item) => (
-              <div
-                className="group bg-[#120e0e] border border-white/10 overflow-hidden hover:border-[#e8c98a]/50 transition-all duration-300 flex flex-col cursor-pointer"
-                key={item.id}
-                onClick={() => {
-                  setActiveShowcase(item);
-                  setActiveGalleryTab("ext_finished");
-                  setActiveImageIndex(0);
-                }}
-              >
-                <div className="relative aspect-4/3 overflow-hidden bg-black/60">
-                  <img
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter brightness-95 group-hover:brightness-100"
-                    src={item.coverImage}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60 group-hover:opacity-30 transition-opacity" />
+          {/* RENDU EN FONCTION DE LA CATÉGORIE SÉLECTIONNÉE */}
 
-                  <span className="absolute top-3 left-3 bg-[#e8c98a] text-black text-[10px] font-black uppercase tracking-widest px-2.5 py-1">
-                    {item.tag}
-                  </span>
+          {/* VUE 1 : TOUT (Modèles de Véhicules) */}
+          {selectedCategory === "tout" && (
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {VEHICLE_MODELS.map((model) => (
+                <div
+                  className="group bg-[#120e0e] border border-white/10 rounded-2xl overflow-hidden hover:border-[#e8c98a]/60 transition-all duration-300 flex flex-col cursor-pointer shadow-xl"
+                  key={model.id}
+                  onClick={() => setActiveVehicleModal(model)}
+                >
+                  <div className="relative aspect-[16/10] overflow-hidden bg-black/60">
+                    <img
+                      alt={model.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter brightness-95 group-hover:brightness-100"
+                      src={model.coverImage}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-70 group-hover:opacity-40 transition-opacity" />
 
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-[2px]">
-                    <span className="px-4 py-2 border border-white text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2 bg-black/60">
-                      <Eye className="h-3.5 w-3.5" /> EXPLORER LES 4 GALERIES
+                    <span className="absolute top-3 left-3 bg-[#e8c98a] text-black text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded">
+                      {model.pairs.length} TRANSFORMATION{model.pairs.length > 1 ? "S" : ""}
                     </span>
+
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 backdrop-blur-[2px]">
+                      <span className="px-4 py-2 border border-white text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2 bg-black/70 rounded-full">
+                        <Eye className="h-4 w-4 text-[#e8c98a]" /> VOIR LES PHOTOS DU MODÈLE
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-2">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#e8c98a]">
+                        {model.subtitle}
+                      </span>
+                      <h3 className="text-base font-bold text-white uppercase mt-0.5 leading-snug">
+                        {model.name}
+                      </h3>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs font-bold text-[#e8c98a]">
+                      <span>DÉCOUVRIR LE VÉHICULE</span>
+                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
 
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
-                  <div>
-                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#e8c98a]">
-                      {item.categoryLabel}
+          {/* VUE 2 & 3 : INTÉRIEUR / EXTÉRIEUR (Cartes Avant/Après Directes sur la page) */}
+          {selectedCategory !== "tout" && (
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {GALLERY_PAIRS.filter((pair) => pair.category === selectedCategory).map((pair, index, array) => (
+                <div
+                  className="group bg-[#120e0e] border border-white/10 rounded-2xl overflow-hidden hover:border-[#e8c98a]/60 transition-all duration-300 flex flex-col cursor-pointer shadow-xl"
+                  key={pair.id}
+                  onClick={() => {
+                    setLightboxPhotoList(array);
+                    setLightboxActiveIndex(index);
+                  }}
+                >
+                  <div className="p-3 border-b border-white/5 flex items-center justify-between bg-black/40">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#e8c98a]">
+                      {pair.vehicleName}
                     </span>
-                    <h3 className="text-sm font-bold text-white uppercase mt-0.5 leading-snug">
-                      {item.vehicle}
+                  </div>
+
+                  {/* Comparatif Avant / Après direct */}
+                  <div className="grid grid-cols-2 gap-1 p-2 bg-black">
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-rose-500/40">
+                      <img alt="Avant" className="w-full h-full object-cover" src={pair.before} />
+                      <span className="absolute top-1.5 left-1.5 bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                        AVANT
+                      </span>
+                    </div>
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-emerald-500/40">
+                      <img alt="Après" className="w-full h-full object-cover" src={pair.after} />
+                      <span className="absolute top-1.5 right-1.5 bg-emerald-500 text-black text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                        APRÈS
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                    <h3 className="text-xs font-bold text-white uppercase leading-snug">
+                      {pair.title}
                     </h3>
-                  </div>
-
-                  <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs font-bold text-[#e8c98a]">
-                    <span>VOIR LES GALERIES</span>
-                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-bold text-[#e8c98a]">
+                      <span>AGRANDIR &amp; NAVIGUER</span>
+                      <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* ── LIGHTBOX MODAL AVEC LES 4 OPTIONS DE GALERIES POUR UN MÊME VÉHICULE ── */}
-      {activeShowcase && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8">
-          <div className="relative max-w-4xl w-full bg-[#120e0e] border border-white/20 rounded-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+      {/* ── MODAL VÉHICULE (Toutes les photos d'un modèle spécifique) ── */}
+      {activeVehicleModal && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+          <div className="relative max-w-4xl w-full bg-[#120e0e] border border-white/20 rounded-3xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/40">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-[#e8c98a]">
-                  {activeShowcase.categoryLabel}
+                <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#e8c98a]">
+                  {activeVehicleModal.subtitle}
                 </span>
                 <h3 className="text-lg sm:text-2xl font-black uppercase text-white">
-                  {activeShowcase.vehicle}
+                  {activeVehicleModal.name}
                 </h3>
               </div>
               <button
                 className="p-2 text-white/60 hover:text-white rounded-full bg-white/5 hover:bg-white/10 cursor-pointer"
-                onClick={() => setActiveShowcase(null)}
+                onClick={() => setActiveVehicleModal(null)}
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-6">
-              {/* SÉLECTEUR DES 4 OPTIONS DE GALERIES POUR LE VÉHICULE */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: "ext_finished", label: "Extérieur Fini" },
-                  { id: "intext_finished", label: "Intérieur & Extérieur" },
-                  { id: "ext_beforeafter", label: "Extérieur Avant/Après" },
-                  { id: "intext_beforeafter", label: "Inté/Exté Avant/Après" },
-                ].map((tab) => (
-                  <button
-                    className={`px-3 py-2 text-[11px] font-bold uppercase tracking-wider rounded border text-center transition-all cursor-pointer ${
-                      activeGalleryTab === tab.id
-                        ? "bg-[#e8c98a] text-black border-[#e8c98a]"
-                        : "bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white"
-                    }`}
-                    key={tab.id}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeVehicleModal.pairs.map((pair, idx) => (
+                  <div
+                    key={pair.id}
+                    className="bg-black/60 border border-white/10 rounded-2xl overflow-hidden p-3 space-y-2 cursor-pointer hover:border-[#e8c98a]/60 transition-all"
                     onClick={() => {
-                      setActiveGalleryTab(tab.id as GalleryTab);
-                      setActiveImageIndex(0);
+                      setLightboxPhotoList(activeVehicleModal.pairs);
+                      setLightboxActiveIndex(idx);
                     }}
                   >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* RENDER PHOTOS / COMPARATIF SELON L'ONGLET SÉLECTIONNÉ */}
-              {activeGalleryTab === "ext_beforeafter" || activeGalleryTab === "intext_beforeafter" ? (
-                <div className="space-y-4">
-                  {activeShowcase.galleries[activeGalleryTab].map((pair, i) => (
-                    <div className="grid grid-cols-2 gap-3" key={i}>
-                      <div className="relative aspect-video rounded-xl overflow-hidden border border-rose-500/40">
+                    <h4 className="text-xs font-mono font-bold text-[#e8c98a] uppercase tracking-wider">
+                      {pair.title}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-rose-500/40">
                         <img alt="Avant" className="w-full h-full object-cover" src={pair.before} />
                         <span className="absolute top-2 left-2 bg-rose-600 text-white text-[9px] font-bold px-2 py-0.5 rounded">
                           AVANT
                         </span>
                       </div>
-                      <div className="relative aspect-video rounded-xl overflow-hidden border border-emerald-500/40">
+                      <div className="relative aspect-[4/3] rounded-xl overflow-hidden border border-emerald-500/40">
                         <img alt="Après" className="w-full h-full object-cover" src={pair.after} />
                         <span className="absolute top-2 right-2 bg-emerald-500 text-black text-[9px] font-bold px-2 py-0.5 rounded">
                           APRÈS
                         </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="relative aspect-video w-full overflow-hidden bg-black rounded-xl border border-white/10">
-                  <img
-                    alt={activeShowcase.title}
-                    className="w-full h-full object-cover"
-                    src={
-                      activeShowcase.galleries[activeGalleryTab][activeImageIndex] ||
-                      activeShowcase.coverImage
-                    }
-                  />
-
-                  {activeShowcase.galleries[activeGalleryTab].length > 1 && (
-                    <>
-                      <button
-                        className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-black/60 text-white hover:bg-[#e8c98a] hover:text-black rounded-full transition-colors cursor-pointer"
-                        onClick={() =>
-                          setActiveImageIndex((prev) =>
-                            prev === 0
-                              ? activeShowcase.galleries[activeGalleryTab].length - 1
-                              : prev - 1
-                          )
-                        }
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                      <button
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-black/60 text-white hover:bg-[#e8c98a] hover:text-black rounded-full transition-colors cursor-pointer"
-                        onClick={() =>
-                          setActiveImageIndex((prev) =>
-                            prev === activeShowcase.galleries[activeGalleryTab].length - 1
-                              ? 0
-                              : prev + 1
-                          )
-                        }
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <h4 className="text-base font-bold text-white">{activeShowcase.title}</h4>
-                <p className="text-xs sm:text-sm text-white/70 leading-relaxed">
-                  {activeShowcase.description}
-                </p>
-                <button
-                  className="w-full py-3.5 bg-[#e8c98a] text-black font-extrabold text-xs uppercase tracking-widest hover:bg-[#f4dca0] transition-colors cursor-pointer"
-                  onClick={() => {
-                    setActiveShowcase(null);
-                    scrollToSection("devis");
-                  }}
-                >
-                  OBTENIR UN DEVIS POUR MON VÉHICULE →
-                </button>
+                  </div>
+                ))}
               </div>
+
+              <button
+                className="w-full py-4 bg-[#e8c98a] text-black font-extrabold text-xs uppercase tracking-widest rounded-xl hover:bg-white transition-all shadow-xl cursor-pointer"
+                onClick={() => {
+                  setActiveVehicleModal(null);
+                  scrollToSection("devis");
+                }}
+              >
+                OBTENIR UN DEVIS POUR CE MODÈLE →
+              </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── LIGHTBOX FULLSCREEN SLIDER AVEC FLÈCHES GAUCHE ET DROITE ── */}
+      {lightboxActiveIndex !== null && lightboxPhotoList[lightboxActiveIndex] && (
+        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-lg flex items-center justify-center p-4 sm:p-8">
+          <button
+            className="absolute top-6 right-6 p-3 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-all z-10 cursor-pointer"
+            onClick={() => setLightboxActiveIndex(null)}
+          >
+            <X className="h-7 w-7" />
+          </button>
+
+          {/* Bouton Précédent */}
+          {lightboxPhotoList.length > 1 && (
+            <button
+              className="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 p-3 sm:p-4 bg-black/70 border border-white/20 text-white hover:bg-[#e8c98a] hover:text-black rounded-full transition-all z-10 cursor-pointer shadow-2xl"
+              onClick={() =>
+                setLightboxActiveIndex((prev) =>
+                  prev === null || prev === 0 ? lightboxPhotoList.length - 1 : prev - 1
+                )
+              }
+            >
+              <ChevronLeft className="h-6 w-6 sm:h-8 sm:w-8" />
+            </button>
+          )}
+
+          {/* Contenu de la photo active */}
+          <div className="max-w-5xl w-full space-y-4 text-center">
+            <div className="space-y-1">
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#e8c98a]">
+                {lightboxPhotoList[lightboxActiveIndex].vehicleName} ({lightboxActiveIndex + 1} / {lightboxPhotoList.length})
+              </span>
+              <h3 className="text-lg sm:text-2xl font-black uppercase text-white">
+                {lightboxPhotoList[lightboxActiveIndex].title}
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh]">
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-rose-500/50 shadow-2xl bg-black">
+                <img
+                  alt="Avant"
+                  className="w-full h-full object-cover"
+                  src={lightboxPhotoList[lightboxActiveIndex].before}
+                />
+                <span className="absolute top-3 left-3 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow">
+                  AVANT
+                </span>
+              </div>
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-emerald-500/50 shadow-2xl bg-black">
+                <img
+                  alt="Après"
+                  className="w-full h-full object-cover"
+                  src={lightboxPhotoList[lightboxActiveIndex].after}
+                />
+                <span className="absolute top-3 right-3 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow">
+                  APRÈS
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-4 max-w-md mx-auto">
+              <button
+                className="w-full py-3.5 bg-[#e8c98a] text-black font-extrabold text-xs uppercase tracking-widest rounded-xl hover:bg-white transition-all shadow-[0_0_20px_rgba(232,201,138,0.4)] cursor-pointer"
+                onClick={() => {
+                  setLightboxActiveIndex(null);
+                  setActiveVehicleModal(null);
+                  scrollToSection("devis");
+                }}
+              >
+                OBTENIR UN DEVIS POUR VOTRE VÉHICULE →
+              </button>
+            </div>
+          </div>
+
+          {/* Bouton Suivant */}
+          {lightboxPhotoList.length > 1 && (
+            <button
+              className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 p-3 sm:p-4 bg-black/70 border border-white/20 text-white hover:bg-[#e8c98a] hover:text-black rounded-full transition-all z-10 cursor-pointer shadow-2xl"
+              onClick={() =>
+                setLightboxActiveIndex((prev) =>
+                  prev === null || prev === lightboxPhotoList.length - 1 ? 0 : prev + 1
+                )
+              }
+            >
+              <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8" />
+            </button>
+          )}
         </div>
       )}
 
