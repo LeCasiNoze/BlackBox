@@ -184,6 +184,61 @@ const SHOWCASE_ITEMS: ShowcaseItem[] = [
     },
   },
   {
+    id: "vw-golf-gti-interior",
+    title: "Soin Habitacle Complexe & Shampouinage Tartan",
+    category: "interieur",
+    categoryLabel: "Detailing Intérieur GT",
+    vehicle: "Volkswagen Golf 7 GTI",
+    description:
+      "Rénovation intégrale des sièges tissu Tartan, dégraissage du volant cuir surpiqué rouge et brossage haute précision des moquettes avec traçage de lignes d'atelier.",
+    tag: "Finition Atelier BC",
+    coverImage: "/showcase/vw_golf_gti_front_after.png",
+    galleries: {
+      ext_finished: ["/showcase/vw_golf_gti_front_after.png", "/showcase/vw_golf_gti_rear_after.png"],
+      intext_finished: [
+        "/showcase/vw_golf_gti_front_after.png",
+        "/showcase/vw_golf_gti_rear_after.png",
+        "/showcase/vw_golf_gti_front_before.png",
+      ],
+      ext_beforeafter: [{ before: "/showcase/vw_golf_gti_front_before.png", after: "/showcase/vw_golf_gti_front_after.png" }],
+      intext_beforeafter: [
+        { before: "/showcase/vw_golf_gti_front_before.png", after: "/showcase/vw_golf_gti_front_after.png" },
+        { before: "/showcase/vw_golf_gti_rear_before.png", after: "/showcase/vw_golf_gti_rear_after.png" },
+      ],
+    },
+  },
+  {
+    id: "chrysler-crossfire-full",
+    title: "Polissage Miroir Capot & Rénovation Cuir Rouge",
+    category: "polissage",
+    categoryLabel: "Polissage & Rénovation",
+    vehicle: "Chrysler Crossfire Black Metallic",
+    description:
+      "Correction complète de peinture noire vernie avec élimination des micro-rayures (effet miroir), rénovation intégrale du cuir rouge mat et protection synthétique.",
+    tag: "Rénovation Complète",
+    coverImage: "/showcase/chrysler_crossfire_rear_finished.png",
+    galleries: {
+      ext_finished: [
+        "/showcase/chrysler_crossfire_rear_finished.png",
+        "/showcase/chrysler_crossfire_hood_after.png",
+      ],
+      intext_finished: [
+        "/showcase/chrysler_crossfire_rear_finished.png",
+        "/showcase/chrysler_crossfire_hood_after.png",
+        "/showcase/chrysler_crossfire_interior_driver_after.png",
+        "/showcase/chrysler_crossfire_interior_pass_after.png",
+      ],
+      ext_beforeafter: [
+        { before: "/showcase/chrysler_crossfire_hood_before.png", after: "/showcase/chrysler_crossfire_hood_after.png" },
+      ],
+      intext_beforeafter: [
+        { before: "/showcase/chrysler_crossfire_hood_before.png", after: "/showcase/chrysler_crossfire_hood_after.png" },
+        { before: "/showcase/chrysler_crossfire_interior_driver_before.png", after: "/showcase/chrysler_crossfire_interior_driver_after.png" },
+        { before: "/showcase/chrysler_crossfire_interior_pass_before.png", after: "/showcase/chrysler_crossfire_interior_pass_after.png" },
+      ],
+    },
+  },
+  {
     id: "bmw-m4-ppf",
     title: "Pose Film de Protection PPF & Céramique",
     category: "ppf",
