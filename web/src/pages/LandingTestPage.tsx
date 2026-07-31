@@ -29,7 +29,7 @@ import {
   loadCameraShots,
   saveCameraShots,
   INITIAL_CAMERA_SHOTS,
-} from "../../../src/features/landing-test/config/cameraShots";
+} from "../features/landing-test/config/cameraShots";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -237,11 +237,11 @@ export function LandingTestPage() {
     setCurrentShotIndex(idx);
     const shot = shots[idx];
     if (shot) {
-      setCameraPos([...shot.cameraPosition]);
-      setTargetPos([...shot.cameraTarget]);
+      setCameraPos([...shot.cameraPosition] as [number, number, number]);
+      setTargetPos([...shot.cameraTarget] as [number, number, number]);
       setFov(shot.fov);
-      setCarPosition([...shot.carPosition]);
-      setCarRotation([...shot.carRotation]);
+      setCarPosition([...shot.carPosition] as [number, number, number]);
+      setCarRotation([...shot.carRotation] as [number, number, number]);
     }
   };
 

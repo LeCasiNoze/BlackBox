@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CameraShot } from "../../../../src/features/landing-test/config/cameraShots";
+import type { CameraShot } from "../../features/landing-test/config/cameraShots";
 import {
   Play,
   RotateCcw,
