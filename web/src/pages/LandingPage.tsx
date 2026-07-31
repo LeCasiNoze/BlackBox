@@ -56,6 +56,42 @@ const initialForm: SignupForm = {
 
 type ShowcaseCategory = "tout" | "interieur" | "exterieur";
 
+interface VideoReelExample {
+  id: string;
+  title: string;
+  subtitle: string;
+  src: string;
+  poster: string;
+  badge: string;
+}
+
+const VIDEO_REELS: VideoReelExample[] = [
+  {
+    id: "reel-1",
+    title: "Vidéo 1",
+    subtitle: "",
+    src: "/reel-1.mp4",
+    poster: "/showcase/vw_golf_gti_front_after.png",
+    badge: "VIDÉO 1",
+  },
+  {
+    id: "reel-2",
+    title: "Vidéo 2",
+    subtitle: "",
+    src: "/reel-2.mp4",
+    poster: "/peugeot_208_clean_after.jpg",
+    badge: "VIDÉO 2",
+  },
+  {
+    id: "reel-3",
+    title: "Vidéo 3",
+    subtitle: "",
+    src: "/reel-3.mp4",
+    poster: "/showcase/chrysler_crossfire_rear_finished.png",
+    badge: "VIDÉO 3",
+  },
+];
+
 interface GalleryPair {
   id: string;
   vehicleId: "peugeot-208" | "vw-golf-gti" | "chrysler-crossfire";
@@ -318,10 +354,7 @@ export function LandingPage() {
 
   const activeReel = VIDEO_REELS[activeReelIndex];
 
-  const filteredItems =
-    selectedCategory === "all"
-      ? SHOWCASE_ITEMS
-      : SHOWCASE_ITEMS.filter((item) => item.category === selectedCategory);
+
 
   const fallbackReviews = [
     {
