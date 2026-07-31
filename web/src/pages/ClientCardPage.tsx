@@ -1560,6 +1560,20 @@ export function ClientCardPage() {
     };
   }, [slug, monthParam, reloadToken]);
 
+  // Ouverture automatique de la modale "Votre estimation" depuis un lien d'email (?devis=1)
+  React.useEffect(() => {
+    if (!data) return;
+    const search = new URLSearchParams(window.location.search);
+    if (
+      search.get("devis") === "1" ||
+      search.get("quote") === "1" ||
+      search.get("openQuote") === "1" ||
+      search.get("quoteId")
+    ) {
+      setQuoteModalOpen(true);
+    }
+  }, [data]);
+
   // Forfaits partenaire (comptes pro): charge la grille + le suivi des
   // paiements et rafraichit toutes les 15s tant que la vue est ouverte.
   React.useEffect(() => {

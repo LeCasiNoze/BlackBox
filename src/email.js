@@ -137,13 +137,15 @@ function clientPortalUrl(client) {
   return `${base}/card/${encodeURIComponent(slug)}`;
 }
 
-// Lien profond vers le contexte d'un rendez-vous: ouvre directement la fiche
-// du RDV (modale) dans l'espace client au lieu de la page d'accueil.
-function clientAppointmentUrl(client, appointmentId) {
+// Lien profond vers le devis du client (ouvre directement la modale "Votre estimation").
+function clientQuoteUrl(client, quoteId = null) {
   const portalUrl = clientPortalUrl(client);
   if (!portalUrl) return "";
-  if (!appointmentId) return portalUrl;
-  return `${portalUrl}?appointmentId=${appointmentId}`;
+  let url = `${portalUrl}?devis=1`;
+  if (quoteId) {
+    url += `&quoteId=${quoteId}`;
+  }
+  return url;
 }
 
 function serviceLevelLabel(level) {
@@ -184,20 +186,26 @@ function vehicleSummary(clientOrAppointment) {
   const plate = clientOrAppointment.vehiclePlate || clientOrAppointment.vehicle_plate || "";
 
   const parts = [model, plate].filter(Boolean);
-  return parts.length > 0 ? parts.join(" / ") : "Vehicule non renseigne";
+  return parts.length > 0 ? parts.join(" / ") : "Véhicule non renseigné";
 }
 
 function brandWordmark() {
   return `
-    <div style="font-size:11px;line-height:1;letter-spacing:0.28em;text-transform:uppercase;font-weight:800;color:#f5f7fb;">
-      BRYAN CARS DETAILING
-    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+      <tr>
+        <td align="left" style="vertical-align:middle;">
+          <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1;letter-spacing:0.3em;text-transform:uppercase;font-weight:900;color:#e8c98a;">
+            BRYAN CARS — BLACKBOX DETAILING
+          </div>
+        </td>
+      </tr>
+    </table>
   `;
 }
 
-function emailBadge(label, accent = "#f7b955") {
+function emailBadge(label, accent = "#e8c98a") {
   return `
-    <div style="display:inline-block;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.04);font-size:11px;line-height:1;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:${escapeHtml(
+    <div style="display:inline-block;padding:7px 15px;border-radius:999px;border:1px solid rgba(232,201,138,0.3);background:rgba(232,201,138,0.08);font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;line-height:1;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;color:${escapeHtml(
       accent,
     )};">
       ${escapeHtml(label)}
@@ -210,19 +218,19 @@ function metricRows(metrics = []) {
   if (safeMetrics.length === 0) return "";
 
   return `
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin-bottom:16px;">
       ${safeMetrics
         .map(
           (metric) => `
             <tr>
-              <td style="padding:0 0 12px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border:1px solid rgba(255,255,255,0.1);border-radius:22px;background:#141922;">
+              <td style="padding:0 0 10px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border:1px solid rgba(232,201,138,0.25);border-radius:20px;background:linear-gradient(135deg, #161212 0%, #0d0a0a 100%);">
                   <tr>
-                    <td style="padding:18px 18px 16px;">
-                      <div style="font-size:11px;line-height:1.4;letter-spacing:0.16em;text-transform:uppercase;font-weight:800;color:rgba(255,255,255,0.42);">
+                    <td style="padding:18px 20px;">
+                      <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;line-height:1.4;letter-spacing:0.2em;text-transform:uppercase;font-weight:800;color:rgba(232,201,138,0.65);">
                         ${escapeHtml(metric.label)}
                       </div>
-                      <div style="padding-top:9px;font-size:20px;line-height:1.35;font-weight:800;color:#ffffff;">
+                      <div style="padding-top:6px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:1.2;font-weight:900;color:#ffffff;">
                         ${escapeHtml(metric.value)}
                       </div>
                     </td>
@@ -247,11 +255,11 @@ function infoRows(rows = []) {
         .map(
           (row) => `
             <tr>
-              <td style="padding:0 0 10px;">
-                <div style="font-size:12px;line-height:1.4;letter-spacing:0.16em;text-transform:uppercase;font-weight:800;color:rgba(255,255,255,0.36);">
+              <td style="padding:0 0 12px;">
+                <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;line-height:1.4;letter-spacing:0.18em;text-transform:uppercase;font-weight:800;color:rgba(255,255,255,0.45);">
                   ${escapeHtml(row.label)}
                 </div>
-                <div style="padding-top:5px;font-size:15px;line-height:1.7;color:#d9e1f0;">
+                <div style="padding-top:4px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;font-weight:600;color:#f1ede6;">
                   ${escapeHtml(row.value)}
                 </div>
               </td>
@@ -268,18 +276,18 @@ function actionButtons(buttons = []) {
   if (safeButtons.length === 0) return "";
 
   return `
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;margin-top:16px;">
       ${safeButtons
         .map((button, index) => {
           const isPrimary = button.tone !== "ghost";
           const style = isPrimary
-            ? "background:#f7b955;border:1px solid #f7b955;color:#120b02;"
-            : "background:#121720;border:1px solid rgba(255,255,255,0.14);color:#edf2ff;";
+            ? "background:linear-gradient(135deg, #e8c98a 0%, #f5d796 50%, #d4a755 100%);border:1px solid #e8c98a;color:#070505;box-shadow:0 4px 20px rgba(232,201,138,0.3);"
+            : "background:#120e0e;border:1px solid rgba(255,255,255,0.2);color:#ffffff;";
 
           return `
             <tr>
-              <td style="padding:${index === 0 ? "0" : "10px 0 0"};">
-                <a href="${escapeHtml(button.href)}" style="display:block;padding:14px 18px;border-radius:999px;text-align:center;text-decoration:none;font-size:14px;line-height:1.2;font-weight:800;${style}">
+              <td style="padding:${index === 0 ? "0" : "12px 0 0"};">
+                <a href="${escapeHtml(button.href)}" style="display:block;padding:16px 22px;border-radius:999px;text-align:center;text-decoration:none;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.2;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;${style}">
                   ${escapeHtml(button.label)}
                 </a>
               </td>
@@ -291,19 +299,19 @@ function actionButtons(buttons = []) {
   `;
 }
 
-function panelCard({ title, description = "", bodyHtml = "", accent = "#f7b955" }) {
+function panelCard({ title, description = "", bodyHtml = "", accent = "#e8c98a" }) {
   return `
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border:1px solid rgba(255,255,255,0.1);border-radius:24px;background:#121720;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;border:1px solid rgba(255,255,255,0.12);border-radius:24px;background:#110e0e;margin-bottom:16px;">
       <tr>
         <td style="padding:22px 22px 20px;">
-          <div style="font-size:12px;line-height:1.4;letter-spacing:0.18em;text-transform:uppercase;font-weight:800;color:${escapeHtml(
+          <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.4;letter-spacing:0.2em;text-transform:uppercase;font-weight:900;color:${escapeHtml(
             accent,
           )};">
             ${escapeHtml(title)}
           </div>
           ${
             description
-              ? `<div style="padding-top:10px;font-size:15px;line-height:1.7;color:#b5bfd2;">${escapeHtml(
+              ? `<div style="padding-top:8px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:rgba(255,255,255,0.7);">${escapeHtml(
                   description,
                 )}</div>`
               : ""
@@ -324,7 +332,7 @@ function brandEmailShell({
   title,
   subtitle,
   bodyHtml,
-  accent = "#f7b955",
+  accent = "#e8c98a",
   preheader = "",
 }) {
   const safePreheader = escapeHtml(preheader || subtitle || "");
@@ -336,19 +344,19 @@ function brandEmailShell({
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)}</title>
   </head>
-  <body style="margin:0;padding:0;background:#07090d;font-family:Segoe UI,Arial,sans-serif;">
+  <body style="margin:0;padding:0;background:#070505;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
       ${safePreheader}
     </div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:#07090d;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;background:#070505;">
       <tr>
-        <td align="center" style="padding:20px 12px 28px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;max-width:680px;">
+        <td align="center" style="padding:30px 14px 40px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;max-width:620px;">
             <tr>
-              <td style="padding-bottom:14px;">
+              <td style="padding-bottom:16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
                   <tr>
-                    <td style="height:4px;border-radius:999px;background:linear-gradient(90deg,#f7b955 0%,#ff7a18 44%,#2ca2ff 100%);font-size:0;line-height:0;">
+                    <td style="height:4px;border-radius:999px;background:linear-gradient(90deg, #e8c98a 0%, #ffd700 50%, #99793d 100%);font-size:0;line-height:0;">
                       &nbsp;
                     </td>
                   </tr>
@@ -356,33 +364,38 @@ function brandEmailShell({
               </td>
             </tr>
             <tr>
-              <td style="border:1px solid rgba(255,255,255,0.1);border-radius:30px;background:#0f131b;overflow:hidden;">
+              <td style="border:1px solid rgba(232,201,138,0.2);border-radius:28px;background:#0d0a0a;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.8);">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
                   <tr>
-                    <td style="padding:30px 28px 24px;background:
-                      radial-gradient(circle at top left, rgba(247,185,85,0.2), transparent 34%),
-                      radial-gradient(circle at top right, rgba(44,162,255,0.15), transparent 28%),
-                      #11161f;">
+                    <td style="padding:32px 30px 28px;background:
+                      radial-gradient(circle at top left, rgba(232,201,138,0.18), transparent 40%),
+                      radial-gradient(circle at top right, rgba(153,121,61,0.15), transparent 35%),
+                      #120e0e;border-bottom:1px solid rgba(255,255,255,0.08);">
                       ${brandWordmark()}
-                      <div style="padding-top:18px;">
+                      <div style="padding-top:20px;">
                         ${emailBadge(eyebrow, accent)}
                       </div>
-                      <div style="padding-top:18px;font-size:34px;line-height:1.08;font-weight:800;color:#ffffff;">
+                      <div style="padding-top:20px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;line-height:1.1;font-weight:900;letter-spacing:-0.02em;color:#ffffff;">
                         ${escapeHtml(title)}
                       </div>
-                      <div style="padding-top:12px;font-size:15px;line-height:1.75;color:#b4bfd4;">
+                      <div style="padding-top:12px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.7;color:rgba(255,255,255,0.68);">
                         ${escapeHtml(subtitle)}
                       </div>
                     </td>
                   </tr>
+
                   <tr>
-                    <td style="padding:24px 20px 10px;">
+                    <td style="padding:28px 24px 16px;">
                       ${bodyHtml}
                     </td>
                   </tr>
+
                   <tr>
-                    <td style="padding:8px 28px 28px;font-size:12px;line-height:1.7;color:#7f8aa0;">
-                      Bryan Cars Detailing · Louhans · Atelier ou domicile sur rendez-vous.
+                    <td style="padding:16px 30px 32px;border-top:1px solid rgba(255,255,255,0.06);font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;line-height:1.7;color:rgba(255,255,255,0.4);text-align:center;">
+                      <div style="font-weight:800;color:#e8c98a;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">
+                        BRYAN CARS DETAILING · BLACKBOX
+                      </div>
+                      Louhans (71500), Saône-et-Loire &amp; Région. Atelier &amp; A Domicile.
                     </td>
                   </tr>
                 </table>
@@ -834,49 +847,49 @@ Repondre : ${adminUrl}
 async function sendClientQuoteAnsweredEmail({ client, estimatedCredits, adminComment = null }) {
   const credits = Number(estimatedCredits) || 0;
   const fullName = fallbackClientName(client);
-  const portalUrl = clientPortalUrl(client);
+  const targetUrl = clientQuoteUrl(client);
 
   pushClient(client, {
-    title: "Votre devis est pret",
-    body: `Estimation : ${credits} credit${credits > 1 ? "s" : ""} pour votre vehicule.`,
+    title: "Votre devis est prêt",
+    body: `Estimation : ${credits} crédit${credits > 1 ? "s" : ""} pour votre véhicule.`,
   });
 
   if (!client?.email) return false;
 
-  const subject = `[Bryan Cars] Votre estimation est prete`;
+  const subject = `[Bryan Cars] Votre estimation est prête`;
   const text = `
 Bonjour ${fullName},
 
-Votre demande de devis a recu une reponse.
+Votre demande de devis a reçu une réponse.
 
-Estimation : ${credits} credit(s)${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
+Estimation : ${credits} crédit(s)${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
 
-Rechargez puis prenez rendez-vous depuis votre espace : ${portalUrl || "Lien indisponible"}
+Consultez et validez votre devis depuis votre espace : ${targetUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
     eyebrow: "Votre devis",
-    title: "Estimation prete",
+    title: "Estimation prête",
     subtitle:
-      "Voici l'estimation en credits pour votre vehicule. Rechargez puis prenez rendez-vous depuis votre espace.",
-    preheader: `${credits} credit${credits > 1 ? "s" : ""} estimes`,
+      "Voici l'estimation en crédits pour votre véhicule. Rechargez puis prenez rendez-vous directement depuis votre espace.",
+    preheader: `${credits} crédit${credits > 1 ? "s" : ""} estimés`,
     bodyHtml: `
       ${metricRows([
-        { label: "Estimation", value: `${credits} credit${credits > 1 ? "s" : ""}` },
+        { label: "Estimation", value: `${credits} crédit${credits > 1 ? "s" : ""}` },
       ])}
       ${
         adminComment
           ? panelCard({
-              title: "Note de l'admin",
-              description: "Precisions sur l'estimation de votre vehicule.",
-              bodyHtml: `<p style="margin:0;font-size:14px;line-height:22px;color:#cbd5f5;">${escapeHtml(
+              title: "Note de Bryan Cars",
+              description: "Précisions sur l'estimation de votre véhicule :",
+              bodyHtml: `<p style="margin:0;font-size:14px;line-height:22px;color:#f1ede6;font-family:'Segoe UI',sans-serif;">${escapeHtml(
                 adminComment,
               )}</p>`,
             })
           : ""
       }
       ${actionButtons([
-        portalUrl ? { label: "Voir mon devis", href: portalUrl, tone: "primary" } : null,
+        targetUrl ? { label: "Voir mon estimation", href: targetUrl, tone: "primary" } : null,
       ])}
     `,
   });
@@ -888,7 +901,7 @@ async function sendClientQuoteReminderEmail({ client, quote, isSecondReminder = 
   const credits = Number(quote?.estimatedCredits) || 0;
   const priceEur = credits * 50;
   const fullName = fallbackClientName(client);
-  const portalUrl = clientPortalUrl(client);
+  const targetUrl = clientQuoteUrl(client, quote?.id);
 
   const titleText = isSecondReminder
     ? "Dernier rappel : Votre devis Bryan Cars"
@@ -902,15 +915,15 @@ async function sendClientQuoteReminderEmail({ client, quote, isSecondReminder = 
   if (!client?.email) return false;
 
   const subject = isSecondReminder
-    ? `[Bryan Cars] Dernier relance pour votre devis (${credits} crédits · ${priceEur} €)`
+    ? `[Bryan Cars] Dernière relance pour votre devis (${credits} crédits · ${priceEur} €)`
     : `[Bryan Cars] Rappel de votre devis pour votre véhicule`;
 
   const text = `
 Bonjour ${fullName},
 
-${isSecondReminder ? "Ceci est une dernière relance concernant" : "Nous vous rappelons que"} votre devis de ${credits} crédit(s) (${priceEur} €) pour votre véhicule qui est toujours en attente de votre réponse.
+${isSecondReminder ? "Ceci est une dernière relance concernant" : "Nous vous rappelons que"} votre devis de ${credits} crédit(s) (${priceEur} €) pour votre véhicule est toujours en attente de votre réponse.
 
-Vous pouvez valider ou refuser cette estimation directement depuis votre espace : ${portalUrl || "Lien indisponible"}
+Vous pouvez valider ou refuser cette estimation directement depuis votre espace : ${targetUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
@@ -925,7 +938,7 @@ Vous pouvez valider ou refuser cette estimation directement depuis votre espace 
         { label: "Estimation", value: `${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €)` },
       ])}
       ${actionButtons([
-        portalUrl ? { label: "Consulter mon devis", href: portalUrl, tone: "primary" } : null,
+        targetUrl ? { label: "Consulter mon estimation", href: targetUrl, tone: "primary" } : null,
       ])}
     `,
   });
