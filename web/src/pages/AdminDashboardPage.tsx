@@ -390,7 +390,7 @@ type AdminQuote = {
   id: number;
   clientId: number;
   description: string | null;
-  status: "pending" | "answered";
+  status: "pending" | "answered" | "archived";
   estimatedCredits: number | null;
   adminComment: string | null;
   createdAt: number;
@@ -1428,13 +1428,13 @@ export function AdminDashboardPage() {
     }
   }
 
-  async function deleteQuote(id: number) {
+  async function archiveQuote(id: number) {
     setQuoteBusyId(id);
     try {
-      await fetch(`/api/admin/quotes/${id}`, { method: "DELETE" });
+      await fetch(`/api/admin/quotes/${id}/archive`, { method: "POST" });
       setRefreshToken((value) => value + 1);
     } catch (_error) {
-      // silencieux
+      // silently ignore errors
     } finally {
       setQuoteBusyId(null);
     }
@@ -3112,10 +3112,10 @@ export function AdminDashboardPage() {
                     <button
                       className="text-xs font-medium text-white/40 transition hover:text-rose-300"
                       disabled={busy}
-                      onClick={() => void deleteQuote(quote.id)}
+                      onClick={() => void archiveQuote(quote.id)}
                       type="button"
                     >
-                      Supprimer
+                      Archiver
                     </button>
                   </div>
 
