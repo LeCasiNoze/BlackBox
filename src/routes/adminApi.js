@@ -97,6 +97,8 @@ const {
   getQuoteRequestById,
   listQuoteRequestsForAdmin,
   deleteQuoteRequest,
+  archiveQuoteRequest,
+  unarchiveQuoteRequest,
 } = require("../db/quoteRequests");
 const { getAdminMonthlyStats, getAdminAnalytics } = require("../db/stats");
 const {
@@ -759,12 +761,35 @@ router.post("/quotes/:id/answer", async (req, res) => {
   return res.json({ ok: true, quote: updated });
 });
 
+// ── Devis : archivage d'une demande (admin) ───────────────────────────────
+router.post("/quotes/:id/archive", (req, res) => {
+  const id = Number(req.params.id) || 0;
+  const quote = getQuoteRequestById(id);
+  if (!quote) {
+    return res.status(404).json({ ok: false, error: "quote_not_found" });
+  }
+  archiveQuoteRequest(id);
+  return res.json({ ok: true });
+});
+
+// ── Devis : désarchivage d'une demande (admin) ─────────────────────────────
+router.post("/quotes/:id/unarchive", (req, res) => {
+  const id = Number(req.params.id) || 0;
+  const quote = getQuoteRequestById(id);
+  if (!quote) {
+    return res.status(404).json({ ok: false, error: "quote_not_found" });
+  }
+  unarchiveQuoteRequest(id);
+  return res.json({ ok: true });
+});
+
 // ── Devis : suppression d'une demande (admin) ───────────────────────────────
 router.delete("/quotes/:id", (req, res) => {
   const id = Number(req.params.id) || 0;
   deleteQuoteRequest(id);
   return res.json({ ok: true });
 });
+
 
 router.post("/appointments/:id/status", async (req, res) => {
   const id = Number(req.params.id || 0);

@@ -174,6 +174,32 @@ function deleteQuoteRequest(id) {
   return db.prepare(`DELETE FROM quote_requests WHERE id = ?`).run(id).changes;
 }
 
+function archiveQuoteRequest(id) {
+  const now = nowUnix();
+  return db
+    .prepare(
+      `UPDATE quote_requests
+          SET status = 'archived',
+              updated_at = ?
+        WHERE id = ?`,
+    )
+    .run(now, id).changes;
+}
+
+function unarchiveQuoteRequest(id) {
+  const now = nowUnix();
+  const quote = getQuoteRequestById(id);
+  const newStatus = quote && quote.estimatedCredits ? "answered" : "pending";
+  return db
+    .prepare(
+      `UPDATE quote_requests
+          SET status = ?,
+              updated_at = ?
+        WHERE id = ?`,
+    )
+    .run(newStatus, now, id).changes;
+}
+
 function listQuoteRequestsForAdmin() {
   const rows = db
     .prepare(
@@ -228,6 +254,10 @@ module.exports = {
   markQuoteSecondReminderSent,
   getAnsweredQuotesPendingSecondReminder,
   deleteQuoteRequest,
+  archiveQuoteRequest,
+  unarchiveQuoteRequest,
   listQuoteRequestsForAdmin,
   countPendingQuoteRequests,
 };
+
+

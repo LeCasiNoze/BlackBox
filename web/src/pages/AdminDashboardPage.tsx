@@ -1,5 +1,7 @@
 import * as React from "react";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowRight,
   BarChart3,
   Bell,
@@ -363,6 +365,7 @@ type AdminSection =
   | "appointments"
   | "delivery"
   | "devis"
+  | "archives"
   | "clients"
   | "stats"
   | "events"
@@ -379,6 +382,7 @@ const ADMIN_NAV_ITEMS: Array<{
   { key: "appointments", label: "Agenda", shortLabel: "Agenda", icon: CalendarClock },
   { key: "delivery", label: "Livraison", shortLabel: "Livraison", icon: Truck },
   { key: "devis", label: "Devis", shortLabel: "Devis", icon: FileText },
+  { key: "archives", label: "Archives", shortLabel: "Archives", icon: Archive },
   { key: "clients", label: "Clients", shortLabel: "Clients", icon: Users },
   { key: "stats", label: "Stats", shortLabel: "Stats", icon: BarChart3 },
   { key: "events", label: "Événements", shortLabel: "Events", icon: Trophy },
@@ -1061,6 +1065,7 @@ export function AdminDashboardPage() {
       appointments: `/admin/appointments${appointmentQuery}`,
       delivery: `/admin/delivery${appointmentQuery}`,
       devis: "/admin/devis",
+      archives: "/admin/archives",
       clients: `/admin/clients${clientQuery}`,
       stats: "/admin/stats",
       events: "/admin/events",
@@ -1068,6 +1073,42 @@ export function AdminDashboardPage() {
       settings: "/admin/settings",
     };
   }, [selectedAppointment, selectedClientId]);
+
+  async function archiveQuote(id: number) {
+    setQuoteBusyId(id);
+    setQuotes((prev) =>
+      prev.map((quote) => (quote.id === id ? { ...quote, status: "archived" } : quote)),
+    );
+    showToast("Devis archivé.");
+    try {
+      await fetch(`/api/admin/quotes/${id}/archive`, { method: "POST" });
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur réseau lors de l'archivage.");
+    } finally {
+      setQuoteBusyId(null);
+    }
+  }
+
+  async function unarchiveQuote(id: number) {
+    setQuoteBusyId(id);
+    setQuotes((prev) =>
+      prev.map((quote) =>
+        quote.id === id
+          ? { ...quote, status: quote.estimatedCredits ? "answered" : "pending" }
+          : quote,
+      ),
+    );
+    showToast("Devis restauré.");
+    try {
+      await fetch(`/api/admin/quotes/${id}/unarchive`, { method: "POST" });
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur réseau lors du désarchivage.");
+    } finally {
+      setQuoteBusyId(null);
+    }
+  }
 
   React.useEffect(() => {
     if (!selectedClient?.appointments?.length) return;
@@ -1428,17 +1469,6 @@ export function AdminDashboardPage() {
     }
   }
 
-  async function archiveQuote(id: number) {
-    setQuoteBusyId(id);
-    try {
-      await fetch(`/api/admin/quotes/${id}/archive`, { method: "POST" });
-      setRefreshToken((value) => value + 1);
-    } catch (_error) {
-      // silently ignore errors
-    } finally {
-      setQuoteBusyId(null);
-    }
-  }
 
   async function honorGoodie(id: number, honored: boolean) {
     try {
@@ -2366,17 +2396,19 @@ export function AdminDashboardPage() {
       ? "delivery"
       : location.pathname.startsWith("/admin/devis")
         ? "devis"
-        : location.pathname.startsWith("/admin/clients")
-          ? "clients"
-        : location.pathname.startsWith("/admin/stats")
-          ? "stats"
-          : location.pathname.startsWith("/admin/events")
-            ? "events"
-            : location.pathname.startsWith("/admin/comms")
-              ? "comms"
-              : location.pathname.startsWith("/admin/settings")
-                ? "settings"
-                : "home";
+        : location.pathname.startsWith("/admin/archives")
+          ? "archives"
+          : location.pathname.startsWith("/admin/clients")
+            ? "clients"
+            : location.pathname.startsWith("/admin/stats")
+              ? "stats"
+              : location.pathname.startsWith("/admin/events")
+                ? "events"
+                : location.pathname.startsWith("/admin/comms")
+                  ? "comms"
+                  : location.pathname.startsWith("/admin/settings")
+                    ? "settings"
+                    : "home";
 
   // Changement de section : on repart toujours du haut de la page.
   React.useEffect(() => {
@@ -2395,17 +2427,19 @@ export function AdminDashboardPage() {
         ? "Livraison"
         : adminSection === "devis"
           ? "Devis"
-          : adminSection === "clients"
-            ? "Clients"
-          : adminSection === "stats"
-            ? "Statistiques"
-            : adminSection === "events"
-              ? "Événements"
-              : adminSection === "comms"
-                ? "Communication"
-                : adminSection === "settings"
-                  ? "Réglages"
-                  : "Hall principal";
+          : adminSection === "archives"
+            ? "Archives"
+            : adminSection === "clients"
+              ? "Clients"
+              : adminSection === "stats"
+                ? "Statistiques"
+                : adminSection === "events"
+                  ? "Événements"
+                  : adminSection === "comms"
+                    ? "Communication"
+                    : adminSection === "settings"
+                      ? "Réglages"
+                      : "Hall principal";
   const sectionSubtitle =
     adminSection === "appointments"
       ? "Demandes en attente: validez le tarif et planifiez."
@@ -2413,12 +2447,14 @@ export function AdminDashboardPage() {
         ? "Rendez-vous confirmés: compte-rendu, photos et passage en effectué."
         : adminSection === "devis"
           ? "Demandes d'estimation: chiffrez en credits, le client est notifie."
-          : adminSection === "clients"
-            ? "Fiches, formules, BC'Coins et historique client."
-          : adminSection === "stats"
-            ? "Statistiques par mois et analytics (conversion, rétention, créneaux)."
-            : adminSection === "events"
-              ? "Événements, tirages et goodies à remettre."
+          : adminSection === "archives"
+            ? "Consultez et gérez l'historique des éléments archivés."
+            : adminSection === "clients"
+              ? "Fiches, formules, BC'Coins et historique client."
+              : adminSection === "stats"
+                ? "Statistiques par mois et analytics (conversion, rétention, créneaux)."
+                : adminSection === "events"
+                  ? "Événements, tirages et goodies à remettre."
               : adminSection === "comms"
                 ? "E-mails groupés et annonces aux clients."
                 : adminSection === "settings"
@@ -3030,9 +3066,10 @@ export function AdminDashboardPage() {
     );
   }
 
-  // Devis : page admin — liste des demandes + estimation en credits.
+  // Devis : page admin — liste des demandes actives + estimation en credits.
   function renderQuotesPage() {
-    const pendingQuotes = quotes.filter((quote) => quote.status === "pending");
+    const activeQuotes = quotes.filter((quote) => quote.status !== "archived");
+    const pendingQuotes = activeQuotes.filter((quote) => quote.status === "pending");
     return (
       <section className="bb-surface p-5 md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3058,16 +3095,16 @@ export function AdminDashboardPage() {
           </span>
         </div>
 
-        {quotes.length === 0 ? (
+        {activeQuotes.length === 0 ? (
           <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
             <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/40">
               <FileText className="h-6 w-6" />
             </span>
-            <p className="text-sm text-white/55">Aucune demande de devis pour le moment.</p>
+            <p className="text-sm text-white/55">Aucune demande de devis active pour le moment.</p>
           </div>
         ) : (
           <div className="mt-5 space-y-4">
-            {quotes.map((quote) => {
+            {activeQuotes.map((quote) => {
               const answered = quote.status === "answered";
               const creditValue =
                 quoteCreditDrafts[quote.id] ??
@@ -3110,12 +3147,14 @@ export function AdminDashboardPage() {
                       </p>
                     </div>
                     <button
-                      className="text-xs font-medium text-white/40 transition hover:text-rose-300"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 shadow-sm transition hover:border-rose-400/40 hover:bg-rose-500/20 hover:text-rose-100 active:scale-95 disabled:opacity-50"
                       disabled={busy}
                       onClick={() => void archiveQuote(quote.id)}
                       type="button"
+                      title="Archiver ce devis"
                     >
-                      Archiver
+                      <Archive className="h-3.5 w-3.5" />
+                      <span>Archiver</span>
                     </button>
                   </div>
 
@@ -3221,6 +3260,120 @@ export function AdminDashboardPage() {
       </section>
     );
   }
+
+  // Archives : page admin — consultation des éléments archivés (devis, etc.)
+  function renderArchivesPage() {
+    const archivedQuotes = quotes.filter((quote) => quote.status === "archived");
+    return (
+      <section className="bb-surface p-5 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="bb-eyebrow">Archives</p>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
+              Éléments archivés
+            </h2>
+            <p className="mt-2 text-sm text-white/55">
+              Consultez tous vos devis archivés. Vous pouvez les désarchiver à tout moment pour les remettre dans la liste principale.
+            </p>
+          </div>
+          <span className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
+            {archivedQuotes.length} devis archivé{archivedQuotes.length > 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {archivedQuotes.length === 0 ? (
+          <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
+            <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/40">
+              <Archive className="h-6 w-6" />
+            </span>
+            <p className="text-sm text-white/55">Aucun devis archivé pour le moment.</p>
+          </div>
+        ) : (
+          <div className="mt-5 space-y-4">
+            {archivedQuotes.map((quote) => {
+              const busy = quoteBusyId === quote.id;
+              return (
+                <article
+                  key={quote.id}
+                  className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 opacity-90 transition hover:opacity-100"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold text-white">
+                          {quote.client.fullName || "Client"}
+                        </h3>
+                        <span className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
+                          {quote.client.isFounder
+                            ? "Fondateur"
+                            : (quote.client.clientType || "bbx").toUpperCase()}
+                        </span>
+                        <span className="bb-pill border-white/15 bg-white/10 text-white/70 flex items-center gap-1">
+                          <Archive className="h-3 w-3" />
+                          Archivé
+                        </span>
+                        {quote.estimatedCredits && (
+                          <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                            Estime {quote.estimatedCredits} cr.
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-white/45">
+                        {quote.client.vehicleModel || "Véhicule non renseigné"}
+                        {quote.client.phone ? ` · ${quote.client.phone}` : ""}
+                        {quote.client.email ? ` · ${quote.client.email}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-200 shadow-sm transition hover:border-amber-300/40 hover:bg-amber-300/20 hover:text-amber-100 active:scale-95 disabled:opacity-50"
+                      disabled={busy}
+                      onClick={() => void unarchiveQuote(quote.id)}
+                      type="button"
+                      title="Désarchiver et remettre en liste principale"
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" />
+                      <span>Désarchiver</span>
+                    </button>
+                  </div>
+
+                  {quote.description && (
+                    <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/70">
+                      {quote.description}
+                    </p>
+                  )}
+
+                  {quote.photos.length > 0 && (
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {quote.photos.map((url, i) => (
+                        <button
+                          className="block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30 hover:border-[#e8c98a] transition-all cursor-pointer"
+                          key={url}
+                          onClick={() =>
+                            openLightbox(
+                              quote.photos.map((imgUrl, idx) => ({
+                                id: `quote-${quote.id}-${idx}`,
+                                url: imgUrl,
+                                label: `Photo Devis ${quote.client?.fullName || "Client"} (${idx + 1}/${quote.photos.length})`,
+                              })),
+                              url,
+                            )
+                          }
+                          type="button"
+                        >
+                          <img alt={`Photo devis ${i + 1}`} className="h-full w-full object-cover hover:scale-105 transition-transform" src={url} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  }
+
 
   function renderStatsPage() {
     return (
@@ -6177,17 +6330,19 @@ export function AdminDashboardPage() {
               ? renderAppointmentsPage()
               : adminSection === "devis"
                 ? renderQuotesPage()
-                : adminSection === "clients"
-                ? renderClientsPage()
-                : adminSection === "stats"
-                  ? renderStatsPage()
-                  : adminSection === "events"
-                    ? renderEventsPage()
-                    : adminSection === "comms"
-                      ? renderCommsPage()
-                      : adminSection === "settings"
-                        ? renderSettingsPage()
-                        : renderHomePage()}
+                : adminSection === "archives"
+                  ? renderArchivesPage()
+                  : adminSection === "clients"
+                    ? renderClientsPage()
+                    : adminSection === "stats"
+                      ? renderStatsPage()
+                      : adminSection === "events"
+                        ? renderEventsPage()
+                        : adminSection === "comms"
+                          ? renderCommsPage()
+                          : adminSection === "settings"
+                            ? renderSettingsPage()
+                            : renderHomePage()}
           </div>
         </div>
       </main>
