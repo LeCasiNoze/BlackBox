@@ -1076,12 +1076,17 @@ export function AdminDashboardPage() {
 
   async function archiveQuote(id: number) {
     setQuoteBusyId(id);
-    setQuotes((prev) =>
-      prev.map((quote) => (quote.id === id ? { ...quote, status: "archived" } : quote)),
-    );
-    showToast("Devis archivé.");
     try {
-      await fetch(`/api/admin/quotes/${id}/archive`, { method: "POST" });
+      const response = await fetch(`/api/admin/quotes/${id}/archive`, { method: "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast("Impossible d'archiver le devis.");
+        return;
+      }
+      setQuotes((prev) =>
+        prev.map((quote) => (quote.id === id ? { ...quote, status: "archived" } : quote)),
+      );
+      showToast("Devis archivé.");
       setRefreshToken((value) => value + 1);
     } catch (_error) {
       showToast("Erreur réseau lors de l'archivage.");
@@ -1092,16 +1097,21 @@ export function AdminDashboardPage() {
 
   async function unarchiveQuote(id: number) {
     setQuoteBusyId(id);
-    setQuotes((prev) =>
-      prev.map((quote) =>
-        quote.id === id
-          ? { ...quote, status: quote.estimatedCredits ? "answered" : "pending" }
-          : quote,
-      ),
-    );
-    showToast("Devis restauré.");
     try {
-      await fetch(`/api/admin/quotes/${id}/unarchive`, { method: "POST" });
+      const response = await fetch(`/api/admin/quotes/${id}/unarchive`, { method: "POST" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast("Impossible de désarchiver le devis.");
+        return;
+      }
+      setQuotes((prev) =>
+        prev.map((quote) =>
+          quote.id === id
+            ? { ...quote, status: quote.estimatedCredits ? "answered" : "pending" }
+            : quote,
+        ),
+      );
+      showToast("Devis restauré.");
       setRefreshToken((value) => value + 1);
     } catch (_error) {
       showToast("Erreur réseau lors du désarchivage.");
