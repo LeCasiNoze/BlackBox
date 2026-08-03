@@ -174,8 +174,7 @@ CREATE TABLE IF NOT EXISTS quote_requests (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   description       TEXT,
-  status            TEXT NOT NULL DEFAULT 'pending'
-                      CHECK (status IN ('pending', 'answered')),
+  status            TEXT NOT NULL DEFAULT 'pending',
   estimated_credits INTEGER,
   admin_comment     TEXT,
   created_at        INTEGER NOT NULL,

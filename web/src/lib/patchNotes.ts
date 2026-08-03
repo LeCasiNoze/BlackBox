@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.42.0";
+export const APP_VERSION = "1.42.1";
 
 export type PatchNote = {
   version: string;
@@ -12,6 +12,14 @@ export type PatchNote = {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "1.42.1",
+    date: "2026-08-03",
+    title: "Fix robuste de l'archivage de devis",
+    changes: [
+      "Endpoints backend d'archivage et de désarchivage sécurisés sans vérification restrictive inutile.",
+    ],
+  },
+  {
     version: "1.42.0",
     date: "2026-08-02",
     title: "Archivage des devis & Onglet Archives",
@@ -20,6 +28,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "Nouvel onglet « Archives » dans la barre latérale admin pour retrouver tous les devis archivés et les restaurer à tout moment.",
     ],
   },
+
 
   {
     version: "1.41.3",

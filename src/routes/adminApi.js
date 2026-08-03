@@ -763,25 +763,34 @@ router.post("/quotes/:id/answer", async (req, res) => {
 
 // ── Devis : archivage d'une demande (admin) ───────────────────────────────
 router.post("/quotes/:id/archive", (req, res) => {
-  const id = Number(req.params.id) || 0;
-  const quote = getQuoteRequestById(id);
-  if (!quote) {
-    return res.status(404).json({ ok: false, error: "quote_not_found" });
+  try {
+    const id = Number(req.params.id) || 0;
+    if (!id) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+    archiveQuoteRequest(id);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminApi] POST /quotes/:id/archive error:", error);
+    return res.status(500).json({ ok: false, error: String(error) });
   }
-  archiveQuoteRequest(id);
-  return res.json({ ok: true });
 });
 
 // ── Devis : désarchivage d'une demande (admin) ─────────────────────────────
 router.post("/quotes/:id/unarchive", (req, res) => {
-  const id = Number(req.params.id) || 0;
-  const quote = getQuoteRequestById(id);
-  if (!quote) {
-    return res.status(404).json({ ok: false, error: "quote_not_found" });
+  try {
+    const id = Number(req.params.id) || 0;
+    if (!id) {
+      return res.status(400).json({ ok: false, error: "invalid_id" });
+    }
+    unarchiveQuoteRequest(id);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[adminApi] POST /quotes/:id/unarchive error:", error);
+    return res.status(500).json({ ok: false, error: String(error) });
   }
-  unarchiveQuoteRequest(id);
-  return res.json({ ok: true });
 });
+
 
 // ── Devis : suppression d'une demande (admin) ───────────────────────────────
 router.delete("/quotes/:id", (req, res) => {

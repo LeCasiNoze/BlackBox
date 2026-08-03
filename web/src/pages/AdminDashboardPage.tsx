@@ -1120,6 +1120,33 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function deleteQuote(id: number) {
+    if (!window.confirm("Supprimer définitivement ce devis ? Cette action est irréversible.")) {
+      return;
+    }
+    setQuoteBusyId(id);
+    try {
+      const response = await fetch(`/api/admin/quotes/${id}`, { method: "DELETE" });
+      const json = await response.json().catch(() => ({}));
+      if (response.status === 401 || json.error === "unauthorized") {
+        showToast("Session expirée. Veuillez vous reconnecter.");
+        window.location.href = "/login?next=/admin/archives";
+        return;
+      }
+      if (!response.ok || !json.ok) {
+        showToast("Impossible de supprimer ce devis.");
+        return;
+      }
+      setQuotes((prev) => prev.filter((quote) => quote.id !== id));
+      showToast("Devis supprimé définitivement.");
+      setRefreshToken((value) => value + 1);
+    } catch (_error) {
+      showToast("Erreur réseau lors de la suppression.");
+    } finally {
+      setQuoteBusyId(null);
+    }
+  }
+
   React.useEffect(() => {
     if (!selectedClient?.appointments?.length) return;
     if (!deepLink.appointmentId && !deepLink.date) return;
@@ -3334,16 +3361,28 @@ export function AdminDashboardPage() {
                         {quote.client.email ? ` · ${quote.client.email}` : ""}
                       </p>
                     </div>
-                    <button
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-200 shadow-sm transition hover:border-amber-300/40 hover:bg-amber-300/20 hover:text-amber-100 active:scale-95 disabled:opacity-50"
-                      disabled={busy}
-                      onClick={() => void unarchiveQuote(quote.id)}
-                      type="button"
-                      title="Désarchiver et remettre en liste principale"
-                    >
-                      <ArchiveRestore className="h-3.5 w-3.5" />
-                      <span>Désarchiver</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-200 shadow-sm transition hover:border-amber-300/40 hover:bg-amber-300/20 hover:text-amber-100 active:scale-95 disabled:opacity-50"
+                        disabled={busy}
+                        onClick={() => void unarchiveQuote(quote.id)}
+                        type="button"
+                        title="Désarchiver et remettre en liste principale"
+                      >
+                        <ArchiveRestore className="h-3.5 w-3.5" />
+                        <span>Désarchiver</span>
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 shadow-sm transition hover:border-rose-400/40 hover:bg-rose-500/20 hover:text-rose-100 active:scale-95 disabled:opacity-50"
+                        disabled={busy}
+                        onClick={() => void deleteQuote(quote.id)}
+                        type="button"
+                        title="Supprimer définitivement ce devis"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        <span>Supprimer</span>
+                      </button>
+                    </div>
                   </div>
 
                   {quote.description && (

@@ -689,6 +689,55 @@ function ensureQuoteRequestsExtraColumns() {
   }
 }
 
+function ensureQuoteRequestsCheckConstraintRemoved() {
+  try {
+    const tableSql =
+      db
+        .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'quote_requests'`)
+        .get()?.sql || "";
+
+    if (tableSql.includes("CHECK") && tableSql.includes("status IN")) {
+      console.log("[DB] Migration: suppression de la contrainte CHECK restrictive sur quote_requests.status");
+      db.exec("PRAGMA foreign_keys = OFF");
+      try {
+        db.exec(`
+          CREATE TABLE quote_requests_new (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            description       TEXT,
+            status            TEXT NOT NULL DEFAULT 'pending',
+            estimated_credits INTEGER,
+            admin_comment     TEXT,
+            created_at        INTEGER NOT NULL,
+            updated_at        INTEGER NOT NULL,
+            answered_at       INTEGER,
+            accepted_at       INTEGER,
+            refused_at        INTEGER,
+            refusal_reason    TEXT,
+            refusal_comment   TEXT,
+            reminder_sent_at  INTEGER,
+            second_reminder_sent_at INTEGER
+          );
+        `);
+        db.exec(`
+          INSERT INTO quote_requests_new
+          SELECT id, client_id, description, status, estimated_credits, admin_comment, created_at, updated_at, answered_at, accepted_at, refused_at, refusal_reason, refusal_comment, reminder_sent_at, second_reminder_sent_at
+          FROM quote_requests;
+        `);
+        db.exec("DROP TABLE quote_requests");
+        db.exec("ALTER TABLE quote_requests_new RENAME TO quote_requests");
+        db.exec("CREATE INDEX IF NOT EXISTS idx_quote_requests_client ON quote_requests(client_id)");
+        db.exec("CREATE INDEX IF NOT EXISTS idx_quote_requests_status ON quote_requests(status)");
+        console.log("[DB] Migration quote_requests réussie avec succès !");
+      } finally {
+        db.exec("PRAGMA foreign_keys = ON");
+      }
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureQuoteRequestsCheckConstraintRemoved:", error);
+  }
+}
+
 ensureAppointmentsTimeColumn();
 ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
@@ -702,6 +751,7 @@ ensureEventsExtraColumns();
 ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
 ensureQuoteRequestsExtraColumns();
+ensureQuoteRequestsCheckConstraintRemoved();
 
 module.exports = {
   db,
