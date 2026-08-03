@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.42.1";
+export const APP_VERSION = "1.43.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.43.0",
+    date: "2026-08-03",
+    title: "Analytics Landing Page dans l'onglet Stats",
+    changes: [
+      "Suivi en temps réel de la fréquentation de la page d'accueil (Pageviews totales et 24h).",
+      "Mesure des visiteurs uniques et du comportement d'audience (clics Devis, clics Espace Membre, Galerie photos, Avis Google, etc.).",
+      "Panneau dédié « Audience Landing Page » intégré dans l'onglet Stats de l'administration.",
+    ],
+  },
   {
     version: "1.42.1",
     date: "2026-08-03",

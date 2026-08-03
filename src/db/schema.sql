@@ -456,3 +456,20 @@ CREATE TABLE IF NOT EXISTS export_jobs (
                     CHECK (email_sent IN (0, 1)),
   created_at        INTEGER NOT NULL
 );
+
+-- ============================
+-- TABLE landing_events (statistiques de fréquentation & interactions landing page)
+-- ============================
+CREATE TABLE IF NOT EXISTS landing_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type   TEXT NOT NULL,
+  visitor_id   TEXT NOT NULL,
+  user_agent   TEXT,
+  referrer     TEXT,
+  created_at   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_landing_events_type ON landing_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_landing_events_created ON landing_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_landing_events_visitor ON landing_events(visitor_id);
+

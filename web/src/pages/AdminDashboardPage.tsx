@@ -156,6 +156,20 @@ type AdminRetentionCohort = {
   repeat: number;
 };
 
+type LandingStats = {
+  year: number;
+  monthIndex: number;
+  totalPageviews: number;
+  totalUniqueVisitors: number;
+  monthPageviews: number;
+  monthUniqueVisitors: number;
+  pageviews24h: number;
+  uniqueVisitors24h: number;
+  eventBreakdown: Record<string, { total: number; uniques: number }>;
+  devisClicksUniques: number;
+  loginClicksUniques: number;
+};
+
 type AdminAnalytics = {
   funnel: { requested: number; used: number; rate: number };
   retention: { bbx: AdminRetentionCohort; founders: AdminRetentionCohort };
@@ -832,6 +846,7 @@ export function AdminDashboardPage() {
   const [statsYear, setStatsYear] = React.useState(() => new Date().getFullYear());
   const [statsMonth, setStatsMonth] = React.useState(() => new Date().getMonth());
   const [statsData, setStatsData] = React.useState<AdminStats | null>(null);
+  const [landingStatsData, setLandingStatsData] = React.useState<LandingStats | null>(null);
   const [analytics, setAnalytics] = React.useState<AdminAnalytics | null>(null);
   const [broadcast, setBroadcast] = React.useState({
     segment: "bbx",
@@ -1314,7 +1329,10 @@ export function AdminDashboardPage() {
       try {
         const response = await fetch(`/api/admin/stats?year=${statsYear}&month=${statsMonth}`);
         const json = await response.json();
-        if (active && response.ok && json.ok) setStatsData(json.stats as AdminStats);
+        if (active && response.ok && json.ok) {
+          setStatsData(json.stats as AdminStats);
+          if (json.landingStats) setLandingStatsData(json.landingStats as LandingStats);
+        }
       } catch (_error) {
         // silencieux
       }
@@ -3424,10 +3442,123 @@ export function AdminDashboardPage() {
   }
 
 
+  function renderLandingStatsPanel() {
+    const ls = landingStatsData;
+    if (!ls) return null;
+
+    const eventLabels: Record<string, { label: string; icon: string }> = {
+      pageview: { label: "Vues de la page d'accueil", icon: "👁️" },
+      click_devis: { label: "Intérêt Devis (Clics Devis)", icon: "📝" },
+      click_login: { label: "Connexion (Espace Membre)", icon: "🔑" },
+      click_gallery: { label: "Galerie / Photos Avant-Après", icon: "🖼️" },
+      click_booking: { label: "Bouton Réservation", icon: "📅" },
+      click_review: { label: "Avis Google / Avis clients", icon: "⭐" },
+      click_whatsapp: { label: "Bouton WhatsApp", icon: "💬" },
+      submit_devis: { label: "Demandes de devis soumises", icon: "✅" },
+    };
+
+    const tiles = [
+      {
+        label: "Vues Landing (Mois)",
+        value: String(ls.monthPageviews),
+        sub: `${ls.totalPageviews} vues au total (${ls.pageviews24h} ces 24h)`,
+        badge: "Fréquentation",
+      },
+      {
+        label: "Visiteurs Uniques (Mois)",
+        value: String(ls.monthUniqueVisitors),
+        sub: `${ls.totalUniqueVisitors} uniques au total (${ls.uniqueVisitors24h} ces 24h)`,
+        badge: "Audience",
+      },
+      {
+        label: "Clics Devis (Uniques)",
+        value: String(ls.devisClicksUniques),
+        sub: `${ls.eventBreakdown.click_devis?.total || 0} clics au total sur le mois`,
+        badge: "Conversion",
+      },
+      {
+        label: "Clics Espace Membre",
+        value: String(ls.loginClicksUniques),
+        sub: `${ls.eventBreakdown.click_login?.total || 0} tentatives de connexion`,
+        badge: "Membres",
+      },
+    ];
+
+    return (
+      <article className="bb-surface p-5 md:p-6 mt-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="bb-eyebrow">Audience Landing Page</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">Visites & Interactions</h2>
+            <p className="mt-1 text-xs text-white/55">
+              Suivi en temps réel de la fréquentation de la page d'accueil et des actions des visiteurs.
+            </p>
+          </div>
+          <span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-200">
+            {ls.pageviews24h} visites ces 24h
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {tiles.map((tile) => (
+            <div
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 relative overflow-hidden"
+              key={tile.label}
+            >
+              <div className="flex items-center justify-between text-xs text-white/45 mb-2">
+                <span>{tile.badge}</span>
+              </div>
+              <p className="text-2xl font-semibold tabular-nums text-white">{tile.value}</p>
+              <p className="mt-1 text-sm font-medium text-white/85">{tile.label}</p>
+              <p className="mt-0.5 text-xs text-white/45">{tile.sub}</p>
+            </div>
+          ))}
+        </div>
+
+        {Object.keys(ls.eventBreakdown).length > 0 && (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-amber-300" />
+              <span>Détail des clics et interactions du mois</span>
+            </h3>
+            <div className="space-y-2.5">
+              {Object.entries(ls.eventBreakdown).map(([type, data]) => {
+                const info = eventLabels[type] || { label: type, icon: "📌" };
+                const percentage = ls.monthUniqueVisitors > 0
+                  ? Math.min(100, Math.round((data.uniques / ls.monthUniqueVisitors) * 100))
+                  : 0;
+                return (
+                  <div key={type} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/80 font-medium flex items-center gap-1.5">
+                        <span>{info.icon}</span>
+                        <span>{info.label}</span>
+                      </span>
+                      <span className="text-white/60">
+                        <b className="text-white">{data.uniques}</b> uniques ({data.total} clics)
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400/70 to-amber-200 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.max(4, percentage)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </article>
+    );
+  }
+
   function renderStatsPage() {
     return (
       <>
         {renderStatsPanel()}
+        {renderLandingStatsPanel()}
         {renderAnalyticsPanel()}
       </>
     );

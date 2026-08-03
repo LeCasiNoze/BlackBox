@@ -101,6 +101,7 @@ const {
   unarchiveQuoteRequest,
 } = require("../db/quoteRequests");
 const { getAdminMonthlyStats, getAdminAnalytics } = require("../db/stats");
+const { getLandingStats } = require("../db/landingStats");
 const {
   attachPendingGoodieWinsToNextAppointment,
   countPendingGoodieWins,
@@ -1488,7 +1489,11 @@ router.get("/stats", (req, res) => {
     const year = Number(req.query.year) || now.getFullYear();
     const monthIndex =
       req.query.month !== undefined ? Number(req.query.month) : now.getMonth();
-    return res.json({ ok: true, stats: getAdminMonthlyStats(year, monthIndex) });
+    return res.json({
+      ok: true,
+      stats: getAdminMonthlyStats(year, monthIndex),
+      landingStats: getLandingStats(year, monthIndex),
+    });
   } catch (error) {
     console.error("[adminApi] GET /stats:", error);
     return res.status(500).json({ ok: false, error: "server_error" });

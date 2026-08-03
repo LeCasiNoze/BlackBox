@@ -34,6 +34,24 @@ const {
   updateClientTermsAcceptance,
 } = require("../db/clients");
 
+const { recordLandingEvent } = require("../db/landingStats");
+
+// ── Analytics Landing Page (visites & clics) ──────────────────────────────────
+router.post("/landing/track", (req, res) => {
+  try {
+    const { eventType, visitorId, referrer } = req.body || {};
+    const userAgent = req.headers["user-agent"] || null;
+    if (!eventType || !visitorId) {
+      return res.status(400).json({ ok: false, error: "invalid_payload" });
+    }
+    recordLandingEvent({ eventType, visitorId, userAgent, referrer });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[clientApi] POST /landing/track:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
 // Nombre maximum de fondateurs (places limitees).
 const FOUNDER_CAP = 50;
 const { REVIEW_BOX_GOODIES } = require("../config/reviewBox");

@@ -191,6 +191,41 @@ const VEHICLE_MODELS: VehicleModelItem[] = [
   },
 ];
 
+function getVisitorId(): string {
+  try {
+    let id = localStorage.getItem("bbx_visitor_id");
+    if (!id) {
+      id = "v_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now();
+      localStorage.setItem("bbx_visitor_id", id);
+    }
+    return id;
+  } catch (_e) {
+    return "v_anon_" + Date.now();
+  }
+}
+
+function trackLandingEvent(eventType: string) {
+  try {
+    const visitorId = getVisitorId();
+    const payload = JSON.stringify({
+      eventType,
+      visitorId,
+      referrer: document.referrer || null,
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/client/landing/track", new Blob([payload], { type: "application/json" }));
+    } else {
+      void fetch("/api/client/landing/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+    }
+  } catch (_e) {
+    // silencieux
+  }
+}
+
 export function LandingPage() {
   const [form, setForm] = React.useState<SignupForm>(initialForm);
   const [selectedPhotos, setSelectedPhotos] = React.useState<File[]>([]);
@@ -226,6 +261,10 @@ export function LandingPage() {
   const signupCardRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
+    trackLandingEvent("pageview");
+  }, []);
+
+  React.useEffect(() => {
     if (step === "code" || step === "ready") {
       signupCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -249,6 +288,7 @@ export function LandingPage() {
 
   async function handleFindPortal() {
     if (!lookupEmail.trim()) return;
+    trackLandingEvent("click_login");
     setLookupBusy(true);
     setLookupError(null);
     try {
@@ -267,6 +307,15 @@ export function LandingPage() {
       setLookupError("Erreur lors de la recherche. Réessayez.");
     } finally {
       setLookupBusy(false);
+    }
+  }
+
+  function scrollToSection(id: string) {
+    setMobileMenuOpen(false);
+    trackLandingEvent("click_" + id);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 
@@ -344,13 +393,7 @@ export function LandingPage() {
     }
   }
 
-  function scrollToSection(id: string) {
-    setMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }
+
 
   const activeReel = VIDEO_REELS[activeReelIndex];
 
@@ -776,10 +819,7 @@ export function LandingPage() {
                     <h3 className="text-xs font-bold text-white uppercase leading-snug">
                       {pair.title}
                     </h3>
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-bold text-[#e8c98a]">
-                      <span>AGRANDIR &amp; NAVIGUER</span>
-                      <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
-                    </div>
+
                   </div>
                 </div>
               ))}
