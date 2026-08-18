@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.43.0";
+export const APP_VERSION = "1.43.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,15 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.43.1",
+    date: "2026-08-18",
+    title: "Reservation pro simplifiee par vehicule libre",
+    changes: [
+      "Les comptes pro renseignent maintenant le vehicule en texte libre directement dans la reservation (par exemple « 8008 rouge »), sans selection ni creation dans un garage permanent.",
+      "La rubrique Vehicules est retiree du portail pro ; le libelle saisi reste visible dans l'admin, l'historique et les notifications du rendez-vous.",
+    ],
+  },
   {
     version: "1.43.0",
     date: "2026-08-03",

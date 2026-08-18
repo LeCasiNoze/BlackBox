@@ -128,6 +128,7 @@ function ensureAppointmentsExtraColumns() {
       "vehicle_id",
       "vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL"
     );
+    addColumnIfMissing("vehicle_text", "vehicle_text TEXT");
   } catch (error) {
     console.error("[DB] Erreur ensureAppointmentsExtraColumns:", error);
   }
@@ -741,6 +742,10 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
 ensureAppointmentsTimeColumn();
 ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
+// La migration historique vers les demi-journees reconstruit la table. Un
+// second passage garantit que les colonnes ajoutees depuis (dont vehicle_text)
+// existent aussi sur une base tres ancienne venant d'etre migree.
+ensureAppointmentsExtraColumns();
 ensureAppointmentPhotosExtraColumns();
 ensureClientsExtraColumns();
 ensureClientsTypeAllowsPro();

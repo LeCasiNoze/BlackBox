@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   vehicle_id  INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  vehicle_text TEXT,
 
   date        TEXT NOT NULL,
   slot        TEXT NOT NULL DEFAULT 'morning'
@@ -472,4 +473,3 @@ CREATE TABLE IF NOT EXISTS landing_events (
 CREATE INDEX IF NOT EXISTS idx_landing_events_type ON landing_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_landing_events_created ON landing_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_landing_events_visitor ON landing_events(visitor_id);
-

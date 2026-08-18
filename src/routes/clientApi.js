@@ -743,7 +743,12 @@ router.get("/:idOrSlug", (req, res) => {
 
   const monthParam = parseMonthParam(req.query.m);
   const month = buildMonthPayload(client, monthParam);
-  const vehicles = listVehiclesByClient(client.id).map(mapVehicleRow);
+  // Les comptes pro utilisent un libelle libre propre a chaque rendez-vous :
+  // leur ancien garage n'est plus expose dans le portail.
+  const vehicles =
+    (client.client_type || "bbx") === "pro"
+      ? []
+      : listVehiclesByClient(client.id).map(mapVehicleRow);
   const rewardRedemptions = listRewardRedemptionsByClient(client.id).map(mapRewardRow);
 
   const activeEventRow = getActiveEventForClient(client);
@@ -897,7 +902,10 @@ router.get("/:idOrSlug/vehicles", (req, res) => {
 
   return res.json({
     ok: true,
-    vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+    vehicles:
+      (client.client_type || "bbx") === "pro"
+        ? []
+        : listVehiclesByClient(client.id).map(mapVehicleRow),
   });
 });
 
@@ -1876,6 +1884,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   const { date, time, location, slot: rawSlot, clientNote } = req.body || {};
   const serviceLevel = req.body?.serviceLevel || req.body?.cleanlinessEstimate || "clean";
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
+  const isPro = (client.client_type || "bbx") === "pro";
+  const vehicleText =
+    typeof req.body?.vehicleText === "string" ? req.body.vehicleText.trim().slice(0, 120) : "";
   const normalizedClientNote =
     typeof clientNote === "string" && clientNote.trim() !== "" ? clientNote.trim() : null;
   const uploadedImages = Array.isArray(req.files) ? req.files : [];
@@ -1886,8 +1897,13 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   if (!isValidSlot(rawSlot)) {
     return res.status(400).json({ ok: false, error: "missing_or_invalid_slot" });
   }
+  if (isPro && !vehicleText) {
+    return res.status(400).json({ ok: false, error: "vehicle_text_required" });
+  }
 
-  const { vehicle, error: vehicleError } = getBookingVehicleForClient(client, vehicleId);
+  const { vehicle, error: vehicleError } = isPro
+    ? { vehicle: null, error: null }
+    : getBookingVehicleForClient(client, vehicleId);
   if (vehicleError) {
     return res.status(400).json({ ok: false, error: vehicleError });
   }
@@ -1925,6 +1941,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       const changed = updateAppointmentForClientSlot({
         clientId: client.id,
         vehicleId: vehicle?.id || null,
+        vehicleText: isPro ? vehicleText : null,
         dateStr: date,
         slot,
         time: normalizedTime,
@@ -1948,8 +1965,8 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
           type: "update",
           client: {
             ...client,
-            vehicle_model: vehicle?.model || client.vehicle_model,
-            vehicle_plate: vehicle?.plate || client.vehicle_plate,
+            vehicle_model: isPro ? vehicleText : vehicle?.model || client.vehicle_model,
+            vehicle_plate: isPro ? null : vehicle?.plate || client.vehicle_plate,
           },
           date,
           time: normalizedTime,
@@ -1969,12 +1986,12 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
   try {
     let appointmentId = null;
-    const isPro = (client.client_type || "bbx") === "pro";
 
     try {
       appointmentId = createRequestedAppointmentForSlot({
         clientId: client.id,
         vehicleId: vehicle?.id || null,
+        vehicleText: isPro ? vehicleText : null,
         dateStr: date,
         slot,
         time: normalizedTime,
@@ -2006,8 +2023,8 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         type: "book",
         client: {
           ...client,
-          vehicle_model: vehicle?.model || client.vehicle_model,
-          vehicle_plate: vehicle?.plate || client.vehicle_plate,
+          vehicle_model: isPro ? vehicleText : vehicle?.model || client.vehicle_model,
+          vehicle_plate: isPro ? null : vehicle?.plate || client.vehicle_plate,
         },
         date,
         time: normalizedTime,

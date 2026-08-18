@@ -1374,6 +1374,7 @@ export function ClientCardPage() {
     React.useState<AppointmentLocation | null>(null);
   const [serviceLevel, setServiceLevel] = React.useState<ServiceLevel>("clean");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
+  const [proVehicleText, setProVehicleText] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
   // Flow de reservation inline (etapes sous le calendrier) : cible du scroll.
   const bookingFlowRef = React.useRef<HTMLDivElement>(null);
@@ -2846,6 +2847,7 @@ export function ClientCardPage() {
     setSelectedDay(null);
     setSelectedSlot("morning");
     setClientBookingNote("");
+    setProVehicleText("");
     clearBookingImages();
   }
 
@@ -2855,6 +2857,7 @@ export function ClientCardPage() {
 
     syncDaySelection(day, slot);
     setClientBookingNote("");
+    setProVehicleText("");
     clearBookingImages();
   }
 
@@ -3657,7 +3660,12 @@ export function ClientCardPage() {
     skipTermsCheck = false,
   ) {
     if (!data) return;
-    if (vehicles.length > 0 && !activeVehicleId) {
+    const isPro = data.client.clientType === "pro";
+    if (isPro && !proVehicleText.trim()) {
+      showToast("Indiquez le vehicule concerne.");
+      return;
+    }
+    if (!isPro && vehicles.length > 0 && !activeVehicleId) {
       showToast("Selectionnez d'abord le véhicule concerne.");
       return;
     }
@@ -3676,7 +3684,9 @@ export function ClientCardPage() {
       formData.set("time", time);
       formData.set("location", appointmentLocation ?? "atelier");
       formData.set("serviceLevel", serviceLevel);
-      if (activeVehicleId) {
+      if (isPro) {
+        formData.set("vehicleText", proVehicleText.trim());
+      } else if (activeVehicleId) {
         formData.set("vehicleId", String(activeVehicleId));
       }
       if (clientBookingNote.trim()) {
@@ -3709,6 +3719,10 @@ export function ClientCardPage() {
           showToast("Seules les images sont acceptees.");
           return;
         }
+        if (json?.error === "vehicle_text_required") {
+          showToast("Indiquez le vehicule concerne.");
+          return;
+        }
         showToast("Impossible de réserver ce créneau.");
         return;
       }
@@ -3721,6 +3735,7 @@ export function ClientCardPage() {
           : "Demande de rendez-vous envoyee.",
       );
       setClientBookingNote("");
+      setProVehicleText("");
       clearBookingImages();
       setSelectedDay(null);
       setReloadToken((value) => value + 1);
@@ -4057,12 +4072,16 @@ export function ClientCardPage() {
   ];
 
   // L'accueil non-fondateur n'expose pas la boutique BC'Coins (reservee aux fondateurs).
-  const homeQuickCards = quickCards.filter((card) => card.view !== "shop");
+  const homeQuickCards = quickCards.filter(
+    (card) => card.view !== "shop" && !(clientData.clientType === "pro" && card.view === "vehicles"),
+  );
 
   // Pour les pros (dispenses de credits), la "Boutique" devient l'espace
   // Forfaits partenaire: generation de liens de paiement + suivi.
   // Pour les non-fondateurs standard, la "Boutique" devient une simple recharge de credits.
-  const navItems: NavItem[] = PORTAL_NAV_ITEMS.map((item) => {
+  const navItems: NavItem[] = PORTAL_NAV_ITEMS.filter(
+    (item) => clientData.clientType !== "pro" || item.view !== "vehicles",
+  ).map((item) => {
     if (item.view !== "shop") {
       return item;
     }
@@ -4961,7 +4980,7 @@ export function ClientCardPage() {
               <Sparkles className="h-3.5 w-3.5" />
               Acces pro
             </div>
-            {activeVehicle && (
+            {clientData.clientType !== "pro" && activeVehicle && (
               <div className="bb-pill border-white/10 bg-white/[0.04] text-white/65">
                 <CarFront className="h-3.5 w-3.5 text-accent" />
                 {vehicleTitle(activeVehicle)}
@@ -5607,7 +5626,9 @@ export function ClientCardPage() {
                           if (vehicles.length === 1) {
                             setActiveVehicleId(vehicles[0].id);
                           }
-                          setBookingStep(vehicles.length > 1 ? 2 : 3);
+                          setBookingStep(
+                            clientData.clientType !== "pro" && vehicles.length > 1 ? 2 : 3,
+                          );
                         }}
                         type="button"
                       >
@@ -5649,7 +5670,7 @@ export function ClientCardPage() {
                   )}
 
                   {/* Etape sautee s'il n'y a qu'un vehicule (selectionne d'office). */}
-                  {vehicles.length > 1 && (
+                  {clientData.clientType !== "pro" && vehicles.length > 1 && (
                     <div>
                       <p className="bb-eyebrow">Etape 2 · Vehicule</p>
                       {vehicles.length > 3 && (
@@ -5770,24 +5791,45 @@ export function ClientCardPage() {
                     </div>
                   )}
 
-                  <div>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                        Demande particuliere <span className="normal-case">(optionnel)</span>
-                      </p>
+                  {clientData.clientType === "pro" ? (
+                    <div>
+                      <label
+                        className="text-xs uppercase tracking-[0.16em] text-white/40"
+                        htmlFor="pro-booking-vehicle"
+                      >
+                        Vehicule
+                      </label>
+                      <textarea
+                        autoComplete="off"
+                        className="bb-textarea mt-3 min-h-[76px]"
+                        id="pro-booking-vehicle"
+                        maxLength={120}
+                        onChange={(event) => setProVehicleText(event.target.value)}
+                        placeholder="Ex. 8008 rouge"
+                        value={proVehicleText}
+                      />
                     </div>
-                    <textarea
-                      className="bb-textarea mt-3 min-h-[76px]"
-                      maxLength={300}
-                      onChange={(event) => setClientBookingNote(event.target.value)}
-                      placeholder="Acces, code portail, extra (ceramique, cuir, taches tenaces)..."
-                      value={clientBookingNote}
-                    />
-                  </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/40">
+                          Demande particuliere <span className="normal-case">(optionnel)</span>
+                        </p>
+                      </div>
+                      <textarea
+                        className="bb-textarea mt-3 min-h-[76px]"
+                        maxLength={300}
+                        onChange={(event) => setClientBookingNote(event.target.value)}
+                        placeholder="Acces, code portail, extra (ceramique, cuir, taches tenaces)..."
+                        value={clientBookingNote}
+                      />
+                    </div>
+                  )}
 
                   {bookingStep < 5 && (
                     <button
                       className="bb-button-brand w-full justify-center"
+                      disabled={clientData.clientType === "pro" && !proVehicleText.trim()}
                       onClick={() => setBookingStep(5)}
                       type="button"
                     >
@@ -5857,6 +5899,9 @@ export function ClientCardPage() {
                         {formatDateFR(selectedDay.date, { day: "numeric", month: "long" })} ·{" "}
                         {slotLabel(selectedSlot)} · {timeParts.hour} h {timeParts.minute}
                       </p>
+                      {clientData.clientType === "pro" && (
+                        <p className="mt-1 truncate text-xs text-white/55">{proVehicleText}</p>
+                      )}
                     </div>
                     <span className="bb-pill shrink-0 border-accent/35 bg-accent/12 text-accentSoft">
                       {clientData.clientType === "pro"
@@ -5879,8 +5924,9 @@ export function ClientCardPage() {
                         : "Envoyer la demande"}
                   </button>
                   <p className="text-center text-xs leading-5 text-white/45">
-                    Bryan confirme le tarif selon l&apos;etat du vehicule — tu valides toujours
-                    avant que le credit soit utilise.
+                    {clientData.clientType === "pro"
+                      ? "Le rendez-vous est confirme directement, sans gestion de garage ni de credits."
+                      : "Bryan confirme le tarif selon l'etat du vehicule — tu valides toujours avant que le credit soit utilise."}
                   </p>
                   </div>
                   )}
@@ -6993,9 +7039,11 @@ export function ClientCardPage() {
       <main className="bb-content relative z-10 space-y-5 md:space-y-6">
         {renderHeader()}
 
-        {requestedView === "home" && renderHomeView()}
+        {(requestedView === "home" ||
+          (clientData.clientType === "pro" && requestedView === "vehicles")) &&
+          renderHomeView()}
         {requestedView === "booking" && renderBookingView()}
-        {requestedView === "vehicles" && renderVehiclesView()}
+        {requestedView === "vehicles" && clientData.clientType !== "pro" && renderVehiclesView()}
         {requestedView === "shop" &&
           (clientData.clientType === "pro" ? renderForfaitsView() : renderShopView())}
         {requestedView === "history" && renderHistoryView()}

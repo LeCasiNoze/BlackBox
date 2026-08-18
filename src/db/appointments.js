@@ -119,9 +119,9 @@ function getAppointmentsForClient(clientId, options = {}) {
         a.*,
         c.full_name,
         c.card_code,
-        COALESCE(v.label, '') AS vehicle_label,
-        COALESCE(v.model, c.vehicle_model) AS vehicle_model,
-        COALESCE(v.plate, c.vehicle_plate) AS vehicle_plate
+        COALESCE(NULLIF(a.vehicle_text, ''), v.label, '') AS vehicle_label,
+        COALESCE(NULLIF(a.vehicle_text, ''), v.model, c.vehicle_model) AS vehicle_model,
+        CASE WHEN COALESCE(a.vehicle_text, '') != '' THEN NULL ELSE COALESCE(v.plate, c.vehicle_plate) END AS vehicle_plate
       FROM appointments a
       JOIN clients c ON c.id = a.client_id
       LEFT JOIN vehicles v ON v.id = a.vehicle_id
@@ -187,9 +187,9 @@ function getAppointmentById(id) {
           a.*,
           c.full_name,
           c.card_code,
-          COALESCE(v.label, '') AS vehicle_label,
-          COALESCE(v.model, c.vehicle_model) AS vehicle_model,
-          COALESCE(v.plate, c.vehicle_plate) AS vehicle_plate
+          COALESCE(NULLIF(a.vehicle_text, ''), v.label, '') AS vehicle_label,
+          COALESCE(NULLIF(a.vehicle_text, ''), v.model, c.vehicle_model) AS vehicle_model,
+          CASE WHEN COALESCE(a.vehicle_text, '') != '' THEN NULL ELSE COALESCE(v.plate, c.vehicle_plate) END AS vehicle_plate
         FROM appointments a
         JOIN clients c ON c.id = a.client_id
         LEFT JOIN vehicles v ON v.id = a.vehicle_id
@@ -204,6 +204,7 @@ function getAppointmentById(id) {
 function createRequestedAppointmentForSlot({
   clientId,
   vehicleId = null,
+  vehicleText = null,
   dateStr,
   slot,
   time,
@@ -228,6 +229,7 @@ function createRequestedAppointmentForSlot({
       INSERT INTO appointments (
         client_id,
         vehicle_id,
+        vehicle_text,
         date,
         slot,
         time,
@@ -243,12 +245,13 @@ function createRequestedAppointmentForSlot({
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
       clientId,
       vehicleId || null,
+      vehicleText || null,
       dateStr,
       normalizedSlot,
       normalizedTime,
@@ -288,6 +291,7 @@ function updateAppointmentForClientSlot({
   clientNote,
   location,
   vehicleId,
+  vehicleText,
   serviceLevel,
 }) {
   const now = nowUnix();
@@ -304,6 +308,7 @@ function updateAppointmentForClientSlot({
           client_note = COALESCE(?, client_note),
           location = COALESCE(?, location),
           vehicle_id = COALESCE(?, vehicle_id),
+          vehicle_text = COALESCE(?, vehicle_text),
           client_cleanliness_estimate = COALESCE(?, client_cleanliness_estimate),
           requested_credits = CASE
             WHEN ? IS NOT NULL THEN ?
@@ -321,6 +326,7 @@ function updateAppointmentForClientSlot({
       clientNote || null,
       normalizedLocation,
       vehicleId || null,
+      vehicleText || null,
       normalizedServiceLevel,
       normalizedServiceLevel,
       normalizedServiceLevel ? serviceLevelCredits(normalizedServiceLevel) : null,
@@ -673,9 +679,9 @@ function getAllAppointmentsWithClient(limit = 300) {
         a.*,
         c.full_name,
         c.card_code,
-        COALESCE(v.label, '') AS vehicle_label,
-        COALESCE(v.model, c.vehicle_model) AS vehicle_model,
-        COALESCE(v.plate, c.vehicle_plate) AS vehicle_plate
+        COALESCE(NULLIF(a.vehicle_text, ''), v.label, '') AS vehicle_label,
+        COALESCE(NULLIF(a.vehicle_text, ''), v.model, c.vehicle_model) AS vehicle_model,
+        CASE WHEN COALESCE(a.vehicle_text, '') != '' THEN NULL ELSE COALESCE(v.plate, c.vehicle_plate) END AS vehicle_plate
       FROM appointments a
       JOIN clients c ON c.id = a.client_id
       LEFT JOIN vehicles v ON v.id = a.vehicle_id
@@ -938,9 +944,9 @@ function getPublicAppointmentsFeed(limit = 18) {
       SELECT
         a.*,
         c.full_name,
-        COALESCE(v.label, '') AS vehicle_label,
-        COALESCE(v.model, c.vehicle_model) AS vehicle_model,
-        COALESCE(v.plate, c.vehicle_plate) AS vehicle_plate
+        COALESCE(NULLIF(a.vehicle_text, ''), v.label, '') AS vehicle_label,
+        COALESCE(NULLIF(a.vehicle_text, ''), v.model, c.vehicle_model) AS vehicle_model,
+        CASE WHEN COALESCE(a.vehicle_text, '') != '' THEN NULL ELSE COALESCE(v.plate, c.vehicle_plate) END AS vehicle_plate
       FROM appointments a
       JOIN clients c ON c.id = a.client_id
       LEFT JOIN vehicles v ON v.id = a.vehicle_id

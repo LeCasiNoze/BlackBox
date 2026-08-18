@@ -10,6 +10,11 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Réservation pro simplifiée (v1.43.1)** : les comptes pro saisissent un
+  libellé véhicule libre directement pendant la réservation (par exemple
+  « 8008 rouge »), sans sélection ni création dans un garage permanent. La
+  rubrique Véhicules disparaît de leur portail, tandis que le libellé reste
+  disponible dans l'admin, l'historique et les notifications du rendez-vous.
 - ✅ **Réservation : aucun lieu présélectionné (v1.41.3)** : à l'étape « Lieu
   souhaité », ni Atelier ni Domicile n'apparaît plus coché par défaut — le
   client doit cliquer explicitement. Avant, l'atelier semblait déjà choisi
