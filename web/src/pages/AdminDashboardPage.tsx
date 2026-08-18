@@ -772,10 +772,8 @@ export function AdminDashboardPage() {
   const boardTab: "agenda" | "livraison" = location.pathname.startsWith("/admin/delivery")
     ? "livraison"
     : "agenda";
-  // Sous-filtre de la Livraison: a faire (confirmes) / effectues / tous.
-  const [livraisonFilter, setLivraisonFilter] = React.useState<"all" | "confirmed" | "done">(
-    "all",
-  );
+  const [archiveTab, setArchiveTab] = React.useState<"quotes" | "deliveries">("quotes");
+  const [selectedArchivedQuoteId, setSelectedArchivedQuoteId] = React.useState<number | null>(null);
   // Liste complete par jour repliee par defaut (divulgation progressive) :
   // les demandes en attente + le panneau de traitement suffisent au quotidien.
   const [fullListOpen, setFullListOpen] = React.useState(false);
@@ -937,7 +935,7 @@ export function AdminDashboardPage() {
       try {
         if (isFirstLoad.current) setGlobalAppointmentsLoading(true);
 
-        const response = await fetch("/api/admin/appointments?limit=300");
+        const response = await fetch("/api/admin/appointments?limit=2000");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const json = (await response.json()) as ListAppointmentsResponse;
@@ -1774,6 +1772,11 @@ export function AdminDashboardPage() {
     }
   }
 
+  function focusArchivedDelivery(appointment: AdminAppointment) {
+    setSelectedAppointmentId(appointment.id);
+    startSelectingClient(() => setSelectedClientId(appointment.clientId));
+  }
+
   function focusClient(client: AdminClient) {
     const firstClientAppointment =
       sortAppointments(
@@ -2322,12 +2325,16 @@ export function AdminDashboardPage() {
         if (boardTab === "agenda") {
           return appointment.status === "requested";
         }
-        // Livraison: confirmes (a faire) et/ou effectues selon le sous-filtre.
-        if (livraisonFilter === "confirmed") return appointment.status === "confirmed";
-        if (livraisonFilter === "done") return appointment.status === "done";
-        return appointment.status === "confirmed" || appointment.status === "done";
+        // Une livraison effectuee quitte immediatement la liste active et se
+        // retrouve dans Archives > Livraisons.
+        return appointment.status === "confirmed";
       }),
-    [boardTab, livraisonFilter, sortedGlobalDesc],
+    [boardTab, sortedGlobalDesc],
+  );
+
+  const archivedDeliveries = React.useMemo(
+    () => sortedGlobalDesc.filter((appointment) => appointment.status === "done"),
+    [sortedGlobalDesc],
   );
 
   const upcomingAppointments = React.useMemo(
@@ -3316,126 +3323,299 @@ export function AdminDashboardPage() {
     );
   }
 
-  // Archives : page admin — consultation des éléments archivés (devis, etc.)
+  // Archives : devis archives + livraisons effectuees, consultes fiche par
+  // fiche avec la meme navigation precedent/suivant que le workflow Livraison.
   function renderArchivesPage() {
     const archivedQuotes = quotes.filter((quote) => quote.status === "archived");
+    const selectedQuote =
+      archivedQuotes.find((quote) => quote.id === selectedArchivedQuoteId) ??
+      archivedQuotes[0] ??
+      null;
+    const quoteIndex = selectedQuote
+      ? archivedQuotes.findIndex((quote) => quote.id === selectedQuote.id)
+      : -1;
+    const selectedDelivery =
+      archivedDeliveries.find((appointment) => appointment.id === selectedAppointmentId) ??
+      archivedDeliveries[0] ??
+      null;
+    const deliveryIndex = selectedDelivery
+      ? archivedDeliveries.findIndex((appointment) => appointment.id === selectedDelivery.id)
+      : -1;
+
     return (
       <section className="bb-surface p-5 md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="bb-eyebrow">Archives</p>
             <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
-              Éléments archivés
+              Historique des dossiers
             </h2>
             <p className="mt-2 text-sm text-white/55">
-              Consultez tous vos devis archivés. Vous pouvez les désarchiver à tout moment pour les remettre dans la liste principale.
+              Retrouvez les devis ranges et toutes les livraisons deja effectuees.
             </p>
           </div>
           <span className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
-            {archivedQuotes.length} devis archivé{archivedQuotes.length > 1 ? "s" : ""}
+            {archivedQuotes.length + archivedDeliveries.length} element
+            {archivedQuotes.length + archivedDeliveries.length > 1 ? "s" : ""}
           </span>
         </div>
 
-        {archivedQuotes.length === 0 ? (
+        <div className="mt-5 grid grid-cols-2 gap-2 rounded-[22px] border border-white/10 bg-black/20 p-1.5">
+          {([
+            { key: "quotes", label: "Devis", count: archivedQuotes.length, icon: FileText },
+            { key: "deliveries", label: "Livraisons", count: archivedDeliveries.length, icon: Truck },
+          ] as const).map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                className={cn(
+                  "flex min-h-[48px] items-center justify-center gap-2 rounded-[17px] px-3 text-sm font-semibold transition",
+                  archiveTab === tab.key
+                    ? "bg-accent/15 text-white shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.35)]"
+                    : "text-white/55 hover:bg-white/[0.04] hover:text-white/80",
+                )}
+                key={tab.key}
+                onClick={() => {
+                  setArchiveTab(tab.key);
+                  if (tab.key === "deliveries" && archivedDeliveries[0]) {
+                    focusArchivedDelivery(archivedDeliveries[0]);
+                  }
+                }}
+                type="button"
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+                <span className="bb-pill border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px]">
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {archiveTab === "quotes" ? (
+          !selectedQuote ? (
+            <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
+              <Archive className="h-6 w-6 text-white/35" />
+              <p className="text-sm text-white/55">Aucun devis archive pour le moment.</p>
+            </div>
+          ) : (
+            <article className="mt-5 rounded-[26px] border border-white/10 bg-white/[0.02] p-4 md:p-5">
+              <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
+                  Devis archive
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    aria-label="Devis precedent"
+                    className="bb-icon-btn h-9 w-9"
+                    disabled={quoteIndex <= 0}
+                    onClick={() => setSelectedArchivedQuoteId(archivedQuotes[quoteIndex - 1]?.id ?? null)}
+                    type="button"
+                  >
+                    <ArrowRight className="h-4 w-4 rotate-180" />
+                  </button>
+                  <span className="min-w-[58px] text-center text-xs font-semibold tabular-nums text-white/45">
+                    {quoteIndex + 1}/{archivedQuotes.length}
+                  </span>
+                  <button
+                    aria-label="Devis suivant"
+                    className="bb-icon-btn h-9 w-9"
+                    disabled={quoteIndex < 0 || quoteIndex >= archivedQuotes.length - 1}
+                    onClick={() => setSelectedArchivedQuoteId(archivedQuotes[quoteIndex + 1]?.id ?? null)}
+                    type="button"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-semibold text-white">
+                      {selectedQuote.client.fullName || "Client"}
+                    </h3>
+                    <span className="bb-pill border-white/15 bg-white/10 text-white/70">
+                      Archive
+                    </span>
+                    {selectedQuote.estimatedCredits && (
+                      <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                        {selectedQuote.estimatedCredits} cr.
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm text-white/50">
+                    {selectedQuote.client.vehicleModel || "Vehicule non renseigne"}
+                    {selectedQuote.client.phone ? ` · ${selectedQuote.client.phone}` : ""}
+                    {selectedQuote.client.email ? ` · ${selectedQuote.client.email}` : ""}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="bb-button-ghost px-3 py-2 text-xs"
+                    disabled={quoteBusyId === selectedQuote.id}
+                    onClick={() => void unarchiveQuote(selectedQuote.id)}
+                    type="button"
+                  >
+                    <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                    Desarchiver
+                  </button>
+                  <button
+                    className="inline-flex items-center rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200"
+                    disabled={quoteBusyId === selectedQuote.id}
+                    onClick={() => void deleteQuote(selectedQuote.id)}
+                    type="button"
+                  >
+                    <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+
+              {selectedQuote.description && (
+                <p className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/70">
+                  {selectedQuote.description}
+                </p>
+              )}
+              {selectedQuote.adminComment && (
+                <p className="mt-3 text-sm leading-6 text-white/55">{selectedQuote.adminComment}</p>
+              )}
+              {selectedQuote.photos.length > 0 && (
+                <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  {selectedQuote.photos.map((url, index) => (
+                    <button
+                      className="aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30"
+                      key={url}
+                      onClick={() =>
+                        openLightbox(
+                          selectedQuote.photos.map((photoUrl, photoIndex) => ({
+                            id: `quote-${selectedQuote.id}-${photoIndex}`,
+                            url: photoUrl,
+                            label: `Photo devis (${photoIndex + 1}/${selectedQuote.photos.length})`,
+                          })),
+                          url,
+                        )
+                      }
+                      type="button"
+                    >
+                      <img alt={`Photo devis ${index + 1}`} className="h-full w-full object-cover" src={url} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </article>
+          )
+        ) : !selectedDelivery ? (
           <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-10 text-center">
-            <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/40">
-              <Archive className="h-6 w-6" />
-            </span>
-            <p className="text-sm text-white/55">Aucun devis archivé pour le moment.</p>
+            <Truck className="h-6 w-6 text-white/35" />
+            <p className="text-sm text-white/55">Aucune livraison effectuee pour le moment.</p>
           </div>
         ) : (
-          <div className="mt-5 space-y-4">
-            {archivedQuotes.map((quote) => {
-              const busy = quoteBusyId === quote.id;
-              return (
-                <article
-                  key={quote.id}
-                  className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 opacity-90 transition hover:opacity-100"
+          <article className="mt-5 rounded-[26px] border border-emerald-300/15 bg-emerald-300/[0.03] p-4 md:p-5">
+            <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/70">
+                Livraison effectuee
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  aria-label="Livraison precedente"
+                  className="bb-icon-btn h-9 w-9"
+                  disabled={deliveryIndex <= 0}
+                  onClick={() => {
+                    const previous = archivedDeliveries[deliveryIndex - 1];
+                    if (previous) focusArchivedDelivery(previous);
+                  }}
+                  type="button"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold text-white">
-                          {quote.client.fullName || "Client"}
-                        </h3>
-                        <span className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
-                          {quote.client.isFounder
-                            ? "Fondateur"
-                            : (quote.client.clientType || "bbx").toUpperCase()}
-                        </span>
-                        <span className="bb-pill border-white/15 bg-white/10 text-white/70 flex items-center gap-1">
-                          <Archive className="h-3 w-3" />
-                          Archivé
-                        </span>
-                        {quote.estimatedCredits && (
-                          <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
-                            Estime {quote.estimatedCredits} cr.
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-white/45">
-                        {quote.client.vehicleModel || "Véhicule non renseigné"}
-                        {quote.client.phone ? ` · ${quote.client.phone}` : ""}
-                        {quote.client.email ? ` · ${quote.client.email}` : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-200 shadow-sm transition hover:border-amber-300/40 hover:bg-amber-300/20 hover:text-amber-100 active:scale-95 disabled:opacity-50"
-                        disabled={busy}
-                        onClick={() => void unarchiveQuote(quote.id)}
-                        type="button"
-                        title="Désarchiver et remettre en liste principale"
-                      >
-                        <ArchiveRestore className="h-3.5 w-3.5" />
-                        <span>Désarchiver</span>
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 shadow-sm transition hover:border-rose-400/40 hover:bg-rose-500/20 hover:text-rose-100 active:scale-95 disabled:opacity-50"
-                        disabled={busy}
-                        onClick={() => void deleteQuote(quote.id)}
-                        type="button"
-                        title="Supprimer définitivement ce devis"
-                      >
-                        <XCircle className="h-3.5 w-3.5" />
-                        <span>Supprimer</span>
-                      </button>
-                    </div>
-                  </div>
+                  <ArrowRight className="h-4 w-4 rotate-180" />
+                </button>
+                <span className="min-w-[58px] text-center text-xs font-semibold tabular-nums text-white/45">
+                  {deliveryIndex + 1}/{archivedDeliveries.length}
+                </span>
+                <button
+                  aria-label="Livraison suivante"
+                  className="bb-icon-btn h-9 w-9"
+                  disabled={deliveryIndex < 0 || deliveryIndex >= archivedDeliveries.length - 1}
+                  onClick={() => {
+                    const next = archivedDeliveries[deliveryIndex + 1];
+                    if (next) focusArchivedDelivery(next);
+                  }}
+                  type="button"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
 
-                  {quote.description && (
-                    <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/70">
-                      {quote.description}
-                    </p>
-                  )}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="bb-display text-2xl font-semibold text-white">
+                  {selectedDelivery.clientName || "Client"}
+                </h3>
+                <p className="mt-2 text-sm text-white/55">
+                  {formatDateFR(selectedDelivery.date)} · {slotLabel(appointmentSlot(selectedDelivery))} · {formatTimeHHMM(selectedDelivery.time)}
+                </p>
+              </div>
+              <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Effectuee
+              </span>
+            </div>
 
-                  {quote.photos.length > 0 && (
-                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                      {quote.photos.map((url, i) => (
-                        <button
-                          className="block aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30 hover:border-[#e8c98a] transition-all cursor-pointer"
-                          key={url}
-                          onClick={() =>
-                            openLightbox(
-                              quote.photos.map((imgUrl, idx) => ({
-                                id: `quote-${quote.id}-${idx}`,
-                                url: imgUrl,
-                                label: `Photo Devis ${quote.client?.fullName || "Client"} (${idx + 1}/${quote.photos.length})`,
-                              })),
-                              url,
-                            )
-                          }
-                          type="button"
-                        >
-                          <img alt={`Photo devis ${i + 1}`} className="h-full w-full object-cover hover:scale-105 transition-transform" src={url} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[20px] border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-white/35">Vehicule</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {selectedDelivery.vehicleModel || "Vehicule non renseigne"}
+                </p>
+              </div>
+              <div className="rounded-[20px] border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-white/35">Lieu</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {locationLabel(selectedDelivery.location)}
+                </p>
+              </div>
+            </div>
+
+            {selectedDelivery.adminNote && (
+              <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-white/35">Compte-rendu</p>
+                <p className="mt-2 text-sm leading-6 text-white/70">{selectedDelivery.adminNote}</p>
+              </div>
+            )}
+            {selectedDelivery.userRating && (
+              <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-white/35">Avis client</p>
+                <p className="mt-2 text-sm text-white/70">
+                  {selectedDelivery.userRating}/5{selectedDelivery.userReview ? ` · ${selectedDelivery.userReview}` : ""}
+                </p>
+              </div>
+            )}
+            {publicAppointmentPhotos.length > 0 && selectedAppointment?.id === selectedDelivery.id && (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {publicAppointmentPhotos.map((photo) => (
+                  <button
+                    className="overflow-hidden rounded-[18px] border border-white/10 bg-black/30"
+                    key={photo.id}
+                    onClick={() =>
+                      openLightbox(
+                        publicAppointmentPhotos.map((entry) => ({
+                          id: `archive-delivery-${entry.id}`,
+                          url: entry.url,
+                          label: entry.caption,
+                        })),
+                        photo.url,
+                      )
+                    }
+                    type="button"
+                  >
+                    <img alt={photo.caption || "Photo livraison"} className="h-28 w-full object-cover" src={photo.url} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
         )}
       </section>
     );
@@ -4599,31 +4779,6 @@ export function AdminDashboardPage() {
                   />
                 </div>
 
-                {boardTab === "livraison" && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(
-                      [
-                        { key: "all", label: "Tous" },
-                        { key: "confirmed", label: "A faire" },
-                        { key: "done", label: "Effectues" },
-                      ] as const
-                    ).map((option) => (
-                      <button
-                        className={cn(
-                          "rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition duration-200",
-                          livraisonFilter === option.key
-                            ? "border-accent/45 bg-accent/10 text-white"
-                            : "border-white/10 bg-white/[0.03] text-white/65 hover:bg-white/[0.05]",
-                        )}
-                        key={option.key}
-                        onClick={() => setLivraisonFilter(option.key)}
-                        type="button"
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className="mt-6 space-y-6">

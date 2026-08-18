@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.43.1";
+export const APP_VERSION = "1.44.0";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,16 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  {
+    version: "1.44.0",
+    date: "2026-08-18",
+    title: "Archives devis et livraisons effectuees",
+    changes: [
+      "La page Archives comporte maintenant deux sous-onglets distincts : Devis et Livraisons.",
+      "Les devis archives sont consultes fiche par fiche avec les fleches precedent/suivant du workflow Livraison.",
+      "Toute livraison marquee effectuee quitte immediatement la liste active et rejoint les archives ; les livraisons deja effectuees sont reprises automatiquement.",
+    ],
+  },
   {
     version: "1.43.1",
     date: "2026-08-18",

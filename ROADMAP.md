@@ -10,6 +10,11 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Archives devis + livraisons effectuées (v1.44.0)** : la page Archives
+  dispose de deux sous-onglets avec consultation fiche par fiche et navigation
+  précédent/suivant. Les rendez-vous marqués effectués quittent désormais la
+  Livraison active et rejoignent automatiquement les archives, y compris pour
+  tout l'historique déjà terminé.
 - ✅ **Réservation pro simplifiée (v1.43.1)** : les comptes pro saisissent un
   libellé véhicule libre directement pendant la réservation (par exemple
   « 8008 rouge »), sans sélection ni création dans un garage permanent. La

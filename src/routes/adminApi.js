@@ -569,7 +569,7 @@ router.delete("/clients/:id/vehicles/:vehicleId", (req, res) => {
 });
 
 router.get("/appointments", (req, res) => {
-  const limit = Math.max(1, Math.min(500, Number(req.query.limit || 300)));
+  const limit = Math.max(1, Math.min(5000, Number(req.query.limit || 300)));
 
   try {
     const appointments = getAllAppointmentsWithClient(limit).map(mapAppointmentRow);
