@@ -124,6 +124,7 @@ function createVehicleForClient(clientId, input = {}) {
     sanitizeString(input.label) ||
     [model, plate].filter(Boolean).join(" · ") ||
     "Vehicule";
+  const imageUrl = sanitizeString(input.imageUrl);
 
   const info = db
     .prepare(
@@ -133,13 +134,14 @@ function createVehicleForClient(clientId, input = {}) {
         label,
         model,
         plate,
+        image_url,
         is_primary,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, 0, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
     `
     )
-    .run(clientId, label, model, plate, now, now);
+    .run(clientId, label, model, plate, imageUrl, now, now);
 
   const created = getVehicleById(info.lastInsertRowid);
   const existingCount = listVehiclesByClient(clientId).length;
@@ -170,6 +172,8 @@ function updateVehicleForClient(clientId, vehicleId, input = {}) {
         existing.label ||
         "Vehicule"
       : existing.label || [nextModel, nextPlate].filter(Boolean).join(" · ") || "Vehicule";
+  const nextImageUrl =
+    input.imageUrl !== undefined ? sanitizeString(input.imageUrl) : existing.image_url;
 
   db.prepare(
     `
@@ -177,11 +181,12 @@ function updateVehicleForClient(clientId, vehicleId, input = {}) {
     SET label = ?,
         model = ?,
         plate = ?,
+        image_url = ?,
         updated_at = ?
     WHERE id = ?
       AND client_id = ?
   `
-  ).run(nextLabel, nextModel, nextPlate, nowUnix(), vehicleId, clientId);
+  ).run(nextLabel, nextModel, nextPlate, nextImageUrl, nowUnix(), vehicleId, clientId);
 
   if (input.isPrimary === true) {
     setPrimaryVehicle(clientId, vehicleId);

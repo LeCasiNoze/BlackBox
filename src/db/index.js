@@ -57,6 +57,19 @@ function ensureAppointmentsTimeColumn() {
   }
 }
 
+function ensureVehiclesExtraColumns() {
+  try {
+    const cols = getVehiclesColumns();
+    if (cols.length === 0) return;
+    if (!cols.some((column) => column.name === "image_url")) {
+      console.log("[DB] Ajout de la colonne vehicles.image_url");
+      db.exec(`ALTER TABLE vehicles ADD COLUMN image_url TEXT;`);
+    }
+  } catch (error) {
+    console.error("[DB] Erreur ensureVehiclesExtraColumns:", error);
+  }
+}
+
 function ensureAppointmentsExtraColumns() {
   try {
     const cols = getAppointmentsColumns();
@@ -755,6 +768,7 @@ ensureEventParticipationsExtraColumns();
 ensureEventsExtraColumns();
 ensurePushSubscriptionsSchema();
 ensureVehiclesFromClients();
+ensureVehiclesExtraColumns();
 ensureQuoteRequestsExtraColumns();
 ensureQuoteRequestsCheckConstraintRemoved();
 

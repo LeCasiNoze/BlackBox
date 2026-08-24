@@ -10,6 +10,7 @@ const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(DATA_DIR, 
 const APPOINTMENTS_UPLOAD_DIR = path.join(UPLOADS_DIR, "appointments");
 const QUOTES_UPLOAD_DIR = path.join(UPLOADS_DIR, "quotes");
 const FOUNDERS_UPLOAD_DIR = path.join(UPLOADS_DIR, "founders");
+const VEHICLES_UPLOAD_DIR = path.join(UPLOADS_DIR, "vehicles");
 const EXPORTS_DIR = path.join(DATA_DIR, "exports");
 
 function ensureDir(dirPath) {
@@ -26,6 +27,7 @@ module.exports = {
   APPOINTMENTS_UPLOAD_DIR,
   QUOTES_UPLOAD_DIR,
   FOUNDERS_UPLOAD_DIR,
+  VEHICLES_UPLOAD_DIR,
   EXPORTS_DIR,
   ensureDir,
 };

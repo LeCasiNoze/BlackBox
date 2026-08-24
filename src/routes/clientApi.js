@@ -4,7 +4,12 @@ const { optimizeUploadedImage } = require("../services/imageProcessing");
 const path = require("path");
 const router = express.Router();
 
-const { APPOINTMENTS_UPLOAD_DIR, QUOTES_UPLOAD_DIR, ensureDir } = require("../config/storage");
+const {
+  APPOINTMENTS_UPLOAD_DIR,
+  QUOTES_UPLOAD_DIR,
+  VEHICLES_UPLOAD_DIR,
+  ensureDir,
+} = require("../config/storage");
 const {
   createQuoteRequest,
   insertQuoteRequestPhoto,
@@ -151,6 +156,32 @@ const SLOT_END_TIMES = {
   afternoon: "18:00",
 };
 const MAX_BOOKING_IMAGES = 8;
+
+ensureDir(VEHICLES_UPLOAD_DIR);
+
+const clientVehicleUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, VEHICLES_UPLOAD_DIR),
+    filename: (_req, file, callback) => {
+      const ext = path.extname(file.originalname) || ".jpg";
+      callback(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext.toLowerCase()}`);
+    },
+  }),
+  limits: { files: 1, fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    callback(null, typeof file.mimetype === "string" && file.mimetype.startsWith("image/"));
+  },
+});
+
+function handleVehicleUpload(req, res, next) {
+  clientVehicleUpload.single("image")(req, res, (error) => {
+    if (!error) return next();
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ ok: false, error: "image_too_large" });
+    }
+    return res.status(400).json({ ok: false, error: "image_upload_failed" });
+  });
+}
 
 ensureDir(APPOINTMENTS_UPLOAD_DIR);
 
@@ -410,6 +441,7 @@ function mapVehicleRow(row) {
     label: row.label || null,
     model: row.model || null,
     plate: row.plate || null,
+    imageUrl: row.image_url || null,
     isPrimary: !!row.is_primary,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1062,7 +1094,7 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   }
 });
 
-// Acces fondateur: paiement SumUp unique (29,99 EUR, places limitees a 50).
+// Acces fondateur: paiement SumUp unique (49,99 EUR, places limitees a 50).
 // A la confirmation (webhook ou /topup/sync au retour), le compte bbx passe fondateur.
 router.post("/:idOrSlug/founder/checkout", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
@@ -1090,7 +1122,7 @@ router.post("/:idOrSlug/founder/checkout", async (req, res) => {
     applyMode: "add",
     credits: 0,
     durationDays: null,
-    priceCents: 2999,
+    priceCents: 4999,
     currency: "EUR",
   };
 
@@ -1459,6 +1491,35 @@ router.post("/:idOrSlug/vehicles/:vehicleId", (req, res) => {
   } catch (error) {
     console.error("[API] client update vehicle:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.post("/:idOrSlug/vehicles/:vehicleId/photo", handleVehicleUpload, async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) return;
+
+  const vehicleId = Number(req.params.vehicleId || 0);
+  const existing = getVehicleById(vehicleId);
+  if (!vehicleId || !existing || existing.client_id !== client.id) {
+    return res.status(404).json({ ok: false, error: "vehicle_not_found" });
+  }
+  if (!req.file) {
+    return res.status(400).json({ ok: false, error: "image_required" });
+  }
+
+  try {
+    const finalName = await optimizeUploadedImage(VEHICLES_UPLOAD_DIR, req.file.filename);
+    const vehicle = updateVehicleForClient(client.id, vehicleId, {
+      imageUrl: `/uploads/vehicles/${finalName}`,
+    });
+    return res.json({
+      ok: true,
+      vehicle: mapVehicleRow(vehicle),
+      vehicles: listVehiclesByClient(client.id).map(mapVehicleRow),
+    });
+  } catch (error) {
+    console.error("[API] client vehicle photo:", error);
+    return res.status(500).json({ ok: false, error: "image_processing_failed" });
   }
 });
 

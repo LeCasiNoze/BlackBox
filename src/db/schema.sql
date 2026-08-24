@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   label             TEXT,
   model             TEXT,
   plate             TEXT,
+  image_url         TEXT,
   is_primary        INTEGER NOT NULL DEFAULT 0
                     CHECK (is_primary IN (0, 1)),
   created_at        INTEGER NOT NULL,

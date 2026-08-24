@@ -267,6 +267,7 @@ select {
 
 @layer components {
   .bb-shell {
+    max-width: 100vw;
     @apply relative isolate overflow-hidden px-4 pb-16 pt-6 md:px-8 md:pt-8;
   }
 
@@ -728,6 +729,129 @@ select {
     animation: bb-founder-shimmer 5.8s ease-in-out infinite;
     pointer-events: none;
   }
+
+  /* Direction artistique du portail client : composants plus éditoriaux et
+     rôles visuels distincts, tout en restant compatibles avec les thèmes. */
+  .bc-page-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border: 1px solid rgb(var(--bb-accent-rgb) / 0.22);
+    background:
+      radial-gradient(circle at 88% 12%, rgb(var(--bb-accent-rgb) / 0.2), transparent 34%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.015) 52%),
+      var(--bb-glass-solid-2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 28px 80px -45px rgb(var(--bb-glow-rgb) / 0.8);
+    @apply rounded-[30px] p-5 md:p-7;
+  }
+
+  .bc-page-hero::after {
+    content: "";
+    position: absolute;
+    right: -48px;
+    bottom: -72px;
+    width: 180px;
+    height: 180px;
+    border: 1px solid rgb(var(--bb-accent-rgb) / 0.18);
+    border-radius: 999px;
+    box-shadow: 0 0 0 24px rgb(var(--bb-accent-rgb) / 0.035);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .bc-kicker {
+    @apply inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.24em] text-accentSoft;
+  }
+
+  .bc-panel {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.085);
+    background:
+      linear-gradient(155deg, rgba(255, 255, 255, 0.055), transparent 48%),
+      var(--bb-glass-solid);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 20px 60px -42px rgba(0, 0, 0, 0.95);
+    @apply rounded-[26px];
+  }
+
+  .bc-panel-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(180deg, transparent, var(--bb-accent), transparent);
+    opacity: 0.9;
+  }
+
+  .bc-segmented {
+    display: grid;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.22);
+    @apply rounded-[20px];
+  }
+
+  .bc-segment {
+    min-height: 46px;
+    @apply rounded-2xl px-3 text-xs font-bold text-white/50 transition duration-200;
+  }
+
+  .bc-segment-active {
+    color: var(--bb-accent-soft);
+    background: linear-gradient(135deg, rgb(var(--bb-accent-rgb) / 0.2), rgb(var(--bb-accent-rgb) / 0.08));
+    box-shadow: inset 0 0 0 1px rgb(var(--bb-accent-rgb) / 0.3), 0 8px 24px rgb(var(--bb-glow-rgb) / 0.12);
+  }
+
+  .bc-icon-tile {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgb(var(--bb-accent-rgb) / 0.28);
+    color: var(--bb-accent-soft);
+    background: linear-gradient(145deg, rgb(var(--bb-accent-rgb) / 0.18), rgb(var(--bb-accent-rgb) / 0.05));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    @apply rounded-2xl;
+  }
+
+  .bc-step-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgb(var(--bb-accent-rgb) / 0.18);
+    background:
+      radial-gradient(circle at 100% 0%, rgb(var(--bb-accent-rgb) / 0.11), transparent 34%),
+      var(--bb-glass-solid);
+    box-shadow: 0 32px 80px -50px rgb(var(--bb-glow-rgb) / 0.7);
+    @apply rounded-[30px] p-5 md:p-7;
+  }
+
+  .bc-nav-shell {
+    background: rgba(11, 9, 7, 0.94);
+    border: 1px solid rgb(var(--bb-accent-rgb) / 0.2);
+    box-shadow: 0 22px 65px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  .bc-nav-item-active {
+    position: relative;
+    color: var(--bb-accent-soft);
+    background: linear-gradient(180deg, rgb(var(--bb-accent-rgb) / 0.16), transparent);
+  }
+
+  .bc-nav-item-active::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    width: 22px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--bb-accent);
+    transform: translateX(-50%);
+    box-shadow: 0 0 14px rgb(var(--bb-glow-rgb) / 0.8);
+  }
 }
 
 @keyframes bb-float {
@@ -738,6 +862,14 @@ select {
   50% {
     transform: translate3d(0, -14px, 0);
   }
+}
+
+@keyframes bb-wave {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  68% { transform: rotate(14deg); }
+  76% { transform: rotate(-8deg); }
+  84% { transform: rotate(10deg); }
+  92% { transform: rotate(-4deg); }
 }
 
 @keyframes bb-spin-slow {

@@ -16,6 +16,7 @@ import {
   ExternalLink,
   FileText,
   Gift,
+  Heart,
   House,
   Link2,
   Loader2,
@@ -29,6 +30,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  UserRound,
   X,
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -175,6 +177,7 @@ type ClientVehicle = {
   label: string | null;
   model: string | null;
   plate: string | null;
+  imageUrl: string | null;
   isPrimary: boolean;
   createdAt: number;
   updatedAt: number;
@@ -296,8 +299,10 @@ type QuoteRequest = {
 };
 
 type ModalMode = "book" | "manage" | "past";
-type PortalView = "home" | "booking" | "vehicles" | "shop" | "history";
+type PortalView = "home" | "booking" | "vehicles" | "shop" | "account" | "history";
 type HistoryTab = "mine" | "community";
+type GarageTab = "vehicles" | "add";
+type AdvantagesTab = "available" | "mine";
 
 type ClientAppointment = {
   id: number;
@@ -335,15 +340,46 @@ type ClientAppointment = {
 
 type ServiceLevel = "clean" | "correct" | "dirty";
 
-const SERVICE_LEVEL_OPTIONS: Array<{
-  value: ServiceLevel;
+type ServiceCatalogItem = {
+  key: string;
   label: string;
-  credits: number;
   copy: string;
-}> = [
-  { value: "clean", label: "Propre", credits: 1, copy: "Entretien simple, véhicule déjà suivi." },
-  { value: "correct", label: "Correct", credits: 2, copy: "Traces visibles, nettoyage plus complet." },
-  { value: "dirty", label: "Sale", credits: 3, copy: "Remise a niveau plus exigeante." },
+  priceCents: number;
+  serviceLevel: ServiceLevel;
+};
+
+// Prototype local : les prix sont volontairement indicatifs. Le service choisi
+// continue d'alimenter l'ancien niveau de prestation en coulisses afin de garder
+// le payload et les automatismes d'administration compatibles.
+const SERVICE_CATALOG: ServiceCatalogItem[] = [
+  {
+    key: "interior",
+    label: "Nettoyage intérieur complet",
+    copy: "Aspiration, plastiques, vitres et finitions.",
+    priceCents: 7900,
+    serviceLevel: "clean",
+  },
+  {
+    key: "complete",
+    label: "Nettoyage intérieur & extérieur",
+    copy: "Une remise au propre complète du véhicule.",
+    priceCents: 12900,
+    serviceLevel: "correct",
+  },
+  {
+    key: "correction",
+    label: "Rénovation / correction",
+    copy: "Décontamination et correction esthétique poussée.",
+    priceCents: 24900,
+    serviceLevel: "dirty",
+  },
+  {
+    key: "ceramic",
+    label: "Protection céramique",
+    copy: "Préparation et protection longue durée.",
+    priceCents: 39900,
+    serviceLevel: "dirty",
+  },
 ];
 
 type ListClientAppointmentsResponse = {
@@ -431,6 +467,8 @@ type VehicleDraft = {
   label: string;
   model: string;
   plate: string;
+  imageFile: File | null;
+  imagePreviewUrl: string | null;
 };
 
 type NavItem = {
@@ -448,10 +486,10 @@ const SLOT_HOURS: Record<AppointmentSlot, number[]> = {
 
 const PORTAL_NAV_ITEMS: NavItem[] = [
   { view: "home", label: "Accueil", icon: House },
-  { view: "booking", label: "Agenda", icon: CalendarClock },
-  { view: "vehicles", label: "Vehicules", icon: CarFront },
-  { view: "shop", label: "Boutique", icon: Gift },
-  { view: "history", label: "Suivi", icon: Clock3 },
+  { view: "booking", label: "Rendez-vous", icon: CalendarClock },
+  { view: "vehicles", label: "Garage", icon: CarFront },
+  { view: "shop", label: "Avantages", icon: Heart },
+  { view: "account", label: "Compte", icon: UserRound },
 ];
 
 const GOOGLE_REVIEWS_FALLBACK = [
@@ -1034,6 +1072,7 @@ function normalizePortalView(value: string | null): PortalView {
   if (value === "booking") return "booking";
   if (value === "vehicles") return "vehicles";
   if (value === "shop") return "shop";
+  if (value === "account") return "account";
   if (value === "history") return "history";
   return "home";
 }
@@ -1373,6 +1412,10 @@ export function ClientCardPage() {
   const [appointmentLocation, setAppointmentLocation] =
     React.useState<AppointmentLocation | null>(null);
   const [serviceLevel, setServiceLevel] = React.useState<ServiceLevel>("clean");
+  const [selectedServiceKey, setSelectedServiceKey] = React.useState(SERVICE_CATALOG[0].key);
+  const [bookingWizardStep, setBookingWizardStep] = React.useState(1);
+  const [garageTab, setGarageTab] = React.useState<GarageTab>("vehicles");
+  const [advantagesTab, setAdvantagesTab] = React.useState<AdvantagesTab>("available");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
   const [proVehicleText, setProVehicleText] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
@@ -1444,6 +1487,8 @@ export function ClientCardPage() {
     label: "",
     model: "",
     plate: "",
+    imageFile: null,
+    imagePreviewUrl: null,
   });
   const [savingVehicle, setSavingVehicle] = React.useState(false);
   const [deletingVehicleId, setDeletingVehicleId] = React.useState<number | null>(null);
@@ -2926,7 +2971,13 @@ export function ClientCardPage() {
   function openVehicleCreate() {
     setVehicleModalMode("create");
     setVehicleEditingId(null);
-    setVehicleDraft({ label: "", model: "", plate: "" });
+    setVehicleDraft({
+      label: "",
+      model: "",
+      plate: "",
+      imageFile: null,
+      imagePreviewUrl: null,
+    });
     setVehicleModalOpen(true);
   }
 
@@ -2937,15 +2988,26 @@ export function ClientCardPage() {
       label: vehicle.label ?? "",
       model: vehicle.model ?? "",
       plate: vehicle.plate ?? "",
+      imageFile: null,
+      imagePreviewUrl: vehicle.imageUrl,
     });
     setVehicleModalOpen(true);
   }
 
   function closeVehicleModal() {
     if (savingVehicle) return;
+    if (vehicleDraft.imageFile && vehicleDraft.imagePreviewUrl) {
+      URL.revokeObjectURL(vehicleDraft.imagePreviewUrl);
+    }
     setVehicleModalOpen(false);
     setVehicleEditingId(null);
-    setVehicleDraft({ label: "", model: "", plate: "" });
+    setVehicleDraft({
+      label: "",
+      model: "",
+      plate: "",
+      imageFile: null,
+      imagePreviewUrl: null,
+    });
   }
 
   async function saveVehicle() {
@@ -2970,10 +3032,26 @@ export function ClientCardPage() {
         },
       );
 
-      const json = (await response.json()) as VehiclesResponse;
+      let json = (await response.json()) as VehiclesResponse;
       if (!response.ok || !json.ok || !json.vehicles) {
         showToast("Impossible d'enregistrer ce véhicule.");
         return;
+      }
+
+      const savedVehicleId = json.vehicle?.id ?? targetId;
+      if (vehicleDraft.imageFile && savedVehicleId) {
+        const photoData = new FormData();
+        photoData.set("image", vehicleDraft.imageFile);
+        const photoResponse = await fetch(
+          `/api/client/${encodeURIComponent(slug)}/vehicles/${savedVehicleId}/photo`,
+          { method: "POST", body: photoData },
+        );
+        const photoJson = (await photoResponse.json()) as VehiclesResponse;
+        if (!photoResponse.ok || !photoJson.ok || !photoJson.vehicles) {
+          showToast("Véhicule enregistré, mais la photo n'a pas pu être ajoutée.");
+        } else {
+          json = photoJson;
+        }
       }
 
       setData((current) =>
@@ -2993,6 +3071,7 @@ export function ClientCardPage() {
 
       setActiveVehicleId(focusVehicle);
       closeVehicleModal();
+      setGarageTab("vehicles");
       showToast(creating ? "Véhicule ajoute." : "Véhicule mis a jour.");
       setReloadToken((value) => value + 1);
     } catch (saveError) {
@@ -3738,6 +3817,7 @@ export function ClientCardPage() {
       setProVehicleText("");
       clearBookingImages();
       setSelectedDay(null);
+      setBookingWizardStep(1);
       setReloadToken((value) => value + 1);
     } catch (saveError) {
       showToast("Erreur reseau pendant la réservation.");
@@ -4054,9 +4134,9 @@ export function ClientCardPage() {
     },
     {
       view: "shop" as const,
-      title: "Boutique BC'Coins",
-      copy: `${clientData.bcPoints} point${clientData.bcPoints > 1 ? "s" : ""} disponibles`,
-      icon: Gift,
+      title: "Mes avantages",
+      copy: `${clientData.bcPoints} BC'Coin${clientData.bcPoints > 1 ? "s" : ""} disponibles`,
+      icon: Heart,
     },
     {
       view: "history" as const,
@@ -4071,14 +4151,12 @@ export function ClientCardPage() {
     },
   ];
 
-  // L'accueil non-fondateur n'expose pas la boutique BC'Coins (reservee aux fondateurs).
   const homeQuickCards = quickCards.filter(
-    (card) => card.view !== "shop" && !(clientData.clientType === "pro" && card.view === "vehicles"),
+    (card) => !(clientData.clientType === "pro" && card.view === "vehicles"),
   );
 
   // Pour les pros (dispenses de credits), la "Boutique" devient l'espace
   // Forfaits partenaire: generation de liens de paiement + suivi.
-  // Pour les non-fondateurs standard, la "Boutique" devient une simple recharge de credits.
   const navItems: NavItem[] = PORTAL_NAV_ITEMS.filter(
     (item) => clientData.clientType !== "pro" || item.view !== "vehicles",
   ).map((item) => {
@@ -4088,28 +4166,23 @@ export function ClientCardPage() {
     if (clientData.clientType === "pro") {
       return { ...item, label: "Forfaits", icon: Sparkles };
     }
-    if (!clientData.isFounder) {
-      return { ...item, label: "Credits", icon: CreditCard };
-    }
     return item;
   });
 
   function renderHeader() {
     return (
       <>
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <img
-              alt="Bryan Cars"
-              className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10"
-              src="/app-icon-192.png"
-            />
+        <header className="bc-panel flex items-center justify-between gap-3 px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-accent/25 bg-black/30 shadow-[0_0_24px_rgb(var(--bb-glow-rgb)/0.12)]">
+              <img alt="Bryan Cars" className="h-9 w-9 rounded-xl object-cover" src="/app-icon-192.png" />
+            </span>
             <div className="leading-none">
-              <p className="bb-display text-sm font-bold text-white">Bryan Cars</p>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/40">Mon espace</p>
+              <p className="bb-display whitespace-nowrap text-[15px] font-black text-white">Bryan Cars</p>
+              <p className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.24em] text-accentSoft/70">Espace detailing</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {clientPushSupported() && !pushEffectivelyActive && (
               <button
                 aria-label="Activer les notifications"
@@ -4139,7 +4212,7 @@ export function ClientCardPage() {
           </div>
         </header>
 
-        <nav className={cn("bb-tabbar hidden gap-2 rounded-[28px] p-2 backdrop-blur-xl md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <nav className={cn("bc-nav-shell hidden gap-2 rounded-[24px] p-1.5 md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -4147,7 +4220,7 @@ export function ClientCardPage() {
               <Link
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-[22px] px-4 py-3 text-sm font-semibold transition duration-200",
-                  active ? "bb-tab-active" : "text-white/68 hover:bg-white/[0.05]",
+                  active ? "bc-nav-item-active" : "text-white/58 hover:bg-white/[0.05]",
                 )}
                 key={item.view}
                 to={portalHref(item.view)}
@@ -4165,7 +4238,7 @@ export function ClientCardPage() {
   function renderAppointmentCard(appointment: ClientAppointment) {
     return (
       <button
-        className="bb-surface bb-hover-lift w-full p-4 text-left md:p-5"
+        className="bc-panel bc-panel-accent bb-hover-lift w-full p-4 text-left md:p-5"
         key={appointment.id}
         onClick={() => {
           void openAppointmentModal(appointment);
@@ -4441,7 +4514,7 @@ export function ClientCardPage() {
       {
         q: "C'est quoi le statut Fondateur ?",
         a:
-          "Acces a vie pour 29,99 € (places limitees a 50). Avantages :\n" +
+          "Acces a vie pour 49,99 € (places limitees a 50). Avantages :\n" +
           "• BC'Coins sur tes achats et passages, echangeables en boutique fidelite\n" +
           "• Box surprises et box de consolation lors des evenements\n" +
           "• Carte premium personnalisee\n" +
@@ -4914,7 +4987,7 @@ export function ClientCardPage() {
     if (!appt) {
       return (
         <button
-          className="bb-surface bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
+          className="bc-panel bc-panel-accent bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
           onClick={() => navigateView("booking")}
           type="button"
         >
@@ -4935,7 +5008,7 @@ export function ClientCardPage() {
     }
     return (
       <button
-        className="bb-surface bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
+        className="bc-panel bc-panel-accent bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
         onClick={() => {
           void openAppointmentModal(appt);
         }}
@@ -5066,7 +5139,7 @@ export function ClientCardPage() {
     );
   }
 
-  function renderHomeView() {
+  function renderLegacyHomeView() {
     if (clientData.isFounder) {
       return (
         <section className="space-y-4">
@@ -5311,17 +5384,143 @@ export function ClientCardPage() {
     );
   }
 
-  function renderBookingView() {
+  function renderHomeView() {
+    if (query.get("legacyHome") === "1") return renderLegacyHomeView();
+
+    const firstName = clientData.firstName || clientData.fullName || "client";
+    const statusLabel = clientData.isFounder
+      ? "Fondateur"
+      : clientData.clientType === "pro"
+        ? "Professionnel"
+        : "Membre";
+    const quickActions: Array<{
+      label: string;
+      view: PortalView;
+      icon: React.ComponentType<{ className?: string }>;
+    }> = [
+      { label: "Prendre RDV", view: "booking", icon: CalendarClock },
+      { label: "Mes véhicules", view: "vehicles", icon: CarFront },
+      { label: "Mes avantages", view: "shop", icon: Gift },
+      { label: "Mon compte", view: "account", icon: UserRound },
+    ];
+
+    return (
+      <section className="mx-auto max-w-3xl space-y-7 pb-4">
+        {renderPhotosRequestBanner()}
+        {renderPriceValidationBanner()}
+        {renderNotifBanner()}
+
+        <header className="bc-page-hero bb-rise">
+          <div className="absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-full border border-accent/20 bg-black/20 text-lg font-black text-accent/70">
+            BC
+          </div>
+          <div className="bb-pill w-fit border-accent/35 bg-accent/10 text-accentSoft">
+            {clientData.isFounder ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {statusLabel}
+          </div>
+          <h1 className="bb-display mt-5 max-w-[82%] text-[2.65rem] font-black leading-[0.98] text-white">
+            Bonjour <span className="bb-text-gold">{firstName}</span><span className="ml-2 inline-block origin-bottom animate-[bb-wave_2.4s_ease-in-out_infinite]" aria-hidden="true">👋</span>
+          </h1>
+          <p className="mt-3 max-w-xl text-base leading-7 text-white/58">
+            {clientData.isFounder
+              ? "Merci d'être parmi les premiers. Votre soutien fait grandir Bryan Cars."
+              : "Bienvenue dans votre espace detailing Bryan Cars."}
+          </p>
+        </header>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            className="bc-panel bc-panel-accent min-h-40 p-5 text-left transition hover:border-accent/35"
+            onClick={() => navigateView("shop")}
+            type="button"
+          >
+            <div className="flex items-center justify-between"><p className="bb-eyebrow">BC&apos;Coins</p><Gift className="h-5 w-5 text-accent/70" /></div>
+            <p className="bb-display mt-4 text-4xl font-black text-white">
+              {clientData.bcPoints.toLocaleString("fr-FR")}
+            </p>
+            <p className="mt-4 flex items-center gap-1 text-sm font-bold text-accentSoft">
+              Voir mes récompenses <ArrowRight className="h-4 w-4" />
+            </p>
+          </button>
+          <article className="bc-panel min-h-40 p-5">
+            <div className="flex items-center justify-between"><p className="bb-eyebrow">Statut</p><Crown className="h-5 w-5 text-accent/70" /></div>
+            <p className="bb-display mt-4 flex items-center gap-2 text-2xl font-black text-accentSoft">
+              {clientData.isFounder && <Crown className="h-6 w-6" />}
+              {statusLabel}
+            </p>
+            <p className="mt-4 text-sm leading-6 text-white/55">
+              {clientData.clientType === "pro"
+                ? "Compte partenaire Bryan Cars"
+                : `${clientData.formulaRemaining} prestation${Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""} disponible${Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}`}
+            </p>
+          </article>
+        </div>
+
+        <section>
+          <p className="bb-eyebrow mb-3">Prochain rendez-vous</p>
+          {renderNextAppointmentCard()}
+          <button
+            className="bb-button-ghost mt-3 w-full justify-between py-4"
+            onClick={() => navigateView("history")}
+            type="button"
+          >
+            Voir tous mes rendez-vous <ArrowRight className="h-5 w-5" />
+          </button>
+        </section>
+
+        <section>
+          <p className="bb-eyebrow mb-3">Accès rapides</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {quickActions
+              .filter((action) => clientData.clientType !== "pro" || action.view !== "vehicles")
+              .map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    className="bc-panel group flex min-h-28 flex-col items-center justify-center gap-3 p-3 text-center transition hover:-translate-y-0.5 hover:border-accent/35 hover:bg-accent/[0.05]"
+                    key={action.view}
+                    onClick={() => navigateView(action.view)}
+                    type="button"
+                  >
+                    <span className="bc-icon-tile transition group-hover:scale-105"><Icon className="h-5 w-5" /></span>
+                    <span className="text-xs font-bold leading-5 text-white">{action.label}</span>
+                  </button>
+                );
+              })}
+          </div>
+        </section>
+      </section>
+    );
+  }
+
+  function renderLegacyBookingView() {
     // Heures d'arrivee proposees dans la fenetre de la demi-journee choisie
     // (memes combinaisons hour x minute que l'ancien selecteur : payload inchange).
     const timeOptions = availableHours.flatMap((hour) =>
-      MINUTES.map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
+      MINUTES.filter(
+        (minute) => !(hour === availableHours[availableHours.length - 1] && minute === "30"),
+      ).map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
     );
     const timeIndex = Math.max(0, timeOptions.indexOf(selectedTime));
-    const estimatedCredits =
-      SERVICE_LEVEL_OPTIONS.find((option) => option.value === serviceLevel)?.credits ?? 1;
+    const selectedService =
+      SERVICE_CATALOG.find((service) => service.key === selectedServiceKey) ?? SERVICE_CATALOG[0];
     return (
       <section className="space-y-4">
+        <div className="grid grid-cols-2 border-b border-white/10">
+          <button
+            className="border-b-2 border-accent bg-accent/[0.07] px-4 py-3 text-sm font-bold text-accentSoft"
+            type="button"
+          >
+            Prendre RDV
+          </button>
+          <button
+            className="border-b-2 border-transparent px-4 py-3 text-sm font-bold text-white/55 transition hover:text-white"
+            onClick={() => navigateView("history")}
+            type="button"
+          >
+            Mes rendez-vous
+          </button>
+        </div>
         {/* En-tete leger : titre de page + contexte, sans carte de verre. */}
         <div className="bb-rise">
           <h1 className="bb-display text-3xl font-extrabold leading-tight text-white md:text-4xl">
@@ -5332,12 +5531,10 @@ export function ClientCardPage() {
             mesure.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {clientData.clientType !== "pro" && (
-              <div className="bb-pill border-accent/30 bg-accent/10 text-white">
-                {clientData.formulaRemaining} credit
-                {Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}
-              </div>
-            )}
+            <div className="bb-pill border-accent/30 bg-accent/10 text-white">
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+              Prestations à prix fixe
+            </div>
             {activeVehicle && (
               <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
                 <CarFront className="h-3.5 w-3.5 text-accent" />
@@ -5763,30 +5960,37 @@ export function ClientCardPage() {
                   <div className="bb-rise space-y-4">
                   {clientData.clientType !== "pro" && (
                     <div>
-                      <p className="bb-eyebrow">Etape 4 · Etat estime du vehicule</p>
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        {SERVICE_LEVEL_OPTIONS.map((option) => (
+                      <p className="bb-eyebrow">Etape 4 · Prestation</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {SERVICE_CATALOG.map((service) => (
                           <button
                             className={cn(
-                              "flex flex-col items-center gap-1 rounded-[18px] border px-2 py-3 text-center transition duration-200",
-                              serviceLevel === option.value
+                              "rounded-[18px] border px-4 py-3 text-left transition duration-200",
+                              selectedServiceKey === service.key
                                 ? "border-accent/60 bg-accent/15 shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.4)]"
                                 : "border-white/10 bg-black/20 hover:bg-white/[0.04]",
                             )}
-                            key={option.value}
-                            onClick={() => setServiceLevel(option.value)}
+                            key={service.key}
+                            onClick={() => {
+                              setSelectedServiceKey(service.key);
+                              setServiceLevel(service.serviceLevel);
+                            }}
                             type="button"
                           >
-                            <span className="text-sm font-bold text-white">{option.label}</span>
-                            <span className="text-[10px] font-semibold text-accentSoft">
-                              {option.credits} credit{option.credits > 1 ? "s" : ""}
+                            <span className="flex items-start justify-between gap-3">
+                              <span className="text-sm font-bold text-white">{service.label}</span>
+                              <span className="shrink-0 text-sm font-extrabold text-accentSoft">
+                                {formatMoneyCents(service.priceCents)}
+                              </span>
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-white/50">
+                              {service.copy}
                             </span>
                           </button>
                         ))}
                       </div>
                       <p className="mt-2 text-xs leading-5 text-white/45">
-                        Ton estimation aide Bryan a chiffrer — aucun credit n&apos;est debite tant
-                        que le tarif n&apos;est pas confirme par tes soins.
+                        Tarifs indicatifs de démonstration pour valider la nouvelle présentation.
                       </p>
                     </div>
                   )}
@@ -5905,8 +6109,8 @@ export function ClientCardPage() {
                     </div>
                     <span className="bb-pill shrink-0 border-accent/35 bg-accent/12 text-accentSoft">
                       {clientData.clientType === "pro"
-                        ? "Sans credits"
-                        : `~${estimatedCredits} credit${estimatedCredits > 1 ? "s" : ""}`}
+                        ? "Tarif partenaire"
+                        : formatMoneyCents(selectedService.priceCents)}
                     </span>
                   </div>
                   <button
@@ -5925,8 +6129,8 @@ export function ClientCardPage() {
                   </button>
                   <p className="text-center text-xs leading-5 text-white/45">
                     {clientData.clientType === "pro"
-                      ? "Le rendez-vous est confirme directement, sans gestion de garage ni de credits."
-                      : "Bryan confirme le tarif selon l'etat du vehicule — tu valides toujours avant que le credit soit utilise."}
+                      ? "Le rendez-vous est confirme directement, sans gestion de garage."
+                      : `Prestation choisie : ${selectedService.label}. Le prix affiché est provisoire pour cette maquette locale.`}
                   </p>
                   </div>
                   )}
@@ -5940,7 +6144,237 @@ export function ClientCardPage() {
     );
   }
 
-  function renderVehiclesView() {
+  function renderBookingView() {
+    if (query.get("legacyBooking") === "1") return renderLegacyBookingView();
+
+    const selectedService =
+      SERVICE_CATALOG.find((service) => service.key === selectedServiceKey) ?? SERVICE_CATALOG[0];
+    const timeOptions = availableHours.flatMap((hour) =>
+      MINUTES.filter(
+        (minute) => !(hour === availableHours[availableHours.length - 1] && minute === "30"),
+      ).map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
+    );
+    const stepLabels = ["Agenda", "Heure", "Véhicule", "Prestation", "Lieu", "Détails", "Photos", "Récap"];
+    const canGoBack = bookingWizardStep > 1;
+
+    function previousBookingStep() {
+      if (bookingWizardStep === 2) {
+        setSelectedDay(null);
+        setBookingWizardStep(1);
+        return;
+      }
+      setBookingWizardStep((step) => Math.max(1, step - 1));
+    }
+
+    function selectWizardSlot(day: ApiDay, slot: AppointmentSlot) {
+      const slotInfo = day.slots[slot];
+      if (slotInfo.status !== "free" || slotIsPast(day.date, slot)) {
+        void openDayModal(day, slot);
+        return;
+      }
+      syncDaySelection(day, slot);
+      setSelectedTime(defaultTimeForSlot(slot));
+      setBookingWizardStep(2);
+    }
+
+    return (
+      <section className="mx-auto max-w-3xl space-y-4 pb-4">
+        <div className="bc-segmented grid-cols-2">
+          <button className="bc-segment bc-segment-active" type="button">
+            Prendre RDV
+          </button>
+          <button className="bc-segment" onClick={() => navigateView("history")} type="button">
+            Mes rendez-vous
+          </button>
+        </div>
+
+        <header className="bc-panel flex items-center gap-3 p-3">
+          {canGoBack && (
+            <button aria-label="Étape précédente" className="bb-icon-btn h-11 w-11 shrink-0" onClick={previousBookingStep} type="button">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <p className="bb-eyebrow">Étape {bookingWizardStep} sur 8</p>
+              <p className="text-xs font-bold text-accentSoft">{stepLabels[bookingWizardStep - 1]}</p>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all duration-300" style={{ width: `${(bookingWizardStep / 8) * 100}%` }} />
+            </div>
+          </div>
+        </header>
+
+        {bookingWizardStep === 1 && (
+          <article className="bc-step-card">
+            <h1 className="bb-display text-3xl font-black text-white">Choisissez une date</h1>
+            <p className="mt-2 text-sm leading-6 text-white/55">Sélectionnez le jour puis la demi-journée qui vous convient.</p>
+            {focusedDay && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between gap-3">
+                  <button aria-label="Jour précédent" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(-1)} type="button"><ArrowLeft className="h-5 w-5" /></button>
+                  <div className="text-center">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-accentSoft">{weekdayShort(focusedDay.date)}</p>
+                    <p className="bb-display mt-1 text-2xl font-black text-white">{formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}</p>
+                  </div>
+                  <button aria-label="Jour suivant" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(1)} type="button"><ArrowRight className="h-5 w-5" /></button>
+                </div>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  {SLOT_ORDER.map((slot) => {
+                    const info = focusedDay.slots[slot];
+                    return (
+                      <button
+                        className={cn("rounded-[24px] border p-5 text-left transition active:scale-[0.99]", dayStatusClasses(info.status))}
+                        key={slot}
+                        onClick={() => selectWizardSlot(focusedDay, slot)}
+                        type="button"
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="text-base font-black">{slotLabel(slot)}</span>
+                          <CalendarClock className="h-5 w-5" />
+                        </span>
+                        <span className="mt-2 block text-sm opacity-70">{slotWindowLabel(slot)}</span>
+                        <span className="mt-4 block text-xs font-bold uppercase tracking-[0.14em]">{slotNavigatorStatusLabel(info.status)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </article>
+        )}
+
+        {bookingWizardStep === 2 && selectedDay && (
+          <article className="bc-step-card">
+            <p className="bb-eyebrow">{formatDateFR(selectedDay.date)} · {slotLabel(selectedSlot)}</p>
+            <h1 className="bb-display mt-2 text-3xl font-black text-white">Précisez votre heure</h1>
+            <p className="mt-2 text-sm text-white/55">Choisissez votre heure d&apos;arrivée.</p>
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {timeOptions.map((time) => (
+                <button
+                  className={cn("rounded-[20px] border px-4 py-4 text-center text-base font-black transition", selectedTime === time ? "border-accent/60 bg-accent/15 text-accentSoft" : "border-white/10 bg-white/[0.03] text-white")}
+                  key={time}
+                  onClick={() => setSelectedTime(time)}
+                  type="button"
+                >
+                  {formatTimeHHMM(time)}
+                </button>
+              ))}
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(3)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+          </article>
+        )}
+
+        {bookingWizardStep === 3 && (
+          <article className="bc-step-card">
+            <h1 className="bb-display text-3xl font-black text-white">Quel véhicule ?</h1>
+            <p className="mt-2 text-sm text-white/55">Choisissez le véhicule concerné avant la prestation.</p>
+            {clientData.clientType === "pro" ? (
+              <textarea className="bb-textarea mt-6 min-h-28" maxLength={120} onChange={(event) => setProVehicleText(event.target.value)} placeholder="Ex. 8008 rouge" value={proVehicleText} />
+            ) : vehicles.length === 0 ? (
+              <div className="mt-6 rounded-[24px] border border-dashed border-accent/30 bg-accent/[0.06] p-6 text-center">
+                <CarFront className="mx-auto h-12 w-12 text-accent" />
+                <p className="mt-4 font-bold text-white">Aucun véhicule renseigné</p>
+                <button className="bb-button-brand mt-4 justify-center" onClick={() => { setGarageTab("add"); navigateView("vehicles"); }} type="button"><Plus className="mr-2 h-4 w-4" /> Ajouter mon véhicule</button>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-3">
+                {vehicles.map((vehicle) => (
+                  <button
+                    className={cn("flex items-center gap-4 rounded-[22px] border p-3 text-left transition", activeVehicleId === vehicle.id ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")}
+                    key={vehicle.id}
+                    onClick={() => setActiveVehicleId(vehicle.id)}
+                    type="button"
+                  >
+                    <span className="grid h-16 w-24 shrink-0 place-items-center overflow-hidden rounded-[16px] bg-black/25 text-accent">
+                      {vehicle.imageUrl ? <img alt="" className="h-full w-full object-cover" src={vehicle.imageUrl} /> : <CarFront className="h-8 w-8" />}
+                    </span>
+                    <span className="min-w-0 flex-1"><span className="block truncate font-black text-white">{vehicle.model || vehicle.label || "Véhicule"}</span><span className="mt-1 block text-sm text-white/50">{vehicle.plate || "Plaque non renseignée"}</span></span>
+                    {activeVehicleId === vehicle.id && <CheckCircle2 className="h-5 w-5 text-accent" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={clientData.clientType === "pro" ? !proVehicleText.trim() : !activeVehicleId} onClick={() => setBookingWizardStep(4)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+          </article>
+        )}
+
+        {bookingWizardStep === 4 && (
+          <article className="bc-step-card">
+            <h1 className="bb-display text-3xl font-black text-white">Choisissez la prestation</h1>
+            <p className="mt-2 text-sm text-white/55">Des tarifs clairs, sans système de crédits visible.</p>
+            <div className="mt-6 grid gap-3">
+              {SERVICE_CATALOG.map((service) => (
+                <button className={cn("rounded-[22px] border p-4 text-left transition", selectedServiceKey === service.key ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={service.key} onClick={() => { setSelectedServiceKey(service.key); setServiceLevel(service.serviceLevel); }} type="button">
+                  <span className="flex items-start justify-between gap-3"><span className="font-black text-white">{service.label}</span><span className="shrink-0 font-black text-accentSoft">{formatMoneyCents(service.priceCents)}</span></span>
+                  <span className="mt-2 block text-sm leading-6 text-white/50">{service.copy}</span>
+                </button>
+              ))}
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(5)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+          </article>
+        )}
+
+        {bookingWizardStep === 5 && (
+          <article className="bc-step-card">
+            <h1 className="bb-display text-3xl font-black text-white">Où souhaitez-vous le rendez-vous ?</h1>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[
+                { value: "atelier" as const, label: "À l'atelier", copy: "Déposez le véhicule au centre detailing." },
+                { value: "domicile" as const, label: "À domicile", copy: "Intervention sur site selon le planning." },
+              ].map((option) => (
+                <button className={cn("rounded-[22px] border p-5 text-left transition", appointmentLocation === option.value ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={option.value} onClick={() => setAppointmentLocation(option.value)} type="button">
+                  <MapPin className="h-6 w-6 text-accent" /><span className="mt-4 block font-black text-white">{option.label}</span><span className="mt-2 block text-sm leading-6 text-white/50">{option.copy}</span>
+                </button>
+              ))}
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={!appointmentLocation} onClick={() => setBookingWizardStep(6)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+          </article>
+        )}
+
+        {bookingWizardStep === 6 && (
+          <article className="bc-step-card">
+            <h1 className="bb-display text-3xl font-black text-white">Une précision à ajouter ?</h1>
+            <p className="mt-2 text-sm text-white/55">Cette étape est optionnelle.</p>
+            <textarea className="bb-textarea mt-6 min-h-32" maxLength={300} onChange={(event) => setClientBookingNote(event.target.value)} placeholder="Accès, code portail, taches particulières..." value={clientBookingNote} />
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(7)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+          </article>
+        )}
+
+        {bookingWizardStep === 7 && (
+          <article className="bc-step-card">
+            <h1 className="bb-display text-3xl font-black text-white">Ajouter des photos</h1>
+            <p className="mt-2 text-sm text-white/55">Optionnel, jusqu&apos;à 8 images pour préparer la prestation.</p>
+            <button className="mt-6 flex min-h-36 w-full flex-col items-center justify-center rounded-[24px] border border-dashed border-accent/35 bg-accent/[0.05] text-accentSoft" onClick={() => bookingImageInputRef.current?.click()} type="button"><Camera className="h-9 w-9" /><span className="mt-3 font-bold">Choisir des photos</span></button>
+            {bookingImageDrafts.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{bookingImageDrafts.map((draft) => <div className="relative overflow-hidden rounded-[16px]" key={draft.id}><img alt="" className="h-24 w-full object-cover" src={draft.previewUrl} /><button aria-label="Retirer" className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-black/70" onClick={() => removeBookingImage(draft.id)} type="button"><X className="h-4 w-4" /></button></div>)}</div>}
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(8)} type="button">Voir le récapitulatif <ArrowRight className="ml-2 h-4 w-4" /></button>
+          </article>
+        )}
+
+        {bookingWizardStep === 8 && selectedDay && (
+          <article className="bc-step-card">
+            <div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Votre rendez-vous</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Tout est prêt</h1></div><CheckCircle2 className="h-9 w-9 text-accent" /></div>
+            <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">
+              {[
+                ["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })],
+                ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`],
+                ["Véhicule", clientData.clientType === "pro" ? proVehicleText : activeVehicle ? `${activeVehicle.model || activeVehicle.label || "Véhicule"}${activeVehicle.plate ? ` · ${activeVehicle.plate}` : ""}` : "Non renseigné"],
+                ["Prestation", selectedService.label],
+                ["Tarif indicatif", formatMoneyCents(selectedService.priceCents)],
+                ["Lieu", locationLabel(appointmentLocation)],
+                ["Photos", `${bookingImageDrafts.length} ajoutée${bookingImageDrafts.length > 1 ? "s" : ""}`],
+              ].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[65%] text-right text-sm font-bold text-white">{value}</span></div>)}
+              {clientBookingNote.trim() && <div className="px-4 py-4"><p className="text-sm text-white/45">Précision</p><p className="mt-2 text-sm leading-6 text-white">{clientBookingNote}</p></div>}
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4 text-base" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Envoi..." : "Envoyer la demande"}</button>
+            <button className="bb-button-ghost mt-3 w-full justify-center" onClick={() => setBookingWizardStep(1)} type="button">Recommencer</button>
+          </article>
+        )}
+      </section>
+    );
+  }
+
+  function renderLegacyVehiclesView() {
     return (
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <article className="bb-surface p-6">
@@ -5992,13 +6426,23 @@ export function ClientCardPage() {
                       <div className="flex min-w-0 items-center gap-3">
                         <span
                           className={cn(
-                            "grid h-14 w-14 shrink-0 place-items-center rounded-[18px] border",
+                            "grid h-20 w-28 shrink-0 place-items-center overflow-hidden rounded-[18px] border",
                             active
                               ? "border-accent/40 bg-[linear-gradient(150deg,rgb(var(--bb-accent-rgb)/0.24),rgb(var(--bb-accent2-rgb)/0.1))] text-accentSoft"
                               : "border-white/10 bg-white/[0.05] text-white/55",
                           )}
                         >
-                          <CarFront className="h-6 w-6" />
+                          {vehicle.imageUrl ? (
+                            <img
+                              alt={vehicleTitle(vehicle)}
+                              className="h-full w-full object-cover"
+                              src={vehicle.imageUrl}
+                            />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center bg-[radial-gradient(circle_at_50%_35%,rgb(var(--bb-accent-rgb)/0.18),transparent_70%)]">
+                              <CarFront className="h-9 w-9" />
+                            </div>
+                          )}
                         </span>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -6168,6 +6612,85 @@ export function ClientCardPage() {
             <AppointmentsEmpty copy="Selectionnez ou ajoutez d'abord un véhicule pour consulter ses dossiers." />
           )}
         </article>
+      </section>
+    );
+  }
+
+  function renderVehiclesView() {
+    if (query.get("legacyGarage") === "1") return renderLegacyVehiclesView();
+
+    function openAddTab() {
+      if (vehicleDraft.imageFile && vehicleDraft.imagePreviewUrl) URL.revokeObjectURL(vehicleDraft.imagePreviewUrl);
+      setVehicleModalMode("create");
+      setVehicleEditingId(null);
+      setVehicleDraft({ label: "", model: "", plate: "", imageFile: null, imagePreviewUrl: null });
+      setGarageTab("add");
+    }
+
+    return (
+      <section className="mx-auto max-w-3xl space-y-5 pb-4">
+        <header className="bc-page-hero flex items-center justify-between gap-4">
+          <div><p className="bc-kicker"><CarFront className="h-4 w-4" /> Espace véhicules</p><h1 className="bb-display mt-3 text-3xl font-black text-white">Mon <span className="bb-text-gold">garage</span></h1><p className="mt-2 text-sm text-white/50">Vos véhicules, leurs photos et leurs rendez-vous au même endroit.</p></div>
+          <span className="bc-icon-tile h-14 w-14 shrink-0"><CarFront className="h-7 w-7" /></span>
+        </header>
+        <div className="bc-segmented grid-cols-2">
+          <button className={cn("bc-segment", garageTab === "vehicles" && "bc-segment-active")} onClick={() => setGarageTab("vehicles")} type="button">Mes véhicules</button>
+          <button className={cn("bc-segment", garageTab === "add" && "bc-segment-active")} onClick={openAddTab} type="button">Ajouter</button>
+        </div>
+
+        {garageTab === "vehicles" && (
+          <div className="space-y-3">
+            {vehicles.length === 0 ? (
+              <div className="bc-step-card text-center">
+                <CarFront className="mx-auto h-14 w-14 text-accent" />
+                <h2 className="bb-display mt-4 text-xl font-black text-white">Votre garage est vide</h2>
+                <p className="mt-2 text-sm leading-6 text-white/50">Ajoutez votre véhicule pour simplifier vos prochains rendez-vous.</p>
+                <button className="bb-button-brand mt-5 justify-center" onClick={openAddTab} type="button"><Plus className="mr-2 h-4 w-4" /> Ajouter mon véhicule</button>
+              </div>
+            ) : (
+              <>
+                {vehicles.map((vehicle) => (
+                  <article className="bc-panel bc-panel-accent overflow-hidden p-4" key={vehicle.id}>
+                    <div className="flex items-center gap-4">
+                      <div className="grid h-24 w-32 shrink-0 place-items-center overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_50%_35%,rgb(var(--bb-accent-rgb)/0.18),transparent_70%)] text-accent">
+                        {vehicle.imageUrl ? <img alt={vehicle.model || vehicle.label || "Véhicule"} className="h-full w-full object-cover" src={vehicle.imageUrl} /> : <CarFront className="h-11 w-11" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="truncate text-lg font-black text-white">{vehicle.model || vehicle.label || "Véhicule"}</h2>
+                          {vehicle.isPrimary && <span className="bb-pill border-accent/30 bg-accent/10 text-accentSoft">Principal</span>}
+                        </div>
+                        <p className="mt-2 text-sm font-bold uppercase tracking-[0.12em] text-white/55">{vehicle.plate || "Plaque non renseignée"}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button className="bb-button-ghost flex-1 justify-center" onClick={() => openVehicleEdit(vehicle)} type="button"><PencilLine className="mr-2 h-4 w-4" /> Modifier</button>
+                      <button className="bb-button-ghost flex-1 justify-center" onClick={() => { setActiveVehicleId(vehicle.id); navigateView("booking"); }} type="button"><CalendarPlus className="mr-2 h-4 w-4" /> Réserver</button>
+                    </div>
+                  </article>
+                ))}
+                <button className="flex min-h-16 w-full items-center justify-center gap-2 rounded-[22px] border border-dashed border-accent/35 text-sm font-bold text-accentSoft" onClick={openAddTab} type="button"><Plus className="h-4 w-4" /> Ajouter un véhicule</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {garageTab === "add" && (
+          <article className="bc-step-card">
+            <h2 className="bb-display text-2xl font-black text-white">Ajouter un véhicule</h2>
+            <p className="mt-2 text-sm text-white/50">La photo est optionnelle. Un visuel générique sera utilisé sinon.</p>
+            <div className="mt-5 grid h-44 place-items-center overflow-hidden rounded-[24px] border border-dashed border-accent/30 bg-black/20 text-accent">
+              {vehicleDraft.imagePreviewUrl ? <img alt="Aperçu" className="h-full w-full object-cover" src={vehicleDraft.imagePreviewUrl} /> : <CarFront className="h-16 w-16" />}
+            </div>
+            <label className="bb-button-ghost mt-3 w-full cursor-pointer justify-center"><Camera className="mr-2 h-4 w-4" /> Choisir une photo<input accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (!file) return; setVehicleDraft((current) => { if (current.imageFile && current.imagePreviewUrl) URL.revokeObjectURL(current.imagePreviewUrl); return { ...current, imageFile: file, imagePreviewUrl: URL.createObjectURL(file) }; }); }} type="file" /></label>
+            <div className="mt-5 grid gap-4">
+              <label className="space-y-2"><span className="text-xs font-bold uppercase tracking-[0.15em] text-white/45">Nom du véhicule</span><input className="bb-input" onChange={(event) => setVehicleDraft((current) => ({ ...current, label: event.target.value }))} placeholder="Ex. Mon SUV" value={vehicleDraft.label} /></label>
+              <label className="space-y-2"><span className="text-xs font-bold uppercase tracking-[0.15em] text-white/45">Modèle</span><input className="bb-input" onChange={(event) => setVehicleDraft((current) => ({ ...current, model: event.target.value }))} placeholder="Ex. Peugeot 3008" value={vehicleDraft.model} /></label>
+              <label className="space-y-2"><span className="text-xs font-bold uppercase tracking-[0.15em] text-white/45">Plaque</span><input className="bb-input" onChange={(event) => setVehicleDraft((current) => ({ ...current, plate: event.target.value }))} placeholder="Ex. AB-123-CD" value={vehicleDraft.plate} /></label>
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={savingVehicle || (!vehicleDraft.model.trim() && !vehicleDraft.label.trim())} onClick={() => void saveVehicle()} type="button">{savingVehicle ? "Enregistrement..." : "Ajouter au garage"}</button>
+          </article>
+        )}
       </section>
     );
   }
@@ -6401,7 +6924,7 @@ export function ClientCardPage() {
     );
   }
 
-  function renderShopView() {
+  function renderLegacyShopView() {
     // Pack au meilleur prix par credit (badge honnete, calcule sur les vraies offres).
     const bestOfferKey =
       topupOffers.length > 1
@@ -6772,15 +7295,235 @@ export function ClientCardPage() {
     );
   }
 
-  function renderHistoryView() {
+  function renderShopView() {
+    if (query.get("legacyCredits") === "1") {
+      return renderLegacyShopView();
+    }
+
     return (
       <section className="space-y-4">
+        <div className="bc-page-hero bb-rise flex items-start justify-between gap-4">
+          <div>
+            <p className="bc-kicker"><Gift className="h-4 w-4" /> Programme fidélité</p>
+            <h1 className="bb-display mt-3 text-3xl font-black text-white">
+              Mes <span className="bb-text-gold">avantages</span>
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-white/58">
+              Vos passages vous font gagner des BC&apos;Coins à échanger contre des cadeaux.
+            </p>
+          </div>
+          <span className="bc-icon-tile h-14 w-14 shrink-0"><Gift className="h-7 w-7" /></span>
+        </div>
+
+        <div className="bc-segmented grid-cols-2">
+          <button
+            className={cn("bc-segment", advantagesTab === "available" && "bc-segment-active")}
+            onClick={() => setAdvantagesTab("available")}
+            type="button"
+          >
+            Récompenses
+          </button>
+          <button
+            className={cn("bc-segment", advantagesTab === "mine" && "bc-segment-active")}
+            onClick={() => setAdvantagesTab("mine")}
+            type="button"
+          >
+            Mes récompenses
+          </button>
+        </div>
+
+        <article className="bc-panel bc-panel-accent p-5 md:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-accentSoft">
+                Vos BC&apos;Coins
+              </p>
+              <p className="bb-display mt-2 text-4xl font-extrabold text-white">
+                {clientData.bcPoints.toLocaleString("fr-FR")}
+              </p>
+              <p className="mt-2 text-sm text-white/50">
+                {clientData.bcPending > 0
+                  ? `+ ${clientData.bcPending} en attente de validation`
+                  : "Plus vous êtes actif, plus vous gagnez."}
+              </p>
+            </div>
+            <button className="bb-button-ghost" onClick={() => navigateView("history")} type="button">
+              Historique
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </button>
+          </div>
+        </article>
+
+        <div>
+          {advantagesTab === "available" && (
+          <article className="bc-step-card">
+            <p className="bb-eyebrow">Récompenses disponibles</p>
+            <div className="mt-4 grid gap-3">
+              {rewardCatalog.length === 0 ? (
+                <AppointmentsEmpty copy="Les prochaines récompenses apparaîtront ici." />
+              ) : (
+                rewardCatalog.map((reward, index) => {
+                  const affordable = clientData.bcPoints >= reward.pointsCost;
+                  return (
+                    <div
+                      className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+                      key={reward.key}
+                    >
+                      <div className="grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border border-accent/25 bg-[radial-gradient(circle_at_35%_30%,rgb(var(--bb-accent-rgb)/0.24),transparent_75%)] text-accent">
+                        {index % 2 === 0 ? <Sparkles className="h-7 w-7" /> : <Gift className="h-7 w-7" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-white">{reward.label}</p>
+                        <p className="mt-1 text-xs font-semibold text-accentSoft">
+                          {reward.pointsCost} BC&apos;Coins
+                        </p>
+                      </div>
+                      <button
+                        className={cn("col-span-2 w-full justify-center px-4 py-2 sm:col-span-1 sm:w-auto", affordable ? "bb-button-brand" : "bb-button-ghost")}
+                        disabled={!affordable || redeemingRewardKey === reward.key}
+                        onClick={() => void redeemReward(reward)}
+                        type="button"
+                      >
+                        {redeemingRewardKey === reward.key ? "Envoi..." : "Échanger"}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </article>
+          )}
+
+          {advantagesTab === "mine" && (
+          <article className="bc-step-card">
+            <p className="bb-eyebrow">Mes récompenses</p>
+            <div className="mt-4 space-y-3">
+              {rewardRedemptions.length === 0 ? (
+                <AppointmentsEmpty copy="Aucune récompense échangée pour le moment." />
+              ) : (
+                rewardRedemptions.slice(0, 5).map((redemption) => (
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4" key={redemption.id}>
+                    <p className="text-sm font-bold text-white">{redemption.rewardLabel}</p>
+                    <p className="mt-1 text-xs text-white/45">
+                      {formatUnixDateTimeFR(redemption.createdAt)} · {rewardStatusLabel(redemption.status)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  function renderAccountView() {
+    const displayName =
+      clientData.fullName ||
+      [clientData.firstName, clientData.lastName].filter(Boolean).join(" ") ||
+      "Client Bryan Cars";
+    const founderProgress = Math.min(100, Math.max(0, (clientData.bcPoints / 2000) * 100));
+    const accountRows = [
+      {
+        label: "Mes informations",
+        icon: UserRound,
+        action: () => setContactModalOpen(true),
+      },
+      {
+        label: "Mes factures",
+        icon: FileText,
+        action: () => navigateView("history"),
+      },
+      {
+        label: "Mes avis",
+        icon: Star,
+        action: () => navigateView("history"),
+      },
+      {
+        label: pushEffectivelyActive ? "Notifications activées" : "Activer les notifications",
+        icon: Bell,
+        action: () => void handleEnablePush(),
+      },
+    ];
+
+    return (
+      <section className="mx-auto max-w-3xl space-y-5">
+        <div className="bc-page-hero bb-rise flex items-center justify-between">
+          <div><p className="bc-kicker"><UserRound className="h-4 w-4" /> Espace personnel</p><h1 className="bb-display mt-3 text-3xl font-black text-white">Mon <span className="bb-text-gold">compte</span></h1><p className="mt-2 text-sm text-white/50">Vos informations et préférences Bryan Cars.</p></div>
+          <span className="bc-icon-tile h-14 w-14 shrink-0"><UserRound className="h-7 w-7" /></span>
+        </div>
+
+        <article className="bc-panel bc-panel-accent flex items-center gap-4 p-5 md:p-6">
+          <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border border-accent/40 bg-[radial-gradient(circle_at_35%_30%,rgb(var(--bb-accent-rgb)/0.28),rgba(0,0,0,0.45))] text-2xl font-black text-accent shadow-[0_0_28px_rgb(var(--bb-glow-rgb)/0.15)]">
+            BC
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-extrabold text-white">{displayName}</h2>
+            <p className="mt-1 truncate text-sm text-white/50">{clientData.email || clientData.phone || "Compte client"}</p>
+            <div className="bb-pill mt-3 w-fit border-accent/35 bg-accent/10 text-accentSoft">
+              {clientData.isFounder ? "Fondateur" : clientData.clientType === "pro" ? "Professionnel" : "Membre"}
+            </div>
+          </div>
+        </article>
+
+        {clientData.isFounder && (
+          <article className="bc-panel p-5 md:p-6">
+            <p className="bb-eyebrow">Mon programme fondateur</p>
+            <h2 className="mt-4 text-base font-bold text-white">Votre fidélité est récompensée</h2>
+            <p className="mt-1 text-sm text-white/50">Plus vous venez, plus vous débloquez d&apos;avantages.</p>
+            <div className="mt-5 flex justify-between text-xs font-bold text-white/55">
+              <span>Niveau 1</span><span>Niveau 2</span>
+            </div>
+            <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))]"
+                style={{ width: `${founderProgress}%` }}
+              />
+            </div>
+            <p className="mt-3 text-center text-sm font-bold text-white">
+              {clientData.bcPoints.toLocaleString("fr-FR")} / 2 000 BC&apos;Coins
+            </p>
+          </article>
+        )}
+
+        <article className="bc-panel overflow-hidden p-2">
+          {accountRows.map((row) => {
+            const Icon = row.icon;
+            return (
+              <button
+                className="flex w-full items-center gap-3 border-b border-white/8 px-3 py-4 text-left last:border-0 hover:bg-white/[0.03]"
+                key={row.label}
+                onClick={row.action}
+                type="button"
+              >
+                <span className="bc-icon-tile h-10 w-10 rounded-xl">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="flex-1 text-sm font-bold text-white">{row.label}</span>
+                <ArrowRight className="h-5 w-5 text-accent" />
+              </button>
+            );
+          })}
+        </article>
+
+        <button className="bb-button-ghost w-full justify-center" onClick={() => setContactModalOpen(true)} type="button">
+          Contacter Bryan Cars
+        </button>
+      </section>
+    );
+  }
+
+  function renderHistoryView() {
+    return (
+      <section className="mx-auto max-w-4xl space-y-5">
         {renderRecapTeaser()}
         {/* En-tete leger (titre + onglets), sans grosse carte de verre. */}
-        <div className="bb-rise">
+        <div className="bc-page-hero bb-rise">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="bb-display text-3xl font-extrabold leading-tight text-white md:text-4xl">
+              <p className="bc-kicker"><Clock3 className="h-4 w-4" /> Votre activité</p>
+              <h1 className="bb-display mt-3 text-3xl font-black leading-tight text-white md:text-4xl">
                 Suivi <span className="bb-text-gold">&amp; factures</span>
               </h1>
               <p className="bb-subtitle mt-1.5">
@@ -6788,11 +7531,11 @@ export function ClientCardPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="bc-segmented grid-cols-2 lg:min-w-[360px]">
               <button
                 className={cn(
-                  "bb-button-ghost px-4 py-2",
-                  historyTab === "mine" && "border-accent/35 bg-accent/10 text-white",
+                  "bc-segment",
+                  historyTab === "mine" && "bc-segment-active",
                 )}
                 onClick={() => setHistoryTab("mine")}
                 type="button"
@@ -6801,8 +7544,8 @@ export function ClientCardPage() {
               </button>
               <button
                 className={cn(
-                  "bb-button-ghost px-4 py-2",
-                  historyTab === "community" && "border-accent/35 bg-accent/10 text-white",
+                  "bc-segment",
+                  historyTab === "community" && "bc-segment-active",
                 )}
                 onClick={() => setHistoryTab("community")}
                 type="button"
@@ -6814,22 +7557,21 @@ export function ClientCardPage() {
         </div>
 
         {historyTab === "mine" ? (
-          <article className="bb-surface p-6">
+          <article className="bc-panel p-4 md:p-6">
             {/* Rangee unique : filtres + compteur (l'en-tete de page suffit). */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="bc-segmented grid-cols-3">
               {(
                 [
                   { key: "all", label: "Tous" },
                   { key: "requested", label: "En attente" },
-                  { key: "confirmed", label: "Confirmes" },
                   { key: "done", label: "Effectues" },
                 ] as const
               ).map((filter) => (
                 <button
                   className={cn(
-                    "bb-button-ghost px-4 py-2",
+                    "bc-segment",
                     historyFilter === filter.key &&
-                      "border-accent/40 bg-accent/10 text-white",
+                      "bc-segment-active",
                   )}
                   key={filter.key}
                   onClick={() => setHistoryFilter(filter.key)}
@@ -6838,11 +7580,8 @@ export function ClientCardPage() {
                   {filter.label}
                 </button>
               ))}
-              <div className="bb-pill ml-auto border-white/12 bg-white/[0.04] text-white/60">
-                {filteredHistoryAppointments.length} fiche
-                {filteredHistoryAppointments.length > 1 ? "s" : ""}
-              </div>
             </div>
+            <p className="mt-3 text-right text-xs font-bold uppercase tracking-[0.14em] text-white/35">{filteredHistoryAppointments.length} fiche{filteredHistoryAppointments.length > 1 ? "s" : ""}</p>
 
             <div
               className={cn(
@@ -7046,11 +7785,12 @@ export function ClientCardPage() {
         {requestedView === "vehicles" && clientData.clientType !== "pro" && renderVehiclesView()}
         {requestedView === "shop" &&
           (clientData.clientType === "pro" ? renderForfaitsView() : renderShopView())}
+        {requestedView === "account" && renderAccountView()}
         {requestedView === "history" && renderHistoryView()}
       </main>
 
       <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className={cn("bb-tabbar mx-auto grid max-w-xl rounded-[28px] p-1.5 backdrop-blur-2xl", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <div className={cn("bc-nav-shell mx-auto grid max-w-xl rounded-[26px] p-1.5", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -7058,7 +7798,7 @@ export function ClientCardPage() {
               <Link
                 className={cn(
                   "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[22px] px-1.5 py-2 text-[10px] font-semibold transition duration-200 active:scale-95",
-                  active ? "bb-tab-active" : "text-white/54",
+                  active ? "bc-nav-item-active" : "text-white/48",
                 )}
                 key={item.view}
                 to={portalHref(item.view)}
@@ -7746,6 +8486,50 @@ export function ClientCardPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-[24px] border border-dashed border-accent/30 bg-black/20 p-4 md:col-span-2">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="grid h-32 w-full shrink-0 place-items-center overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_50%_35%,rgb(var(--bb-accent-rgb)/0.2),transparent_70%)] text-accent sm:w-48">
+                    {vehicleDraft.imagePreviewUrl ? (
+                      <img
+                        alt="Aperçu du véhicule"
+                        className="h-full w-full object-cover"
+                        src={vehicleDraft.imagePreviewUrl}
+                      />
+                    ) : (
+                      <CarFront className="h-14 w-14" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Photo du véhicule</p>
+                    <p className="mt-1 text-xs leading-5 text-white/50">
+                      Optionnelle. Sans photo, un visuel générique est affiché.
+                    </p>
+                    <label className="bb-button-ghost mt-3 cursor-pointer px-4 py-2">
+                      <Camera className="mr-2 h-4 w-4" />
+                      Choisir une photo
+                      <input
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          if (!file) return;
+                          setVehicleDraft((current) => {
+                            if (current.imageFile && current.imagePreviewUrl) {
+                              URL.revokeObjectURL(current.imagePreviewUrl);
+                            }
+                            return {
+                              ...current,
+                              imageFile: file,
+                              imagePreviewUrl: URL.createObjectURL(file),
+                            };
+                          });
+                        }}
+                        type="file"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
               <label className="space-y-2 md:col-span-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">Nom affiche</span>
                 <input
@@ -7766,6 +8550,19 @@ export function ClientCardPage() {
                   }
                   placeholder="Ex: BMW M3"
                   value={vehicleDraft.model}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
+                  Immatriculation
+                </span>
+                <input
+                  className="bb-input"
+                  onChange={(event) =>
+                    setVehicleDraft((current) => ({ ...current, plate: event.target.value }))
+                  }
+                  placeholder="Ex: AB-123-CD"
+                  value={vehicleDraft.plate}
                 />
               </label>
             </div>
@@ -8200,7 +8997,7 @@ export function ClientCardPage() {
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Le statut fondateur debloque une carte premium et des avantages réservés.
-                  Accès a vie pour <span className="font-semibold text-accentSoft">29,99 €</span>.
+                  Accès a vie pour <span className="font-semibold text-accentSoft">49,99 €</span>.
                   <span className="mt-1 block text-xs uppercase tracking-[0.14em] text-accent">
                     {typeof data?.foundersRemaining === "number"
                       ? data.foundersRemaining > 0
@@ -8255,7 +9052,7 @@ export function ClientCardPage() {
                   ? "Complet - plus de places"
                   : founderCheckoutBusy
                     ? "Ouverture du paiement..."
-                    : "Devenir fondateur - 29,99 €"}
+                    : "Devenir fondateur - 49,99 €"}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-white/45">
                 Paiement securise SumUp. Le statut est active des la confirmation du paiement.

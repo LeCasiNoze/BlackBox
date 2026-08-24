@@ -183,6 +183,7 @@ function mapVehicleRow(row) {
     label: row.label || null,
     model: row.model || null,
     plate: row.plate || null,
+    imageUrl: row.image_url || null,
     isPrimary: !!row.is_primary,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
