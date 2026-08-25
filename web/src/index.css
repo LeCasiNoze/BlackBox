@@ -62,104 +62,110 @@
    (or) pour la landing et l'admin. Toutes les classes .bb-* lisent par var().
    =========================================================================== */
 
-/* FONDATEUR — "Or Rose & Onyx" (luxe mode, onyx + or rose/cuivre + bordeaux). */
+/* FONDATEUR — "Emerald Noir" : noir obsidienne, vert emeraude et lime.
+   Une identite premium, plus exclusive et volontairement distincte du cyan Pro. */
 [data-theme="founder"] {
-  --bb-bg: #0b0809;
-  --bb-bg-deep: #060405;
-  --bb-surface: rgba(30, 19, 21, 0.62);
-  --bb-surface-2: rgba(38, 24, 27, 0.74);
-  --bb-surface-strong: rgba(22, 13, 15, 0.88);
-  --bb-border: rgba(232, 180, 160, 0.12);
-  --bb-border-strong: rgba(232, 180, 160, 0.26);
-  --bb-copy: #f5ece7;
-  --bb-muted: #b6a09a;
+  --bb-bg: #030806;
+  --bb-bg-deep: #010302;
+  --bb-surface: rgba(8, 27, 17, 0.68);
+  --bb-surface-2: rgba(11, 39, 24, 0.78);
+  --bb-surface-strong: rgba(4, 17, 10, 0.92);
+  --bb-border: rgba(173, 255, 205, 0.12);
+  --bb-border-strong: rgba(53, 229, 138, 0.3);
+  --bb-copy: #f1fff6;
+  --bb-muted: #90ad9b;
 
-  --bb-accent: #e8b4a0;
-  --bb-accent-soft: #f4d2c4;
-  --bb-accent-strong: #c9784e;
-  --bb-accent-hi: #ffd9c8;
-  --bb-accent-rgb: 232 180 160;
-  --bb-accent-soft-rgb: 244 210 196;
-  --bb-glow-rgb: 201 120 78;
-  --bb-button-ink: #1a0b08;
-  --bb-ring-gold: rgba(232, 180, 160, 0.5);
-  --bb-accent2-rgb: 122 30 46;
+  --bb-accent: #35e58a;
+  --bb-accent-soft: #adffcd;
+  --bb-accent-strong: #0ba95e;
+  --bb-accent-hi: #d8ffe7;
+  --bb-accent-rgb: 53 229 138;
+  --bb-accent-soft-rgb: 173 255 205;
+  --bb-glow-rgb: 11 169 94;
+  --bb-button-ink: #00190b;
+  --bb-ring-gold: rgba(53, 229, 138, 0.56);
+  --bb-accent2-rgb: 186 255 41;
+  --bb-steel: #35e58a;
+  --bb-steel-strong: #0ba95e;
 
-  --bb-page-grad-a: #140a0c;
-  --bb-page-grad-b: #0b0608;
-  --bb-page-grad-c: #160a0e;
-  --bb-aurora-a: rgba(232, 180, 160, 0.2);
-  --bb-aurora-b: rgba(201, 120, 78, 0.16);
-  --bb-aurora-c: rgba(122, 30, 46, 0.14);
-  --bb-glass-solid: rgba(26, 16, 18, 0.95);
-  --bb-glass-solid-2: rgba(20, 12, 14, 0.97);
+  --bb-page-grad-a: #06130c;
+  --bb-page-grad-b: #010503;
+  --bb-page-grad-c: #092417;
+  --bb-aurora-a: rgba(53, 229, 138, 0.2);
+  --bb-aurora-b: rgba(11, 169, 94, 0.17);
+  --bb-aurora-c: rgba(186, 255, 41, 0.1);
+  --bb-glass-solid: rgba(5, 22, 13, 0.96);
+  --bb-glass-solid-2: rgba(2, 12, 7, 0.98);
 }
 
-/* BBX — "Neon Violet" (nuit violette + violet electrique + magenta).
-   Volontairement tres different du Pro (Blueprint bleu) pour distinguer les paliers. */
+/* BBX — "Electric Iris" : indigo cosmique, iris et corail électrique. */
 [data-theme="bbx"] {
-  --bb-bg: #120a22;
-  --bb-bg-deep: #0c0518;
-  --bb-surface: rgba(42, 26, 64, 0.6);
-  --bb-surface-2: rgba(52, 34, 78, 0.74);
-  --bb-surface-strong: rgba(28, 16, 46, 0.9);
-  --bb-border: rgba(214, 180, 255, 0.12);
-  --bb-border-strong: rgba(168, 85, 247, 0.28);
-  --bb-copy: #f3ecff;
-  --bb-muted: #a99cc8;
+  --bb-bg: #0a091d;
+  --bb-bg-deep: #05040f;
+  --bb-surface: rgba(28, 27, 68, 0.62);
+  --bb-surface-2: rgba(37, 35, 88, 0.76);
+  --bb-surface-strong: rgba(19, 17, 51, 0.91);
+  --bb-border: rgba(199, 195, 255, 0.13);
+  --bb-border-strong: rgba(124, 108, 255, 0.31);
+  --bb-copy: #f4f3ff;
+  --bb-muted: #a6a3ce;
 
-  --bb-accent: #a855f7;
-  --bb-accent-soft: #d8b4fe;
-  --bb-accent-strong: #7c3aed;
-  --bb-accent-hi: #c99bff;
-  --bb-accent-rgb: 168 85 247;
-  --bb-accent-soft-rgb: 216 180 254;
-  --bb-glow-rgb: 124 58 237;
+  --bb-accent: #7c6cff;
+  --bb-accent-soft: #c7c3ff;
+  --bb-accent-strong: #5546e8;
+  --bb-accent-hi: #e2dfff;
+  --bb-accent-rgb: 124 108 255;
+  --bb-accent-soft-rgb: 199 195 255;
+  --bb-glow-rgb: 85 70 232;
   --bb-button-ink: #ffffff;
-  --bb-ring-gold: rgba(168, 85, 247, 0.5);
-  --bb-accent2-rgb: 255 61 139;
+  --bb-ring-gold: rgba(124, 108, 255, 0.56);
+  --bb-accent2-rgb: 255 72 105;
+  --bb-steel: #7c6cff;
+  --bb-steel-strong: #5546e8;
 
-  --bb-page-grad-a: #1a0e30;
-  --bb-page-grad-b: #100722;
-  --bb-page-grad-c: #220e3e;
-  --bb-aurora-a: rgba(168, 85, 247, 0.2);
-  --bb-aurora-b: rgba(255, 61, 139, 0.15);
-  --bb-aurora-c: rgba(99, 102, 241, 0.12);
-  --bb-glass-solid: rgba(28, 16, 46, 0.95);
-  --bb-glass-solid-2: rgba(19, 10, 32, 0.97);
+  --bb-page-grad-a: #121039;
+  --bb-page-grad-b: #080718;
+  --bb-page-grad-c: #1c1032;
+  --bb-aurora-a: rgba(124, 108, 255, 0.22);
+  --bb-aurora-b: rgba(255, 72, 105, 0.16);
+  --bb-aurora-c: rgba(47, 210, 255, 0.1);
+  --bb-glass-solid: rgba(22, 20, 56, 0.96);
+  --bb-glass-solid-2: rgba(13, 12, 35, 0.98);
 }
 
-/* PRO — "Blueprint" (encre + cyan + bleu plan, technique). */
+/* PRO — "Volt Teal" : pétrole profond, turquoise volt et pointe de lime. */
 [data-theme="pro"] {
-  --bb-bg: #07101f;
-  --bb-bg-deep: #040a14;
-  --bb-surface: rgba(14, 27, 48, 0.6);
-  --bb-surface-2: rgba(18, 34, 60, 0.74);
-  --bb-surface-strong: rgba(8, 16, 30, 0.9);
-  --bb-border: rgba(147, 197, 253, 0.12);
-  --bb-border-strong: rgba(34, 211, 238, 0.26);
-  --bb-copy: #e6f0fb;
-  --bb-muted: #8ba1bf;
+  --bb-bg: #041513;
+  --bb-bg-deep: #020a09;
+  --bb-surface: rgba(8, 42, 37, 0.62);
+  --bb-surface-2: rgba(10, 55, 49, 0.76);
+  --bb-surface-strong: rgba(5, 31, 28, 0.91);
+  --bb-border: rgba(165, 255, 233, 0.12);
+  --bb-border-strong: rgba(25, 230, 195, 0.28);
+  --bb-copy: #eafff9;
+  --bb-muted: #8fbcb1;
 
-  --bb-accent: #22d3ee;
-  --bb-accent-soft: #a5e8f5;
-  --bb-accent-strong: #1d4ed8;
-  --bb-accent-hi: #93c5fd;
-  --bb-accent-rgb: 34 211 238;
-  --bb-accent-soft-rgb: 165 232 245;
-  --bb-glow-rgb: 29 78 216;
-  --bb-button-ink: #021018;
-  --bb-ring-gold: rgba(34, 211, 238, 0.5);
-  --bb-accent2-rgb: 147 197 253;
+  --bb-accent: #19e6c3;
+  --bb-accent-soft: #a5ffe9;
+  --bb-accent-strong: #0a9f94;
+  --bb-accent-hi: #d2fff4;
+  --bb-accent-rgb: 25 230 195;
+  --bb-accent-soft-rgb: 165 255 233;
+  --bb-glow-rgb: 10 159 148;
+  --bb-button-ink: #00231d;
+  --bb-ring-gold: rgba(25, 230, 195, 0.54);
+  --bb-accent2-rgb: 178 255 57;
+  --bb-steel: #19e6c3;
+  --bb-steel-strong: #0a9f94;
 
-  --bb-page-grad-a: #08142a;
-  --bb-page-grad-b: #060f1f;
-  --bb-page-grad-c: #0a1a38;
-  --bb-aurora-a: rgba(34, 211, 238, 0.16);
-  --bb-aurora-b: rgba(59, 130, 246, 0.14);
-  --bb-aurora-c: rgba(147, 197, 253, 0.1);
-  --bb-glass-solid: rgba(10, 20, 38, 0.95);
-  --bb-glass-solid-2: rgba(7, 14, 28, 0.97);
+  --bb-page-grad-a: #062a25;
+  --bb-page-grad-b: #031310;
+  --bb-page-grad-c: #082f28;
+  --bb-aurora-a: rgba(25, 230, 195, 0.19);
+  --bb-aurora-b: rgba(178, 255, 57, 0.12);
+  --bb-aurora-c: rgba(40, 116, 255, 0.09);
+  --bb-glass-solid: rgba(7, 36, 32, 0.96);
+  --bb-glass-solid-2: rgba(4, 23, 20, 0.98);
 }
 
 html {
@@ -247,7 +253,7 @@ select {
 }
 
 ::selection {
-  background: rgba(232, 201, 138, 0.32);
+  background: rgb(var(--bb-accent-rgb) / 0.34);
   color: white;
 }
 
@@ -349,9 +355,9 @@ select {
     padding: 1px;
     background: linear-gradient(
       135deg,
-      rgba(76, 198, 255, 0.55),
-      rgba(76, 198, 255, 0) 42%,
-      rgba(31, 143, 214, 0.32)
+      rgb(var(--bb-accent-rgb) / 0.58),
+      rgb(var(--bb-accent-rgb) / 0) 42%,
+      rgb(var(--bb-glow-rgb) / 0.34)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -477,12 +483,12 @@ select {
     position: relative;
     overflow: hidden;
     background:
-      linear-gradient(135deg, #8fdcff 2%, var(--bb-steel) 44%, var(--bb-steel-strong) 100%);
+      linear-gradient(135deg, var(--bb-accent-hi) 2%, var(--bb-steel) 44%, var(--bb-steel-strong) 100%);
     box-shadow:
-      0 16px 36px -8px rgba(31, 143, 214, 0.5),
-      0 2px 8px rgba(31, 143, 214, 0.25),
+      0 16px 36px -8px rgb(var(--bb-glow-rgb) / 0.5),
+      0 2px 8px rgb(var(--bb-glow-rgb) / 0.25),
       inset 0 1px 0 rgba(255, 255, 255, 0.45);
-    color: #031420;
+    color: var(--bb-button-ink);
     @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-bold transition duration-200 hover:-translate-y-0.5 hover:brightness-[1.06];
   }
 
@@ -518,17 +524,17 @@ select {
 
   .bb-founder-hero {
     background:
-      radial-gradient(circle at top left, rgba(232, 201, 138, 0.2), transparent 26%),
-      radial-gradient(circle at right 20%, rgba(76, 198, 255, 0.12), transparent 28%),
-      linear-gradient(180deg, rgba(255, 224, 138, 0.07), rgba(255, 255, 255, 0.02)),
+      radial-gradient(circle at top left, rgb(var(--bb-accent-rgb) / 0.22), transparent 26%),
+      radial-gradient(circle at right 20%, rgb(var(--bb-accent2-rgb) / 0.13), transparent 28%),
+      linear-gradient(180deg, rgb(var(--bb-accent-rgb) / 0.08), rgba(255, 255, 255, 0.02)),
       var(--bb-surface-strong);
   }
 
   .bb-pro-hero {
     background:
-      radial-gradient(circle at top left, rgba(76, 198, 255, 0.2), transparent 26%),
-      radial-gradient(circle at right 18%, rgba(99, 102, 241, 0.14), transparent 30%),
-      linear-gradient(180deg, rgba(148, 222, 255, 0.06), rgba(255, 255, 255, 0.02)),
+      radial-gradient(circle at top left, rgb(var(--bb-accent-rgb) / 0.22), transparent 26%),
+      radial-gradient(circle at right 18%, rgb(var(--bb-accent2-rgb) / 0.13), transparent 30%),
+      linear-gradient(180deg, rgb(var(--bb-accent-rgb) / 0.07), rgba(255, 255, 255, 0.02)),
       var(--bb-surface-strong);
   }
 
@@ -546,7 +552,7 @@ select {
     left: -2rem;
     width: 13rem;
     height: 13rem;
-    background: rgba(76, 198, 255, 0.24);
+    background: rgb(var(--bb-accent-rgb) / 0.24);
   }
 
   .bb-pro-orb-indigo {
@@ -554,7 +560,7 @@ select {
     right: -2rem;
     width: 12rem;
     height: 12rem;
-    background: rgba(99, 102, 241, 0.18);
+    background: rgb(var(--bb-accent2-rgb) / 0.16);
     animation-delay: -4s;
   }
 
@@ -563,7 +569,7 @@ select {
     left: 34%;
     width: 11rem;
     height: 11rem;
-    background: rgba(34, 211, 238, 0.14);
+    background: rgb(var(--bb-accent-rgb) / 0.13);
     animation-delay: -7s;
   }
 
@@ -581,7 +587,7 @@ select {
     left: -2rem;
     width: 13rem;
     height: 13rem;
-    background: rgba(232, 201, 138, 0.2);
+    background: rgb(var(--bb-accent-rgb) / 0.22);
   }
 
   .bb-founder-orb-blue {
@@ -589,7 +595,7 @@ select {
     right: -2rem;
     width: 12rem;
     height: 12rem;
-    background: rgba(44, 162, 255, 0.14);
+    background: rgb(var(--bb-accent2-rgb) / 0.14);
     animation-delay: -3s;
   }
 
@@ -598,7 +604,7 @@ select {
     left: 34%;
     width: 11rem;
     height: 11rem;
-    background: rgba(217, 154, 78, 0.12);
+    background: rgb(var(--bb-glow-rgb) / 0.14);
     animation-delay: -6s;
   }
 
@@ -896,23 +902,23 @@ select {
 @keyframes bb-attention-ring {
   0% {
     box-shadow:
-      0 0 0 0 rgba(232, 201, 138, 0),
-      0 0 0 0 rgba(232, 201, 138, 0);
+      0 0 0 0 rgb(var(--bb-accent-rgb) / 0),
+      0 0 0 0 rgb(var(--bb-accent-rgb) / 0);
   }
   35% {
     box-shadow:
-      0 0 0 1px rgba(232, 201, 138, 0.9),
-      0 0 0 10px rgba(232, 201, 138, 0.16);
+      0 0 0 1px rgb(var(--bb-accent-rgb) / 0.9),
+      0 0 0 10px rgb(var(--bb-accent-rgb) / 0.16);
   }
   70% {
     box-shadow:
-      0 0 0 1px rgba(217, 154, 78, 0.75),
-      0 0 0 16px rgba(217, 154, 78, 0.08);
+      0 0 0 1px rgb(var(--bb-glow-rgb) / 0.75),
+      0 0 0 16px rgb(var(--bb-glow-rgb) / 0.08);
   }
   100% {
     box-shadow:
-      0 0 0 0 rgba(217, 154, 78, 0),
-      0 0 0 0 rgba(217, 154, 78, 0);
+      0 0 0 0 rgb(var(--bb-glow-rgb) / 0),
+      0 0 0 0 rgb(var(--bb-glow-rgb) / 0);
   }
 }
 
