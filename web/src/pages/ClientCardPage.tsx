@@ -10,6 +10,7 @@ import {
   CarFront,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Copy,
   CreditCard,
@@ -355,6 +356,7 @@ type ServiceLevel = "clean" | "correct" | "dirty";
 type ServiceCatalogItem = {
   key: string;
   category: string;
+  subcategory: string;
   label: string;
   popular: boolean;
   founderOnly: boolean;
@@ -364,9 +366,9 @@ type ServiceCatalogItem = {
 type ServiceCategory = { key: string; label: string; order: number };
 
 const SERVICE_CATALOG: ServiceCatalogItem[] = [
-  { key: "complete-basic", category: "complete", label: "Nettoyage Complet Basique — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
-  { key: "complete-deep", category: "complete", label: "Nettoyage Complet Approfondi + Sellerie — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
-  { key: "detailing-pack", category: "complete", label: "Pack Detailing — Finition Supérieure", popular: true, founderOnly: false, imageUrl: null },
+  { key: "complete-basic", category: "complete", subcategory: "Formules complètes", label: "Nettoyage Complet Basique — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
+  { key: "complete-deep", category: "complete", subcategory: "Formules complètes", label: "Nettoyage Complet Approfondi + Sellerie — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
+  { key: "detailing-pack", category: "complete", subcategory: "Formules complètes", label: "Pack Detailing — Finition Supérieure", popular: true, founderOnly: false, imageUrl: null },
 ];
 
 const SERVICE_CATEGORIES: ServiceCategory[] = [
@@ -1407,6 +1409,8 @@ export function ClientCardPage() {
     React.useState<AppointmentLocation | null>(null);
   const serviceLevel: ServiceLevel = "clean";
   const [selectedServiceKeys, setSelectedServiceKeys] = React.useState<string[]>([]);
+  const [openServiceCategory, setOpenServiceCategory] = React.useState<string | null>("complete");
+  const [openServiceSubcategory, setOpenServiceSubcategory] = React.useState<string | null>(null);
   const [bookingWizardStep, setBookingWizardStep] = React.useState(1);
   const [garageTab, setGarageTab] = React.useState<GarageTab>("vehicles");
   const [advantagesTab, setAdvantagesTab] = React.useState<AdvantagesTab>("available");
@@ -6190,12 +6194,16 @@ export function ClientCardPage() {
     const serviceCatalog = data?.serviceCatalog ?? SERVICE_CATALOG;
     const serviceCategories = data?.serviceCategories ?? SERVICE_CATEGORIES;
     const selectedServices = serviceCatalog.filter((service) => selectedServiceKeys.includes(service.key));
+    const isProBooking = clientData.clientType === "pro";
     const timeOptions = availableHours.flatMap((hour) =>
       MINUTES.filter(
         (minute) => !(hour === availableHours[availableHours.length - 1] && minute === "30"),
       ).map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
     );
-    const stepLabels = ["Agenda", "Heure", "Véhicule", "Prestation", "Lieu", "Détails", "Photos", "Récap"];
+    const stepLabels = isProBooking
+      ? ["Agenda", "Heure", "Véhicule", "Récap"]
+      : ["Agenda", "Heure", "Véhicule", "Prestation", "Lieu", "Détails", "Photos", "Récap"];
+    const totalBookingSteps = stepLabels.length;
     const canGoBack = bookingWizardStep > 1;
 
     function previousBookingStep() {
@@ -6218,6 +6226,19 @@ export function ClientCardPage() {
       setBookingWizardStep(2);
     }
 
+    function renderServiceChoice(service: ServiceCatalogItem) {
+      const selected = selectedServiceKeys.includes(service.key);
+      return (
+        <button className={cn("flex min-h-20 items-center gap-3 rounded-[19px] border p-3 text-left transition active:scale-[0.99]", selected ? "border-accent/60 bg-accent/14" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")} key={service.key} onClick={() => setSelectedServiceKeys((current) => selected ? current.filter((key) => key !== service.key) : [...current, service.key])} type="button">
+          <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border", selected ? "border-accent/40 bg-accent/15 text-accent" : "border-white/10 bg-black/25 text-white/45")}>
+            {service.imageUrl ? <img alt="" className="h-full w-full rounded-[13px] object-cover" src={service.imageUrl} /> : <Sparkles className="h-5 w-5" />}
+          </span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-bold leading-5 text-white">{service.label}</span>{service.popular && <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.14em] text-accentSoft">Très demandé</span>}</span>
+          {selected ? <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" /> : <Plus className="h-5 w-5 shrink-0 text-white/30" />}
+        </button>
+      );
+    }
+
     return (
       <section className="mx-auto max-w-3xl space-y-4 pb-4">
         <div className="bc-segmented grid-cols-2">
@@ -6237,11 +6258,11 @@ export function ClientCardPage() {
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-3">
-              <p className="bb-eyebrow">Étape {bookingWizardStep} sur 8</p>
+              <p className="bb-eyebrow">Étape {bookingWizardStep} sur {totalBookingSteps}</p>
               <p className="text-xs font-bold text-accentSoft">{stepLabels[bookingWizardStep - 1]}</p>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all duration-300" style={{ width: `${(bookingWizardStep / 8) * 100}%` }} />
+              <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all duration-300" style={{ width: `${(bookingWizardStep / totalBookingSteps) * 100}%` }} />
             </div>
           </div>
         </header>
@@ -6309,7 +6330,7 @@ export function ClientCardPage() {
         {bookingWizardStep === 3 && (
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Quel véhicule ?</h1>
-            <p className="mt-2 text-sm text-white/55">Choisissez le véhicule concerné avant la prestation.</p>
+            <p className="mt-2 text-sm text-white/55">{isProBooking ? "Indiquez simplement le véhicule concerné." : "Choisissez le véhicule concerné avant la prestation."}</p>
             {clientData.clientType === "pro" ? (
               <textarea className="bb-textarea mt-6 min-h-28" maxLength={120} onChange={(event) => setProVehicleText(event.target.value)} placeholder="Ex. 8008 rouge" value={proVehicleText} />
             ) : vehicles.length === 0 ? (
@@ -6336,11 +6357,30 @@ export function ClientCardPage() {
                 ))}
               </div>
             )}
-            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={clientData.clientType === "pro" ? !proVehicleText.trim() : !activeVehicleId} onClick={() => setBookingWizardStep(4)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={isProBooking ? !proVehicleText.trim() : !activeVehicleId} onClick={() => setBookingWizardStep(4)} type="button">{isProBooking ? "Vérifier le rendez-vous" : "Continuer"} <ArrowRight className="ml-2 h-4 w-4" /></button>
           </article>
         )}
 
-        {bookingWizardStep === 4 && (
+        {bookingWizardStep === 4 && isProBooking && selectedDay && (
+          <article className="bc-step-card">
+            <div className="flex items-start justify-between gap-4">
+              <div><p className="bb-eyebrow">Rendez-vous professionnel</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez le créneau</h1></div>
+              <CheckCircle2 className="h-9 w-9 shrink-0 text-accent" />
+            </div>
+            <p className="mt-2 text-sm leading-6 text-white/55">Votre rendez-vous sera validé immédiatement, sans devis ni paiement.</p>
+            <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">
+              {[
+                ["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })],
+                ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`],
+                ["Véhicule", proVehicleText],
+              ].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[65%] text-right text-sm font-bold text-white">{value}</span></div>)}
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4 text-base" disabled={busyAction || !proVehicleText.trim()} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Validation..." : "Confirmer le rendez-vous"}</button>
+            <p className="mt-3 text-center text-xs leading-5 text-white/45">Confirmation automatique dès l&apos;envoi.</p>
+          </article>
+        )}
+
+        {bookingWizardStep === 4 && !isProBooking && (
           <article className="bc-step-card">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -6349,50 +6389,78 @@ export function ClientCardPage() {
               </div>
               {selectedServices.length > 0 && <span className="bb-pill shrink-0 border-accent/35 bg-accent/12 text-accentSoft">{selectedServices.length} choisi{selectedServices.length > 1 ? "es" : "e"}</span>}
             </div>
-            <div className="mt-6 space-y-6">
+            <div className="mt-6 space-y-3">
               {serviceCategories.map((category) => {
                 const categoryServices = serviceCatalog.filter((service) => service.category === category.key);
                 if (categoryServices.length === 0) return null;
                 const founderLocked = category.key === "founder" && !clientData.isFounder;
+                const categoryOpen = openServiceCategory === category.key;
+                const categorySelected = categoryServices.filter((service) => selectedServiceKeys.includes(service.key)).length;
                 return (
-                  <section className={cn("rounded-[24px] border p-3", founderLocked ? "border-accent/25 bg-accent/[0.05]" : "border-white/8 bg-black/15")} key={category.key}>
-                    <div className="flex items-center justify-between gap-3 px-2 py-2">
-                      <div>
-                        <p className="font-black text-white">{category.label}</p>
-                        {category.key === "founder" && <p className="mt-1 text-xs text-white/50">Tarifs d&apos;entretien privilégiés toute l&apos;année.</p>}
-                      </div>
-                      {founderLocked && <LockKeyhole className="h-5 w-5 text-accent" />}
-                    </div>
-                    {founderLocked ? (
+                  <section className={cn("overflow-hidden rounded-[22px] border transition", categoryOpen ? "border-accent/30 bg-white/[0.035]" : "border-white/10 bg-black/15", founderLocked && "border-accent/20 bg-accent/[0.04]")} key={category.key}>
+                    <button className="flex w-full items-center gap-3 px-4 py-4 text-left" onClick={() => { setOpenServiceCategory((current) => current === category.key ? null : category.key); setOpenServiceSubcategory(null); }} type="button">
+                      <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-[13px] border", categoryOpen ? "border-accent/35 bg-accent/12 text-accent" : "border-white/10 bg-white/[0.03] text-white/45")}>
+                        {founderLocked ? <LockKeyhole className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-black text-white">{category.label}</span>
+                        <span className="mt-1 block text-xs text-white/45">{categoryServices.length} prestation{categoryServices.length > 1 ? "s" : ""}{categorySelected > 0 ? ` · ${categorySelected} sélectionnée${categorySelected > 1 ? "s" : ""}` : ""}</span>
+                      </span>
+                      {categorySelected > 0 && <span className="bb-pill shrink-0 border-accent/30 bg-accent/12 text-accentSoft">{categorySelected}</span>}
+                      <ChevronDown className={cn("h-5 w-5 shrink-0 text-white/45 transition-transform", categoryOpen && "rotate-180 text-accent")} />
+                    </button>
+                    {categoryOpen && founderLocked ? (
                       <div className="mt-2 rounded-[20px] border border-accent/20 bg-black/20 p-4">
                         <p className="text-sm leading-6 text-white/65">Ces prestations sont accessibles exclusivement aux membres du programme Fondateur.</p>
                         <button className="bb-button-brand mt-4 w-full justify-center" onClick={() => navigateView("shop")} type="button">Devenir Fondateur — 49,90 € <ArrowRight className="ml-2 h-4 w-4" /></button>
                       </div>
-                    ) : (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {categoryServices.map((service) => {
-                          const selected = selectedServiceKeys.includes(service.key);
-                          return (
-                            <button className={cn("flex min-h-20 items-center gap-3 rounded-[19px] border p-3 text-left transition active:scale-[0.99]", selected ? "border-accent/60 bg-accent/14" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")} key={service.key} onClick={() => setSelectedServiceKeys((current) => selected ? current.filter((key) => key !== service.key) : [...current, service.key])} type="button">
-                              <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border", selected ? "border-accent/40 bg-accent/15 text-accent" : "border-white/10 bg-black/25 text-white/45")}>
-                                {service.imageUrl ? <img alt="" className="h-full w-full rounded-[13px] object-cover" src={service.imageUrl} /> : <Sparkles className="h-5 w-5" />}
-                              </span>
-                              <span className="min-w-0 flex-1"><span className="block text-sm font-bold leading-5 text-white">{service.label}</span>{service.popular && <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.14em] text-accentSoft">Très demandé</span>}</span>
-                              {selected ? <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" /> : <Plus className="h-5 w-5 shrink-0 text-white/30" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    ) : categoryOpen ? (() => {
+                      const subcategories = Array.from(new Set(categoryServices.map((service) => service.subcategory)));
+                      if (subcategories.length === 1 && categoryServices.length <= 4) {
+                        return <div className="grid gap-2 border-t border-white/8 p-3 sm:grid-cols-2">{categoryServices.map(renderServiceChoice)}</div>;
+                      }
+                      return (
+                        <div className="space-y-2 border-t border-white/8 p-3">
+                          {subcategories.map((subcategory) => {
+                            const subgroupKey = `${category.key}:${subcategory}`;
+                            const subgroupOpen = openServiceSubcategory === subgroupKey;
+                            const subgroupServices = categoryServices.filter((service) => service.subcategory === subcategory);
+                            const subgroupSelected = subgroupServices.filter((service) => selectedServiceKeys.includes(service.key)).length;
+                            return (
+                              <div className="overflow-hidden rounded-[18px] border border-white/10 bg-black/20" key={subgroupKey}>
+                                <button className="flex w-full items-center gap-3 px-4 py-3 text-left" onClick={() => setOpenServiceSubcategory((current) => current === subgroupKey ? null : subgroupKey)} type="button">
+                                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-white">{subcategory}</span><span className="mt-1 block text-xs text-white/40">{subgroupServices.length} choix{subgroupSelected > 0 ? ` · ${subgroupSelected} sélectionné${subgroupSelected > 1 ? "s" : ""}` : ""}</span></span>
+                                  {subgroupSelected > 0 && <span className="bb-pill border-accent/25 bg-accent/10 text-accentSoft">{subgroupSelected}</span>}
+                                  <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/40 transition-transform", subgroupOpen && "rotate-180 text-accent")} />
+                                </button>
+                                {subgroupOpen && <div className="grid gap-2 border-t border-white/8 p-2 sm:grid-cols-2">{subgroupServices.map(renderServiceChoice)}</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })() : null}
                   </section>
                 );
               })}
             </div>
+            {selectedServices.length > 0 && (
+              <div className="mt-4 rounded-[20px] border border-accent/20 bg-accent/[0.06] p-4">
+                <div className="flex items-center justify-between gap-3"><p className="text-sm font-black text-white">Votre sélection</p><span className="text-xs font-bold text-accentSoft">{selectedServices.length} prestation{selectedServices.length > 1 ? "s" : ""}</span></div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedServices.map((service) => (
+                    <button className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-left text-xs font-semibold text-white/75" key={service.key} onClick={() => setSelectedServiceKeys((current) => current.filter((key) => key !== service.key))} title="Retirer" type="button">
+                      <span className="max-w-[230px] truncate">{service.label}</span><X className="h-3.5 w-3.5 shrink-0 text-white/40" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={selectedServices.length === 0} onClick={() => setBookingWizardStep(5)} type="button">Continuer avec {selectedServices.length || 0} prestation{selectedServices.length > 1 ? "s" : ""} <ArrowRight className="ml-2 h-4 w-4" /></button>
           </article>
         )}
 
-        {bookingWizardStep === 5 && (
+        {bookingWizardStep === 5 && !isProBooking && (
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Où souhaitez-vous le rendez-vous ?</h1>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -6409,7 +6477,7 @@ export function ClientCardPage() {
           </article>
         )}
 
-        {bookingWizardStep === 6 && (
+        {bookingWizardStep === 6 && !isProBooking && (
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Une précision à ajouter ?</h1>
             <p className="mt-2 text-sm text-white/55">Cette étape est optionnelle.</p>
@@ -6418,7 +6486,7 @@ export function ClientCardPage() {
           </article>
         )}
 
-        {bookingWizardStep === 7 && (
+        {bookingWizardStep === 7 && !isProBooking && (
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Ajouter des photos</h1>
             <p className="mt-2 text-sm text-white/55">Ajoutez au moins une photo du véhicule pour permettre à l&apos;admin d&apos;établir un devis juste. Jusqu&apos;à 8 images.</p>
@@ -6428,7 +6496,7 @@ export function ClientCardPage() {
           </article>
         )}
 
-        {bookingWizardStep === 8 && selectedDay && (
+        {bookingWizardStep === 8 && !isProBooking && selectedDay && (
           <article className="bc-step-card">
             <div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Votre rendez-vous</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Tout est prêt</h1></div><CheckCircle2 className="h-9 w-9 text-accent" /></div>
             <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">

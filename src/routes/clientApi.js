@@ -2084,15 +2084,17 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   if (isPro && !vehicleText) {
     return res.status(400).json({ ok: false, error: "vehicle_text_required" });
   }
-  if (services.length === 0 || services.length !== new Set(requestedServiceKeys).size) {
+  if (!isPro && (services.length === 0 || services.length !== new Set(requestedServiceKeys).size)) {
     return res.status(400).json({ ok: false, error: "invalid_services" });
   }
-  if (!client.is_founder && services.some((service) => service.founderOnly)) {
+  if (!isPro && !client.is_founder && services.some((service) => service.founderOnly)) {
     return res.status(403).json({ ok: false, error: "founder_service_required" });
   }
-  const serviceSummary = services.length === 1
-    ? services[0].label
-    : `${services.length} prestations`;
+  const serviceSummary = isPro
+    ? null
+    : services.length === 1
+      ? services[0].label
+      : `${services.length} prestations`;
 
   const { vehicle, error: vehicleError } = isPro
     ? { vehicle: null, error: null }
@@ -2112,8 +2114,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   }
 
   const normalizedLocation = typeof location === "string" ? location.toLowerCase() : "";
-  const loc =
-    normalizedLocation === "domicile"
+  const loc = isPro
+    ? null
+    : normalizedLocation === "domicile"
       ? "domicile"
       : normalizedLocation === "atelier"
         ? "atelier"
@@ -2125,7 +2128,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
 
-  if (uploadedImages.length === 0 && !(isMineActive && hasAppointmentPhotos(existing.id))) {
+  if (!isPro && uploadedImages.length === 0 && !(isMineActive && hasAppointmentPhotos(existing.id))) {
     return res.status(400).json({ ok: false, error: "photos_required" });
   }
 
@@ -2145,9 +2148,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         clientNote: normalizedClientNote,
         location: loc,
         serviceLevel,
-        serviceKey: services[0].key,
+        serviceKey: isPro ? null : services[0].key,
         serviceLabel: serviceSummary,
-        serviceItems: services.map(({ key, category, label, founderOnly }) => ({
+        serviceItems: isPro ? [] : services.map(({ key, category, label, founderOnly }) => ({
           key,
           category,
           label,
@@ -2204,9 +2207,9 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         clientNote: normalizedClientNote,
         location: loc,
         serviceLevel,
-        serviceKey: services[0].key,
+        serviceKey: isPro ? null : services[0].key,
         serviceLabel: serviceSummary,
-        serviceItems: services.map(({ key, category, label, founderOnly }) => ({
+        serviceItems: isPro ? [] : services.map(({ key, category, label, founderOnly }) => ({
           key,
           category,
           label,
