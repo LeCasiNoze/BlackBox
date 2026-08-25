@@ -12,8 +12,18 @@ const {
   mapPartnerOrderRow,
   syncPartnerOrderFromCheckout,
 } = require("../db/partner_orders");
+const {
+  getAppointmentPaymentOrderByCheckoutId,
+  processPaidAppointmentOrder,
+  syncAppointmentPaymentOrder,
+} = require("../db/appointment_payment_orders");
 const { getPartnerForfait } = require("../config/partnerForfaits");
-const { sendClientFormulaRecap } = require("../email");
+const {
+  sendAdminNotification,
+  sendClientAppointmentStatusEmail,
+  sendClientFormulaRecap,
+} = require("../email");
+const { getClientById } = require("../db/clients");
 const { createHostedCheckout, retrieveCheckout, sumupConfigured } = require("../services/sumup");
 
 const router = express.Router();
@@ -69,7 +79,38 @@ router.post("/sumup/webhook", async (req, res) => {
   try {
     const checkout = await retrieveCheckout(checkoutId);
 
-    // 1) Recharges credits (clients bbx/data/fondateurs).
+    // 1) Paiement d'un rendez-vous valide par l'admin.
+    const appointmentOrder = getAppointmentPaymentOrderByCheckoutId(checkout.id);
+    if (appointmentOrder) {
+      syncAppointmentPaymentOrder(appointmentOrder.id, checkout);
+      if (checkout.status === "PAID") {
+        const result = processPaidAppointmentOrder(appointmentOrder.id, checkout);
+        if (result?.applied && result.appointment) {
+          const client = getClientById(result.appointment.client_id);
+          if (client) {
+            await Promise.allSettled([
+              sendClientAppointmentStatusEmail({
+                client,
+                appointment: result.appointment,
+                eventType: "confirmed",
+              }),
+              sendAdminNotification({
+                type: "validated",
+                client,
+                date: result.appointment.date,
+                time: result.appointment.time,
+                location: result.appointment.location,
+                clientNote: `Paiement SumUp reçu : ${(appointmentOrder.amount_cents / 100).toFixed(2)} EUR`,
+                appointmentId: result.appointment.id,
+              }),
+            ]);
+          }
+        }
+      }
+      return res.status(204).end();
+    }
+
+    // 2) Recharges credits (anciens clients/formules).
     const topupOrder = getTopupOrderByCheckoutId(checkout.id);
     if (topupOrder) {
       syncTopupOrderFromCheckout(topupOrder.id, checkout);
@@ -80,7 +121,7 @@ router.post("/sumup/webhook", async (req, res) => {
       return res.status(204).end();
     }
 
-    // 2) Forfaits partenaire (liens generes par un compte pro).
+    // 3) Forfaits partenaire (liens generes par un compte pro).
     const partnerOrder = getPartnerOrderByCheckoutId(checkout.id);
     if (partnerOrder) {
       syncPartnerOrderFromCheckout(partnerOrder.id, checkout);

@@ -487,6 +487,7 @@ async function sendAdminNotification({
   clientNote = null,
   clientImageCount = 0,
   appointmentId = null,
+  serviceItems = [],
 }) {
   const adminEmail = adminInboxEmail();
   if (!adminEmail) {
@@ -556,6 +557,7 @@ Date : ${formattedDate}
 Heure : ${safeTime}
 Lieu : ${locationText}
 Vehicule : ${vehicle}
+Prestations : ${Array.isArray(serviceItems) && serviceItems.length > 0 ? serviceItems.map((item) => item.label).join(", ") : "-"}
 Commentaire client : ${clientNote || "-"}
 Photos client : ${
     clientImageCount > 0
@@ -588,6 +590,13 @@ Admin : ${adminUrl}
               ? [{ label: "Adresse", value: addressSummary || "Non renseignee" }]
               : []),
             { label: "Vehicule", value: vehicle },
+            {
+              label: "Prestations",
+              value:
+                Array.isArray(serviceItems) && serviceItems.length > 0
+                  ? serviceItems.map((item) => item.label).join(", ")
+                  : "-",
+            },
             { label: "Commentaire client", value: clientNote || "-" },
             {
               label: "Photos client",
@@ -710,11 +719,28 @@ async function sendClientPriceApprovalEmail({ client, appointment }) {
   const formattedDate = formatDateFr(appointment.date);
   const requested = Number(appointment.requested_credits || 1);
   const approved = Number(appointment.approved_credits || requested);
+  const standardPriceCents = Number(appointment.standard_price_cents || 0);
+  const approvedPriceCents = Number(appointment.approved_price_cents || 0);
+  const usesEuros = approvedPriceCents > 0;
+  const formatEuros = (cents) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+  const proposedPrice = usesEuros
+    ? formatEuros(approvedPriceCents)
+    : `${approved} credit${approved > 1 ? "s" : ""}`;
   const priceComment = appointment.price_comment || appointment.priceComment || null;
+  let serviceItems = [];
+  try {
+    serviceItems = JSON.parse(appointment.service_items_json || "[]");
+  } catch (_error) {
+    serviceItems = [];
+  }
+  const quoteExpiry = appointment.quote_expires_at
+    ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" }).format(new Date(appointment.quote_expires_at * 1000))
+    : null;
 
   pushClient(client, {
-    title: "Validez le nouveau tarif",
-    body: `Tarif propose: ${approved} credit${approved > 1 ? "s" : ""} pour le ${formattedDate}.${
+    title: usesEuros ? "Votre rendez-vous est prêt à être payé" : "Validez le nouveau tarif",
+    body: `Tarif proposé : ${proposedPrice} pour le ${formattedDate}.${
       priceComment ? ` ${priceComment}` : ""
     }`,
     appointmentId: appointment.id,
@@ -724,10 +750,9 @@ async function sendClientPriceApprovalEmail({ client, appointment }) {
   const text = `
 Bonjour ${fullName},
 
-Votre rendez-vous du ${formattedDate} necessite une validation tarif.
+Votre rendez-vous du ${formattedDate} est prêt à être finalisé.
 
-Estimation initiale : ${requested} credit(s)
-Tarif confirme par l'admin : ${approved} credit(s)${
+${usesEuros ? `${serviceItems.length > 0 ? `Prestations : ${serviceItems.map((item) => item.label).join(", ")}\n` : standardPriceCents > 0 ? `Tarif standard : ${formatEuros(standardPriceCents)}\n` : ""}Montant à payer : ${proposedPrice}${quoteExpiry ? `\nDevis et créneau réservés jusqu'au ${quoteExpiry}.` : ""}` : `Estimation initiale : ${requested} credit(s)\nTarif confirme par l'admin : ${approved} credit(s)`}${
     priceComment ? `\nNote de l'admin : ${priceComment}` : ""
   }
 
@@ -736,15 +761,22 @@ Espace client : ${portalUrl || "Lien indisponible"}
 
   const html = brandEmailShell({
     eyebrow: "Validation tarif",
-    title: "Un tarif est a confirmer",
+    title: usesEuros ? "Finalisez votre rendez-vous" : "Un tarif est a confirmer",
     subtitle:
-      "L'etat du vehicule demande plus de credits que l'estimation initiale. Vous pouvez accepter ou annuler depuis votre espace.",
-    preheader: `${approved} credits a valider · ${formattedDate}`,
+      usesEuros
+        ? "Le tarif a été validé par l'atelier. Réglez-le en ligne pour confirmer définitivement le rendez-vous."
+        : "L'etat du vehicule demande plus de credits que l'estimation initiale. Vous pouvez accepter ou annuler depuis votre espace.",
+    preheader: `${proposedPrice} · ${formattedDate}`,
     bodyHtml: `
       ${metricRows([
-        { label: "Estimation client", value: `${requested} credit${requested > 1 ? "s" : ""}` },
-        { label: "Tarif admin", value: `${approved} credit${approved > 1 ? "s" : ""}` },
+        usesEuros
+          ? { label: serviceItems.length > 0 ? "Prestations" : "Tarif standard", value: serviceItems.length > 0 ? `${serviceItems.length} sélectionnée${serviceItems.length > 1 ? "s" : ""}` : formatEuros(standardPriceCents) }
+          : { label: "Estimation client", value: `${requested} credit${requested > 1 ? "s" : ""}` },
+        usesEuros
+          ? { label: "Montant à payer", value: proposedPrice }
+          : { label: "Tarif admin", value: `${approved} credit${approved > 1 ? "s" : ""}` },
       ])}
+      ${quoteExpiry ? `<p style="margin:12px 0 0;font-size:13px;line-height:20px;color:#fcd34d;">Devis et créneau réservés jusqu'au ${escapeHtml(quoteExpiry)}.</p>` : ""}
       ${
         priceComment
           ? panelCard({
@@ -759,7 +791,7 @@ Espace client : ${portalUrl || "Lien indisponible"}
       ${actionButtons([
         portalUrl
           ? {
-              label: "Accepter ou annuler",
+              label: usesEuros ? `Finaliser et payer ${proposedPrice}` : "Accepter ou annuler",
               href: clientAppointmentUrl(client, appointment.id),
               tone: "primary",
             }

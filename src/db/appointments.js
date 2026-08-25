@@ -211,6 +211,10 @@ function createRequestedAppointmentForSlot({
   clientNote,
   location,
   serviceLevel,
+  serviceKey = null,
+  serviceLabel = null,
+  serviceItems = null,
+  standardPriceCents = null,
   status = "requested",
   priceStatus = "pending_admin",
   approvedCredits = null,
@@ -242,10 +246,16 @@ function createRequestedAppointmentForSlot({
         credits_charged,
         price_status,
         credits_charged_at,
+        service_key,
+        service_label,
+        service_items_json,
+        standard_price_cents,
+        approved_price_cents,
+        amount_paid_cents,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
     .run(
@@ -264,6 +274,12 @@ function createRequestedAppointmentForSlot({
       creditsCharged,
       priceStatus,
       creditsCharged > 0 ? now : null,
+      serviceKey || null,
+      serviceLabel || null,
+      Array.isArray(serviceItems) && serviceItems.length > 0 ? JSON.stringify(serviceItems) : null,
+      Number.isFinite(Number(standardPriceCents)) ? Math.max(0, Math.round(Number(standardPriceCents))) : null,
+      null,
+      0,
       now,
       now,
     );
@@ -293,6 +309,10 @@ function updateAppointmentForClientSlot({
   vehicleId,
   vehicleText,
   serviceLevel,
+  serviceKey,
+  serviceLabel,
+  serviceItems,
+  standardPriceCents,
 }) {
   const now = nowUnix();
   const normalizedSlot = normalizeAppointmentSlot(slot, time);
@@ -314,6 +334,10 @@ function updateAppointmentForClientSlot({
             WHEN ? IS NOT NULL THEN ?
             ELSE requested_credits
           END,
+          service_key = COALESCE(?, service_key),
+          service_label = COALESCE(?, service_label),
+          service_items_json = COALESCE(?, service_items_json),
+          standard_price_cents = COALESCE(?, standard_price_cents),
           updated_at = ?
       WHERE client_id = ?
         AND date = ?
@@ -330,6 +354,10 @@ function updateAppointmentForClientSlot({
       normalizedServiceLevel,
       normalizedServiceLevel,
       normalizedServiceLevel ? serviceLevelCredits(normalizedServiceLevel) : null,
+      serviceKey || null,
+      serviceLabel || null,
+      Array.isArray(serviceItems) && serviceItems.length > 0 ? JSON.stringify(serviceItems) : null,
+      Number.isFinite(Number(standardPriceCents)) ? Math.max(0, Math.round(Number(standardPriceCents))) : null,
       now,
       clientId,
       dateStr,
@@ -501,7 +529,14 @@ function chargeAppointmentCreditsInTransaction(appointmentId, credits) {
 
 function reviewAppointmentPrice(
   id,
-  { adminLevel, customCredits = null, requestPhotos = false, photosMessage = null, priceComment = null } = {},
+  {
+    adminLevel,
+    customCredits = null,
+    customPriceCents = null,
+    requestPhotos = false,
+    photosMessage = null,
+    priceComment = null,
+  } = {},
 ) {
   const normalizedPriceComment =
     typeof priceComment === "string" && priceComment.trim() !== "" ? priceComment.trim() : null;
@@ -525,6 +560,36 @@ function reviewAppointmentPrice(
       ).run(nowUnix(), photosMessage || null, nowUnix(), appointmentId);
 
       return { ok: true, appointment: getAppointmentById(appointmentId), needsPhotos: true };
+    }
+
+    // Nouveau parcours en euros : le prix standard vient de la prestation choisie.
+    // L'admin peut le remplacer par un montant personnalise. Le rendez-vous reste
+    // en attente jusqu'au paiement SumUp, qui seul le passera en "confirmed".
+    const standardPriceCents = Number(appointment.standard_price_cents || 0);
+    const hasServiceBasket = typeof appointment.service_items_json === "string" && appointment.service_items_json !== "";
+    if (standardPriceCents > 0 || hasServiceBasket) {
+      const customValue = Number(customPriceCents);
+      if (hasServiceBasket && (!Number.isFinite(customValue) || customValue <= 0)) {
+        return { ok: false, error: "price_required", appointment };
+      }
+      const approvedPriceCents = Number.isFinite(customValue) && customValue > 0
+        ? Math.round(customValue)
+        : Math.round(standardPriceCents);
+      const quoteExpiresAt = nowUnix() + 48 * 60 * 60;
+
+      db.prepare(
+        `UPDATE appointments
+         SET approved_price_cents = ?, price_comment = COALESCE(?, price_comment),
+             price_status = 'waiting_payment', status = 'requested',
+             quote_expires_at = ?, updated_at = ?
+         WHERE id = ?`,
+      ).run(approvedPriceCents, normalizedPriceComment, quoteExpiresAt, nowUnix(), appointmentId);
+
+      return {
+        ok: true,
+        requiresPayment: true,
+        appointment: getAppointmentById(appointmentId),
+      };
     }
 
     const normalizedAdminLevel =
@@ -567,6 +632,21 @@ function reviewAppointmentPrice(
   })(id);
 }
 
+function expireUnpaidAppointmentQuotes() {
+  const now = nowUnix();
+  return db
+    .prepare(
+      `UPDATE appointments
+       SET status = 'cancelled', price_status = 'declined', updated_at = ?
+       WHERE status = 'requested'
+         AND price_status = 'waiting_payment'
+         AND quote_expires_at IS NOT NULL
+         AND quote_expires_at <= ?
+         AND COALESCE(amount_paid_cents, 0) = 0`,
+    )
+    .run(now, now).changes;
+}
+
 function acceptAppointmentPriceForClient(appointmentId, clientId) {
   return db.transaction((id, ownerId) => {
     const appointment = getAppointmentById(id);
@@ -575,6 +655,9 @@ function acceptAppointmentPriceForClient(appointmentId, clientId) {
     }
     if (!["waiting_client_approval", "waiting_payment"].includes(appointment.price_status)) {
       return { ok: false, error: "price_not_waiting" };
+    }
+    if (Number(appointment.approved_price_cents || 0) > 0) {
+      return { ok: false, error: "payment_required" };
     }
 
     db.prepare(
@@ -1008,6 +1091,7 @@ module.exports = {
   createRequestedAppointment,
   createRequestedAppointmentForSlot,
   defaultTimeForSlot,
+  expireUnpaidAppointmentQuotes,
   formatDateLocal,
   getAllAppointmentsWithClient,
   getAppointmentByDate,

@@ -119,6 +119,14 @@ CREATE TABLE IF NOT EXISTS appointments (
   photos_request_message TEXT,
   price_comment TEXT,
   client_price_approved_at INTEGER,
+  service_key TEXT,
+  service_label TEXT,
+  service_items_json TEXT,
+  standard_price_cents INTEGER,
+  approved_price_cents INTEGER,
+  amount_paid_cents INTEGER NOT NULL DEFAULT 0,
+  paid_at INTEGER,
+  quote_expires_at INTEGER,
   bc_points_awarded INTEGER NOT NULL DEFAULT 0
                     CHECK (bc_points_awarded IN (0, 1)),
   bc_points_granted INTEGER NOT NULL DEFAULT 0,
@@ -145,6 +153,33 @@ CREATE INDEX IF NOT EXISTS idx_appointments_vehicle
 CREATE UNIQUE INDEX IF NOT EXISTS idx_appointments_active_slot
   ON appointments(date, slot)
   WHERE status IN ('requested', 'confirmed', 'done');
+
+-- Paiements SumUp des rendez-vous. Ils sont separes des recharges de credits :
+-- un paiement confirme directement le rendez-vous, sans modifier une formule.
+CREATE TABLE IF NOT EXISTS appointment_payment_orders (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  appointment_id      INTEGER NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+  client_id           INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  amount_cents        INTEGER NOT NULL,
+  currency            TEXT NOT NULL DEFAULT 'EUR',
+  checkout_reference  TEXT NOT NULL UNIQUE,
+  checkout_id         TEXT UNIQUE,
+  hosted_checkout_url TEXT,
+  status              TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded', 'processed')),
+  sumup_status        TEXT,
+  paid_at             INTEGER,
+  processed_at        INTEGER,
+  sumup_payload       TEXT,
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_appointment_payment_orders_appointment
+  ON appointment_payment_orders(appointment_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_appointment_payment_orders_checkout
+  ON appointment_payment_orders(checkout_id);
 
 -- ============================
 -- TABLE appointment_photos

@@ -79,6 +79,7 @@ const {
   cancelAppointmentAndRefund,
   createRequestedAppointmentForSlot,
   defaultTimeForSlot,
+  expireUnpaidAppointmentQuotes,
   getAppointmentByDateAndSlot,
   getAppointmentById,
   getAppointmentPhotos,
@@ -150,6 +151,14 @@ const {
 } = require("../db/pushSubscriptions");
 const { listPendingCaseOpenings, openCaseOpening } = require("../db/caseOpenings");
 const { caseTiersForCredits } = require("../config/bcoins");
+const { SERVICE_CATALOG, SERVICE_CATEGORIES, getServicesByKeys } = require("../config/services");
+const {
+  attachAppointmentCheckout,
+  createAppointmentPaymentOrder,
+  getPaidAppointmentOrderForClient,
+  getLatestAppointmentPaymentOrder,
+  listPaidAppointmentOrdersByClient,
+} = require("../db/appointment_payment_orders");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
@@ -472,6 +481,20 @@ function mapClientAppointment(appointment) {
     photosRequestedAt: appointment.photos_requested_at ?? null,
     photosRequestMessage: appointment.photos_request_message || null,
     priceComment: appointment.price_comment || null,
+    serviceKey: appointment.service_key || null,
+    serviceLabel: appointment.service_label || null,
+    serviceItems: (() => {
+      try {
+        return appointment.service_items_json ? JSON.parse(appointment.service_items_json) : [];
+      } catch (_error) {
+        return [];
+      }
+    })(),
+    standardPriceCents: appointment.standard_price_cents ?? null,
+    approvedPriceCents: appointment.approved_price_cents ?? null,
+    amountPaidCents: appointment.amount_paid_cents ?? 0,
+    paidAt: appointment.paid_at ?? null,
+    quoteExpiresAt: appointment.quote_expires_at ?? null,
     hasPhotos: hasAppointmentPhotos(appointment.id),
     location: appointment.location || null,
     goodies: listPendingGoodieWinsForAppointment(appointment.id).map((win) => win.rewardLabel),
@@ -765,6 +788,7 @@ router.get("/:idOrSlug", (req, res) => {
   // Expire les acces fondateur temporaires arrives a terme avant de repondre.
   try {
     expireTemporaryFounders();
+    expireUnpaidAppointmentQuotes();
   } catch (_error) {
     // best-effort
   }
@@ -806,6 +830,8 @@ router.get("/:idOrSlug", (req, res) => {
     rewardRedemptions: isBbxClient(client) ? rewardRedemptions : [],
     topupOffers: listPublicTopupOffersForClient(client),
     paymentsReady: isSumupTopupReady(),
+    serviceCatalog: SERVICE_CATALOG,
+    serviceCategories: SERVICE_CATEGORIES,
     pendingCases: client.is_founder ? listPendingCaseOpenings(client.id) : [],
     event: eventPayload,
     founderCap: FOUNDER_CAP,
@@ -1094,7 +1120,7 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   }
 });
 
-// Acces fondateur: paiement SumUp unique (49,99 EUR, places limitees a 50).
+// Acces fondateur: paiement SumUp unique (49,90 EUR, places limitees a 50).
 // A la confirmation (webhook ou /topup/sync au retour), le compte bbx passe fondateur.
 router.post("/:idOrSlug/founder/checkout", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
@@ -1122,7 +1148,7 @@ router.post("/:idOrSlug/founder/checkout", async (req, res) => {
     applyMode: "add",
     credits: 0,
     durationDays: null,
-    priceCents: 4999,
+    priceCents: 4990,
     currency: "EUR",
   };
 
@@ -1329,7 +1355,7 @@ router.get("/:idOrSlug/invoices", (req, res) => {
     return;
   }
   try {
-    const invoices = listPaidTopupOrdersByClient(client.id).map((order) => ({
+    const legacyInvoices = listPaidTopupOrdersByClient(client.id).map((order) => ({
       id: order.id,
       number: invoiceNumberFor(order),
       label: order.offer_label || "Paiement",
@@ -1338,6 +1364,18 @@ router.get("/:idOrSlug/invoices", (req, res) => {
       currency: order.currency || "EUR",
       paidAt: order.paid_at ?? order.created_at ?? null,
     }));
+    const appointmentInvoices = listPaidAppointmentOrdersByClient(client.id).map((order) => ({
+      id: `appointment-${order.id}`,
+      number: `RDV-${String(order.id).padStart(6, "0")}`,
+      label: order.service_label || "Prestation detailing",
+      credits: 0,
+      amountCents: order.amount_cents ?? 0,
+      currency: order.currency || "EUR",
+      paidAt: order.paid_at ?? order.created_at ?? null,
+    }));
+    const invoices = [...appointmentInvoices, ...legacyInvoices].sort(
+      (left, right) => Number(right.paidAt || 0) - Number(left.paidAt || 0),
+    );
     return res.json({ ok: true, invoices });
   } catch (error) {
     console.error("[API] invoices:", error);
@@ -1351,7 +1389,10 @@ router.get("/:idOrSlug/invoices/:orderId", (req, res) => {
   if (!ensurePortalEligible(client, res)) {
     return;
   }
-  const order = getPaidTopupOrderForClient(client.id, Number(req.params.orderId || 0));
+  const appointmentInvoiceMatch = /^appointment-(\d+)$/.exec(req.params.orderId || "");
+  const order = appointmentInvoiceMatch
+    ? getPaidAppointmentOrderForClient(client.id, Number(appointmentInvoiceMatch[1]))
+    : getPaidTopupOrderForClient(client.id, Number(req.params.orderId || 0));
   if (!order) {
     return res.status(404).json({ ok: false, error: "invoice_not_found" });
   }
@@ -1359,12 +1400,14 @@ router.get("/:idOrSlug/invoices/:orderId", (req, res) => {
   return res.json({
     ok: true,
     invoice: {
-      number: invoiceNumberFor(order),
+      number: appointmentInvoiceMatch
+        ? `RDV-${String(order.id).padStart(6, "0")}`
+        : invoiceNumberFor(order),
       issuedAt: order.paid_at ?? order.created_at ?? null,
       // Designation generique "service" pour toutes les factures (au lieu de
       // l'intitule de l'offre de credits) : s'applique aussi aux factures deja
       // passees (la facture est generee a la demande, rien n'est fige).
-      label: "Nettoyage véhicule",
+      label: appointmentInvoiceMatch ? order.service_label || "Prestation detailing" : "Nettoyage véhicule",
       credits: order.credits ?? 0,
       amountCents: order.amount_cents ?? 0,
       currency: order.currency || "EUR",
@@ -1840,6 +1883,79 @@ router.post("/:idOrSlug/appointments/:appointmentId/accept-price", async (req, r
   }
 });
 
+// Le client finalise un rendez-vous valide par l'admin. Le montant du checkout
+// vient exclusivement de la base (jamais du navigateur) afin d'eviter toute
+// modification du prix cote client.
+router.post("/:idOrSlug/appointments/:appointmentId/checkout", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) return;
+  if (!sumupConfigured()) {
+    return res.status(503).json({ ok: false, error: "sumup_not_ready" });
+  }
+
+  const appointmentId = Number(req.params.appointmentId) || 0;
+  expireUnpaidAppointmentQuotes();
+  const appointment = getAppointmentById(appointmentId);
+  if (!appointment || appointment.client_id !== client.id) {
+    return res.status(404).json({ ok: false, error: "appointment_not_found" });
+  }
+  if (appointment.status === "confirmed" && Number(appointment.amount_paid_cents || 0) > 0) {
+    return res.json({ ok: true, alreadyPaid: true, appointment: mapClientAppointment(appointment) });
+  }
+  if (appointment.status === "cancelled" && Number(appointment.quote_expires_at || 0) > 0) {
+    return res.status(410).json({ ok: false, error: "quote_expired" });
+  }
+
+  const amountCents = Number(appointment.approved_price_cents || 0);
+  if (appointment.price_status !== "waiting_payment" || amountCents <= 0) {
+    return res.status(400).json({ ok: false, error: "price_not_ready" });
+  }
+
+  const existing = getLatestAppointmentPaymentOrder(appointmentId);
+  if (
+    existing &&
+    existing.status === "pending" &&
+    Number(existing.amount_cents) === amountCents &&
+    existing.hosted_checkout_url
+  ) {
+    try {
+      const checkout = existing.checkout_id ? await retrieveCheckout(existing.checkout_id) : null;
+      if (!checkout || checkout.status === "PENDING") {
+        return res.json({ ok: true, hostedCheckoutUrl: existing.hosted_checkout_url });
+      }
+    } catch (_error) {
+      // Le checkout n'est plus reutilisable : une nouvelle tentative est creee.
+    }
+  }
+
+  const baseUrl = publicBaseUrl(req);
+  const checkoutReference = `bbx-rdv-${appointmentId}-${Date.now().toString(36)}`;
+  const redirectUrl = `${baseUrl}/card/${encodeURIComponent(client.slug)}?view=history&appointmentId=${appointmentId}&appointmentPaid=1`;
+  const returnUrl = `${baseUrl}/api/payments/sumup/webhook`;
+  const order = createAppointmentPaymentOrder({
+    appointmentId,
+    clientId: client.id,
+    amountCents,
+    checkoutReference,
+  });
+
+  try {
+    const checkout = await createHostedCheckout({
+      checkoutReference,
+      amountCents,
+      currency: "EUR",
+      description: `${appointment.service_label || "Prestation detailing"} - ${appointment.date}`,
+      redirectUrl,
+      returnUrl,
+    });
+    attachAppointmentCheckout(order.id, checkout);
+    return res.json({ ok: true, hostedCheckoutUrl: checkout.hosted_checkout_url });
+  } catch (error) {
+    console.error("[SUMUP] appointment checkout:", error);
+    return res.status(502).json({ ok: false, error: "sumup_checkout_failed" });
+  }
+});
+
 router.post(
   "/:idOrSlug/appointments/:appointmentId/photos",
   handleBookingUpload,
@@ -1944,6 +2060,13 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
   const { date, time, location, slot: rawSlot, clientNote } = req.body || {};
   const serviceLevel = req.body?.serviceLevel || req.body?.cleanlinessEstimate || "clean";
+  let requestedServiceKeys = [];
+  try {
+    requestedServiceKeys = JSON.parse(req.body?.serviceKeys || "[]");
+  } catch (_error) {
+    requestedServiceKeys = [];
+  }
+  const services = getServicesByKeys(requestedServiceKeys);
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
   const isPro = (client.client_type || "bbx") === "pro";
   const vehicleText =
@@ -1961,6 +2084,15 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
   if (isPro && !vehicleText) {
     return res.status(400).json({ ok: false, error: "vehicle_text_required" });
   }
+  if (services.length === 0 || services.length !== new Set(requestedServiceKeys).size) {
+    return res.status(400).json({ ok: false, error: "invalid_services" });
+  }
+  if (!client.is_founder && services.some((service) => service.founderOnly)) {
+    return res.status(403).json({ ok: false, error: "founder_service_required" });
+  }
+  const serviceSummary = services.length === 1
+    ? services[0].label
+    : `${services.length} prestations`;
 
   const { vehicle, error: vehicleError } = isPro
     ? { vehicle: null, error: null }
@@ -1993,6 +2125,10 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
 
+  if (uploadedImages.length === 0 && !(isMineActive && hasAppointmentPhotos(existing.id))) {
+    return res.status(400).json({ ok: false, error: "photos_required" });
+  }
+
   if (existing && !isMineActive && existing.status !== "cancelled") {
     return res.status(409).json({ ok: false, error: "slot_taken" });
   }
@@ -2009,6 +2145,14 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         clientNote: normalizedClientNote,
         location: loc,
         serviceLevel,
+        serviceKey: services[0].key,
+        serviceLabel: serviceSummary,
+        serviceItems: services.map(({ key, category, label, founderOnly }) => ({
+          key,
+          category,
+          label,
+          founderOnly,
+        })),
       });
 
       if (!changed) {
@@ -2034,6 +2178,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
           location: loc || existing.location || null,
           clientNote: normalizedClientNote || existing.client_note || null,
           clientImageCount,
+          serviceItems: services,
         });
       } catch (error) {
         console.error("[MAIL] notif update:", error);
@@ -2059,6 +2204,14 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         clientNote: normalizedClientNote,
         location: loc,
         serviceLevel,
+        serviceKey: services[0].key,
+        serviceLabel: serviceSummary,
+        serviceItems: services.map(({ key, category, label, founderOnly }) => ({
+          key,
+          category,
+          label,
+          founderOnly,
+        })),
         status: isPro ? "confirmed" : "requested",
         priceStatus: isPro ? "not_required" : "pending_admin",
         approvedCredits: isPro ? 0 : null,
@@ -2092,6 +2245,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         location: loc,
         clientNote: normalizedClientNote,
         clientImageCount,
+        serviceItems: services,
         appointmentId,
       });
       if (!adminNotified) {

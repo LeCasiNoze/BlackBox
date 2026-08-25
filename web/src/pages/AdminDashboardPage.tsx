@@ -263,6 +263,14 @@ type AdminAppointment = {
     | "not_required"
     | "declined";
   priceComment: string | null;
+  serviceKey: string | null;
+  serviceLabel: string | null;
+  serviceItems: Array<{ key: string; category: string; label: string; founderOnly: boolean }>;
+  standardPriceCents: number | null;
+  approvedPriceCents: number | null;
+  amountPaidCents: number;
+  paidAt: number | null;
+  quoteExpiresAt: number | null;
   photosRequestedAt: number | null;
   photosRequestMessage: string | null;
   bcPointsAwarded: boolean;
@@ -311,6 +319,7 @@ type AdminVehicle = {
   label: string | null;
   model: string | null;
   plate: string | null;
+  imageUrl: string | null;
   isPrimary: boolean;
   createdAt: number;
   updatedAt: number;
@@ -438,6 +447,13 @@ const CLEANLINESS_OPTIONS: Array<{
   { value: "correct", label: "Correct", tone: "border-lime-400/30 bg-lime-300/10 text-lime-100" },
   { value: "dirty", label: "Sale", tone: "border-amber-400/35 bg-amber-300/10 text-amber-100" },
 ];
+
+function formatMoneyCents(cents: number | null | undefined) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(cents || 0) / 100);
+}
 
 function normalizeCleanlinessRating(
   rating: CleanlinessRating | null | undefined,
@@ -787,6 +803,8 @@ export function AdminDashboardPage() {
     Record<number, CleanlinessRating | null>
   >({});
   const [customCreditDrafts, setCustomCreditDrafts] = React.useState<Record<number, string>>({});
+  const [customPriceDrafts, setCustomPriceDrafts] = React.useState<Record<number, string>>({});
+  const [vehiclePhotoBusyId, setVehiclePhotoBusyId] = React.useState<number | null>(null);
   const [photoRequestDrafts, setPhotoRequestDrafts] = React.useState<Record<number, string>>({});
   const [priceCommentDrafts, setPriceCommentDrafts] = React.useState<Record<number, string>>({});
 
@@ -1846,6 +1864,11 @@ export function AdminDashboardPage() {
             customCreditDrafts[appointmentId] && Number(customCreditDrafts[appointmentId]) > 0
               ? Number(customCreditDrafts[appointmentId])
               : undefined,
+          customPriceCents: (() => {
+            const raw = customPriceDrafts[appointmentId]?.replace(",", ".");
+            const euros = raw ? Number(raw) : Number.NaN;
+            return Number.isFinite(euros) && euros > 0 ? Math.round(euros * 100) : undefined;
+          })(),
           adminCleanlinessEstimate: cleanlinessDrafts[appointmentId] === "dirty"
             ? "dirty"
             : cleanlinessDrafts[appointmentId] === "correct"
@@ -1870,7 +1893,11 @@ export function AdminDashboardPage() {
       applyAppointmentUpdate(updated);
 
       if (updated.priceStatus === "waiting_payment" || json.warning === "not_enough_credits") {
-        showToast("Tarif enregistré. Le client doit recharger pour confirmer.");
+        showToast(
+          updated.approvedPriceCents != null
+            ? "Tarif enregistré. Le client peut maintenant finaliser et payer."
+            : "Tarif enregistré. Le client doit recharger pour confirmer.",
+        );
       } else if (updated.priceStatus === "waiting_client_approval") {
         showToast("Tarif envoye au client pour validation.");
       } else {
@@ -2481,6 +2508,7 @@ export function AdminDashboardPage() {
     ? appointmentWorkflowActions(selectedAppointment.status)
     : null;
   const managedClient = selectedClientData;
+  const managedVehicles = selectedClient?.vehicles ?? [];
   const managedClientTermsAccepted = !!managedClient?.termsAcceptedAt;
   const sectionTitle =
     adminSection === "appointments"
@@ -3619,6 +3647,43 @@ export function AdminDashboardPage() {
         )}
       </section>
     );
+  }
+
+  async function uploadAdminVehiclePhoto(vehicleId: number, file: File) {
+    if (!selectedClient) return;
+    setVehiclePhotoBusyId(vehicleId);
+    try {
+      const payload = new FormData();
+      payload.append("image", file);
+      const response = await fetch(
+        `/api/admin/clients/${selectedClient.client.id}/vehicles/${vehicleId}/photo`,
+        { method: "POST", body: payload },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast("Impossible de mettre à jour la photo du véhicule.");
+        return;
+      }
+      setSelectedClient((current) =>
+        current ? { ...current, vehicles: json.vehicles ?? current.vehicles } : current,
+      );
+      showToast("Photo du véhicule mise à jour.");
+    } catch (_error) {
+      showToast("Erreur réseau pendant l'envoi de la photo.");
+    } finally {
+      setVehiclePhotoBusyId(null);
+    }
+  }
+
+  function plannedPriceCentsFor(appointment: AdminAppointment) {
+    const raw = customPriceDrafts[appointment.id]?.replace(",", ".");
+    const euros = raw ? Number(raw) : Number.NaN;
+    if (Number.isFinite(euros) && euros > 0) return Math.round(euros * 100);
+    return appointment.approvedPriceCents || appointment.standardPriceCents || 0;
+  }
+
+  function appointmentUsesEuroQuote(appointment: AdminAppointment) {
+    return appointment.standardPriceCents != null || appointment.serviceItems.length > 0;
   }
 
 
@@ -5277,27 +5342,46 @@ export function AdminDashboardPage() {
                             : selectedAppointment.priceStatus === "waiting_client_approval"
                               ? "En attente accord client"
                               : selectedAppointment.priceStatus === "waiting_payment"
-                                ? "Le client doit recharger"
+                                ? "En attente du paiement client"
                                 : selectedAppointment.priceStatus === "approved"
-                                  ? "Tarif validé et crédits consommés"
+                                  ? selectedAppointment.amountPaidCents > 0
+                                    ? "Paiement reçu, rendez-vous confirmé"
+                                    : "Tarif validé et crédits consommés"
                                   : "Controle admin requis"}
                         </h3>
                         <p className="mt-2 text-sm leading-6 text-white/62">
-                          Estimation client: {selectedAppointment.requestedCredits || 1} credit
-                          {(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}.
-                          {selectedAppointment.approvedCredits
-                            ? ` Tarif admin: ${selectedAppointment.approvedCredits} credit${
-                                selectedAppointment.approvedCredits > 1 ? "s" : ""
-                              }.`
-                            : " Vous pouvez confirmer, modifier ou demander des photos."}
+                          {appointmentUsesEuroQuote(selectedAppointment)
+                            ? `${selectedAppointment.serviceItems.length || 1} prestation${selectedAppointment.serviceItems.length > 1 ? "s" : ""} sélectionnée${selectedAppointment.serviceItems.length > 1 ? "s" : ""}.`
+                            : `Estimation client: ${selectedAppointment.requestedCredits || 1} credit${(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}.`}
+                          {selectedAppointment.approvedPriceCents != null
+                            ? ` Tarif validé: ${formatMoneyCents(selectedAppointment.approvedPriceCents)}.`
+                            : selectedAppointment.approvedCredits
+                              ? ` Tarif admin: ${selectedAppointment.approvedCredits} credit${selectedAppointment.approvedCredits > 1 ? "s" : ""}.`
+                              : " Vous pouvez confirmer, modifier ou demander des photos."}
                         </p>
                       </div>
                       <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                        {selectedAppointment.creditsCharged || 0} credit
-                        {(selectedAppointment.creditsCharged || 0) > 1 ? "s" : ""} consomme
+                        {appointmentUsesEuroQuote(selectedAppointment)
+                          ? `${formatMoneyCents(selectedAppointment.amountPaidCents)} payé`
+                          : `${selectedAppointment.creditsCharged || 0} credit${(selectedAppointment.creditsCharged || 0) > 1 ? "s" : ""} consomme`}
                       </div>
                     </div>
 
+                    {selectedAppointment.serviceItems.length > 0 && (
+                      <div className="mt-5 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-accentSoft">Panier du client</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {selectedAppointment.serviceItems.map((service) => (
+                            <p className="flex items-start gap-2 text-sm leading-5 text-white/75" key={service.key}>
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                              {service.label}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {!appointmentUsesEuroQuote(selectedAppointment) && (
                     <div className="mt-5 grid gap-3 md:grid-cols-3">
                       {[
                         { value: "very_clean" as const, label: "Propre", credits: 1 },
@@ -5327,24 +5411,33 @@ export function AdminDashboardPage() {
                         </button>
                       ))}
                     </div>
+                    )}
 
                     <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr]">
                       <label className="space-y-2">
                         <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                          Prix personnalise
+                          {appointmentUsesEuroQuote(selectedAppointment) ? "Prix total du devis (€)" : "Prix personnalisé"}
                         </span>
                         <input
                           className="bb-input"
                           min={1}
                           onChange={(event) =>
-                            setCustomCreditDrafts((current) => ({
-                              ...current,
-                              [selectedAppointment.id]: event.target.value,
-                            }))
+                            appointmentUsesEuroQuote(selectedAppointment)
+                              ? setCustomPriceDrafts((current) => ({
+                                  ...current,
+                                  [selectedAppointment.id]: event.target.value,
+                                }))
+                              : setCustomCreditDrafts((current) => ({
+                                  ...current,
+                                  [selectedAppointment.id]: event.target.value,
+                                }))
                           }
-                          placeholder="Ex: 6 crédits"
+                          placeholder={appointmentUsesEuroQuote(selectedAppointment) ? "Ex : 450,00" : "Ex : 6 crédits"}
+                          step={appointmentUsesEuroQuote(selectedAppointment) ? "0.01" : "1"}
                           type="number"
-                          value={customCreditDrafts[selectedAppointment.id] ?? ""}
+                          value={appointmentUsesEuroQuote(selectedAppointment)
+                            ? customPriceDrafts[selectedAppointment.id] ?? ""
+                            : customCreditDrafts[selectedAppointment.id] ?? ""}
                         />
                       </label>
                       <label className="space-y-2">
@@ -5392,12 +5485,13 @@ export function AdminDashboardPage() {
                       <div className="mt-5 rounded-2xl border border-accent/35 bg-accent/[0.08] p-4">
                         <p className="text-sm font-semibold text-white">Confirmer le tarif</p>
                         <p className="mt-1 text-sm leading-6 text-white/65">
-                          Le client sera facture de{" "}
+                          Le client devra payer{" "}
                           <span className="font-semibold text-accent">
-                            {plannedCreditsFor(selectedAppointment)} credit
-                            {plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}
+                            {appointmentUsesEuroQuote(selectedAppointment)
+                              ? formatMoneyCents(plannedPriceCentsFor(selectedAppointment))
+                              : `${plannedCreditsFor(selectedAppointment)} credit${plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}`}
                           </span>{" "}
-                          pour ce rendez-vous.
+                          pour finaliser et confirmer ce rendez-vous.
                         </p>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
                           <button
@@ -5410,8 +5504,9 @@ export function AdminDashboardPage() {
                             type="button"
                           >
                             <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Confirmer {plannedCreditsFor(selectedAppointment)} credit
-                            {plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}
+                            {appointmentUsesEuroQuote(selectedAppointment)
+                              ? `Valider ${formatMoneyCents(plannedPriceCentsFor(selectedAppointment))}`
+                              : `Confirmer ${plannedCreditsFor(selectedAppointment)} credit${plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}`}
                           </button>
                           <button
                             className="bb-button-ghost justify-center"
@@ -5427,8 +5522,14 @@ export function AdminDashboardPage() {
                       <div className="mt-5 grid gap-3 sm:grid-cols-2">
                         <button
                           className="bb-button-brand justify-center"
-                          disabled={busyAction}
-                          onClick={() => setPendingPriceConfirm(selectedAppointment.id)}
+                          disabled={busyAction || (appointmentUsesEuroQuote(selectedAppointment) && plannedPriceCentsFor(selectedAppointment) <= 0)}
+                          onClick={() => {
+                            if (appointmentUsesEuroQuote(selectedAppointment) && plannedPriceCentsFor(selectedAppointment) <= 0) {
+                              showToast("Saisissez le prix total du devis.");
+                              return;
+                            }
+                            setPendingPriceConfirm(selectedAppointment.id);
+                          }}
                           type="button"
                         >
                           Valider ce tarif
@@ -6287,6 +6388,80 @@ export function AdminDashboardPage() {
                         Supprimer le compte
                       </button>
                     </div>
+                  </div>
+
+                  {/* Garage du client : consultation et remplacement de la photo. */}
+                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="bb-eyebrow">Garage</p>
+                        <h3 className="bb-display mt-2 text-xl font-semibold text-white">
+                          Véhicules du client
+                        </h3>
+                      </div>
+                      <span className="bb-pill border-white/12 bg-white/[0.04] text-white/60">
+                        {managedVehicles.length} véhicule{managedVehicles.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    {managedVehicles.length === 0 ? (
+                      <div className="mt-4 rounded-[22px] border border-dashed border-white/12 bg-black/15 p-5 text-center">
+                        <CarFront className="mx-auto h-7 w-7 text-white/25" />
+                        <p className="mt-2 text-sm text-white/45">Aucun véhicule enregistré.</p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {managedVehicles.map((vehicle) => (
+                          <article className="overflow-hidden rounded-[22px] border border-white/10 bg-black/20" key={vehicle.id}>
+                            <div className="relative h-36 bg-white/[0.03]">
+                              {vehicle.imageUrl ? (
+                                <img
+                                  alt={vehicle.model || vehicle.label || "Véhicule"}
+                                  className="h-full w-full object-cover"
+                                  src={vehicle.imageUrl}
+                                />
+                              ) : (
+                                <div className="grid h-full place-items-center text-white/20">
+                                  <CarFront className="h-12 w-12" />
+                                </div>
+                              )}
+                              {vehicle.isPrimary && (
+                                <span className="bb-pill absolute left-3 top-3 border-accent/35 bg-black/70 text-accentSoft">
+                                  Principal
+                                </span>
+                              )}
+                            </div>
+                            <div className="p-4">
+                              <p className="font-semibold text-white">
+                                {vehicle.model || vehicle.label || "Véhicule"}
+                              </p>
+                              <p className="mt-1 text-sm uppercase tracking-[0.12em] text-white/45">
+                                {vehicle.plate || "Plaque non renseignée"}
+                              </p>
+                              <label className="bb-button-ghost mt-4 w-full cursor-pointer justify-center">
+                                {vehiclePhotoBusyId === vehicle.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Camera className="mr-2 h-4 w-4" />
+                                )}
+                                {vehicle.imageUrl ? "Remplacer la photo" : "Ajouter une photo"}
+                                <input
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={vehiclePhotoBusyId != null}
+                                  onChange={(event) => {
+                                    const file = event.target.files?.[0];
+                                    if (file) void uploadAdminVehiclePhoto(vehicle.id, file);
+                                    event.currentTarget.value = "";
+                                  }}
+                                  type="file"
+                                />
+                              </label>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Formule + Conditions */}

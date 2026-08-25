@@ -8,6 +8,7 @@ const router = express.Router();
 const {
   APPOINTMENTS_UPLOAD_DIR,
   FOUNDERS_UPLOAD_DIR,
+  VEHICLES_UPLOAD_DIR,
   ensureDir,
 } = require("../config/storage");
 const { nowUnix } = require("../db");
@@ -55,6 +56,7 @@ const {
   getAppointmentsForClient,
   getClientCleanlinessAverage,
   insertAppointmentPhoto,
+  expireUnpaidAppointmentQuotes,
   normalizeCleanlinessRating,
   normalizeAppointmentSlot,
   reviewAppointmentPrice,
@@ -73,6 +75,7 @@ const {
 const {
   createVehicleForClient,
   deleteVehicleForClient,
+  getVehicleById,
   listVehiclesByClient,
   setPrimaryVehicle,
   updateVehicleForClient,
@@ -123,6 +126,7 @@ const {
 
 ensureDir(APPOINTMENTS_UPLOAD_DIR);
 ensureDir(FOUNDERS_UPLOAD_DIR);
+ensureDir(VEHICLES_UPLOAD_DIR);
 
 function diskStorageFor(uploadDir) {
   return multer.diskStorage({
@@ -140,6 +144,12 @@ function diskStorageFor(uploadDir) {
 const founderUpload = multer({ storage: diskStorageFor(FOUNDERS_UPLOAD_DIR) });
 const appointmentPhotoUpload = multer({
   storage: diskStorageFor(APPOINTMENTS_UPLOAD_DIR),
+});
+const adminVehicleUpload = multer({
+  storage: diskStorageFor(VEHICLES_UPLOAD_DIR),
+  limits: { files: 1, fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) =>
+    callback(null, typeof file.mimetype === "string" && file.mimetype.startsWith("image/")),
 });
 
 const ALLOWED_STATUSES = ["requested", "confirmed", "done", "cancelled"];
@@ -257,6 +267,21 @@ function mapAppointmentRow(row) {
     photosRequestedAt: row.photos_requested_at ?? null,
     photosRequestMessage: row.photos_request_message || null,
     priceComment: row.price_comment || null,
+    serviceKey: row.service_key || null,
+    serviceLabel: row.service_label || null,
+    serviceItems: (() => {
+      try {
+        const items = JSON.parse(row.service_items_json || "[]");
+        return Array.isArray(items) ? items : [];
+      } catch (_error) {
+        return [];
+      }
+    })(),
+    standardPriceCents: row.standard_price_cents ?? null,
+    approvedPriceCents: row.approved_price_cents ?? null,
+    amountPaidCents: row.amount_paid_cents ?? 0,
+    paidAt: row.paid_at ?? null,
+    quoteExpiresAt: row.quote_expires_at ?? null,
     bcPointsAwarded: !!row.bc_points_awarded,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -370,6 +395,7 @@ router.get("/clients/:id", (req, res) => {
   }
 
   try {
+    expireUnpaidAppointmentQuotes();
     const client = getClientById(id);
     if (!client) {
       return res.status(404).json({ ok: false, error: "client_not_found" });
@@ -524,6 +550,37 @@ router.post("/clients/:id/vehicles/:vehicleId", (req, res) => {
   }
 });
 
+router.post(
+  "/clients/:id/vehicles/:vehicleId/photo",
+  adminVehicleUpload.single("image"),
+  async (req, res) => {
+    const clientId = Number(req.params.id || 0);
+    const vehicleId = Number(req.params.vehicleId || 0);
+    const existing = getVehicleById(vehicleId);
+    if (!clientId || !vehicleId || !existing || existing.client_id !== clientId) {
+      return res.status(404).json({ ok: false, error: "vehicle_not_found" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: "image_required" });
+    }
+
+    try {
+      const finalName = await optimizeUploadedImage(VEHICLES_UPLOAD_DIR, req.file.filename);
+      const vehicle = updateVehicleForClient(clientId, vehicleId, {
+        imageUrl: `/uploads/vehicles/${finalName}`,
+      });
+      return res.json({
+        ok: true,
+        vehicle: mapVehicleRow(vehicle),
+        vehicles: listVehiclesByClient(clientId).map(mapVehicleRow),
+      });
+    } catch (error) {
+      console.error("[adminApi] vehicle photo:", error);
+      return res.status(500).json({ ok: false, error: "image_processing_failed" });
+    }
+  },
+);
+
 router.post("/clients/:id/vehicles/:vehicleId/primary", (req, res) => {
   const clientId = Number(req.params.id || 0);
   const vehicleId = Number(req.params.vehicleId || 0);
@@ -570,6 +627,7 @@ router.delete("/clients/:id/vehicles/:vehicleId", (req, res) => {
 });
 
 router.get("/appointments", (req, res) => {
+  expireUnpaidAppointmentQuotes();
   const limit = Math.max(1, Math.min(5000, Number(req.query.limit || 300)));
 
   try {
@@ -849,9 +907,13 @@ router.post("/appointments/:id/status", async (req, res) => {
       const result = reviewAppointmentPrice(id, {
         adminLevel: req.body?.adminCleanlinessEstimate || req.body?.cleanlinessEstimate,
         customCredits: req.body?.customCredits,
+        customPriceCents: req.body?.customPriceCents,
         priceComment: sanitizeString(req.body?.priceComment),
       });
       const updatedAppointment = getAppointmentById(id);
+      if (result.ok === false && result.error === "price_required") {
+        return res.status(400).json({ ok: false, error: "price_required" });
+      }
       const client = getClientById(appointment.client_id);
 
       if (client && updatedAppointment) {

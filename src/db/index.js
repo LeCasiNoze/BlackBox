@@ -119,6 +119,17 @@ function ensureAppointmentsExtraColumns() {
     addColumnIfMissing("photos_requested_at", "photos_requested_at INTEGER");
     addColumnIfMissing("photos_request_message", "photos_request_message TEXT");
     addColumnIfMissing("price_comment", "price_comment TEXT");
+    addColumnIfMissing("service_key", "service_key TEXT");
+    addColumnIfMissing("service_label", "service_label TEXT");
+    addColumnIfMissing("service_items_json", "service_items_json TEXT");
+    addColumnIfMissing("standard_price_cents", "standard_price_cents INTEGER");
+    addColumnIfMissing("approved_price_cents", "approved_price_cents INTEGER");
+    addColumnIfMissing(
+      "amount_paid_cents",
+      "amount_paid_cents INTEGER NOT NULL DEFAULT 0"
+    );
+    addColumnIfMissing("paid_at", "paid_at INTEGER");
+    addColumnIfMissing("quote_expires_at", "quote_expires_at INTEGER");
     addColumnIfMissing("bc_points_granted", "bc_points_granted INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing("client_price_approved_at", "client_price_approved_at INTEGER");
     addColumnIfMissing(
@@ -752,6 +763,9 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
   }
 }
 
+// Cree d'abord les tables sur une base vierge, puis applique les migrations
+// incrementales aux bases existantes.
+applySchema();
 ensureAppointmentsTimeColumn();
 ensureAppointmentsExtraColumns();
 ensureAppointmentsSlotModel();
@@ -762,7 +776,6 @@ ensureAppointmentsExtraColumns();
 ensureAppointmentPhotosExtraColumns();
 ensureClientsExtraColumns();
 ensureClientsTypeAllowsPro();
-applySchema();
 ensureGoodieWinsExtraColumns();
 ensureEventParticipationsExtraColumns();
 ensureEventsExtraColumns();

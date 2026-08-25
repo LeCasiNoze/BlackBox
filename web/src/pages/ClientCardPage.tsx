@@ -8,6 +8,7 @@ import {
   CalendarPlus,
   Camera,
   CarFront,
+  Check,
   CheckCircle2,
   Clock3,
   Copy,
@@ -19,6 +20,7 @@ import {
   Heart,
   House,
   Link2,
+  LockKeyhole,
   Loader2,
   MapPin,
   MessageCircle,
@@ -276,6 +278,8 @@ type ApiResponse = {
   rewardRedemptions: RewardRedemption[];
   topupOffers: TopupOffer[];
   paymentsReady: boolean;
+  serviceCatalog: ServiceCatalogItem[];
+  serviceCategories: ServiceCategory[];
   month: ApiMonth;
   pendingCases: PendingCase[];
   event: ApiEvent | null;
@@ -333,6 +337,14 @@ type ClientAppointment = {
   photosRequestedAt: number | null;
   photosRequestMessage: string | null;
   priceComment: string | null;
+  serviceKey: string | null;
+  serviceLabel: string | null;
+  serviceItems: Array<{ key: string; category: string; label: string; founderOnly: boolean }>;
+  standardPriceCents: number | null;
+  approvedPriceCents: number | null;
+  amountPaidCents: number;
+  paidAt: number | null;
+  quoteExpiresAt: number | null;
   hasPhotos: boolean;
   location: AppointmentLocation | null;
   goodies?: string[];
@@ -342,44 +354,26 @@ type ServiceLevel = "clean" | "correct" | "dirty";
 
 type ServiceCatalogItem = {
   key: string;
+  category: string;
   label: string;
-  copy: string;
-  priceCents: number;
-  serviceLevel: ServiceLevel;
+  popular: boolean;
+  founderOnly: boolean;
+  imageUrl: string | null;
 };
 
-// Prototype local : les prix sont volontairement indicatifs. Le service choisi
-// continue d'alimenter l'ancien niveau de prestation en coulisses afin de garder
-// le payload et les automatismes d'administration compatibles.
+type ServiceCategory = { key: string; label: string; order: number };
+
 const SERVICE_CATALOG: ServiceCatalogItem[] = [
-  {
-    key: "interior",
-    label: "Nettoyage intérieur complet",
-    copy: "Aspiration, plastiques, vitres et finitions.",
-    priceCents: 7900,
-    serviceLevel: "clean",
-  },
-  {
-    key: "complete",
-    label: "Nettoyage intérieur & extérieur",
-    copy: "Une remise au propre complète du véhicule.",
-    priceCents: 12900,
-    serviceLevel: "correct",
-  },
-  {
-    key: "correction",
-    label: "Rénovation / correction",
-    copy: "Décontamination et correction esthétique poussée.",
-    priceCents: 24900,
-    serviceLevel: "dirty",
-  },
-  {
-    key: "ceramic",
-    label: "Protection céramique",
-    copy: "Préparation et protection longue durée.",
-    priceCents: 39900,
-    serviceLevel: "dirty",
-  },
+  { key: "complete-basic", category: "complete", label: "Nettoyage Complet Basique — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
+  { key: "complete-deep", category: "complete", label: "Nettoyage Complet Approfondi + Sellerie — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
+  { key: "detailing-pack", category: "complete", label: "Pack Detailing — Finition Supérieure", popular: true, founderOnly: false, imageUrl: null },
+];
+
+const SERVICE_CATEGORIES: ServiceCategory[] = [
+  { key: "complete", label: "Complet & Detailing", order: 1 },
+  { key: "exterior", label: "Extérieur", order: 2 },
+  { key: "interior", label: "Intérieur", order: 3 },
+  { key: "founder", label: "Entretien régulier — Fondateurs", order: 4 },
 ];
 
 type ListClientAppointmentsResponse = {
@@ -1375,7 +1369,7 @@ export function ClientCardPage() {
   const [communityLoading, setCommunityLoading] = React.useState(true);
   const [invoices, setInvoices] = React.useState<
     Array<{
-      id: number;
+      id: number | string;
       number: string;
       label: string;
       credits: number;
@@ -1411,8 +1405,8 @@ export function ClientCardPage() {
   // client pouvait croire l'etape validee sans avoir clique).
   const [appointmentLocation, setAppointmentLocation] =
     React.useState<AppointmentLocation | null>(null);
-  const [serviceLevel, setServiceLevel] = React.useState<ServiceLevel>("clean");
-  const [selectedServiceKey, setSelectedServiceKey] = React.useState(SERVICE_CATALOG[0].key);
+  const serviceLevel: ServiceLevel = "clean";
+  const [selectedServiceKeys, setSelectedServiceKeys] = React.useState<string[]>([]);
   const [bookingWizardStep, setBookingWizardStep] = React.useState(1);
   const [garageTab, setGarageTab] = React.useState<GarageTab>("vehicles");
   const [advantagesTab, setAdvantagesTab] = React.useState<AdvantagesTab>("available");
@@ -3763,6 +3757,7 @@ export function ClientCardPage() {
       formData.set("time", time);
       formData.set("location", appointmentLocation ?? "atelier");
       formData.set("serviceLevel", serviceLevel);
+      formData.set("serviceKeys", JSON.stringify(selectedServiceKeys));
       if (isPro) {
         formData.set("vehicleText", proVehicleText.trim());
       } else if (activeVehicleId) {
@@ -3800,6 +3795,18 @@ export function ClientCardPage() {
         }
         if (json?.error === "vehicle_text_required") {
           showToast("Indiquez le vehicule concerne.");
+          return;
+        }
+        if (json?.error === "invalid_services") {
+          showToast("Choisissez au moins une prestation.");
+          return;
+        }
+        if (json?.error === "founder_service_required") {
+          showToast("Cette prestation est réservée aux membres Fondateurs.");
+          return;
+        }
+        if (json?.error === "photos_required") {
+          showToast("Ajoutez au moins une photo du véhicule pour envoyer la demande.");
           return;
         }
         showToast("Impossible de réserver ce créneau.");
@@ -4514,7 +4521,7 @@ export function ClientCardPage() {
       {
         q: "C'est quoi le statut Fondateur ?",
         a:
-          "Acces a vie pour 49,99 € (places limitees a 50). Avantages :\n" +
+          "Acces a vie pour 49,90 € (places limitees a 50). Avantages :\n" +
           "• BC'Coins sur tes achats et passages, echangeables en boutique fidelite\n" +
           "• Box surprises et box de consolation lors des evenements\n" +
           "• Carte premium personnalisee\n" +
@@ -4871,7 +4878,8 @@ export function ClientCardPage() {
   function renderPriceValidationBanner() {
     const appt = pricePendingAppointment;
     if (!appt) return null;
-    const price = Number(appt.approvedCredits ?? appt.requestedCredits ?? 1);
+    const euroPrice = appt.approvedPriceCents;
+    const legacyPrice = Number(appt.approvedCredits ?? appt.requestedCredits ?? 1);
     return (
       <button
         className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[26px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
@@ -4887,11 +4895,13 @@ export function ClientCardPage() {
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.16em] text-amber-200/80">Action requise</p>
             <p className="mt-1 text-base font-semibold text-white">
-              Valider le tarif — RDV du{" "}
+              {euroPrice != null ? "Finaliser et payer" : "Valider le tarif"} — RDV du{" "}
               {formatDateFR(appt.date, { day: "numeric", month: "long" })}
             </p>
             <p className="mt-0.5 text-sm text-white/65">
-              Tarif propose : {price} credit{price > 1 ? "s" : ""}. Accepte ou recharge pour confirmer.
+              {euroPrice != null
+                ? `Montant validé : ${formatMoneyCents(euroPrice)}. Le paiement confirme le rendez-vous.`
+                : `Tarif proposé : ${legacyPrice} crédit${legacyPrice > 1 ? "s" : ""}. Accepte ou recharge pour confirmer.`}
             </p>
           </div>
         </div>
@@ -5493,6 +5503,42 @@ export function ClientCardPage() {
     );
   }
 
+  async function startAppointmentCheckout() {
+    if (!selectedAppointment) return;
+    setBusyAction(true);
+    try {
+      const response = await fetch(
+        `/api/client/${encodeURIComponent(slug)}/appointments/${selectedAppointment.id}/checkout`,
+        { method: "POST", headers: { "Content-Type": "application/json" } },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast(
+          json?.error === "sumup_not_ready"
+            ? "Le paiement SumUp n'est pas disponible pour le moment."
+            : json?.error === "quote_expired"
+              ? "Ce devis a expiré. Le créneau a été libéré."
+            : "Impossible de préparer le paiement.",
+        );
+        return;
+      }
+      if (json.alreadyPaid) {
+        setReloadToken((value) => value + 1);
+        showToast("Ce rendez-vous est déjà payé et confirmé.");
+        return;
+      }
+      if (json.hostedCheckoutUrl) {
+        window.location.assign(json.hostedCheckoutUrl);
+        return;
+      }
+      showToast("Lien de paiement indisponible.");
+    } catch (_error) {
+      showToast("Erreur réseau pendant la préparation du paiement.");
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
   function renderLegacyBookingView() {
     // Heures d'arrivee proposees dans la fenetre de la demi-journee choisie
     // (memes combinaisons hour x minute que l'ancien selecteur : payload inchange).
@@ -5502,8 +5548,8 @@ export function ClientCardPage() {
       ).map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
     );
     const timeIndex = Math.max(0, timeOptions.indexOf(selectedTime));
-    const selectedService =
-      SERVICE_CATALOG.find((service) => service.key === selectedServiceKey) ?? SERVICE_CATALOG[0];
+    const serviceCatalog = data?.serviceCatalog ?? SERVICE_CATALOG;
+    const selectedServices = serviceCatalog.filter((service) => selectedServiceKeys.includes(service.key));
     return (
       <section className="space-y-4">
         <div className="grid grid-cols-2 border-b border-white/10">
@@ -5962,36 +6008,30 @@ export function ClientCardPage() {
                     <div>
                       <p className="bb-eyebrow">Etape 4 · Prestation</p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {SERVICE_CATALOG.map((service) => (
+                        {serviceCatalog.map((service) => (
                           <button
                             className={cn(
                               "rounded-[18px] border px-4 py-3 text-left transition duration-200",
-                              selectedServiceKey === service.key
+                              selectedServiceKeys.includes(service.key)
                                 ? "border-accent/60 bg-accent/15 shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.4)]"
                                 : "border-white/10 bg-black/20 hover:bg-white/[0.04]",
                             )}
                             key={service.key}
                             onClick={() => {
-                              setSelectedServiceKey(service.key);
-                              setServiceLevel(service.serviceLevel);
+                              setSelectedServiceKeys((current) => current.includes(service.key)
+                                ? current.filter((key) => key !== service.key)
+                                : [...current, service.key]);
                             }}
                             type="button"
                           >
                             <span className="flex items-start justify-between gap-3">
                               <span className="text-sm font-bold text-white">{service.label}</span>
-                              <span className="shrink-0 text-sm font-extrabold text-accentSoft">
-                                {formatMoneyCents(service.priceCents)}
-                              </span>
-                            </span>
-                            <span className="mt-1 block text-xs leading-5 text-white/50">
-                              {service.copy}
+                              {selectedServiceKeys.includes(service.key) && <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" />}
                             </span>
                           </button>
                         ))}
                       </div>
-                      <p className="mt-2 text-xs leading-5 text-white/45">
-                        Tarifs indicatifs de démonstration pour valider la nouvelle présentation.
-                      </p>
+                      <p className="mt-2 text-xs leading-5 text-white/45">Le tarif global sera établi par l&apos;admin après étude de votre demande.</p>
                     </div>
                   )}
 
@@ -6110,7 +6150,7 @@ export function ClientCardPage() {
                     <span className="bb-pill shrink-0 border-accent/35 bg-accent/12 text-accentSoft">
                       {clientData.clientType === "pro"
                         ? "Tarif partenaire"
-                        : formatMoneyCents(selectedService.priceCents)}
+                        : `${selectedServices.length} prestation${selectedServices.length > 1 ? "s" : ""}`}
                     </span>
                   </div>
                   <button
@@ -6130,7 +6170,7 @@ export function ClientCardPage() {
                   <p className="text-center text-xs leading-5 text-white/45">
                     {clientData.clientType === "pro"
                       ? "Le rendez-vous est confirme directement, sans gestion de garage."
-                      : `Prestation choisie : ${selectedService.label}. Le prix affiché est provisoire pour cette maquette locale.`}
+                      : "Votre panier est envoyé à l'admin, qui transmettra un devis global avant paiement."}
                   </p>
                   </div>
                   )}
@@ -6147,8 +6187,9 @@ export function ClientCardPage() {
   function renderBookingView() {
     if (query.get("legacyBooking") === "1") return renderLegacyBookingView();
 
-    const selectedService =
-      SERVICE_CATALOG.find((service) => service.key === selectedServiceKey) ?? SERVICE_CATALOG[0];
+    const serviceCatalog = data?.serviceCatalog ?? SERVICE_CATALOG;
+    const serviceCategories = data?.serviceCategories ?? SERVICE_CATEGORIES;
+    const selectedServices = serviceCatalog.filter((service) => selectedServiceKeys.includes(service.key));
     const timeOptions = availableHours.flatMap((hour) =>
       MINUTES.filter(
         (minute) => !(hour === availableHours[availableHours.length - 1] && minute === "30"),
@@ -6301,17 +6342,53 @@ export function ClientCardPage() {
 
         {bookingWizardStep === 4 && (
           <article className="bc-step-card">
-            <h1 className="bb-display text-3xl font-black text-white">Choisissez la prestation</h1>
-            <p className="mt-2 text-sm text-white/55">Des tarifs clairs, sans système de crédits visible.</p>
-            <div className="mt-6 grid gap-3">
-              {SERVICE_CATALOG.map((service) => (
-                <button className={cn("rounded-[22px] border p-4 text-left transition", selectedServiceKey === service.key ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={service.key} onClick={() => { setSelectedServiceKey(service.key); setServiceLevel(service.serviceLevel); }} type="button">
-                  <span className="flex items-start justify-between gap-3"><span className="font-black text-white">{service.label}</span><span className="shrink-0 font-black text-accentSoft">{formatMoneyCents(service.priceCents)}</span></span>
-                  <span className="mt-2 block text-sm leading-6 text-white/50">{service.copy}</span>
-                </button>
-              ))}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="bb-display text-3xl font-black text-white">Composez votre panier</h1>
+                <p className="mt-2 text-sm leading-6 text-white/55">Sélectionnez tout ce dont votre véhicule a besoin. Aucun prix n&apos;est affiché : l&apos;admin vous transmettra un devis global.</p>
+              </div>
+              {selectedServices.length > 0 && <span className="bb-pill shrink-0 border-accent/35 bg-accent/12 text-accentSoft">{selectedServices.length} choisi{selectedServices.length > 1 ? "es" : "e"}</span>}
             </div>
-            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(5)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+            <div className="mt-6 space-y-6">
+              {serviceCategories.map((category) => {
+                const categoryServices = serviceCatalog.filter((service) => service.category === category.key);
+                if (categoryServices.length === 0) return null;
+                const founderLocked = category.key === "founder" && !clientData.isFounder;
+                return (
+                  <section className={cn("rounded-[24px] border p-3", founderLocked ? "border-accent/25 bg-accent/[0.05]" : "border-white/8 bg-black/15")} key={category.key}>
+                    <div className="flex items-center justify-between gap-3 px-2 py-2">
+                      <div>
+                        <p className="font-black text-white">{category.label}</p>
+                        {category.key === "founder" && <p className="mt-1 text-xs text-white/50">Tarifs d&apos;entretien privilégiés toute l&apos;année.</p>}
+                      </div>
+                      {founderLocked && <LockKeyhole className="h-5 w-5 text-accent" />}
+                    </div>
+                    {founderLocked ? (
+                      <div className="mt-2 rounded-[20px] border border-accent/20 bg-black/20 p-4">
+                        <p className="text-sm leading-6 text-white/65">Ces prestations sont accessibles exclusivement aux membres du programme Fondateur.</p>
+                        <button className="bb-button-brand mt-4 w-full justify-center" onClick={() => navigateView("shop")} type="button">Devenir Fondateur — 49,90 € <ArrowRight className="ml-2 h-4 w-4" /></button>
+                      </div>
+                    ) : (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {categoryServices.map((service) => {
+                          const selected = selectedServiceKeys.includes(service.key);
+                          return (
+                            <button className={cn("flex min-h-20 items-center gap-3 rounded-[19px] border p-3 text-left transition active:scale-[0.99]", selected ? "border-accent/60 bg-accent/14" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.05]")} key={service.key} onClick={() => setSelectedServiceKeys((current) => selected ? current.filter((key) => key !== service.key) : [...current, service.key])} type="button">
+                              <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border", selected ? "border-accent/40 bg-accent/15 text-accent" : "border-white/10 bg-black/25 text-white/45")}>
+                                {service.imageUrl ? <img alt="" className="h-full w-full rounded-[13px] object-cover" src={service.imageUrl} /> : <Sparkles className="h-5 w-5" />}
+                              </span>
+                              <span className="min-w-0 flex-1"><span className="block text-sm font-bold leading-5 text-white">{service.label}</span>{service.popular && <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.14em] text-accentSoft">Très demandé</span>}</span>
+                              {selected ? <CheckCircle2 className="h-5 w-5 shrink-0 text-accent" /> : <Plus className="h-5 w-5 shrink-0 text-white/30" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={selectedServices.length === 0} onClick={() => setBookingWizardStep(5)} type="button">Continuer avec {selectedServices.length || 0} prestation{selectedServices.length > 1 ? "s" : ""} <ArrowRight className="ml-2 h-4 w-4" /></button>
           </article>
         )}
 
@@ -6344,10 +6421,10 @@ export function ClientCardPage() {
         {bookingWizardStep === 7 && (
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Ajouter des photos</h1>
-            <p className="mt-2 text-sm text-white/55">Optionnel, jusqu&apos;à 8 images pour préparer la prestation.</p>
+            <p className="mt-2 text-sm text-white/55">Ajoutez au moins une photo du véhicule pour permettre à l&apos;admin d&apos;établir un devis juste. Jusqu&apos;à 8 images.</p>
             <button className="mt-6 flex min-h-36 w-full flex-col items-center justify-center rounded-[24px] border border-dashed border-accent/35 bg-accent/[0.05] text-accentSoft" onClick={() => bookingImageInputRef.current?.click()} type="button"><Camera className="h-9 w-9" /><span className="mt-3 font-bold">Choisir des photos</span></button>
             {bookingImageDrafts.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{bookingImageDrafts.map((draft) => <div className="relative overflow-hidden rounded-[16px]" key={draft.id}><img alt="" className="h-24 w-full object-cover" src={draft.previewUrl} /><button aria-label="Retirer" className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-black/70" onClick={() => removeBookingImage(draft.id)} type="button"><X className="h-4 w-4" /></button></div>)}</div>}
-            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(8)} type="button">Voir le récapitulatif <ArrowRight className="ml-2 h-4 w-4" /></button>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={bookingImageDrafts.length === 0} onClick={() => setBookingWizardStep(8)} type="button">Voir le récapitulatif <ArrowRight className="ml-2 h-4 w-4" /></button>
           </article>
         )}
 
@@ -6359,11 +6436,12 @@ export function ClientCardPage() {
                 ["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })],
                 ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`],
                 ["Véhicule", clientData.clientType === "pro" ? proVehicleText : activeVehicle ? `${activeVehicle.model || activeVehicle.label || "Véhicule"}${activeVehicle.plate ? ` · ${activeVehicle.plate}` : ""}` : "Non renseigné"],
-                ["Prestation", selectedService.label],
-                ["Tarif indicatif", formatMoneyCents(selectedService.priceCents)],
+                ["Prestations", `${selectedServices.length} sélectionnée${selectedServices.length > 1 ? "s" : ""}`],
+                ["Tarif", "Établi par l'admin après étude"],
                 ["Lieu", locationLabel(appointmentLocation)],
                 ["Photos", `${bookingImageDrafts.length} ajoutée${bookingImageDrafts.length > 1 ? "s" : ""}`],
               ].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[65%] text-right text-sm font-bold text-white">{value}</span></div>)}
+              <div className="px-4 py-4"><p className="text-sm text-white/45">Votre panier</p><div className="mt-2 space-y-1.5">{selectedServices.map((service) => <p className="flex items-start gap-2 text-sm leading-5 text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div>
               {clientBookingNote.trim() && <div className="px-4 py-4"><p className="text-sm text-white/45">Précision</p><p className="mt-2 text-sm leading-6 text-white">{clientBookingNote}</p></div>}
             </div>
             <button className="bb-button-brand mt-6 w-full justify-center py-4 text-base" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Envoi..." : "Envoyer la demande"}</button>
@@ -8151,23 +8229,45 @@ export function ClientCardPage() {
                         : selectedAppointment.priceStatus === "waiting_client_approval"
                           ? "Tarif a accepter"
                           : selectedAppointment.priceStatus === "waiting_payment"
-                            ? "Recharge nécessaire"
+                            ? "Paiement requis pour confirmer"
                             : selectedAppointment.priceStatus === "approved"
-                              ? "Crédits consommés"
+                              ? selectedAppointment.amountPaidCents > 0
+                                ? "Payé et confirmé"
+                                : "Crédits consommés"
                               : "Analyse admin en cours"}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-white/68">
-                      Estimation: {selectedAppointment.requestedCredits || 1} credit
-                      {(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}
-                      {selectedAppointment.approvedCredits != null
-                        ? ` · Tarif admin: ${selectedAppointment.approvedCredits} credit${
-                            selectedAppointment.approvedCredits > 1 ? "s" : ""
-                          }`
-                        : ""}
+                      {selectedAppointment.serviceItems.length > 0
+                        ? `${selectedAppointment.serviceItems.length} prestation${selectedAppointment.serviceItems.length > 1 ? "s" : ""} dans votre panier`
+                        : selectedAppointment.standardPriceCents != null
+                          ? `Prestation: ${selectedAppointment.serviceLabel || "Detailing"} · Tarif standard: ${formatMoneyCents(selectedAppointment.standardPriceCents)}`
+                        : `Estimation: ${selectedAppointment.requestedCredits || 1} credit${(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}`}
+                      {selectedAppointment.approvedPriceCents != null
+                        ? ` · Montant à payer: ${formatMoneyCents(selectedAppointment.approvedPriceCents)}`
+                        : selectedAppointment.approvedCredits != null
+                          ? ` · Tarif admin: ${selectedAppointment.approvedCredits} credit${selectedAppointment.approvedCredits > 1 ? "s" : ""}`
+                          : ""}
                       {selectedAppointment.photosRequestMessage
                         ? ` · ${selectedAppointment.photosRequestMessage}`
                         : ""}
                     </p>
+                    {selectedAppointment.serviceItems.length > 0 && (
+                      <div className="mt-3 rounded-[18px] border border-white/10 bg-black/20 p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.15em] text-accentSoft">Prestations demandées</p>
+                        <div className="mt-2 space-y-1.5">
+                          {selectedAppointment.serviceItems.map((service) => (
+                            <p className="flex items-start gap-2 text-sm leading-5 text-white/70" key={service.key}>
+                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedAppointment.priceStatus === "waiting_payment" && selectedAppointment.quoteExpiresAt && (
+                      <p className="mt-3 text-xs font-semibold text-amber-200">
+                        Devis et créneau réservés jusqu&apos;au {formatUnixDateTimeFR(selectedAppointment.quoteExpiresAt)}.
+                      </p>
+                    )}
                     {selectedAppointment.priceComment && (
                       <div className="mt-3 rounded-[18px] border border-white/12 bg-black/25 p-3">
                         <p className="text-xs uppercase tracking-[0.16em] text-accentSoft">
@@ -8181,8 +8281,27 @@ export function ClientCardPage() {
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[320px]">
+                    {selectedAppointment.priceStatus === "waiting_payment" &&
+                      selectedAppointment.approvedPriceCents != null && (
+                        <button
+                          className="bb-button-brand justify-center sm:col-span-2"
+                          disabled={busyAction || !paymentsReady}
+                          onClick={() => {
+                            void startAppointmentCheckout();
+                          }}
+                          type="button"
+                        >
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          {busyAction
+                            ? "Préparation..."
+                            : paymentsReady
+                              ? `Finaliser et payer ${formatMoneyCents(selectedAppointment.approvedPriceCents)}`
+                              : "Paiement temporairement indisponible"}
+                        </button>
+                      )}
                     {(selectedAppointment.priceStatus === "waiting_client_approval" ||
-                      selectedAppointment.priceStatus === "waiting_payment") && (() => {
+                      selectedAppointment.priceStatus === "waiting_payment") &&
+                      selectedAppointment.approvedPriceCents == null && (() => {
                         const approvedNeeded =
                           selectedAppointment.approvedCredits ??
                           selectedAppointment.requestedCredits ??
@@ -8997,7 +9116,7 @@ export function ClientCardPage() {
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
                   Le statut fondateur debloque une carte premium et des avantages réservés.
-                  Accès a vie pour <span className="font-semibold text-accentSoft">49,99 €</span>.
+                  Accès a vie pour <span className="font-semibold text-accentSoft">49,90 €</span>.
                   <span className="mt-1 block text-xs uppercase tracking-[0.14em] text-accent">
                     {typeof data?.foundersRemaining === "number"
                       ? data.foundersRemaining > 0
@@ -9052,7 +9171,7 @@ export function ClientCardPage() {
                   ? "Complet - plus de places"
                   : founderCheckoutBusy
                     ? "Ouverture du paiement..."
-                    : "Devenir fondateur - 49,99 €"}
+                    : "Devenir fondateur - 49,90 €"}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-white/45">
                 Paiement securise SumUp. Le statut est active des la confirmation du paiement.
