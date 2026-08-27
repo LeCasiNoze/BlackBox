@@ -851,6 +851,7 @@ async function sendAdminQuoteRequestEmail({
   quoteId = null,
   vehicle: vehicleOverride = null,
   serviceItems = [],
+  vehicleConditionScore = null,
 }) {
   const fullName = fallbackClientName(client);
   const vehicle = vehicleOverride || vehicleSummary(client);
@@ -878,6 +879,7 @@ Nouvelle demande de devis
 Client : ${fullName}
 Telephone : ${client.phone || "-"}
 Vehicule : ${vehicle}
+Etat annonce : ${Number.isInteger(vehicleConditionScore) ? `${vehicleConditionScore}/10` : "-"}
 Photos : ${photoCount > 0 ? `${photoCount} photo${photoCount > 1 ? "s" : ""}` : "-"}
 Prestations : ${services.length > 0 ? services.join(", ") : "-"}
 Description : ${description || "-"}
@@ -905,6 +907,10 @@ Repondre : ${adminUrl}
           ${infoRows([
             { label: "Telephone", value: client.phone || "-" },
             { label: "Vehicule", value: vehicle },
+            {
+              label: "Etat annonce",
+              value: Number.isInteger(vehicleConditionScore) ? `${vehicleConditionScore}/10` : "-",
+            },
             { label: "Prestations", value: services.length > 0 ? services.join(", ") : "-" },
             { label: "Description", value: description || "-" },
           ])}

@@ -431,6 +431,7 @@ type AdminQuote = {
   refusalReason: string | null;
   refusalComment: string | null;
   vehicle: { id: number | null; label: string | null; model: string | null; plate: string | null };
+  vehicleConditionScore: number | null;
   photos: string[];
   serviceItems: Array<{ key: string; category: string; label: string; founderOnly: boolean }>;
   client: {
@@ -3179,6 +3180,13 @@ export function AdminDashboardPage() {
                       <span>Archiver</span>
                     </button>}
                   </div>
+
+                  {quote.vehicleConditionScore != null && (
+                    <div className="mt-3 flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">État annoncé du véhicule</span>
+                      <span className="rounded-full border border-[#e8c98a]/25 bg-[#e8c98a]/10 px-2.5 py-1 text-xs font-black text-[#f4dca0]">{quote.vehicleConditionScore}/10</span>
+                    </div>
+                  )}
 
                   {quote.description && (
                     <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/70">

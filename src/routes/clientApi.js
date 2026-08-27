@@ -451,6 +451,11 @@ function parseServiceKeys(value) {
   }
 }
 
+function parseVehicleConditionScore(value) {
+  const score = Number(value);
+  return Number.isInteger(score) && score >= 0 && score <= 10 ? score : null;
+}
+
 function serviceSnapshot(services) {
   return services.map(({ key, category, label, founderOnly }) => ({
     key,
@@ -903,6 +908,7 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   const uploadedImages = Array.isArray(req.files) ? req.files.map((f) => f.filename) : [];
   const requestedQuoteServiceKeys = parseServiceKeys(body.quoteServiceKeys || body.serviceKeys);
   const quoteServices = getServicesByKeys(requestedQuoteServiceKeys);
+  const vehicleConditionScore = parseVehicleConditionScore(body.vehicleConditionScore);
   const quoteIntent =
     requestedQuoteServiceKeys.length > 0 ||
     uploadedImages.length > 0 ||
@@ -916,7 +922,10 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   }
   if (
     quoteIntent &&
-    (quoteServices.length === 0 || uploadedImages.length === 0 || !String(body.vehicleModel || "").trim())
+    (quoteServices.length === 0 ||
+      uploadedImages.length === 0 ||
+      !String(body.vehicleModel || "").trim() ||
+      vehicleConditionScore === null)
   ) {
     return res.status(400).json({ ok: false, error: "invalid_quote_details" });
   }
@@ -933,6 +942,7 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
     vehicleModel: body.vehicleModel,
     vehiclePlate: body.vehiclePlate,
     quoteDescription: typeof body.quoteDescription === "string" ? body.quoteDescription.trim().slice(0, 600) : null,
+    vehicleConditionScore,
     quoteImageFilenames: uploadedImages,
     quoteServiceItems: serviceSnapshot(quoteServices),
     clientType: "bbx",
@@ -993,6 +1003,7 @@ router.post("/signup/verify", async (req, res) => {
           vehicleLabel: signupVehicle?.label || payload.vehicleModel || null,
           vehicleModel: signupVehicle?.model || payload.vehicleModel || null,
           vehiclePlate: signupVehicle?.plate || payload.vehiclePlate || null,
+          vehicleConditionScore: payload.vehicleConditionScore,
         });
         let photoCount = 0;
         if (Array.isArray(payload.quoteImageFilenames) && payload.quoteImageFilenames.length > 0) {
@@ -1008,6 +1019,7 @@ router.post("/signup/verify", async (req, res) => {
           quoteId,
           vehicle: [signupVehicle?.model || payload.vehicleModel, signupVehicle?.plate || payload.vehiclePlate].filter(Boolean).join(" · "),
           serviceItems: payload.quoteServiceItems || [],
+          vehicleConditionScore: payload.vehicleConditionScore,
         });
       } catch (quoteError) {
         console.error("[API] auto quote request error:", quoteError);
@@ -1108,6 +1120,7 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
   const description =
     (req.body?.description || "").toString().trim().slice(0, 600) || null;
   const uploadedImages = Array.isArray(req.files) ? req.files : [];
+  const vehicleConditionScore = parseVehicleConditionScore(req.body?.vehicleConditionScore);
   const requestedServiceKeys = parseServiceKeys(req.body?.serviceKeys);
   const services = getServicesByKeys(requestedServiceKeys);
   if (services.length === 0 || services.length !== new Set(requestedServiceKeys).size) {
@@ -1118,6 +1131,9 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
   }
   if (uploadedImages.length === 0) {
     return res.status(400).json({ ok: false, error: "photos_required" });
+  }
+  if (vehicleConditionScore === null) {
+    return res.status(400).json({ ok: false, error: "vehicle_condition_required" });
   }
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
   const vehicle = vehicleId ? getVehicleById(vehicleId) : null;
@@ -1135,6 +1151,7 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
       vehicleLabel: vehicle.label || vehicle.model || null,
       vehicleModel: vehicle.model || vehicle.label || null,
       vehiclePlate: vehicle.plate || null,
+      vehicleConditionScore,
     });
   } catch (error) {
     console.error("[QUOTE] createQuoteRequest:", error);
@@ -1155,6 +1172,7 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
       quoteId,
       vehicle: [vehicle.model || vehicle.label, vehicle.plate].filter(Boolean).join(" · "),
       serviceItems: serviceSnapshot(services),
+      vehicleConditionScore,
     });
   } catch (error) {
     console.error("[MAIL] notif devis admin:", error);

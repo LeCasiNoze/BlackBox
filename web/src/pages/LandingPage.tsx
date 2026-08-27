@@ -240,6 +240,7 @@ export function LandingPage() {
   const [form, setForm] = React.useState<SignupForm>(initialForm);
   const [selectedPhotos, setSelectedPhotos] = React.useState<File[]>([]);
   const [selectedQuoteServiceKeys, setSelectedQuoteServiceKeys] = React.useState<string[]>([]);
+  const [quoteConditionScore, setQuoteConditionScore] = React.useState(5);
   const [photoPreviews, setPhotoPreviews] = React.useState<string[]>([]);
   const [code, setCode] = React.useState("");
   const [step, setStep] = React.useState<"form" | "code" | "ready">("form");
@@ -415,8 +416,16 @@ export function LandingPage() {
   }
 
   async function requestCode() {
-    if (selectedQuoteServiceKeys.length === 0 || selectedPhotos.length === 0 || !form.vehicleModel.trim()) {
-      setError("Choisissez au moins une prestation et ajoutez une photo du véhicule avant d'envoyer le devis.");
+    if (selectedQuoteServiceKeys.length === 0) {
+      setError("Choisissez au moins une prestation avant d'envoyer le devis.");
+      return;
+    }
+    if (selectedPhotos.length === 0) {
+      setError("Les photos sont obligatoires : ajoutez au moins une photo du véhicule avant d'envoyer le devis.");
+      return;
+    }
+    if (!form.vehicleModel.trim()) {
+      setError("Indiquez le modèle du véhicule avant d'envoyer le devis.");
       return;
     }
     setBusy(true);
@@ -427,6 +436,7 @@ export function LandingPage() {
         formData.append(key, val);
       });
       formData.append("quoteServiceKeys", JSON.stringify(selectedQuoteServiceKeys));
+      formData.append("vehicleConditionScore", String(quoteConditionScore));
       selectedPhotos.forEach((file) => {
         formData.append("images", file);
       });
@@ -1539,6 +1549,27 @@ export function LandingPage() {
                     />
                   </div>
 
+                  <div className="border border-white/15 bg-black/25 p-4 sm:col-span-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-white">État actuel du véhicule</p>
+                        <p className="mt-1 text-[11px] text-white/45">0 = très dégradé · 10 = très propre</p>
+                      </div>
+                      <span className="border border-[#e8c98a]/30 bg-[#e8c98a]/10 px-3 py-1.5 text-xs font-black text-[#f4dca0]">{quoteConditionScore}/10</span>
+                    </div>
+                    <input
+                      aria-label="État du véhicule sur 10"
+                      className="mt-4 h-2 w-full cursor-pointer accent-[#e8c98a]"
+                      max="10"
+                      min="0"
+                      onChange={(event) => setQuoteConditionScore(Number(event.target.value))}
+                      step="1"
+                      type="range"
+                      value={quoteConditionScore}
+                    />
+                    <div className="mt-2 flex justify-between text-[9px] font-bold uppercase tracking-[0.1em] text-white/30"><span>Très dégradé</span><span>Très propre</span></div>
+                  </div>
+
                   <label className="block sm:col-span-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Description du travail souhaité</span>
                     <textarea
@@ -1554,6 +1585,11 @@ export function LandingPage() {
                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
                       Photos du Véhicule * (Jusqu&apos;à 5 photos)
                     </span>
+                    {selectedPhotos.length === 0 && (
+                      <p className="border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-[11px] leading-5 text-amber-100/80">
+                        Les photos sont obligatoires pour permettre à l&apos;atelier d&apos;évaluer correctement le devis. Ajoutez-en au moins une.
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-3">
                       {photoPreviews.map((src, i) => (
                         <div className="relative w-16 h-16 rounded border border-white/20 overflow-hidden bg-black" key={i}>
@@ -1646,8 +1682,7 @@ export function LandingPage() {
                     !form.firstName ||
                     !form.phone ||
                     !form.vehicleModel ||
-                    selectedQuoteServiceKeys.length === 0 ||
-                    selectedPhotos.length === 0
+                    selectedQuoteServiceKeys.length === 0
                   }
                   onClick={requestCode}
                   type="button"

@@ -720,6 +720,7 @@ function ensureQuoteRequestsExtraColumns() {
     addColumnIfMissing("vehicle_label", "vehicle_label TEXT");
     addColumnIfMissing("vehicle_model", "vehicle_model TEXT");
     addColumnIfMissing("vehicle_plate", "vehicle_plate TEXT");
+    addColumnIfMissing("vehicle_condition_score", "vehicle_condition_score INTEGER");
     addColumnIfMissing("payment_status", "payment_status TEXT NOT NULL DEFAULT 'unpaid'");
     addColumnIfMissing("checkout_reference", "checkout_reference TEXT");
     addColumnIfMissing("checkout_id", "checkout_id TEXT");
@@ -761,6 +762,7 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
             vehicle_label     TEXT,
             vehicle_model     TEXT,
             vehicle_plate     TEXT,
+            vehicle_condition_score INTEGER,
             payment_status    TEXT NOT NULL DEFAULT 'unpaid',
             checkout_reference TEXT,
             checkout_id       TEXT,
@@ -783,7 +785,7 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
         `);
         db.exec(`
           INSERT INTO quote_requests_new
-          SELECT id, client_id, description, status, estimated_price_cents, estimated_credits, admin_comment, service_items_json, vehicle_id, vehicle_label, vehicle_model, vehicle_plate, payment_status, checkout_reference, checkout_id, hosted_checkout_url, sumup_status, sumup_payload, paid_at, appointment_id, converted_at, created_at, updated_at, answered_at, accepted_at, refused_at, refusal_reason, refusal_comment, reminder_sent_at, second_reminder_sent_at
+          SELECT id, client_id, description, status, estimated_price_cents, estimated_credits, admin_comment, service_items_json, vehicle_id, vehicle_label, vehicle_model, vehicle_plate, vehicle_condition_score, payment_status, checkout_reference, checkout_id, hosted_checkout_url, sumup_status, sumup_payload, paid_at, appointment_id, converted_at, created_at, updated_at, answered_at, accepted_at, refused_at, refusal_reason, refusal_comment, reminder_sent_at, second_reminder_sent_at
           FROM quote_requests;
         `);
         db.exec("DROP TABLE quote_requests");

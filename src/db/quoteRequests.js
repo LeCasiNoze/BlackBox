@@ -63,6 +63,9 @@ function mapQuoteRow(row) {
       model: row.vehicle_model || row.vehicle_label || null,
       plate: row.vehicle_plate || null,
     },
+    vehicleConditionScore: Number.isInteger(row.vehicle_condition_score)
+      ? row.vehicle_condition_score
+      : null,
     paymentStatus: row.payment_status || (row.paid_at ? "paid" : "unpaid"),
     checkoutReference: row.checkout_reference || null,
     checkoutId: row.checkout_id || null,
@@ -91,15 +94,16 @@ function createQuoteRequest({
   vehicleLabel = null,
   vehicleModel = null,
   vehiclePlate = null,
+  vehicleConditionScore = null,
 }) {
   const now = nowUnix();
   const info = db
     .prepare(
       `INSERT INTO quote_requests (
          client_id, description, service_items_json,
-         vehicle_id, vehicle_label, vehicle_model, vehicle_plate,
+         vehicle_id, vehicle_label, vehicle_model, vehicle_plate, vehicle_condition_score,
          status, payment_status, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'unpaid', ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'unpaid', ?, ?)`,
     )
     .run(
       clientId,
@@ -109,6 +113,7 @@ function createQuoteRequest({
       vehicleLabel || vehicleModel || null,
       vehicleModel || vehicleLabel || null,
       vehiclePlate || null,
+      Number.isInteger(vehicleConditionScore) ? vehicleConditionScore : null,
       now,
       now,
     );

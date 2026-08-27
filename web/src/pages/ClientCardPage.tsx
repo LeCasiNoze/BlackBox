@@ -320,6 +320,7 @@ type QuoteRequest = {
   refusalComment: string | null;
   vehicleId: number | null;
   vehicle: { id: number | null; label: string | null; model: string | null; plate: string | null };
+  vehicleConditionScore: number | null;
   photos: string[];
   serviceItems: Array<{ key: string; category: string; label: string; founderOnly: boolean }>;
 };
@@ -1435,6 +1436,7 @@ export function ClientCardPage() {
   const [quoteNote, setQuoteNote] = React.useState("");
   const [quoteServiceKeys, setQuoteServiceKeys] = React.useState<string[]>([]);
   const [quoteVehicleId, setQuoteVehicleId] = React.useState<number | null>(null);
+  const [quoteConditionScore, setQuoteConditionScore] = React.useState(5);
   const [acceptedQuoteId, setAcceptedQuoteId] = React.useState<number | null>(null);
   const [quoteImageDrafts, setQuoteImageDrafts] = React.useState<BookingImageDraft[]>([]);
   const [quoteBusy, setQuoteBusy] = React.useState(false);
@@ -2030,8 +2032,12 @@ export function ClientCardPage() {
       showToast("Choisissez le véhicule concerné.");
       return;
     }
+    if (quoteServiceKeys.length === 0) {
+      showToast("Choisissez au moins une prestation pour votre devis.");
+      return;
+    }
     if (quoteImageDrafts.length === 0) {
-      showToast("Ajoutez au moins une photo du véhicule.");
+      showToast("Les photos sont obligatoires : ajoutez au moins une photo du véhicule.");
       return;
     }
     setQuoteBusy(true);
@@ -2040,6 +2046,7 @@ export function ClientCardPage() {
       if (quoteNote.trim()) formData.set("description", quoteNote.trim());
       formData.set("serviceKeys", JSON.stringify(quoteServiceKeys));
       formData.set("vehicleId", String(quoteVehicleId));
+      formData.set("vehicleConditionScore", String(quoteConditionScore));
       quoteImageDrafts.forEach((draft) => formData.append("images", draft.file));
       const response = await fetch(`/api/client/${encodeURIComponent(slug)}/quote`, {
         method: "POST",
@@ -2047,11 +2054,13 @@ export function ClientCardPage() {
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.ok) {
-        showToast(
-          json.error === "quote_already_exists"
-            ? "Une demande de devis est deja en cours."
-            : "Impossible d'envoyer la demande.",
-        );
+        showToast(json.error === "quote_already_exists"
+          ? "Une demande de devis est deja en cours."
+          : json.error === "photos_required"
+            ? "Les photos sont obligatoires : ajoutez au moins une photo du véhicule."
+            : json.error === "vehicle_condition_required"
+              ? "Indiquez l'état du véhicule de 0 à 10."
+              : "Impossible d'envoyer la demande.");
         return;
       }
       showToast("Demande de devis envoyee !");
@@ -2059,6 +2068,7 @@ export function ClientCardPage() {
       setQuoteNote("");
       setQuoteServiceKeys([]);
       setQuoteVehicleId(null);
+      setQuoteConditionScore(5);
       setReloadToken((value) => value + 1);
     } catch {
       showToast("Erreur reseau pendant l'envoi.");
@@ -2313,6 +2323,12 @@ export function ClientCardPage() {
                   <p className="text-sm leading-6 text-white/70">{quote.description}</p>
                 </div>
               )}
+              {quote.vehicleConditionScore != null && (
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <span className="text-xs text-white/45">État annoncé du véhicule</span>
+                  <span className="text-sm font-black text-accentSoft">{quote.vehicleConditionScore}/10</span>
+                </div>
+              )}
               {quote.serviceItems.length > 0 && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="bb-eyebrow mb-2">Prestations demandées</p>
@@ -2378,8 +2394,34 @@ export function ClientCardPage() {
                 catalog={data?.serviceCatalog ?? SERVICE_CATALOG}
                 categories={data?.serviceCategories ?? SERVICE_CATEGORIES}
                 onChange={setQuoteServiceKeys}
+                onFounderAction={() => {
+                  setQuoteModalOpen(false);
+                  navigateView("shop");
+                }}
                 selectedKeys={quoteServiceKeys}
               />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-white">État actuel du véhicule</p>
+                    <p className="mt-1 text-xs leading-5 text-white/45">0 = très dégradé · 10 = très propre</p>
+                  </div>
+                  <span className="bb-pill shrink-0 border-accent/30 bg-accent/12 text-accentSoft">{quoteConditionScore}/10</span>
+                </div>
+                <input
+                  aria-label="État du véhicule sur 10"
+                  className="mt-4 h-2 w-full cursor-pointer accent-[var(--bb-accent)]"
+                  max="10"
+                  min="0"
+                  onChange={(event) => setQuoteConditionScore(Number(event.target.value))}
+                  step="1"
+                  type="range"
+                  value={quoteConditionScore}
+                />
+                <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.1em] text-white/30">
+                  <span>Très dégradé</span><span>Très propre</span>
+                </div>
+              </div>
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-white">Description</span>
                 <textarea
@@ -2397,6 +2439,12 @@ export function ClientCardPage() {
                     {quoteImageDrafts.length}/8
                   </span>
                 </div>
+                {quoteImageDrafts.length === 0 && (
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2.5 text-xs leading-5 text-amber-100/80">
+                    <Camera className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>Les photos sont obligatoires pour permettre à l&apos;atelier d&apos;évaluer correctement le devis. Ajoutez-en au moins une.</span>
+                  </div>
+                )}
                 <input
                   accept="image/*"
                   className="hidden"
@@ -2446,7 +2494,7 @@ export function ClientCardPage() {
               </div>
               <button
                 className="bb-button-brand w-full justify-center py-3.5"
-                disabled={quoteBusy || quoteServiceKeys.length === 0 || !quoteVehicleId || quoteImageDrafts.length === 0}
+                disabled={quoteBusy}
                 onClick={() => void submitQuote()}
                 type="button"
               >

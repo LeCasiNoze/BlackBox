@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS quote_requests (
   vehicle_label     TEXT,
   vehicle_model     TEXT,
   vehicle_plate     TEXT,
+  vehicle_condition_score INTEGER CHECK (vehicle_condition_score BETWEEN 0 AND 10),
   payment_status    TEXT NOT NULL DEFAULT 'unpaid',
   checkout_reference TEXT UNIQUE,
   checkout_id       TEXT UNIQUE,
