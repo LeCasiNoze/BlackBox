@@ -923,7 +923,6 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   if (
     quoteIntent &&
     (quoteServices.length === 0 ||
-      uploadedImages.length === 0 ||
       !String(body.vehicleModel || "").trim() ||
       vehicleConditionScore === null)
   ) {
@@ -1129,9 +1128,6 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
   if (!client.is_founder && services.some((service) => service.founderOnly)) {
     return res.status(403).json({ ok: false, error: "founder_service_required" });
   }
-  if (uploadedImages.length === 0) {
-    return res.status(400).json({ ok: false, error: "photos_required" });
-  }
   if (vehicleConditionScore === null) {
     return res.status(400).json({ ok: false, error: "vehicle_condition_required" });
   }
@@ -1159,7 +1155,7 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
   }
 
   const photoCount = await attachQuoteImages(quoteId, uploadedImages);
-  if (photoCount === 0) {
+  if (uploadedImages.length > 0 && photoCount === 0) {
     deleteQuoteRequest(quoteId);
     return res.status(500).json({ ok: false, error: "image_processing_failed" });
   }

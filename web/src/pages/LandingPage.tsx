@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { InstallAppButton } from "../components/InstallAppButton";
+import { PhotoRecommendationDialog } from "../components/PhotoRecommendationDialog";
 import { ServicePicker } from "../components/ServicePicker";
 import { SERVICE_CATALOG, SERVICE_CATEGORIES } from "../lib/serviceCatalog";
 
@@ -241,6 +242,8 @@ export function LandingPage() {
   const [selectedPhotos, setSelectedPhotos] = React.useState<File[]>([]);
   const [selectedQuoteServiceKeys, setSelectedQuoteServiceKeys] = React.useState<string[]>([]);
   const [quoteConditionScore, setQuoteConditionScore] = React.useState(5);
+  const [quoteFormStep, setQuoteFormStep] = React.useState(1);
+  const [quotePhotoWarningOpen, setQuotePhotoWarningOpen] = React.useState(false);
   const [photoPreviews, setPhotoPreviews] = React.useState<string[]>([]);
   const [code, setCode] = React.useState("");
   const [step, setStep] = React.useState<"form" | "code" | "ready">("form");
@@ -286,6 +289,7 @@ export function LandingPage() {
     Array<{ id: number; author: string; rating: number; comment: string; vehicleModel: string | null }>
   >([]);
   const signupCardRef = React.useRef<HTMLDivElement | null>(null);
+  const landingPhotoInputRef = React.useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
     trackLandingEvent("pageview");
@@ -415,17 +419,51 @@ export function LandingPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function continueLandingFromServices() {
+    setError(null);
+    if (!form.vehicleModel.trim()) {
+      setError("Indiquez le modèle du véhicule pour continuer.");
+      return;
+    }
+    if (selectedQuoteServiceKeys.length === 0) {
+      setError("Choisissez au moins une prestation pour continuer.");
+      return;
+    }
+    setQuoteFormStep(2);
+  }
+
+  function continueLandingFromDetails() {
+    setError(null);
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.phone.trim()) {
+      setError("Renseignez votre nom, votre e-mail et votre téléphone pour continuer.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError("Acceptez les conditions générales et la politique de confidentialité pour continuer.");
+      return;
+    }
+    if (selectedPhotos.length === 0) {
+      setQuotePhotoWarningOpen(true);
+      return;
+    }
+    setQuoteFormStep(4);
+  }
+
   async function requestCode() {
     if (selectedQuoteServiceKeys.length === 0) {
       setError("Choisissez au moins une prestation avant d'envoyer le devis.");
       return;
     }
-    if (selectedPhotos.length === 0) {
-      setError("Les photos sont obligatoires : ajoutez au moins une photo du véhicule avant d'envoyer le devis.");
-      return;
-    }
     if (!form.vehicleModel.trim()) {
       setError("Indiquez le modèle du véhicule avant d'envoyer le devis.");
+      return;
+    }
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.phone.trim()) {
+      setError("Renseignez vos coordonnées avant d'envoyer le devis.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError("Acceptez les conditions générales avant d'envoyer le devis.");
       return;
     }
     setBusy(true);
@@ -454,7 +492,7 @@ export function LandingPage() {
     } catch (requestError) {
       setError(
         requestError instanceof Error && requestError.message === "invalid_quote_details"
-          ? "Une prestation, le modèle du véhicule et au moins une photo sont nécessaires."
+          ? "Une prestation et le modèle du véhicule sont nécessaires."
           : "Impossible d'envoyer la demande. Vérifiez les informations et réessayez.",
       );
     } finally {
@@ -1452,7 +1490,7 @@ export function LandingPage() {
               DEMANDER UN DEVIS
             </h2>
             <p className="text-xs sm:text-sm text-white/60">
-              Choisissez vos prestations et joignez les photos de votre véhicule pour recevoir votre devis personnalisé.
+              Choisissez vos prestations, décrivez votre véhicule et ajoutez si possible quelques photos pour recevoir un devis personnalisé.
             </p>
           </div>
 
@@ -1461,23 +1499,40 @@ export function LandingPage() {
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#e8c98a]">
                   {step === "ready"
-                    ? "Étape 3 / 3 — Confirmation"
+                    ? "Demande confirmée"
                     : step === "code"
-                    ? "Étape 2 / 3 — Validation Code"
-                    : "Étape 1 / 3 — Formulaire Devis & Photos"}
+                    ? "Vérification de votre e-mail"
+                    : `Devis · Étape ${quoteFormStep} / 4`}
                 </span>
                 <h3 className="text-lg sm:text-xl font-bold uppercase text-white mt-0.5">
                   {step === "ready"
                     ? "Votre demande est transmise !"
                     : step === "code"
                     ? "Validez votre code par email"
-                    : "Informations & Photos Véhicule"}
+                    : quoteFormStep === 1
+                      ? "Choisissez vos prestations"
+                      : quoteFormStep === 2
+                        ? "Évaluez votre véhicule"
+                        : quoteFormStep === 3
+                          ? "Ajoutez les détails utiles"
+                          : "Vérifiez votre demande"}
                 </h3>
               </div>
               <div className="p-2.5 bg-[#e8c98a]/10 text-[#e8c98a] border border-[#e8c98a]/30">
                 <Wrench className="h-5 w-5" />
               </div>
             </div>
+
+            {step === "form" && (
+              <div className="mb-6">
+                <div className="mb-2 flex items-center justify-between text-[9px] font-black uppercase tracking-[0.14em] text-white/35">
+                  <span>Prestations</span><span>État</span><span>Détails</span><span>Récap</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-[#e8c98a] transition-all" style={{ width: `${quoteFormStep * 25}%` }} />
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="mb-6 p-4 border border-rose-500/30 bg-rose-500/10 text-rose-200 text-xs font-medium">
@@ -1487,209 +1542,82 @@ export function LandingPage() {
 
             {step === "form" && (
               <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Prénom *</span>
-                    <input
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                      onChange={(e) => updateField("firstName", e.target.value)}
-                      placeholder="Jean"
-                      value={form.firstName}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Nom *</span>
-                    <input
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                      onChange={(e) => updateField("lastName", e.target.value)}
-                      placeholder="Dupont"
-                      value={form.lastName}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Email *</span>
-                    <input
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                      onChange={(e) => updateField("email", e.target.value)}
-                      placeholder="jean.dupont@email.com"
-                      type="email"
-                      value={form.email}
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Téléphone *</span>
-                    <input
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                      onChange={(e) => updateField("phone", e.target.value)}
-                      placeholder="06 12 34 56 78"
-                      value={form.phone}
-                    />
-                  </label>
-
-                  <label className="block sm:col-span-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Modèle du Véhicule *</span>
-                    <input
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                      onChange={(e) => updateField("vehicleModel", e.target.value)}
-                      placeholder="Ex: Chevrolet Corvette C8 / Porsche 911"
-                      value={form.vehicleModel}
-                    />
-                  </label>
-
-                  <div className="sm:col-span-2">
-                    <ServicePicker
-                      catalog={SERVICE_CATALOG}
-                      categories={SERVICE_CATEGORIES}
-                      onChange={setSelectedQuoteServiceKeys}
-                      selectedKeys={selectedQuoteServiceKeys}
-                      tone="landing"
-                    />
+                {quoteFormStep === 1 && (
+                  <div className="space-y-5">
+                    <div className="border border-[#e8c98a]/20 bg-[#e8c98a]/[0.04] p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-white">Votre véhicule</p>
+                      <p className="mt-1 text-[11px] leading-5 text-white/45">Renseignez simplement le modèle concerné par la demande.</p>
+                      <input className="mt-3 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("vehicleModel", e.target.value)} placeholder="Ex : Peugeot 3008 rouge" value={form.vehicleModel} />
+                    </div>
+                    <ServicePicker catalog={SERVICE_CATALOG} categories={SERVICE_CATEGORIES} onChange={setSelectedQuoteServiceKeys} selectedKeys={selectedQuoteServiceKeys} tone="landing" />
+                    <button className="flex w-full items-center justify-center gap-2 bg-[#e8c98a] px-5 py-4 text-xs font-extrabold uppercase tracking-[0.16em] text-black transition hover:bg-[#f4dca0]" onClick={continueLandingFromServices} type="button">Suivant · État du véhicule <ArrowRight className="h-4 w-4" /></button>
                   </div>
+                )}
 
-                  <div className="border border-white/15 bg-black/25 p-4 sm:col-span-2">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.12em] text-white">État actuel du véhicule</p>
-                        <p className="mt-1 text-[11px] text-white/45">0 = très dégradé · 10 = très propre</p>
+                {quoteFormStep === 2 && (
+                  <div className="space-y-5">
+                    <div className="border border-white/15 bg-black/25 p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div><p className="text-xs font-black uppercase tracking-[0.12em] text-white">État actuel du véhicule</p><p className="mt-1 text-[11px] text-white/45">0 = très dégradé · 10 = très propre</p></div>
+                        <span className="border border-[#e8c98a]/30 bg-[#e8c98a]/10 px-3 py-1.5 text-xs font-black text-[#f4dca0]">{quoteConditionScore}/10</span>
                       </div>
-                      <span className="border border-[#e8c98a]/30 bg-[#e8c98a]/10 px-3 py-1.5 text-xs font-black text-[#f4dca0]">{quoteConditionScore}/10</span>
+                      <input aria-label="État du véhicule sur 10" className="mt-7 h-2 w-full cursor-pointer accent-[#e8c98a]" max="10" min="0" onChange={(event) => setQuoteConditionScore(Number(event.target.value))} step="1" type="range" value={quoteConditionScore} />
+                      <div className="mt-3 flex justify-between text-[9px] font-bold uppercase tracking-[0.1em] text-white/30"><span>Très dégradé</span><span>Très propre</span></div>
                     </div>
-                    <input
-                      aria-label="État du véhicule sur 10"
-                      className="mt-4 h-2 w-full cursor-pointer accent-[#e8c98a]"
-                      max="10"
-                      min="0"
-                      onChange={(event) => setQuoteConditionScore(Number(event.target.value))}
-                      step="1"
-                      type="range"
-                      value={quoteConditionScore}
-                    />
-                    <div className="mt-2 flex justify-between text-[9px] font-bold uppercase tracking-[0.1em] text-white/30"><span>Très dégradé</span><span>Très propre</span></div>
-                  </div>
-
-                  <label className="block sm:col-span-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Description du travail souhaité</span>
-                    <textarea
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none resize-none h-24"
-                      onChange={(e) => updateField("quoteDescription", e.target.value)}
-                      placeholder="Précisez votre demande (ex: Polissage complet, traitement céramique, rénovation cuir...)"
-                      value={form.quoteDescription}
-                    />
-                  </label>
-
-                  {/* UPLOAD PHOTOS VÉHICULE */}
-                  <div className="sm:col-span-2 space-y-2 pt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-                      Photos du Véhicule * (Jusqu&apos;à 5 photos)
-                    </span>
-                    {selectedPhotos.length === 0 && (
-                      <p className="border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-[11px] leading-5 text-amber-100/80">
-                        Les photos sont obligatoires pour permettre à l&apos;atelier d&apos;évaluer correctement le devis. Ajoutez-en au moins une.
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-3">
-                      {photoPreviews.map((src, i) => (
-                        <div className="relative w-16 h-16 rounded border border-white/20 overflow-hidden bg-black" key={i}>
-                          <img alt="Prévisualisation" className="w-full h-full object-cover" src={src} />
-                          <button
-                            className="absolute top-0.5 right-0.5 p-0.5 bg-black/80 text-white hover:text-rose-400 rounded-full cursor-pointer"
-                            onClick={() => removePhoto(i)}
-                            type="button"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-
-                      {selectedPhotos.length < 5 && (
-                        <label className="w-16 h-16 flex flex-col items-center justify-center border border-dashed border-[#e8c98a]/50 bg-[#e8c98a]/5 text-[#e8c98a] hover:bg-[#e8c98a]/10 cursor-pointer transition-colors rounded">
-                          <Upload className="h-4 w-4 mb-1" />
-                          <span className="text-[9px] font-bold">AJOUTER</span>
-                          <input
-                            accept="image/*"
-                            className="hidden"
-                            multiple
-                            onChange={handlePhotoSelect}
-                            type="file"
-                          />
-                        </label>
-                      )}
+                    <div className="grid grid-cols-[auto_1fr] gap-2">
+                      <button className="border border-white/20 px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-white" onClick={() => { setError(null); setQuoteFormStep(1); }} type="button">Retour</button>
+                      <button className="flex items-center justify-center gap-2 bg-[#e8c98a] px-5 py-3.5 text-xs font-extrabold uppercase tracking-wider text-black" onClick={() => { setError(null); setQuoteFormStep(3); }} type="button">Suivant · Détails <ArrowRight className="h-4 w-4" /></button>
                     </div>
                   </div>
+                )}
 
-                  <label className="block">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Adresse (Intervention)</span>
-                    <input
-                      className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                      onChange={(e) => updateField("addressLine1", e.target.value)}
-                      placeholder="12 rue de la Paix"
-                      value={form.addressLine1}
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Code Postal</span>
-                      <input
-                        className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                        onChange={(e) => updateField("postalCode", e.target.value)}
-                        placeholder="71500"
-                        value={form.postalCode}
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Ville</span>
-                      <input
-                        className="w-full mt-1.5 px-3.5 py-3 bg-black/50 border border-white/15 text-sm text-white focus:border-[#e8c98a] focus:outline-none"
-                        onChange={(e) => updateField("city", e.target.value)}
-                        placeholder="Louhans"
-                        value={form.city}
-                      />
-                    </label>
+                {quoteFormStep === 3 && (
+                  <div className="space-y-5">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Prénom *</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("firstName", e.target.value)} placeholder="Jean" value={form.firstName} /></label>
+                      <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Nom *</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("lastName", e.target.value)} placeholder="Dupont" value={form.lastName} /></label>
+                      <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Email *</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("email", e.target.value)} placeholder="jean.dupont@email.com" type="email" value={form.email} /></label>
+                      <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Téléphone *</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("phone", e.target.value)} placeholder="06 12 34 56 78" value={form.phone} /></label>
+                    </div>
+                    <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Description de l&apos;état et de votre besoin</span><textarea className="mt-1.5 h-24 w-full resize-none border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("quoteDescription", e.target.value)} placeholder="Ex : taches sur les sièges, rayures légères, odeur persistante..." value={form.quoteDescription} /></label>
+                    <div className="border border-white/15 bg-black/25 p-4">
+                      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-wider text-white/60">Photos du véhicule</p><p className="mt-1 text-[11px] text-white/40">Optionnelles, mais fortement recommandées · jusqu&apos;à 5</p></div><span className="border border-[#e8c98a]/30 bg-[#e8c98a]/10 px-2.5 py-1 text-[10px] font-black text-[#f4dca0]">{selectedPhotos.length}/5</span></div>
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        {photoPreviews.map((src, i) => <div className="relative h-16 w-16 overflow-hidden rounded border border-white/20 bg-black" key={`${src}-${i}`}><img alt="Prévisualisation du véhicule" className="h-full w-full object-cover" src={src} /><button aria-label="Retirer la photo" className="absolute right-0.5 top-0.5 rounded-full bg-black/80 p-0.5 text-white hover:text-rose-400" onClick={() => removePhoto(i)} type="button"><X className="h-3 w-3" /></button></div>)}
+                        {selectedPhotos.length < 5 && <button className="flex h-16 w-16 flex-col items-center justify-center rounded border border-dashed border-[#e8c98a]/50 bg-[#e8c98a]/5 text-[#e8c98a] transition hover:bg-[#e8c98a]/10" onClick={() => landingPhotoInputRef.current?.click()} type="button"><Upload className="mb-1 h-4 w-4" /><span className="text-[9px] font-bold">AJOUTER</span></button>}
+                        <input accept="image/*" className="hidden" multiple onChange={handlePhotoSelect} ref={landingPhotoInputRef} type="file" />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block sm:col-span-2"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Adresse d&apos;intervention (optionnelle)</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("addressLine1", e.target.value)} placeholder="12 rue de la Paix" value={form.addressLine1} /></label>
+                      <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Code postal</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("postalCode", e.target.value)} placeholder="71500" value={form.postalCode} /></label>
+                      <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Ville</span><input className="mt-1.5 w-full border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#e8c98a] focus:outline-none" onChange={(e) => updateField("city", e.target.value)} placeholder="Louhans" value={form.city} /></label>
+                    </div>
+                    <label className="flex cursor-pointer items-start gap-3 pt-1 text-xs text-white/70"><input checked={acceptedTerms} className="mt-0.5 h-4 w-4 shrink-0 accent-[#e8c98a]" onChange={(e) => setAcceptedTerms(e.target.checked)} type="checkbox" /><span>J&apos;accepte les <a className="text-[#e8c98a] underline" href="/conditions" target="_blank">conditions générales</a> et la <a className="text-[#e8c98a] underline" href="/confidentialite" target="_blank">politique de confidentialité</a> de Bryan Cars.</span></label>
+                    <div className="grid grid-cols-[auto_1fr] gap-2">
+                      <button className="border border-white/20 px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-white" onClick={() => { setError(null); setQuoteFormStep(2); }} type="button">Retour</button>
+                      <button className="flex items-center justify-center gap-2 bg-[#e8c98a] px-5 py-3.5 text-xs font-extrabold uppercase tracking-wider text-black" onClick={continueLandingFromDetails} type="button">Voir le récapitulatif <ArrowRight className="h-4 w-4" /></button>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <label className="mt-4 flex items-start gap-3 text-xs text-white/70 cursor-pointer pt-2">
-                  <input
-                    checked={acceptedTerms}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#e8c98a]"
-                    onChange={(e) => setAcceptedTerms(e.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>
-                    J&apos;accepte les{" "}
-                    <a className="text-[#e8c98a] underline" href="/conditions" target="_blank">
-                      conditions générales
-                    </a>{" "}
-                    et la{" "}
-                    <a className="text-[#e8c98a] underline" href="/confidentialite" target="_blank">
-                      politique de confidentialité
-                    </a>{" "}
-                    de Bryan Cars.
-                  </span>
-                </label>
-
-                <button
-                  className="w-full py-4 mt-6 bg-[#e8c98a] text-black font-extrabold text-xs sm:text-sm uppercase tracking-[0.18em] flex items-center justify-center gap-2 hover:bg-[#f4dca0] transition-colors disabled:opacity-50 cursor-pointer shadow-[0_0_20px_rgba(232,201,138,0.2)]"
-                  disabled={
-                    busy ||
-                    !acceptedTerms ||
-                    !form.email ||
-                    !form.firstName ||
-                    !form.phone ||
-                    !form.vehicleModel ||
-                    selectedQuoteServiceKeys.length === 0
-                  }
-                  onClick={requestCode}
-                  type="button"
-                >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                  <span>{acceptedTerms ? "ENVOYER MA DEMANDE DE DEVIS →" : "ACCEPTER LES CONDITIONS"}</span>
-                </button>
+                {quoteFormStep === 4 && (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="border border-white/15 bg-black/25 p-4"><p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#e8c98a]">Véhicule</p><p className="mt-2 text-sm font-bold text-white">{form.vehicleModel}</p><p className="mt-1 text-xs text-white/45">État déclaré : {quoteConditionScore}/10</p></div>
+                      <div className="border border-white/15 bg-black/25 p-4"><p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#e8c98a]">Contact</p><p className="mt-2 text-sm font-bold text-white">{form.firstName} {form.lastName}</p><p className="mt-1 truncate text-xs text-white/45">{form.email} · {form.phone}</p></div>
+                    </div>
+                    <div className="border border-white/15 bg-black/25 p-4"><p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#e8c98a]">Prestations · {selectedQuoteServiceKeys.length}</p><ul className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_CATALOG.filter((service) => selectedQuoteServiceKeys.includes(service.key)).map((service) => <li className="flex items-start gap-2 text-xs leading-5 text-white/70" key={service.key}><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e8c98a]" />{service.label}</li>)}</ul></div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="border border-white/15 bg-black/25 p-4"><p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#e8c98a]">Description</p><p className="mt-2 text-xs leading-5 text-white/65">{form.quoteDescription.trim() || "Aucune précision ajoutée"}</p></div>
+                      <div className="border border-white/15 bg-black/25 p-4"><p className="text-[9px] font-black uppercase tracking-[0.15em] text-[#e8c98a]">Photos</p><p className="mt-2 text-sm font-bold text-white">{selectedPhotos.length > 0 ? `${selectedPhotos.length} photo${selectedPhotos.length > 1 ? "s" : ""} ajoutée${selectedPhotos.length > 1 ? "s" : ""}` : "Aucune photo"}</p><p className="mt-1 text-[11px] text-white/40">Votre prix sera fixé après étude.</p></div>
+                    </div>
+                    <div className="grid grid-cols-[auto_1fr] gap-2">
+                      <button className="border border-white/20 px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-50" disabled={busy} onClick={() => { setError(null); setQuoteFormStep(3); }} type="button">Retour</button>
+                      <button className="flex items-center justify-center gap-2 bg-[#e8c98a] px-5 py-3.5 text-xs font-extrabold uppercase tracking-wider text-black disabled:opacity-50" disabled={busy} onClick={requestCode} type="button">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}Confirmer ma demande</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1738,7 +1666,7 @@ export function LandingPage() {
                     <span>DEMANDE TRANSMISE À L&apos;ADMINISTRATEUR</span>
                   </div>
                   <p className="text-xs text-white/70 leading-relaxed">
-                    Votre demande de devis et vos photos ont bien été transmises à l&apos;équipe. Vous recevrez un e-mail avec un lien direct dès que votre prix sera prêt.
+                    Votre demande de devis a bien été transmise à l&apos;équipe. Vous recevrez un e-mail avec un lien direct dès que votre prix sera prêt.
                   </p>
                 </div>
 
@@ -1837,6 +1765,18 @@ export function LandingPage() {
           © {new Date().getFullYear()} Bryan Cars Detailing. Tous droits réservés.
         </p>
       </footer>
+      <PhotoRecommendationDialog
+        onAddPhotos={() => {
+          setQuotePhotoWarningOpen(false);
+          window.setTimeout(() => landingPhotoInputRef.current?.click(), 0);
+        }}
+        onClose={() => setQuotePhotoWarningOpen(false)}
+        onContinue={() => {
+          setQuotePhotoWarningOpen(false);
+          setQuoteFormStep(4);
+        }}
+        open={quotePhotoWarningOpen}
+      />
     </div>
   );
 }

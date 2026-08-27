@@ -39,6 +39,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
+import { PhotoRecommendationDialog } from "../components/PhotoRecommendationDialog";
 import { ServicePicker } from "../components/ServicePicker";
 import { QrCodeImage } from "../components/QrCodeImage";
 import {
@@ -1437,6 +1438,8 @@ export function ClientCardPage() {
   const [quoteServiceKeys, setQuoteServiceKeys] = React.useState<string[]>([]);
   const [quoteVehicleId, setQuoteVehicleId] = React.useState<number | null>(null);
   const [quoteConditionScore, setQuoteConditionScore] = React.useState(5);
+  const [quoteWizardStep, setQuoteWizardStep] = React.useState(1);
+  const [quotePhotoWarningOpen, setQuotePhotoWarningOpen] = React.useState(false);
   const [acceptedQuoteId, setAcceptedQuoteId] = React.useState<number | null>(null);
   const [quoteImageDrafts, setQuoteImageDrafts] = React.useState<BookingImageDraft[]>([]);
   const [quoteBusy, setQuoteBusy] = React.useState(false);
@@ -2036,10 +2039,6 @@ export function ClientCardPage() {
       showToast("Choisissez au moins une prestation pour votre devis.");
       return;
     }
-    if (quoteImageDrafts.length === 0) {
-      showToast("Les photos sont obligatoires : ajoutez au moins une photo du véhicule.");
-      return;
-    }
     setQuoteBusy(true);
     try {
       const formData = new FormData();
@@ -2056,8 +2055,8 @@ export function ClientCardPage() {
       if (!response.ok || !json.ok) {
         showToast(json.error === "quote_already_exists"
           ? "Une demande de devis est deja en cours."
-          : json.error === "photos_required"
-            ? "Les photos sont obligatoires : ajoutez au moins une photo du véhicule."
+          : json.error === "image_processing_failed"
+            ? "Les photos n'ont pas pu être traitées. Retirez-les ou réessayez."
             : json.error === "vehicle_condition_required"
               ? "Indiquez l'état du véhicule de 0 à 10."
               : "Impossible d'envoyer la demande.");
@@ -2069,6 +2068,8 @@ export function ClientCardPage() {
       setQuoteServiceKeys([]);
       setQuoteVehicleId(null);
       setQuoteConditionScore(5);
+      setQuoteWizardStep(1);
+      setQuotePhotoWarningOpen(false);
       setReloadToken((value) => value + 1);
     } catch {
       showToast("Erreur reseau pendant l'envoi.");
@@ -2135,6 +2136,31 @@ export function ClientCardPage() {
     if (!quoteModalOpen || !client) return null;
     const quote = data?.quoteRequest ?? null;
     const priceCents = quote?.estimatedPriceCents ?? 0;
+    const quoteStepLabels = ["Prestations", "État", "Détails & photos", "Récapitulatif"];
+    const selectedQuoteVehicle = vehicles.find((vehicle) => vehicle.id === quoteVehicleId) ?? null;
+    const selectedQuoteServices = (data?.serviceCatalog ?? SERVICE_CATALOG).filter((service) =>
+      quoteServiceKeys.includes(service.key),
+    );
+
+    function continueQuoteFromServices() {
+      if (!quoteVehicleId) {
+        showToast("Choisissez le véhicule concerné.");
+        return;
+      }
+      if (quoteServiceKeys.length === 0) {
+        showToast("Choisissez au moins une prestation pour votre devis.");
+        return;
+      }
+      setQuoteWizardStep(2);
+    }
+
+    function continueQuoteToSummary() {
+      if (quoteImageDrafts.length === 0) {
+        setQuotePhotoWarningOpen(true);
+        return;
+      }
+      setQuoteWizardStep(4);
+    }
 
     return (
       <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4">
@@ -2163,6 +2189,18 @@ export function ClientCardPage() {
               <X className="h-5 w-5" />
             </button>
           </div>
+
+          {!quote && (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="bb-eyebrow">Étape {quoteWizardStep} sur 4</p>
+                <p className="text-xs font-bold text-accentSoft">{quoteStepLabels[quoteWizardStep - 1]}</p>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all" style={{ width: `${quoteWizardStep * 25}%` }} />
+              </div>
+            </div>
+          )}
 
           {quote?.status === "answered" || quote?.status === "accepted" || quote?.status === "paid" ? (
             <div className="mt-5 space-y-4">
@@ -2365,144 +2403,182 @@ export function ClientCardPage() {
             </div>
           ) : (
             <div className="mt-5 space-y-4">
-              <p className="text-sm leading-6 text-white/60">
-                Choisissez votre véhicule, composez votre panier et ajoutez ses photos. Bryan Cars vous
-                renvoie une estimation personnalisée en euros, sans engagement.
-              </p>
-              {vehicles.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-accent/30 bg-accent/[0.06] p-5 text-center">
-                  <CarFront className="mx-auto h-9 w-9 text-accent" />
-                  <p className="mt-3 text-sm font-bold text-white">Ajoutez d&apos;abord votre véhicule</p>
-                  <button className="bb-button-brand mt-4 justify-center" onClick={() => { setQuoteModalOpen(false); setGarageTab("add"); navigateView("vehicles"); }} type="button"><Plus className="mr-2 h-4 w-4" />Ajouter un véhicule</button>
+              <div>
+                <p className="bb-eyebrow">{quoteStepLabels[quoteWizardStep - 1]}</p>
+                <h4 className="bb-display mt-2 text-2xl font-black text-white">
+                  {quoteWizardStep === 1
+                    ? "Composez votre demande"
+                    : quoteWizardStep === 2
+                      ? "Évaluez l'état du véhicule"
+                      : quoteWizardStep === 3
+                        ? "Ajoutez les détails utiles"
+                        : "Vérifiez votre demande"}
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-white/55">
+                  {quoteWizardStep === 1
+                    ? "Choisissez le véhicule concerné puis les prestations souhaitées."
+                    : quoteWizardStep === 2
+                      ? "Cette indication aide l'atelier à anticiper le niveau de travail."
+                      : quoteWizardStep === 3
+                        ? "La description est libre et les photos sont recommandées, mais restent optionnelles."
+                        : "Relisez les informations avant de transmettre gratuitement votre demande."}
+                </p>
+              </div>
+
+              {quoteWizardStep === 1 && (
+                <div className="space-y-4">
+                  {vehicles.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-accent/30 bg-accent/[0.06] p-5 text-center">
+                      <CarFront className="mx-auto h-9 w-9 text-accent" />
+                      <p className="mt-3 text-sm font-bold text-white">Ajoutez d&apos;abord votre véhicule</p>
+                      <button className="bb-button-brand mt-4 justify-center" onClick={() => { setQuoteModalOpen(false); setGarageTab("add"); navigateView("vehicles"); }} type="button"><Plus className="mr-2 h-4 w-4" />Ajouter un véhicule</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-white">Véhicule concerné</p>
+                      <div className="grid gap-2">
+                        {vehicles.map((vehicle) => (
+                          <button className={cn("flex items-center gap-3 rounded-2xl border p-3 text-left transition", quoteVehicleId === vehicle.id ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={vehicle.id} onClick={() => setQuoteVehicleId(vehicle.id)} type="button">
+                            <span className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-black/25 text-accent">{vehicle.imageUrl ? <img alt="" className="h-full w-full object-cover" src={vehicle.imageUrl} /> : <CarFront className="h-6 w-6" />}</span>
+                            <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-white">{vehicle.model || vehicle.label || "Véhicule"}</span><span className="mt-1 block text-xs text-white/45">{vehicle.plate || "Plaque non renseignée"}</span></span>
+                            {quoteVehicleId === vehicle.id && <CheckCircle2 className="h-5 w-5 text-accent" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <ServicePicker
+                    allowFounder={client.isFounder}
+                    catalog={data?.serviceCatalog ?? SERVICE_CATALOG}
+                    categories={data?.serviceCategories ?? SERVICE_CATEGORIES}
+                    onChange={setQuoteServiceKeys}
+                    onFounderAction={() => {
+                      setQuoteModalOpen(false);
+                      navigateView("shop");
+                    }}
+                    selectedKeys={quoteServiceKeys}
+                  />
+                  <button className="bb-button-brand w-full justify-center py-3.5" onClick={continueQuoteFromServices} type="button">
+                    Suivant · État du véhicule
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </button>
                 </div>
-              ) : (
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-white">Véhicule concerné</p>
-                  <div className="grid gap-2">
-                    {vehicles.map((vehicle) => (
-                      <button className={cn("flex items-center gap-3 rounded-2xl border p-3 text-left transition", quoteVehicleId === vehicle.id ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={vehicle.id} onClick={() => setQuoteVehicleId(vehicle.id)} type="button">
-                        <span className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-black/25 text-accent">{vehicle.imageUrl ? <img alt="" className="h-full w-full object-cover" src={vehicle.imageUrl} /> : <CarFront className="h-6 w-6" />}</span>
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-white">{vehicle.model || vehicle.label || "Véhicule"}</span><span className="mt-1 block text-xs text-white/45">{vehicle.plate || "Plaque non renseignée"}</span></span>
-                        {quoteVehicleId === vehicle.id && <CheckCircle2 className="h-5 w-5 text-accent" />}
-                      </button>
-                    ))}
+              )}
+
+              {quoteWizardStep === 2 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-white">État actuel du véhicule</p>
+                        <p className="mt-1 text-xs leading-5 text-white/45">0 = très dégradé · 10 = très propre</p>
+                      </div>
+                      <span className="bb-pill shrink-0 border-accent/30 bg-accent/12 text-accentSoft">{quoteConditionScore}/10</span>
+                    </div>
+                    <input
+                      aria-label="État du véhicule sur 10"
+                      className="mt-6 h-2 w-full cursor-pointer accent-[var(--bb-accent)]"
+                      max="10"
+                      min="0"
+                      onChange={(event) => setQuoteConditionScore(Number(event.target.value))}
+                      step="1"
+                      type="range"
+                      value={quoteConditionScore}
+                    />
+                    <div className="mt-3 flex justify-between text-[10px] font-bold uppercase tracking-[0.1em] text-white/30">
+                      <span>Très dégradé</span><span>Très propre</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] gap-2">
+                    <button className="bb-button-ghost justify-center" onClick={() => setQuoteWizardStep(1)} type="button">Retour</button>
+                    <button className="bb-button-brand justify-center" onClick={() => setQuoteWizardStep(3)} type="button">Suivant · Détails <ArrowRight className="ml-2 h-4 w-4" /></button>
                   </div>
                 </div>
               )}
-              <ServicePicker
-                allowFounder={client.isFounder}
-                catalog={data?.serviceCatalog ?? SERVICE_CATALOG}
-                categories={data?.serviceCategories ?? SERVICE_CATEGORIES}
-                onChange={setQuoteServiceKeys}
-                onFounderAction={() => {
-                  setQuoteModalOpen(false);
-                  navigateView("shop");
-                }}
-                selectedKeys={quoteServiceKeys}
-              />
-              <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-white">État actuel du véhicule</p>
-                    <p className="mt-1 text-xs leading-5 text-white/45">0 = très dégradé · 10 = très propre</p>
-                  </div>
-                  <span className="bb-pill shrink-0 border-accent/30 bg-accent/12 text-accentSoft">{quoteConditionScore}/10</span>
-                </div>
-                <input
-                  aria-label="État du véhicule sur 10"
-                  className="mt-4 h-2 w-full cursor-pointer accent-[var(--bb-accent)]"
-                  max="10"
-                  min="0"
-                  onChange={(event) => setQuoteConditionScore(Number(event.target.value))}
-                  step="1"
-                  type="range"
-                  value={quoteConditionScore}
-                />
-                <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-[0.1em] text-white/30">
-                  <span>Très dégradé</span><span>Très propre</span>
-                </div>
-              </div>
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-white">Description</span>
-                <textarea
-                  className="bb-textarea"
-                  maxLength={600}
-                  onChange={(event) => setQuoteNote(event.target.value)}
-                  placeholder="Ex: interieur a nettoyer en profondeur, taches sur les sieges, exterieur a polir..."
-                  value={quoteNote}
-                />
-              </label>
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white">Photos du véhicule *</span>
-                  <span className="bb-pill border-accent/25 bg-accent/12 text-accent">
-                    {quoteImageDrafts.length}/8
-                  </span>
-                </div>
-                {quoteImageDrafts.length === 0 && (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2.5 text-xs leading-5 text-amber-100/80">
-                    <Camera className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>Les photos sont obligatoires pour permettre à l&apos;atelier d&apos;évaluer correctement le devis. Ajoutez-en au moins une.</span>
-                  </div>
-                )}
-                <input
-                  accept="image/*"
-                  className="hidden"
-                  multiple
-                  onChange={handleQuoteImageSelection}
-                  ref={quoteImageInputRef}
-                  type="file"
-                />
-                <div className="flex gap-2">
-                  <button
-                    className="bb-button-ghost"
-                    onClick={() => quoteImageInputRef.current?.click()}
-                    type="button"
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Ajouter des photos
-                  </button>
-                  {quoteImageDrafts.length > 0 && (
-                    <button className="bb-button-ghost" onClick={clearQuoteImages} type="button">
-                      Tout retirer
-                    </button>
-                  )}
-                </div>
-                {quoteImageDrafts.length > 0 && (
-                  <div className="mt-3 grid grid-cols-4 gap-2">
-                    {quoteImageDrafts.map((draft) => (
-                      <div
-                        className="relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30"
-                        key={draft.id}
-                      >
-                        <img
-                          alt=""
-                          className="h-full w-full object-cover"
-                          src={draft.previewUrl}
-                        />
-                        <button
-                          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/70 text-white"
-                          onClick={() => removeQuoteImage(draft.id)}
-                          type="button"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+
+              {quoteWizardStep === 3 && (
+                <div className="space-y-4">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold text-white">Description de l&apos;état et de votre besoin</span>
+                    <textarea
+                      className="bb-textarea"
+                      maxLength={600}
+                      onChange={(event) => setQuoteNote(event.target.value)}
+                      placeholder="Ex : taches sur les sièges, rayures légères, odeur persistante..."
+                      value={quoteNote}
+                    />
+                  </label>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Photos du véhicule</p>
+                        <p className="mt-1 text-xs text-white/45">Optionnelles, mais fortement recommandées</p>
                       </div>
-                    ))}
+                      <span className="bb-pill border-accent/25 bg-accent/12 text-accent">{quoteImageDrafts.length}/8</span>
+                    </div>
+                    <input accept="image/*" className="hidden" multiple onChange={handleQuoteImageSelection} ref={quoteImageInputRef} type="file" />
+                    <div className="flex flex-wrap gap-2">
+                      <button className="bb-button-ghost" onClick={() => quoteImageInputRef.current?.click()} type="button"><Plus className="mr-1.5 h-4 w-4" />Ajouter des photos</button>
+                      {quoteImageDrafts.length > 0 && <button className="bb-button-ghost" onClick={clearQuoteImages} type="button">Tout retirer</button>}
+                    </div>
+                    {quoteImageDrafts.length > 0 && (
+                      <div className="mt-3 grid grid-cols-4 gap-2">
+                        {quoteImageDrafts.map((draft) => (
+                          <div className="relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30" key={draft.id}>
+                            <img alt="Aperçu du véhicule" className="h-full w-full object-cover" src={draft.previewUrl} />
+                            <button aria-label="Retirer la photo" className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/70 text-white" onClick={() => removeQuoteImage(draft.id)} type="button"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <button
-                className="bb-button-brand w-full justify-center py-3.5"
-                disabled={quoteBusy}
-                onClick={() => void submitQuote()}
-                type="button"
-              >
-                {quoteBusy ? "Envoi..." : "Envoyer ma demande"}
-              </button>
+                  <div className="grid grid-cols-[auto_1fr] gap-2">
+                    <button className="bb-button-ghost justify-center" onClick={() => setQuoteWizardStep(2)} type="button">Retour</button>
+                    <button className="bb-button-brand justify-center" onClick={continueQuoteToSummary} type="button">Voir le récapitulatif <ArrowRight className="ml-2 h-4 w-4" /></button>
+                  </div>
+                </div>
+              )}
+
+              {quoteWizardStep === 4 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="bb-eyebrow">Véhicule</p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <span className="grid h-11 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-black/25 text-accent">{selectedQuoteVehicle?.imageUrl ? <img alt="" className="h-full w-full object-cover" src={selectedQuoteVehicle.imageUrl} /> : <CarFront className="h-5 w-5" />}</span>
+                      <div><p className="text-sm font-bold text-white">{selectedQuoteVehicle?.model || selectedQuoteVehicle?.label || "Véhicule"}</p><p className="mt-0.5 text-xs text-white/45">{selectedQuoteVehicle?.plate || "Plaque non renseignée"} · État {quoteConditionScore}/10</p></div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="bb-eyebrow">Prestations · {selectedQuoteServices.length}</p>
+                    <ul className="mt-3 space-y-2">
+                      {selectedQuoteServices.map((service) => <li className="flex items-start gap-2 text-sm text-white/75" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</li>)}
+                    </ul>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="bb-eyebrow">Description</p><p className="mt-2 text-sm leading-6 text-white/65">{quoteNote.trim() || "Aucune précision ajoutée"}</p></div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="bb-eyebrow">Photos</p><p className="mt-2 text-sm font-bold text-white">{quoteImageDrafts.length > 0 ? `${quoteImageDrafts.length} photo${quoteImageDrafts.length > 1 ? "s" : ""} ajoutée${quoteImageDrafts.length > 1 ? "s" : ""}` : "Aucune photo"}</p><p className="mt-1 text-xs text-white/45">Le prix sera fixé par l&apos;atelier après étude.</p></div>
+                  </div>
+                  <div className="grid grid-cols-[auto_1fr] gap-2">
+                    <button className="bb-button-ghost justify-center" disabled={quoteBusy} onClick={() => setQuoteWizardStep(3)} type="button">Retour</button>
+                    <button className="bb-button-brand justify-center py-3.5" disabled={quoteBusy} onClick={() => void submitQuote()} type="button">{quoteBusy ? "Envoi..." : "Confirmer ma demande"}</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
+        <PhotoRecommendationDialog
+          onAddPhotos={() => {
+            setQuotePhotoWarningOpen(false);
+            window.setTimeout(() => quoteImageInputRef.current?.click(), 0);
+          }}
+          onClose={() => setQuotePhotoWarningOpen(false)}
+          onContinue={() => {
+            setQuotePhotoWarningOpen(false);
+            setQuoteWizardStep(4);
+          }}
+          open={quotePhotoWarningOpen}
+        />
       </div>
     );
   }
