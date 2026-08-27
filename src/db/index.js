@@ -231,6 +231,7 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("welcome_email_sent_at", "welcome_email_sent_at INTEGER");
     addColumnIfMissing("bc_points", "bc_points INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing("bc_pending", "bc_pending INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing("partner_public_token", "partner_public_token TEXT");
     addColumnIfMissing("review_box_opened_at", "review_box_opened_at INTEGER");
     addColumnIfMissing("review_box_reward", "review_box_reward TEXT");
     addColumnIfMissing("founder_until", "founder_until INTEGER");
@@ -238,6 +239,9 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing(
       "leaderboard_opt_in",
       "leaderboard_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (leaderboard_opt_in IN (0, 1))",
+    );
+    db.exec(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_partner_public_token ON clients(partner_public_token)",
     );
   } catch (error) {
     console.error("[DB] Erreur ensureClientsExtraColumns:", error);
@@ -328,6 +332,7 @@ function ensureClientsTypeAllowsPro() {
           formula_recap_sent_at INTEGER,
           welcome_email_sent_at INTEGER,
           bc_points         INTEGER NOT NULL DEFAULT 0,
+          partner_public_token TEXT UNIQUE,
           notes             TEXT,
           created_at        INTEGER NOT NULL,
           updated_at        INTEGER NOT NULL
@@ -339,7 +344,7 @@ function ensureClientsTypeAllowsPro() {
           address_line2, postal_code, city, vehicle_model, vehicle_plate,
           formula_name, formula_total, formula_remaining, formula_purchased_at,
           formula_expires_at, terms_accepted_at, formula_recap_sent_at,
-          welcome_email_sent_at, bc_points, notes, created_at, updated_at
+          welcome_email_sent_at, bc_points, partner_public_token, notes, created_at, updated_at
         )
         SELECT
           id, slug, card_code, first_name, last_name, full_name, email, phone,
@@ -347,7 +352,7 @@ function ensureClientsTypeAllowsPro() {
           address_line2, postal_code, city, vehicle_model, vehicle_plate,
           formula_name, formula_total, formula_remaining, formula_purchased_at,
           formula_expires_at, terms_accepted_at, formula_recap_sent_at,
-          welcome_email_sent_at, bc_points, notes, created_at, updated_at
+          welcome_email_sent_at, bc_points, partner_public_token, notes, created_at, updated_at
         FROM clients;
 
         DROP TABLE clients;
@@ -709,6 +714,23 @@ function ensureQuoteRequestsExtraColumns() {
     addColumnIfMissing("refusal_comment", "refusal_comment TEXT");
     addColumnIfMissing("reminder_sent_at", "reminder_sent_at INTEGER");
     addColumnIfMissing("second_reminder_sent_at", "second_reminder_sent_at INTEGER");
+    addColumnIfMissing("estimated_price_cents", "estimated_price_cents INTEGER");
+    addColumnIfMissing("service_items_json", "service_items_json TEXT");
+    addColumnIfMissing("vehicle_id", "vehicle_id INTEGER");
+    addColumnIfMissing("vehicle_label", "vehicle_label TEXT");
+    addColumnIfMissing("vehicle_model", "vehicle_model TEXT");
+    addColumnIfMissing("vehicle_plate", "vehicle_plate TEXT");
+    addColumnIfMissing("payment_status", "payment_status TEXT NOT NULL DEFAULT 'unpaid'");
+    addColumnIfMissing("checkout_reference", "checkout_reference TEXT");
+    addColumnIfMissing("checkout_id", "checkout_id TEXT");
+    addColumnIfMissing("hosted_checkout_url", "hosted_checkout_url TEXT");
+    addColumnIfMissing("sumup_status", "sumup_status TEXT");
+    addColumnIfMissing("sumup_payload", "sumup_payload TEXT");
+    addColumnIfMissing("paid_at", "paid_at INTEGER");
+    addColumnIfMissing("appointment_id", "appointment_id INTEGER");
+    addColumnIfMissing("converted_at", "converted_at INTEGER");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_checkout_reference ON quote_requests(checkout_reference)");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_checkout_id ON quote_requests(checkout_id)");
   } catch (error) {
     console.error("[DB] Erreur ensureQuoteRequestsExtraColumns:", error);
   }
@@ -731,8 +753,23 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
             client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
             description       TEXT,
             status            TEXT NOT NULL DEFAULT 'pending',
+            estimated_price_cents INTEGER,
             estimated_credits INTEGER,
             admin_comment     TEXT,
+            service_items_json TEXT,
+            vehicle_id        INTEGER,
+            vehicle_label     TEXT,
+            vehicle_model     TEXT,
+            vehicle_plate     TEXT,
+            payment_status    TEXT NOT NULL DEFAULT 'unpaid',
+            checkout_reference TEXT,
+            checkout_id       TEXT,
+            hosted_checkout_url TEXT,
+            sumup_status      TEXT,
+            sumup_payload     TEXT,
+            paid_at           INTEGER,
+            appointment_id    INTEGER,
+            converted_at      INTEGER,
             created_at        INTEGER NOT NULL,
             updated_at        INTEGER NOT NULL,
             answered_at       INTEGER,
@@ -746,13 +783,15 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
         `);
         db.exec(`
           INSERT INTO quote_requests_new
-          SELECT id, client_id, description, status, estimated_credits, admin_comment, created_at, updated_at, answered_at, accepted_at, refused_at, refusal_reason, refusal_comment, reminder_sent_at, second_reminder_sent_at
+          SELECT id, client_id, description, status, estimated_price_cents, estimated_credits, admin_comment, service_items_json, vehicle_id, vehicle_label, vehicle_model, vehicle_plate, payment_status, checkout_reference, checkout_id, hosted_checkout_url, sumup_status, sumup_payload, paid_at, appointment_id, converted_at, created_at, updated_at, answered_at, accepted_at, refused_at, refusal_reason, refusal_comment, reminder_sent_at, second_reminder_sent_at
           FROM quote_requests;
         `);
         db.exec("DROP TABLE quote_requests");
         db.exec("ALTER TABLE quote_requests_new RENAME TO quote_requests");
         db.exec("CREATE INDEX IF NOT EXISTS idx_quote_requests_client ON quote_requests(client_id)");
         db.exec("CREATE INDEX IF NOT EXISTS idx_quote_requests_status ON quote_requests(status)");
+        db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_checkout_reference ON quote_requests(checkout_reference)");
+        db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_checkout_id ON quote_requests(checkout_id)");
         console.log("[DB] Migration quote_requests réussie avec succès !");
       } finally {
         db.exec("PRAGMA foreign_keys = ON");
@@ -760,6 +799,27 @@ function ensureQuoteRequestsCheckConstraintRemoved() {
     }
   } catch (error) {
     console.error("[DB] Erreur ensureQuoteRequestsCheckConstraintRemoved:", error);
+  }
+}
+
+function ensurePartnerOrdersExtraColumns() {
+  try {
+    const cols = getTableColumns("partner_orders");
+    if (cols.length === 0) return;
+    const colNames = cols.map((column) => column.name);
+    const addColumnIfMissing = (name, ddl) => {
+      if (!colNames.includes(name)) {
+        console.log(`[DB] Ajout de la colonne partner_orders.${name}`);
+        db.exec(`ALTER TABLE partner_orders ADD COLUMN ${ddl};`);
+      }
+    };
+
+    addColumnIfMissing("customer_phone", "customer_phone TEXT");
+    addColumnIfMissing("vehicle_model", "vehicle_model TEXT");
+    addColumnIfMissing("vehicle_plate", "vehicle_plate TEXT");
+    addColumnIfMissing("vehicle_details", "vehicle_details TEXT");
+  } catch (error) {
+    console.error("[DB] Erreur ensurePartnerOrdersExtraColumns:", error);
   }
 }
 
@@ -776,6 +836,7 @@ ensureAppointmentsExtraColumns();
 ensureAppointmentPhotosExtraColumns();
 ensureClientsExtraColumns();
 ensureClientsTypeAllowsPro();
+ensureClientsExtraColumns();
 ensureGoodieWinsExtraColumns();
 ensureEventParticipationsExtraColumns();
 ensureEventsExtraColumns();
@@ -784,6 +845,8 @@ ensureVehiclesFromClients();
 ensureVehiclesExtraColumns();
 ensureQuoteRequestsExtraColumns();
 ensureQuoteRequestsCheckConstraintRemoved();
+ensureQuoteRequestsExtraColumns();
+ensurePartnerOrdersExtraColumns();
 
 module.exports = {
   db,

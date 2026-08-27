@@ -8,54 +8,80 @@ const DEFAULT_CURRENCY = "EUR";
 
 const PARTNER_FORFAITS = [
   {
-    key: "bc-essential",
-    label: "BC Essential",
+    key: "photo-express",
+    label: "Photo Express",
     priceCents: 5900,
-    tagline: "Entretien exterieur",
+    tagline: "Mise au propre rapide pour shooting et annonce",
     features: [
       "Lavage exterieur",
-      "Jantes et pneus",
-      "Depoussierage rapide",
-      "Finition soignee",
+      "Aspiration rapide",
+      "Depoussierage interieur",
     ],
   },
   {
-    key: "bc-express",
-    label: "BC Express",
+    key: "preparation-vente",
+    label: "Preparation Vente",
     priceCents: 9900,
-    tagline: "Interieur & exterieur",
+    tagline: "Nettoyage interieur et exterieur de presentation",
     features: [
-      "Interieur et exterieur complet",
-      "Aspiration habitacle",
-      "Vitres et plastiques",
-      "Finition soignee",
+      "Nettoyage interieur & exterieur",
+      "Plastiques",
+      "Vitres",
+      "Jantes & pneus",
+      "Finitions",
     ],
   },
   {
-    key: "bc-signature",
-    label: "BC Signature",
-    priceCents: 34900,
-    tagline: "Preparation esthetique avancee",
+    key: "nettoyage-approfondi",
+    label: "Nettoyage Approfondi",
+    priceCents: 19900,
+    tagline: "Travail plus pousse interieur et exterieur",
     features: [
       "Interieur approfondi",
-      "Decontamination carrosserie",
-      "Lustrage de finition",
-      "Valorisation avant vente",
+      "Exterieur soigne",
+      "Jantes & pneus",
+      "Decontamination adaptee",
+      "Finitions",
     ],
   },
   {
-    key: "bc-black",
-    label: "BC Black",
-    priceCents: 44900,
-    tagline: "Preparation premium",
+    key: "renovation-carrosserie",
+    label: "Renovation Carrosserie",
+    priceCents: 34900,
+    startingAt: true,
+    tagline: "Decontamination, polissage et correction legere",
     features: [
-      "Traitement approfondi",
-      "Vehicules tres encrasses",
-      "Decontamination complete",
-      "Lustrage renforce",
-      "Finition haut de gamme",
+      "Decontamination carrosserie",
+      "Polissage",
+      "Attenuation des defauts legers",
+      "Protection",
     ],
   },
+  {
+    key: "prestige-complet",
+    label: "Prestige Complet",
+    priceCents: 59900,
+    startingAt: true,
+    tagline: "La preparation totale pour sublimer votre vehicule",
+    features: [
+      "Interieur approfondi",
+      "Exterieur complet",
+      "Decontamination carrosserie",
+      "Polissage",
+      "Protection",
+      "Finitions detaillees",
+    ],
+  },
+];
+
+// Les commandes deja envoyees conservent leur libelle et leur montant en base.
+// Ces definitions servent seulement a remettre leurs anciennes prestations en
+// contexte lorsqu'un client rouvre un lien historique.
+const LEGACY_PARTNER_FORFAITS = [
+  { key: "bc-essential", label: "BC Essential", priceCents: 5900, tagline: "Entretien exterieur", features: [] },
+  { key: "bc-express", label: "BC Express", priceCents: 9900, tagline: "Interieur & exterieur", features: [] },
+  { key: "bc-signature", label: "BC Signature", priceCents: 34900, tagline: "Preparation esthetique avancee", features: [] },
+  { key: "bc-black", label: "BC Black", priceCents: 44900, tagline: "Preparation premium", features: [] },
 ];
 
 function withCurrency(forfait) {
@@ -69,7 +95,9 @@ function listPartnerForfaits() {
 function getPartnerForfait(key) {
   if (!key) return null;
   const normalized = String(key).trim();
-  const found = PARTNER_FORFAITS.find((forfait) => forfait.key === normalized);
+  const found = [...PARTNER_FORFAITS, ...LEGACY_PARTNER_FORFAITS].find(
+    (forfait) => forfait.key === normalized,
+  );
   return found ? withCurrency(found) : null;
 }
 

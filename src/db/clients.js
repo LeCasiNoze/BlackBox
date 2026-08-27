@@ -1,4 +1,5 @@
 const { db, nowUnix } = require("./index");
+const crypto = require("crypto");
 const {
   createVehicleForClient,
   ensurePrimaryVehicle,
@@ -96,6 +97,44 @@ function getClientBySlugOrCardCode(slugOrCode) {
 
 function getClientById(id) {
   return db.prepare(`SELECT * FROM clients WHERE id = ? LIMIT 1`).get(id) || null;
+}
+
+function getClientByPartnerPublicToken(token) {
+  const normalized = sanitizeString(token);
+  if (!normalized) return null;
+  return (
+    db
+      .prepare(
+        `SELECT * FROM clients
+         WHERE partner_public_token = ? AND client_type = 'pro'
+         LIMIT 1`,
+      )
+      .get(normalized) || null
+  );
+}
+
+function getOrCreatePartnerPublicToken(clientId) {
+  const client = getClientById(clientId);
+  if (!client || client.client_type !== "pro") return null;
+  if (client.partner_public_token) return client.partner_public_token;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const token = crypto.randomBytes(18).toString("base64url");
+    try {
+      const changed = db
+        .prepare(
+          `UPDATE clients
+           SET partner_public_token = ?, updated_at = ?
+           WHERE id = ? AND partner_public_token IS NULL`,
+        )
+        .run(token, nowUnix(), clientId).changes;
+      if (changed) return token;
+      return getClientById(clientId)?.partner_public_token || null;
+    } catch (error) {
+      if (error?.code !== "SQLITE_CONSTRAINT_UNIQUE") throw error;
+    }
+  }
+  return null;
 }
 
 function getClientByEmail(email) {
@@ -291,7 +330,7 @@ function generateNextCardCode() {
 // que les codes qui different deja de leur valeur canonique, donc apres la
 // premiere passe c'est un no-op. Les comptes Data/Pro ne sont pas concernes.
 // Ouvre la box "avis Google" (1 fois par compte). Tire un lot, l'enregistre,
-// applique le credit si gagne; les lots physiques + mois fondateur restent
+// applique les BC'Coins si gagnes; les lots physiques + mois fondateur restent
 // "a honorer" cote admin.
 function openReviewBox(clientId) {
   const client = getClientById(clientId);
@@ -311,14 +350,13 @@ function openReviewBox(clientId) {
       `UPDATE clients SET review_box_opened_at = ?, review_box_reward = ?, updated_at = ? WHERE id = ?`,
     ).run(now, goodie.key, now, clientId);
 
-    if (goodie.kind === "credit") {
+    if (goodie.kind === "bc") {
       db.prepare(
         `UPDATE clients
-         SET formula_total = COALESCE(formula_total, 0) + 1,
-             formula_remaining = COALESCE(formula_remaining, 0) + 1,
+         SET bc_points = COALESCE(bc_points, 0) + ?,
              updated_at = ?
          WHERE id = ?`,
-      ).run(now, clientId);
+      ).run(Number(goodie.bc || 0), now, clientId);
     } else if (goodie.kind === "founder_month") {
       grantTemporaryFounder(clientId, 30);
     } else {
@@ -921,6 +959,8 @@ module.exports = {
   generateNextDataSlug,
   getClientByEmail,
   getClientById,
+  getClientByPartnerPublicToken,
+  getOrCreatePartnerPublicToken,
   getClientBySlugOrCardCode,
   incrementFormulaRemaining,
   listClients,

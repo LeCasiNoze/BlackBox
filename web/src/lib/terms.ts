@@ -3,7 +3,7 @@ export const TERMS_UPDATED_LABEL = "09 juin 2026";
 export const TERMS_HIGHLIGHTS = [
   "Les rendez-vous se demandent par demi-journee: un creneau le matin 9h-12h et un autre l'apres-midi 14h-18h.",
   "Une annulation ou un deplacement doit etre demande au plus tard la veille a minuit.",
-  "Un credit est engage a la reservation puis restitue seulement si l'annulation respecte le delai prevu.",
+  "Le prix exact est validé par Bryan Cars avant tout paiement et reste visible dans votre espace client.",
   "Les prestations, photos et dossiers restent organises par Bryan Cars pour assurer le suivi du vehicule.",
 ];
 
@@ -12,10 +12,10 @@ export const TERMS_SECTIONS: Array<{
   body: string[];
 }> = [
   {
-    title: "1. Formule et credits",
+    title: "1. Devis et paiement",
     body: [
-      "Votre formule donne acces a un nombre defini de prestations. Les credits disponibles, la date d'achat et la date d'expiration sont visibles dans votre espace client.",
-      "Une formule expiree ou epuisee ne permet plus de reserver un nouveau passage tant qu'elle n'a pas ete rechargee ou reactualisee.",
+      "Le client sélectionne les prestations souhaitées et peut joindre des photos. Bryan Cars fixe ensuite un prix personnalisé en euros selon le véhicule et son état.",
+      "Aucun paiement n'est demandé avant validation du devis. Le rendez-vous est définitivement confirmé après acceptation du tarif et paiement sécurisé via SumUp.",
     ],
   },
   {
@@ -29,7 +29,7 @@ export const TERMS_SECTIONS: Array<{
     title: "3. Annulation et modification",
     body: [
       "Toute annulation ou modification doit etre effectuee avant la veille du rendez-vous a minuit.",
-      "Passe ce delai, Bryan Cars se reserve le droit de conserver le credit engage si le planning a deja ete immobilise.",
+      "Passe ce délai, Bryan Cars se réserve le droit d'appliquer ses conditions d'annulation lorsque le planning a déjà été immobilisé.",
     ],
   },
   {

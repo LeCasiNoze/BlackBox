@@ -20,7 +20,6 @@ import {
   Gift,
   Heart,
   House,
-  Link2,
   LockKeyhole,
   Loader2,
   MapPin,
@@ -40,12 +39,19 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
+import { ServicePicker } from "../components/ServicePicker";
+import { QrCodeImage } from "../components/QrCodeImage";
+import {
+  SERVICE_CATALOG,
+  SERVICE_CATEGORIES,
+  type ServiceCatalogItem,
+  type ServiceCategory,
+} from "../lib/serviceCatalog";
 import {
   appointmentDateTime,
   appointmentStatusClasses,
   appointmentStatusLabel,
   canChangeDay,
-  clampNumber,
   cn,
   dateBlockParts,
   defaultTimeForSlot,
@@ -81,6 +87,8 @@ import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "../lib/calen
 const SUMUP_TOPUP_URL =
   import.meta.env.VITE_SUMUP_TOPUP_URL || "https://www.sumupbookings.com/bryan-cars";
 const GOOGLE_REVIEWS_URL = "https://maps.app.goo.gl/SNXz7PaTRSWWMxLa8";
+const GOOGLE_MAPS_URL =
+  "https://www.google.com/maps/place/Bryan+Cars+Detailing+%E2%80%93+Nettoyage+voiture+%C3%A0+Louhans/@46.6343847,5.2423649,13z/data=!4m8!3m7!1s0x47f327b91eec4c27:0x81bd1ae9f5024543!8m2!3d46.6343847!4d5.2423649!9m1!1b1!16s%2Fg%2F11nxrbfcrd!18m1!1e1?entry=ttu";
 const INSTAGRAM_URL =
   "https://www.instagram.com/bryancarsdetailing?igsh=M3hpZGc4bTY2eHJs&utm_source=qr";
 const TIKTOK_URL = "https://www.tiktok.com/@bryan.cars2";
@@ -229,6 +237,7 @@ type PartnerForfait = {
   currency: string;
   tagline: string;
   features: string[];
+  startingAt?: boolean;
 };
 
 type PartnerOrder = {
@@ -241,6 +250,10 @@ type PartnerOrder = {
   status: "pending" | "paid" | "failed" | "expired" | "cancelled" | "refunded";
   customerName: string | null;
   customerEmail: string | null;
+  customerPhone: string | null;
+  vehicleModel: string | null;
+  vehiclePlate: string | null;
+  photos: string[];
   paidAt: number | null;
   createdAt: number;
 };
@@ -250,6 +263,7 @@ type ForfaitApiResponse = {
   paymentsReady: boolean;
   forfaits: PartnerForfait[];
   orders: PartnerOrder[];
+  publicLink: string;
 };
 
 type ApiEvent = {
@@ -294,13 +308,20 @@ type QuoteRequest = {
   id: number;
   clientId: number;
   description: string | null;
-  status: "pending" | "answered";
-  estimatedCredits: number | null;
+  status: "pending" | "answered" | "accepted" | "paid" | "refused" | "archived";
+  paymentStatus: "unpaid" | "pending" | "paid" | "failed" | "expired";
+  estimatedPriceCents: number | null;
   adminComment: string | null;
   createdAt: number;
   updatedAt: number;
   answeredAt: number | null;
+  paidAt: number | null;
+  refusalReason: string | null;
+  refusalComment: string | null;
+  vehicleId: number | null;
+  vehicle: { id: number | null; label: string | null; model: string | null; plate: string | null };
   photos: string[];
+  serviceItems: Array<{ key: string; category: string; label: string; founderOnly: boolean }>;
 };
 
 type ModalMode = "book" | "manage" | "past";
@@ -308,6 +329,15 @@ type PortalView = "home" | "booking" | "vehicles" | "shop" | "account" | "histor
 type HistoryTab = "mine" | "community";
 type GarageTab = "vehicles" | "add";
 type AdvantagesTab = "available" | "mine";
+
+type ClientProfileDraft = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+};
 
 type ClientAppointment = {
   id: number;
@@ -352,31 +382,6 @@ type ClientAppointment = {
 };
 
 type ServiceLevel = "clean" | "correct" | "dirty";
-
-type ServiceCatalogItem = {
-  key: string;
-  category: string;
-  subcategory: string;
-  label: string;
-  popular: boolean;
-  founderOnly: boolean;
-  imageUrl: string | null;
-};
-
-type ServiceCategory = { key: string; label: string; order: number };
-
-const SERVICE_CATALOG: ServiceCatalogItem[] = [
-  { key: "complete-basic", category: "complete", subcategory: "Formules complètes", label: "Nettoyage Complet Basique — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
-  { key: "complete-deep", category: "complete", subcategory: "Formules complètes", label: "Nettoyage Complet Approfondi + Sellerie — Intérieur & Extérieur", popular: true, founderOnly: false, imageUrl: null },
-  { key: "detailing-pack", category: "complete", subcategory: "Formules complètes", label: "Pack Detailing — Finition Supérieure", popular: true, founderOnly: false, imageUrl: null },
-];
-
-const SERVICE_CATEGORIES: ServiceCategory[] = [
-  { key: "complete", label: "Complet & Detailing", order: 1 },
-  { key: "exterior", label: "Extérieur", order: 2 },
-  { key: "interior", label: "Intérieur", order: 3 },
-  { key: "founder", label: "Entretien régulier — Fondateurs", order: 4 },
-];
 
 type ListClientAppointmentsResponse = {
   ok: boolean;
@@ -542,7 +547,7 @@ const TIER_COLORS: Record<string, string> = {
   microfibre: "#38bdf8",
   tapis: "#a855f7",
   founder_1m: "#e8c98a",
-  credit_1: "#ec4899",
+  bc_250: "#ec4899",
   pack3: "#e8c98a",
 };
 
@@ -626,7 +631,7 @@ const WIN_SEQUENCES: Record<string, number[]> = {
   microfibre: [523.25, 659.25, 783.99],
   tapis: [523.25, 659.25, 783.99, 1046.5],
   founder_1m: [523.25, 659.25, 783.99, 1046.5, 1318.5],
-  credit_1: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98],
+  bc_250: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98],
   pack3: [523.25, 659.25, 783.99, 1046.5, 1318.5],
 };
 
@@ -660,7 +665,7 @@ const CONFETTI_BY_TIER: Record<string, number> = {
   microfibre: 34,
   tapis: 55,
   founder_1m: 85,
-  credit_1: 110,
+  bc_250: 110,
   pack3: 95,
 };
 
@@ -720,7 +725,6 @@ type CaseOpeningModalProps = {
 };
 
 function CaseOpeningModal({
-  caseItem,
   result,
   reelRef,
   onClose,
@@ -749,8 +753,8 @@ function CaseOpeningModal({
     if (reelItems.length === 0 || hasAnimated.current) return;
     hasAnimated.current = true;
 
-    let revealTimeout: ReturnType<typeof window.setTimeout> | null = null;
-    let tickTimeout: ReturnType<typeof window.setTimeout> | null = null;
+    let revealTimeout: number | null = null;
+    let tickTimeout: number | null = null;
     let tickStopped = false;
     let tickDelay = 45;
 
@@ -800,7 +804,7 @@ function CaseOpeningModal({
   const highlightWin =
     result?.reward.tier === "legendaire" ||
     result?.reward.tier === "founder_1m" ||
-    result?.reward.tier === "credit_1";
+    result?.reward.tier === "bc_250";
 
   return (
     <motion.div
@@ -843,8 +847,7 @@ function CaseOpeningModal({
           <div>
             <p className="bb-eyebrow">{eyebrow ?? "BC'Coins"}</p>
             <h3 className="bb-display mt-2 text-2xl font-semibold text-white">
-              {title ??
-                `Ouverture de case · ${caseItem.credits} credit${caseItem.credits > 1 ? "s" : ""}`}
+              {title ?? "Ouverture de case fidélité"}
             </h3>
           </div>
           {revealed && (
@@ -954,8 +957,8 @@ function CaseOpeningModal({
                   {result.reward.label}
                 </motion.div>
                 <p className="text-sm text-white/60">
-                  {result.reward.tier === "credit_1"
-                    ? "1 crédit ajoute a ton compte !"
+                  {result.reward.tier === "bc_250"
+                    ? "250 BC'Coins ajoutés à ton compte !"
                     : result.reward.tier === "founder_1m"
                       ? "1 mois Fondateur offert — on l'active pour toi."
                       : (deliveryNote ?? "A recuperer a ton prochain rendez-vous.")}
@@ -1430,6 +1433,9 @@ export function ClientCardPage() {
   // Devis : modale, description, photos.
   const [quoteModalOpen, setQuoteModalOpen] = React.useState(false);
   const [quoteNote, setQuoteNote] = React.useState("");
+  const [quoteServiceKeys, setQuoteServiceKeys] = React.useState<string[]>([]);
+  const [quoteVehicleId, setQuoteVehicleId] = React.useState<number | null>(null);
+  const [acceptedQuoteId, setAcceptedQuoteId] = React.useState<number | null>(null);
   const [quoteImageDrafts, setQuoteImageDrafts] = React.useState<BookingImageDraft[]>([]);
   const [quoteBusy, setQuoteBusy] = React.useState(false);
   const quoteImageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -1450,6 +1456,16 @@ export function ClientCardPage() {
   const [termsPanelAttention, setTermsPanelAttention] = React.useState(false);
   const [termsCheckboxAttention, setTermsCheckboxAttention] = React.useState(false);
   const [contactModalOpen, setContactModalOpen] = React.useState(false);
+  const [profileInfoOpen, setProfileInfoOpen] = React.useState(false);
+  const [profileInfoBusy, setProfileInfoBusy] = React.useState(false);
+  const [profileInfoDraft, setProfileInfoDraft] = React.useState<ClientProfileDraft>({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    addressLine1: "",
+    postalCode: "",
+    city: "",
+  });
   const [founderModalOpen, setFounderModalOpen] = React.useState(false);
   const [pushPermission, setPushPermission] = React.useState<NotificationPermission | "unsupported">(
     () => clientPushPermission(),
@@ -1494,13 +1510,12 @@ export function ClientCardPage() {
   const [busyTopupKey, setBusyTopupKey] = React.useState<string | null>(null);
   const [customTopupQuantity, setCustomTopupQuantity] = React.useState("6");
   const [forfaitData, setForfaitData] = React.useState<ForfaitApiResponse | null>(null);
-  const [forfaitBusyKey, setForfaitBusyKey] = React.useState<string | null>(null);
-  const [generatedLinks, setGeneratedLinks] = React.useState<Record<string, string>>({});
   const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
   const bookingImagesRef = React.useRef<BookingImageDraft[]>([]);
   const bookingImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const handledTopupRef = React.useRef<string | null>(null);
   const handledFounderRef = React.useRef<string | null>(null);
+  const handledQuotePaymentRef = React.useRef<string | null>(null);
   const [founderCheckoutBusy, setFounderCheckoutBusy] = React.useState(false);
   const handledLaunchTopupRef = React.useRef<string | null>(null);
   const [openingCase, setOpeningCase] = React.useState<PendingCase | null>(null);
@@ -1523,7 +1538,7 @@ export function ClientCardPage() {
   const [recapData, setRecapData] = React.useState<{
     year: number;
     visits: number;
-    creditsUsed: number;
+    amountPaidCents: number;
     bcEarned: number;
     vehicles: number;
     reviews: number;
@@ -1617,6 +1632,44 @@ export function ClientCardPage() {
       setQuoteModalOpen(true);
     }
   }, [data]);
+
+  React.useEffect(() => {
+    const quote = data?.quoteRequest;
+    if (quote?.status === "accepted" || quote?.status === "paid") {
+      setAcceptedQuoteId(quote.id);
+      setSelectedServiceKeys(quote.serviceItems.map((service) => service.key));
+      setActiveVehicleId(quote.vehicleId);
+    }
+  }, [data?.quoteRequest]);
+
+  React.useEffect(() => {
+    if (!data || data.client.clientType === "pro") return;
+    if (quoteVehicleId || data.vehicles.length !== 1) return;
+    setQuoteVehicleId(data.vehicles[0].id);
+  }, [data, quoteVehicleId]);
+
+  React.useEffect(() => {
+    if (!data?.quoteRequest || query.get("quotePaid") !== "1") return;
+    const key = `${slug}:${data.quoteRequest.id}`;
+    if (handledQuotePaymentRef.current === key) return;
+    handledQuotePaymentRef.current = key;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/client/${encodeURIComponent(slug)}/quote/sync-payment`, {
+          method: "POST",
+        });
+        const json = await response.json().catch(() => ({}));
+        if (response.ok && json.ok) {
+          setReloadToken((value) => value + 1);
+          if (json.quoteRequest?.paymentStatus === "paid") {
+            showToast("Paiement reçu. Choisissez maintenant votre disponibilité.");
+          }
+        }
+      } catch {
+        showToast("Le paiement sera synchronisé automatiquement dans quelques instants.");
+      }
+    })();
+  }, [data?.quoteRequest, query, slug]);
 
   // Forfaits partenaire (comptes pro): charge la grille + le suivi des
   // paiements et rafraichit toutes les 15s tant que la vue est ouverte.
@@ -1973,10 +2026,20 @@ export function ClientCardPage() {
 
   async function submitQuote() {
     if (!client) return;
+    if (!quoteVehicleId) {
+      showToast("Choisissez le véhicule concerné.");
+      return;
+    }
+    if (quoteImageDrafts.length === 0) {
+      showToast("Ajoutez au moins une photo du véhicule.");
+      return;
+    }
     setQuoteBusy(true);
     try {
       const formData = new FormData();
       if (quoteNote.trim()) formData.set("description", quoteNote.trim());
+      formData.set("serviceKeys", JSON.stringify(quoteServiceKeys));
+      formData.set("vehicleId", String(quoteVehicleId));
       quoteImageDrafts.forEach((draft) => formData.append("images", draft.file));
       const response = await fetch(`/api/client/${encodeURIComponent(slug)}/quote`, {
         method: "POST",
@@ -1994,6 +2057,8 @@ export function ClientCardPage() {
       showToast("Demande de devis envoyee !");
       clearQuoteImages();
       setQuoteNote("");
+      setQuoteServiceKeys([]);
+      setQuoteVehicleId(null);
       setReloadToken((value) => value + 1);
     } catch {
       showToast("Erreur reseau pendant l'envoi.");
@@ -2014,29 +2079,44 @@ export function ClientCardPage() {
     }
   }
 
-  function rechargeFromQuote() {
-    setQuoteModalOpen(false);
-    navigateView("shop");
-  }
-
-  // Bouton "Obtenir un devis" a cote de "Prendre rendez-vous" (BBX & fondateurs).
   function renderQuoteCta() {
     if (!client || client.clientType === "pro") return null;
     const quote = data?.quoteRequest ?? null;
-    const answered = quote?.status === "answered";
+    const answered = quote?.status === "answered" || quote?.status === "accepted";
+    const paid = quote?.status === "paid" || quote?.paymentStatus === "paid";
     return (
       <button
-        className="bb-button-ghost w-full justify-center py-3"
+        className={
+          quote
+            ? "bb-button-ghost w-full justify-center py-3"
+            : "group flex w-full items-center justify-between gap-4 rounded-[22px] border border-accent/28 bg-accent/[0.07] p-4 text-left transition hover:border-accent/50 hover:bg-accent/[0.11]"
+        }
         onClick={() => setQuoteModalOpen(true)}
         type="button"
       >
-        <FileText className="mr-2 h-4 w-4" />
-        {quote
-          ? answered
-            ? "Voir mon estimation"
-            : "Voir ma demande de devis"
-          : "Obtenir un devis"}
-        {answered && <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-accent" />}
+        {quote ? (
+          <FileText className="mr-2 h-4 w-4" />
+        ) : (
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-accent/30 bg-accent/12 text-accent">
+            <FileText className="h-5 w-5" />
+          </span>
+        )}
+        {quote ? (
+          paid
+            ? "Planifier mon intervention"
+            : answered
+              ? "Voir et payer mon devis"
+              : "Voir ma demande de devis"
+        ) : (
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-white">Demander un devis</span>
+            <span className="mt-1 block text-xs leading-5 text-white/55">
+              Composez vos prestations et recevez un prix personnalisé.
+            </span>
+          </span>
+        )}
+        {!quote && <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />}
+        {(answered || paid) && <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-accent" />}
       </button>
     );
   }
@@ -2044,8 +2124,7 @@ export function ClientCardPage() {
   function renderQuoteModal() {
     if (!quoteModalOpen || !client) return null;
     const quote = data?.quoteRequest ?? null;
-    const isFounder = client.isFounder;
-    const credits = quote?.estimatedCredits ?? 0;
+    const priceCents = quote?.estimatedPriceCents ?? 0;
 
     return (
       <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4">
@@ -2059,8 +2138,8 @@ export function ClientCardPage() {
               <p className="bb-eyebrow">Devis</p>
               <h3 className="mt-1 text-xl font-semibold text-white">
                 {quote
-                  ? quote.status === "answered"
-                    ? "Votre estimation"
+                  ? quote.status === "answered" || quote.status === "accepted" || quote.status === "paid"
+                    ? quote.status === "paid" ? "Devis payé" : "Votre devis"
                     : "Demande envoyee"
                   : "Obtenir un devis"}
               </h3>
@@ -2075,43 +2154,33 @@ export function ClientCardPage() {
             </button>
           </div>
 
-          {quote?.status === "answered" ? (
+          {quote?.status === "answered" || quote?.status === "accepted" || quote?.status === "paid" ? (
             <div className="mt-5 space-y-4">
               <div className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5 text-center">
                 <p className="text-sm text-white/70">
-                  L&apos;estimation pour votre véhicule est de
+                  {quote.status === "paid" ? "Montant payé" : "Montant exact du devis"}
                 </p>
                 <p className="mt-2 text-4xl font-bold text-accent">
-                  {credits} <span className="text-2xl">crédit{credits > 1 ? "s" : ""}</span>
-                  <span className="block text-lg font-semibold text-white/80 mt-1">
-                    ({credits * 50} €)
-                  </span>
+                  {formatMoneyCents(priceCents)}
                 </p>
               </div>
 
-              {/* CADRANT COMPARATIF MEMBRE FONDATEUR */}
-              {!isFounder && (
-                <div className="rounded-2xl border border-[#e8c98a]/40 bg-[#e8c98a]/10 p-4 text-xs space-y-2 text-left">
-                  <div className="flex items-center gap-2 font-bold text-[#e8c98a]">
-                    <Crown className="h-4 w-4 shrink-0 text-[#e8c98a]" />
-                    <span>
-                      Ça vous aurait coûté {credits * 40} € ({credits * 10} € d&apos;économie) si vous étiez Membre Fondateur !
-                    </span>
-                  </div>
-                  <p className="text-white/70 text-[11px] leading-relaxed">
-                    Les membres fondateurs bénéficient de -20% sur les crédits, d&apos;une priorité sur le planning et de BC&apos;Coins bonus.
-                  </p>
-                  <button
-                    className="inline-flex items-center gap-1.5 text-[#e8c98a] font-bold hover:underline cursor-pointer pt-1"
-                    onClick={() => {
-                      setQuoteModalOpen(false);
-                      navigateView("shop");
-                    }}
-                    type="button"
-                  >
-                    <span>Découvrir l&apos;Espace Fondateur</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accent"><CarFront className="h-5 w-5" /></span>
+                <div className="min-w-0"><p className="bb-eyebrow">Véhicule</p><p className="mt-1 truncate text-sm font-bold text-white">{quote.vehicle?.model || quote.vehicle?.label || "Véhicule renseigné"}{quote.vehicle?.plate ? ` · ${quote.vehicle.plate}` : ""}</p></div>
+              </div>
+
+              {quote.serviceItems.length > 0 && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="bb-eyebrow mb-2">Prestations incluses</p>
+                  <ul className="space-y-1.5 text-sm text-white/70">
+                    {quote.serviceItems.map((service) => (
+                      <li className="flex items-start gap-2" key={service.key}>
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                        {service.label}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
@@ -2122,7 +2191,7 @@ export function ClientCardPage() {
                 </div>
               )}
 
-              {refusingQuote ? (
+              {(quote.status === "answered" || quote.status === "accepted") && refusingQuote ? (
                 <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 space-y-3">
                   <h4 className="text-xs font-bold text-white uppercase">Pourquoi souhaitez-vous refuser ce devis ?</h4>
                   <div className="space-y-2">
@@ -2175,6 +2244,7 @@ export function ClientCardPage() {
                           const json = await res.json().catch(() => ({}));
                           if (json.ok) {
                             setRefusingQuote(false);
+                            setQuoteModalOpen(false);
                             setReloadToken((t) => t + 1);
                             showToast("Devis refusé. Merci pour votre retour !");
                           }
@@ -2196,42 +2266,37 @@ export function ClientCardPage() {
                 <>
                   <button
                     className="bb-button-brand w-full justify-center py-3.5 cursor-pointer"
-                    onClick={async () => {
-                      setQuoteBusy(true);
-                      try {
-                        const targetSlug = slug || client?.slug || client?.cardCode;
-                        await fetch(`/api/client/${targetSlug}/quote/accept`, { method: "POST" });
-                      } catch {
-                        /* best-effort */
-                      } finally {
-                        setQuoteBusy(false);
-                        rechargeFromQuote();
+                    disabled={quoteBusy}
+                    onClick={() => {
+                      if (quote.status === "paid" || quote.paymentStatus === "paid") {
+                        setAcceptedQuoteId(quote.id);
+                        setSelectedServiceKeys(quote.serviceItems.map((service) => service.key));
+                        setQuoteModalOpen(false);
+                        navigateView("booking");
+                        return;
                       }
+                      void startQuoteCheckout();
                     }}
                     type="button"
                   >
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    ACCEPTER & RECHARGER ({credits * 50} €)
+                    {quote.status === "paid" ? <CalendarClock className="mr-2 h-4 w-4" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                    {quote.status === "paid"
+                      ? "CHOISIR MA DISPONIBILITÉ"
+                      : quote.paymentStatus === "pending"
+                        ? `REPRENDRE LE PAIEMENT · ${formatMoneyCents(priceCents)}`
+                        : `PAYER ${formatMoneyCents(priceCents)}`}
                   </button>
 
-                  <button
+                  {(quote.status === "answered" || quote.status === "accepted") && quote.paymentStatus !== "pending" && <button
                     className="w-full py-3 border border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-colors"
                     onClick={() => setRefusingQuote(true)}
                     type="button"
                   >
                     REFUSER CE DEVIS
-                  </button>
+                  </button>}
                 </>
               )}
 
-              <button
-                className="bb-button-ghost w-full justify-center"
-                disabled={quoteBusy}
-                onClick={() => void closeQuoteRequest()}
-                type="button"
-              >
-                Faire une nouvelle demande
-              </button>
             </div>
           ) : quote ? (
             <div className="mt-5 space-y-4">
@@ -2239,13 +2304,26 @@ export function ClientCardPage() {
                 <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
                 <p className="text-sm leading-6 text-white/75">
                   Votre demande a bien ete envoyee. Bryan Cars vous renverra une
-                  estimation en credits — vous serez notifie ici et par e-mail.
+                  estimation personnalisée en euros — vous serez notifié ici et par e-mail.
                 </p>
               </div>
               {quote.description && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="bb-eyebrow mb-1">Votre description</p>
                   <p className="text-sm leading-6 text-white/70">{quote.description}</p>
+                </div>
+              )}
+              {quote.serviceItems.length > 0 && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="bb-eyebrow mb-2">Prestations demandées</p>
+                  <ul className="space-y-1.5 text-sm text-white/70">
+                    {quote.serviceItems.map((service) => (
+                      <li className="flex items-start gap-2" key={service.key}>
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                        {service.label}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {quote.photos.length > 0 && (
@@ -2272,9 +2350,36 @@ export function ClientCardPage() {
           ) : (
             <div className="mt-5 space-y-4">
               <p className="text-sm leading-6 text-white/60">
-                Envoyez quelques photos et une description : Bryan Cars vous renvoie une
-                estimation en credits, sans engagement.
+                Choisissez votre véhicule, composez votre panier et ajoutez ses photos. Bryan Cars vous
+                renvoie une estimation personnalisée en euros, sans engagement.
               </p>
+              {vehicles.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-accent/30 bg-accent/[0.06] p-5 text-center">
+                  <CarFront className="mx-auto h-9 w-9 text-accent" />
+                  <p className="mt-3 text-sm font-bold text-white">Ajoutez d&apos;abord votre véhicule</p>
+                  <button className="bb-button-brand mt-4 justify-center" onClick={() => { setQuoteModalOpen(false); setGarageTab("add"); navigateView("vehicles"); }} type="button"><Plus className="mr-2 h-4 w-4" />Ajouter un véhicule</button>
+                </div>
+              ) : (
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-white">Véhicule concerné</p>
+                  <div className="grid gap-2">
+                    {vehicles.map((vehicle) => (
+                      <button className={cn("flex items-center gap-3 rounded-2xl border p-3 text-left transition", quoteVehicleId === vehicle.id ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={vehicle.id} onClick={() => setQuoteVehicleId(vehicle.id)} type="button">
+                        <span className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-black/25 text-accent">{vehicle.imageUrl ? <img alt="" className="h-full w-full object-cover" src={vehicle.imageUrl} /> : <CarFront className="h-6 w-6" />}</span>
+                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-white">{vehicle.model || vehicle.label || "Véhicule"}</span><span className="mt-1 block text-xs text-white/45">{vehicle.plate || "Plaque non renseignée"}</span></span>
+                        {quoteVehicleId === vehicle.id && <CheckCircle2 className="h-5 w-5 text-accent" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <ServicePicker
+                allowFounder={client.isFounder}
+                catalog={data?.serviceCatalog ?? SERVICE_CATALOG}
+                categories={data?.serviceCategories ?? SERVICE_CATEGORIES}
+                onChange={setQuoteServiceKeys}
+                selectedKeys={quoteServiceKeys}
+              />
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-white">Description</span>
                 <textarea
@@ -2287,7 +2392,7 @@ export function ClientCardPage() {
               </label>
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white">Photos du vehicule</span>
+                  <span className="text-sm font-semibold text-white">Photos du véhicule *</span>
                   <span className="bb-pill border-accent/25 bg-accent/12 text-accent">
                     {quoteImageDrafts.length}/8
                   </span>
@@ -2341,7 +2446,7 @@ export function ClientCardPage() {
               </div>
               <button
                 className="bb-button-brand w-full justify-center py-3.5"
-                disabled={quoteBusy || (!quoteNote.trim() && quoteImageDrafts.length === 0)}
+                disabled={quoteBusy || quoteServiceKeys.length === 0 || !quoteVehicleId || quoteImageDrafts.length === 0}
                 onClick={() => void submitQuote()}
                 type="button"
               >
@@ -2410,7 +2515,7 @@ export function ClientCardPage() {
         }
 
         if (json.topupOrder?.status === "processed") {
-          showToast("Paiement confirmé. Vos crédits viennent d'être ajoutes.");
+          showToast("Paiement historique confirmé.");
           setReloadToken((value) => value + 1);
         } else if (json.topupOrder?.status === "pending" || json.topupOrder?.status === "paid") {
           showToast("Paiement reçu, confirmation encore en cours.");
@@ -2625,14 +2730,6 @@ export function ClientCardPage() {
       setTermsCheckboxAttention(true);
     });
   }
-
-  const creditsRatio = client
-    ? clampNumber(
-        client.formulaTotal > 0 ? client.formulaRemaining / client.formulaTotal : 0,
-        0,
-        1,
-      )
-    : 0;
 
   const upcomingAppointment = React.useMemo(() => nextAppointment(appointments), [appointments]);
   const freeSlot = React.useMemo(() => nextFreeSlot(monthDays), [monthDays]);
@@ -2977,6 +3074,41 @@ export function ClientCardPage() {
       imagePreviewUrl: null,
     });
     setVehicleModalOpen(true);
+  }
+
+  async function startQuoteCheckout() {
+    const quote = data?.quoteRequest;
+    if (!quote || quoteBusy) return;
+    setQuoteBusy(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/quote/checkout`, {
+        method: "POST",
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast(
+          json.error === "sumup_not_ready"
+            ? "Le paiement SumUp n'est pas disponible pour le moment."
+            : "Impossible de préparer le paiement du devis.",
+        );
+        return;
+      }
+      if (json.alreadyPaid) {
+        setQuoteModalOpen(false);
+        setReloadToken((value) => value + 1);
+        navigateView("booking");
+        return;
+      }
+      if (json.hostedCheckoutUrl) {
+        window.location.assign(json.hostedCheckoutUrl as string);
+        return;
+      }
+      showToast("Lien de paiement indisponible.");
+    } catch {
+      showToast("Erreur réseau pendant la préparation du paiement.");
+    } finally {
+      setQuoteBusy(false);
+    }
   }
 
   function openVehicleEdit(vehicle: ClientVehicle) {
@@ -3692,44 +3824,6 @@ export function ClientCardPage() {
     window.open(SUMUP_TOPUP_URL, "_blank", "noopener,noreferrer");
   }
 
-  // Nombre exact de credits manquants pour valider le tarif d'un rendez-vous.
-  function creditsNeededForAppointment(appointment: ClientAppointment) {
-    const price = Number(appointment.approvedCredits ?? appointment.requestedCredits ?? 1);
-    const owned = Number(client?.formulaRemaining ?? 0);
-    return Math.max(1, price - owned);
-  }
-
-  // Recharge ciblee depuis la validation de tarif: on ferme la modale puis on
-  // propose directement l'achat du nombre exact de credits manquants.
-  function startCreditPurchaseForAppointment(appointment: ClientAppointment) {
-    const needed = creditsNeededForAppointment(appointment);
-    closeAppointmentModal();
-
-    if (!termsAccepted) {
-      openTermsModal({ type: "topup" });
-      return;
-    }
-
-    // Fondateur: pas d'achat a l'unite, on l'oriente vers sa boutique/formule.
-    if (client?.isFounder) {
-      navigateView("shop");
-      showToast(
-        `Il manque ${needed} credit${needed > 1 ? "s" : ""} pour ce tarif. Rechargez votre formule.`,
-      );
-      return;
-    }
-
-    // BBX / Data / Pro: achat direct du nombre exact de credits a l'unite.
-    if (paymentsReady && topupOffers[0]) {
-      showToast(`Achat de ${needed} credit${needed > 1 ? "s" : ""} pour valider ce tarif.`);
-      void startTopupCheckout(topupOffers[0], needed);
-      return;
-    }
-
-    // Paiement en ligne indisponible: repli sur la recharge classique.
-    openTopupFlow();
-  }
-
   async function submitBooking(
     date: string,
     slot: AppointmentSlot,
@@ -3738,11 +3832,14 @@ export function ClientCardPage() {
   ) {
     if (!data) return;
     const isPro = data.client.clientType === "pro";
+    const paidQuoteId =
+      !isPro && data.quoteRequest?.paymentStatus === "paid" ? data.quoteRequest.id : null;
+    const bookingQuoteId = acceptedQuoteId ?? paidQuoteId;
     if (isPro && !proVehicleText.trim()) {
       showToast("Indiquez le vehicule concerne.");
       return;
     }
-    if (!isPro && vehicles.length > 0 && !activeVehicleId) {
+    if (!isPro && !bookingQuoteId && vehicles.length > 0 && !activeVehicleId) {
       showToast("Selectionnez d'abord le véhicule concerne.");
       return;
     }
@@ -3762,6 +3859,9 @@ export function ClientCardPage() {
       formData.set("location", appointmentLocation ?? "atelier");
       formData.set("serviceLevel", serviceLevel);
       formData.set("serviceKeys", JSON.stringify(selectedServiceKeys));
+      if (!isPro && bookingQuoteId) {
+        formData.set("quoteId", String(bookingQuoteId));
+      }
       if (isPro) {
         formData.set("vehicleText", proVehicleText.trim());
       } else if (activeVehicleId) {
@@ -3813,23 +3913,29 @@ export function ClientCardPage() {
           showToast("Ajoutez au moins une photo du véhicule pour envoyer la demande.");
           return;
         }
+        if (json?.error === "paid_quote_required" || json?.error === "invalid_quote") {
+          showToast("Ce devis doit être payé avant de choisir un créneau.");
+          return;
+        }
         showToast("Impossible de réserver ce créneau.");
         return;
       }
 
       showToast(
-        json?.clientImageCount > 0
-          ? `Demande envoyee avec ${json.clientImageCount} image${
-              json.clientImageCount > 1 ? "s" : ""
-            }.`
-          : "Demande de rendez-vous envoyee.",
+        clientData.clientType === "pro"
+          ? "Rendez-vous confirmé automatiquement."
+          : "Rendez-vous confirmé. Votre paiement a bien été rattaché.",
       );
       setClientBookingNote("");
       setProVehicleText("");
       clearBookingImages();
       setSelectedDay(null);
+      setAcceptedQuoteId(null);
       setBookingWizardStep(1);
       setReloadToken((value) => value + 1);
+      if (clientData.clientType !== "pro") {
+        navigateView("home");
+      }
     } catch (saveError) {
       showToast("Erreur reseau pendant la réservation.");
     } finally {
@@ -3917,38 +4023,6 @@ export function ClientCardPage() {
       setReloadToken((value) => value + 1);
     } catch (saveError) {
       showToast("Erreur reseau pendant l'annulation.");
-    } finally {
-      setBusyAction(false);
-    }
-  }
-
-  async function acceptSelectedAppointmentPrice() {
-    if (!selectedAppointment) return;
-    setBusyAction(true);
-    try {
-      const response = await fetch(
-        `/api/client/${encodeURIComponent(slug)}/appointments/${selectedAppointment.id}/accept-price`,
-        { method: "POST", headers: { "Content-Type": "application/json" } },
-      );
-      const json = await response.json().catch(() => ({}));
-
-      if (!response.ok || !json.ok) {
-        if (json?.error === "not_enough_credits") {
-          startCreditPurchaseForAppointment(selectedAppointment);
-          return;
-        }
-        showToast("Impossible de valider le tarif.");
-        return;
-      }
-
-      setSelectedAppointment(json.appointment ?? null);
-      if (json.client) {
-        setData((current) => (current ? { ...current, client: json.client } : current));
-      }
-      setReloadToken((value) => value + 1);
-      showToast("Tarif validé. Le rendez-vous est confirmé.");
-    } catch (error) {
-      showToast("Erreur reseau pendant la validation.");
     } finally {
       setBusyAction(false);
     }
@@ -4166,11 +4240,14 @@ export function ClientCardPage() {
     (card) => !(clientData.clientType === "pro" && card.view === "vehicles"),
   );
 
-  // Pour les pros (dispenses de credits), la "Boutique" devient l'espace
+  // Pour les pros, la "Boutique" devient l'espace
   // Forfaits partenaire: generation de liens de paiement + suivi.
   const navItems: NavItem[] = PORTAL_NAV_ITEMS.filter(
     (item) => clientData.clientType !== "pro" || item.view !== "vehicles",
   ).map((item) => {
+    if (item.view === "booking" && clientData.clientType !== "pro") {
+      return { ...item, label: "Devis", icon: FileText };
+    }
     if (item.view !== "shop") {
       return item;
     }
@@ -4306,28 +4383,32 @@ export function ClientCardPage() {
             )}
 
             <div className="flex flex-wrap gap-2">
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
-                  appointment.hasPhotos
-                    ? "border-accent/35 bg-accent/10 text-accentSoft"
-                    : "border-white/10 bg-white/[0.03] text-white/45",
-                )}
-              >
-                <Camera className="h-3 w-3" />
-                {appointment.hasPhotos ? "Photos disponibles" : "Pas de photos"}
-              </span>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
-                  appointment.userRating
-                    ? "border-accent/35 bg-accent/10 text-accentSoft"
-                    : "border-white/10 bg-white/[0.03] text-white/45",
-                )}
-              >
-                <Star className="h-3 w-3" />
-                {appointment.userRating ? `Votre avis : ${appointment.userRating}/5` : "Avis a laisser"}
-              </span>
+              {(appointment.status === "done" || appointment.userRating) && (
+                <>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
+                      appointment.hasPhotos
+                        ? "border-accent/35 bg-accent/10 text-accentSoft"
+                        : "border-white/10 bg-white/[0.03] text-white/45",
+                    )}
+                  >
+                    <Camera className="h-3 w-3" />
+                    {appointment.hasPhotos ? "Photos disponibles" : "Pas de photos"}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
+                      appointment.userRating
+                        ? "border-accent/35 bg-accent/10 text-accentSoft"
+                        : "border-white/10 bg-white/[0.03] text-white/45",
+                    )}
+                  >
+                    <Star className="h-3 w-3" />
+                    {appointment.userRating ? `Votre avis : ${appointment.userRating}/5` : "Avis a laisser"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -4382,7 +4463,7 @@ export function ClientCardPage() {
         recap?: {
           year: number;
           visits: number;
-          creditsUsed: number;
+          amountPaidCents: number;
           bcEarned: number;
           vehicles: number;
           reviews: number;
@@ -4478,6 +4559,7 @@ export function ClientCardPage() {
     const tarifs = appointments.filter(
       (a) => a.priceStatus === "waiting_client_approval" || a.priceStatus === "waiting_payment",
     );
+    const quoteFirst = clientData.clientType !== "pro";
 
     // --- FAQ de l'assistant ---
     // Pour AJOUTER/MODIFIER une reponse : edite ce tableau. Mise en forme :
@@ -4486,15 +4568,11 @@ export function ClientCardPage() {
     // n'afficher la question qu'aux fondateurs. (Voir aussi CLAUDE.md.)
     const faq: Array<{ q: string; a: string; founderOnly?: boolean }> = [
       {
-        q: "Comment marchent les credits ?",
+        q: "Comment est calculé mon tarif ?",
         a:
-          "Chaque prestation coute des credits selon l'etat du vehicule :\n" +
-          "• Propre (entretien) : 1 credit\n" +
-          "• Correct (traces, nettoyage plus pousse) : 2 credits\n" +
-          "• Sale (remise a niveau exigeante) : 3 credits\n\n" +
-          "Pour une demande specifique, l'atelier peut fixer un tarif personnalise. " +
-          "Tu vois toujours le tarif propose et tu l'acceptes (ou recharges) avant la " +
-          "confirmation du rendez-vous. Les credits ne sont debites qu'a ce moment-la.",
+          "Compose ton panier de prestations et ajoute des photos du véhicule. " +
+          "Bryan Cars étudie la demande puis t'envoie un prix global personnalisé en euros.\n\n" +
+          "Le rendez-vous est confirmé uniquement après ton paiement sécurisé.",
       },
       {
         q: "Comment annuler ou deplacer un RDV ?",
@@ -4502,24 +4580,25 @@ export function ClientCardPage() {
           "Va dans Suivi, ouvre la fiche du rendez-vous, puis « Annuler le RDV » (une confirmation t'est demandee).\n" +
           "• Fondateur & Pro : annulation possible a tout moment, tant que le rendez-vous n'a pas ete marque effectue.\n" +
           "• Autres comptes : jusqu'a 24h avant le creneau.\n\n" +
-          "Si des credits avaient ete debites, ils te sont automatiquement recredites.",
+          "En cas de paiement déjà effectué, contacte Bryan Cars pour le traitement du remboursement.",
       },
       {
         q: "Comment se passe un rendez-vous ?",
-        a:
-          "1. Tu reserves un creneau (matin 9h-12h ou apres-midi 14h-18h), a l'atelier ou a domicile.\n" +
-          "2. L'atelier estime l'etat du vehicule et valide le tarif (en credits).\n" +
-          "3. Tu acceptes le tarif (ou recharges si besoin) -> le RDV est confirme.\n" +
-          "4. Le jour J, la prestation est realisee.\n" +
-          "5. Ensuite : photos et ton avis dans Suivi.",
+        a: quoteFirst
+          ? "1. Tu choisis ton véhicule et les prestations souhaitées.\n" +
+            "2. Tu ajoutes des photos puis envoies gratuitement ta demande de devis.\n" +
+            "3. Bryan Cars fixe le prix exact : tu peux payer ou refuser la proposition.\n" +
+            "4. Après le paiement, tu choisis ton jour, ta demi-journée, ton heure et le lieu.\n" +
+            "5. Le rendez-vous est alors confirmé."
+          : "1. Tu choisis un jour, une demi-journée et ton heure.\n" +
+            "2. Tu indiques librement le véhicule concerné.\n" +
+            "3. Le rendez-vous professionnel est automatiquement confirmé.",
       },
       {
-        q: "Comment payer / recharger ?",
+        q: "Comment payer ?",
         a:
           "Le paiement se fait par carte bancaire via SumUp (page securisee), Apple Pay / " +
-          "Google Pay inclus.\n" +
-          "• Recharge de credits depuis la boutique / le bouton Recharger.\n" +
-          "• A la validation d'un tarif, tu peux recharger juste ce qu'il manque.\n\n" +
+          "Google Pay inclus. Le bouton de paiement apparaît dès que Bryan Cars a validé le montant.\n\n" +
           "Une facture est disponible dans Suivi -> Mes factures apres chaque paiement.",
       },
       {
@@ -4530,14 +4609,15 @@ export function ClientCardPage() {
           "• Box surprises et box de consolation lors des evenements\n" +
           "• Carte premium personnalisee\n" +
           "• Annulation / deplacement a tout moment (jusqu'a ce que le RDV soit effectue)\n" +
-          "• Offres et recharges reservees\n\n" +
+          "• Prestations d'entretien et offres réservées\n\n" +
           "Le nombre de places restantes s'affiche sur la page « Devenir fondateur ».",
       },
       {
         q: "Comment marchent les BC'Coins ?",
         a:
-          "Les BC'Coins sont la monnaie fidelite des fondateurs :\n" +
-          "• +80 BC par credit achete (immediat) et +20 BC par credit, debloques quand le RDV est effectue\n" +
+          "Les BC'Coins récompensent ta fidélité :\n" +
+          "• Ils sont ajoutés après tes prestations payées et effectuées\n" +
+          "• Les membres Fondateurs gagnent deux fois plus de BC'Coins\n" +
           "• Echange en boutique fidelite (ex. 2000 BC = bon de 100 €)\n" +
           "• 1 BC vaut environ 0,05 €\n\n" +
           "Tu peux aussi figurer au classement BC'Coins (option a activer).",
@@ -4553,7 +4633,7 @@ export function ClientCardPage() {
       if (upcoming.length === 0) {
         botText = "Tu n'as pas de rendez-vous a venir.";
         chips = [
-          { label: "➕ Prendre un RDV", onClick: () => act(() => navigateView("booking")), brand: true },
+          { label: quoteFirst ? "➕ Faire un devis" : "➕ Prendre un RDV", onClick: () => act(() => navigateView("booking")), brand: true },
           { label: "← Menu", onClick: () => goTo("root") },
         ];
       } else {
@@ -4627,8 +4707,8 @@ export function ClientCardPage() {
       botText = `Salut ${clientData.firstName || ""} 👋 Je peux t'aider a quoi ?`;
       chips = [
         { label: "📅 Mes rendez-vous", onClick: () => goTo("rdv") },
-        { label: "💶 Valider un tarif", onClick: () => goTo("tarif") },
-        { label: "➕ Prendre un RDV", onClick: () => act(() => navigateView("booking")) },
+        { label: quoteFirst ? "💶 Consulter mon devis" : "💶 Valider un tarif", onClick: () => quoteFirst ? act(() => navigateView("booking")) : goTo("tarif") },
+        { label: quoteFirst ? "➕ Faire un devis" : "➕ Prendre un RDV", onClick: () => act(() => navigateView("booking")) },
         { label: "🎁 Box & recompenses", onClick: () => goTo("box") },
         { label: "❓ Questions frequentes", onClick: () => goTo("faq") },
         { label: "📞 Contacter", onClick: () => goTo("contact") },
@@ -4744,7 +4824,7 @@ export function ClientCardPage() {
             Mon annee {year}
           </p>
           <p className="mt-1 text-lg font-bold text-white">Decouvre ton année Bryan Cars</p>
-          <p className="mt-0.5 text-sm text-white/60">Prestations, credits, BC&apos;Coins...</p>
+          <p className="mt-0.5 text-sm text-white/60">Prestations, paiements et BC&apos;Coins...</p>
         </div>
         <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" />
       </button>
@@ -4818,7 +4898,9 @@ export function ClientCardPage() {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-white">Active les notifications</p>
             <p className="text-sm leading-6 text-white/65">
-              Sois prevenu pour tes rendez-vous, la validation des tarifs et tes récompenses.
+              {clientData.clientType === "pro"
+                ? "Soyez prévenu immédiatement pour vos rendez-vous professionnels."
+                : "Soyez prévenu pour vos rendez-vous, la validation des tarifs et vos récompenses."}
             </p>
           </div>
         </div>
@@ -4883,7 +4965,6 @@ export function ClientCardPage() {
     const appt = pricePendingAppointment;
     if (!appt) return null;
     const euroPrice = appt.approvedPriceCents;
-    const legacyPrice = Number(appt.approvedCredits ?? appt.requestedCredits ?? 1);
     return (
       <button
         className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[26px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
@@ -4899,13 +4980,13 @@ export function ClientCardPage() {
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.16em] text-amber-200/80">Action requise</p>
             <p className="mt-1 text-base font-semibold text-white">
-              {euroPrice != null ? "Finaliser et payer" : "Valider le tarif"} — RDV du{" "}
+              {euroPrice != null ? "Finaliser et payer" : "Tarif en cours de préparation"} — RDV du{" "}
               {formatDateFR(appt.date, { day: "numeric", month: "long" })}
             </p>
             <p className="mt-0.5 text-sm text-white/65">
               {euroPrice != null
                 ? `Montant validé : ${formatMoneyCents(euroPrice)}. Le paiement confirme le rendez-vous.`
-                : `Tarif proposé : ${legacyPrice} crédit${legacyPrice > 1 ? "s" : ""}. Accepte ou recharge pour confirmer.`}
+                : "Bryan Cars finalise votre devis personnalisé en euros."}
             </p>
           </div>
         </div>
@@ -4919,7 +5000,6 @@ export function ClientCardPage() {
   function renderMemberCard() {
     const isPro = clientData.clientType === "pro";
     const tier = isPro ? "Pro" : clientData.isFounder ? "Fondateur" : "BBX";
-    const remaining = clientData.formulaRemaining;
     return (
       <div className="bb-member bb-rise">
         <div className="bb-member-in p-5">
@@ -4953,41 +5033,22 @@ export function ClientCardPage() {
             {isPro ? (
               <div className="min-w-0">
                 <p className="bb-display text-xl font-extrabold text-white">Compte pro</p>
-                <p className="mt-1 text-xs text-white/50">Rendez-vous directs, sans credits</p>
+                <p className="mt-1 text-xs text-white/50">Rendez-vous directs et automatiquement validés</p>
               </div>
             ) : (
               <div className="min-w-0">
-                <p className="leading-none">
-                  <span className="bb-display text-[40px] font-extrabold tracking-tight text-white">
-                    {remaining}
-                  </span>
-                  <span className="ml-2 text-xs font-semibold text-white/55">
-                    lavage{remaining > 1 ? "s" : ""} restant{remaining > 1 ? "s" : ""}
-                  </span>
-                </p>
-                <div className="mt-3 h-1.5 w-36 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-accent to-accentSoft"
-                    style={{ width: `${Math.max(6, creditsRatio * 100)}%` }}
-                  />
-                </div>
+                <p className="bb-display text-xl font-extrabold text-white">Devis sur mesure</p>
+                <p className="mt-1 text-xs text-white/50">Prix exact validé avant tout paiement</p>
               </div>
             )}
-            {!isPro && (
-              <button
-                className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-accent/35 bg-accent/10 px-4 text-xs font-bold text-accentSoft transition duration-200 hover:bg-accent/20 active:scale-95"
-                onClick={() => navigateView("shop")}
-                type="button"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Recharger
-              </button>
-            )}
+            {!isPro && <ShieldCheck className="h-8 w-8 shrink-0 text-accent" />}
           </div>
-          {clientData.isFounder && (
+          {!isPro && (
             <div className="relative z-10 mt-4 flex items-center justify-between rounded-2xl border border-accent/20 bg-black/25 px-3.5 py-2.5">
               <span className="text-xs font-semibold text-white/60">BC&apos;Coins</span>
-              <span className="text-sm font-extrabold text-accentSoft">{clientData.bcPoints} BC</span>
+              <span className="text-sm font-extrabold text-accentSoft">
+                {clientData.bcPoints} BC{clientData.isFounder ? " · gains x2" : ""}
+              </span>
             </div>
           )}
         </div>
@@ -4999,6 +5060,7 @@ export function ClientCardPage() {
   function renderNextAppointmentCard() {
     const appt = upcomingAppointment;
     if (!appt) {
+      const quoteFirst = clientData.clientType !== "pro";
       return (
         <button
           className="bc-panel bc-panel-accent bb-hover-lift bb-rise flex w-full items-center gap-4 p-4 text-left"
@@ -5009,9 +5071,11 @@ export function ClientCardPage() {
             <CalendarClock className="h-5 w-5 text-accent" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-white">Aucun rendez-vous prevu</span>
+            <span className="block text-sm font-bold text-white">Aucun rendez-vous prévu</span>
             <span className="mt-0.5 block text-xs text-white/55">
-              {freeSlot
+              {quoteFirst
+                ? "Commencez par demander votre devis personnalisé"
+                : freeSlot
                 ? `Libre des le ${formatDateFR(freeSlot.date, { day: "numeric", month: "long" })}`
                 : "Choisis ton prochain passage"}
             </span>
@@ -5078,7 +5142,7 @@ export function ClientCardPage() {
             Bonjour <span className="bb-text-gold">{clientData.firstName || clientData.fullName || "client"}</span>,
           </h1>
           <p className="bb-subtitle relative mt-1.5">
-            Vos rendez-vous sont directs, sans consommation de credits.
+            Vos rendez-vous sont directs et automatiquement validés.
           </p>
         </div>
 
@@ -5399,8 +5463,6 @@ export function ClientCardPage() {
   }
 
   function renderHomeView() {
-    if (query.get("legacyHome") === "1") return renderLegacyHomeView();
-
     const firstName = clientData.firstName || clientData.fullName || "client";
     const statusLabel = clientData.isFounder
       ? "Fondateur"
@@ -5412,9 +5474,13 @@ export function ClientCardPage() {
       view: PortalView;
       icon: React.ComponentType<{ className?: string }>;
     }> = [
-      { label: "Prendre RDV", view: "booking", icon: CalendarClock },
+      {
+        label: clientData.clientType === "pro" ? "Prendre RDV" : "Faire un devis",
+        view: "booking",
+        icon: clientData.clientType === "pro" ? CalendarClock : FileText,
+      },
       { label: "Mes véhicules", view: "vehicles", icon: CarFront },
-      { label: "Mes avantages", view: "shop", icon: Gift },
+      { label: clientData.clientType === "pro" ? "Mes forfaits" : "Mes avantages", view: "shop", icon: Gift },
       { label: "Mon compte", view: "account", icon: UserRound },
     ];
 
@@ -5443,6 +5509,7 @@ export function ClientCardPage() {
         </header>
 
         <div className="grid grid-cols-2 gap-3">
+          {clientData.clientType !== "pro" && (
           <button
             className="bc-panel bc-panel-accent min-h-40 p-5 text-left transition hover:border-accent/35"
             onClick={() => navigateView("shop")}
@@ -5456,7 +5523,8 @@ export function ClientCardPage() {
               Voir mes récompenses <ArrowRight className="h-4 w-4" />
             </p>
           </button>
-          <article className="bc-panel min-h-40 p-5">
+          )}
+          <article className={cn("bc-panel min-h-40 p-5", clientData.clientType === "pro" && "col-span-2")}>
             <div className="flex items-center justify-between"><p className="bb-eyebrow">Statut</p><Crown className="h-5 w-5 text-accent/70" /></div>
             <p className="bb-display mt-4 flex items-center gap-2 text-2xl font-black text-accentSoft">
               {clientData.isFounder && <Crown className="h-6 w-6" />}
@@ -5465,7 +5533,7 @@ export function ClientCardPage() {
             <p className="mt-4 text-sm leading-6 text-white/55">
               {clientData.clientType === "pro"
                 ? "Compte partenaire Bryan Cars"
-                : `${clientData.formulaRemaining} prestation${Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""} disponible${Math.abs(clientData.formulaRemaining) > 1 ? "s" : ""}`}
+                : "Devis personnalisé avant chaque paiement"}
             </p>
           </article>
         </div>
@@ -5473,6 +5541,7 @@ export function ClientCardPage() {
         <section>
           <p className="bb-eyebrow mb-3">Prochain rendez-vous</p>
           {renderNextAppointmentCard()}
+          {clientData.clientType !== "pro" && <div className="mt-3">{renderQuoteCta()}</div>}
           <button
             className="bb-button-ghost mt-3 w-full justify-between py-4"
             onClick={() => navigateView("history")}
@@ -6188,13 +6257,116 @@ export function ClientCardPage() {
     );
   }
 
-  function renderBookingView() {
-    if (query.get("legacyBooking") === "1") return renderLegacyBookingView();
+  function renderQuoteWorkspace() {
+    const quote = data?.quoteRequest ?? null;
+    const answered = quote?.status === "answered" || quote?.status === "accepted";
+    return (
+      <section className="mx-auto max-w-3xl space-y-4 pb-4">
+        <div className="bc-segmented grid-cols-2">
+          <button className="bc-segment bc-segment-active" type="button">Mes devis</button>
+          <button className="bc-segment" onClick={() => navigateView("history")} type="button">Mes rendez-vous</button>
+        </div>
 
+        <header className="bc-page-hero">
+          <div className="bb-pill w-fit border-accent/35 bg-accent/10 text-accentSoft"><FileText className="h-3.5 w-3.5" />Devis personnalisé</div>
+          <h1 className="bb-display mt-5 text-4xl font-black leading-[0.98] text-white">Votre projet,<br /><span className="bb-text-gold">votre prix exact</span></h1>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-white/58">Choisissez votre véhicule et vos prestations, joignez les photos, puis recevez le montant exact avant tout paiement.</p>
+          <div className="mt-6 grid grid-cols-4 gap-2">
+            {["Demande", "Prix", "Paiement", "Créneau"].map((label, index) => {
+              const activeIndex = !quote ? 0 : quote.status === "pending" ? 1 : answered ? 2 : 0;
+              const done = index < activeIndex;
+              const active = index === activeIndex;
+              return <div className={cn("rounded-xl border px-2 py-3 text-center", done ? "border-emerald-300/25 bg-emerald-300/8" : active ? "border-accent/35 bg-accent/10" : "border-white/8 bg-white/[0.02]")} key={label}><span className={cn("mx-auto grid h-6 w-6 place-items-center rounded-full text-[10px] font-black", done ? "bg-emerald-300/15 text-emerald-200" : active ? "bg-accent/20 text-accentSoft" : "bg-white/5 text-white/30")}>{done ? <Check className="h-3.5 w-3.5" /> : index + 1}</span><span className="mt-2 block text-[9px] font-bold uppercase tracking-[0.08em] text-white/55">{label}</span></div>;
+            })}
+          </div>
+        </header>
+
+        <article className={cn("bc-panel p-5", answered && "bc-panel-accent") }>
+          <div className="flex items-start gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-accent/25 bg-accent/10 text-accent">{answered ? <CreditCard className="h-5 w-5" /> : quote ? <Clock3 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}</span>
+            <div className="min-w-0 flex-1">
+              <p className="bb-eyebrow">{answered ? "Action requise" : quote ? "Demande en cours" : "Nouveau devis"}</p>
+              <h2 className="bb-display mt-2 text-2xl font-black text-white">{answered ? `${formatMoneyCents(quote?.estimatedPriceCents || 0)} à régler` : quote ? "Bryan Cars étudie votre demande" : "Composer ma demande"}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/55">{answered ? "Consultez le détail, payez le montant exact ou refusez la proposition en indiquant votre motif." : quote ? "Vous recevrez une notification et un e-mail dès que le prix sera disponible." : "Le devis est gratuit et aucun créneau n'est bloqué avant le paiement."}</p>
+            </div>
+          </div>
+
+          {quote && (
+            <div className="mt-5 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10 bg-black/15">
+              <div className="flex items-start justify-between gap-3 px-4 py-3"><span className="text-xs text-white/42">Véhicule</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{quote.vehicle?.model || quote.vehicle?.label || "Véhicule"}{quote.vehicle?.plate ? ` · ${quote.vehicle.plate}` : ""}</span></div>
+              <div className="flex items-start justify-between gap-3 px-4 py-3"><span className="text-xs text-white/42">Prestations</span><span className="text-right text-sm font-bold text-white">{quote.serviceItems.length}</span></div>
+              <div className="flex items-start justify-between gap-3 px-4 py-3"><span className="text-xs text-white/42">Photos</span><span className="text-right text-sm font-bold text-white">{quote.photos.length}</span></div>
+            </div>
+          )}
+
+          <button className="bb-button-brand mt-5 w-full justify-center py-4" onClick={() => setQuoteModalOpen(true)} type="button">{answered ? "VOIR, PAYER OU REFUSER" : quote ? "VOIR MON DEVIS EN COURS" : "DEMANDER UN DEVIS"}<ArrowRight className="ml-2 h-4 w-4" /></button>
+        </article>
+      </section>
+    );
+  }
+
+  function renderPaidQuoteSchedulingView(quote: QuoteRequest) {
+    const timeOptions = availableHours.flatMap((hour) =>
+      MINUTES.filter((minute) => !(hour === availableHours[availableHours.length - 1] && minute === "30"))
+        .map((minute) => `${String(hour).padStart(2, "0")}:${minute}`),
+    );
+    const stepLabels = ["Agenda", "Heure", "Lieu", "Confirmation"];
+    const vehicleLabel = `${quote.vehicle?.model || quote.vehicle?.label || "Véhicule"}${quote.vehicle?.plate ? ` · ${quote.vehicle.plate}` : ""}`;
+
+    function previousStep() {
+      if (bookingWizardStep === 2) {
+        setSelectedDay(null);
+        setBookingWizardStep(1);
+        return;
+      }
+      setBookingWizardStep((step) => Math.max(1, step - 1));
+    }
+
+    function chooseSlot(day: ApiDay, slot: AppointmentSlot) {
+      const slotInfo = day.slots[slot];
+      if (slotInfo.status !== "free" || slotIsPast(day.date, slot)) {
+        void openDayModal(day, slot);
+        return;
+      }
+      syncDaySelection(day, slot);
+      setSelectedTime(defaultTimeForSlot(slot));
+      setBookingWizardStep(2);
+    }
+
+    return (
+      <section className="mx-auto max-w-3xl space-y-4 pb-4">
+        <div className="rounded-[22px] border border-emerald-300/25 bg-emerald-300/[0.07] p-4">
+          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-300/12 text-emerald-200"><CheckCircle2 className="h-5 w-5" /></span><div><p className="text-sm font-black text-white">Devis payé · {formatMoneyCents(quote.estimatedPriceCents || 0)}</p><p className="mt-1 text-xs text-white/50">Choisissez maintenant une disponibilité encore libre.</p></div></div>
+        </div>
+
+        <header className="bc-panel flex items-center gap-3 p-3">
+          {bookingWizardStep > 1 && <button aria-label="Étape précédente" className="bb-icon-btn h-11 w-11 shrink-0" onClick={previousStep} type="button"><ArrowLeft className="h-5 w-5" /></button>}
+          <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="bb-eyebrow">Étape {bookingWizardStep} sur 4</p><p className="text-xs font-bold text-accentSoft">{stepLabels[bookingWizardStep - 1]}</p></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all" style={{ width: `${bookingWizardStep * 25}%` }} /></div></div>
+        </header>
+
+        {bookingWizardStep === 1 && <article className="bc-step-card"><p className="bb-eyebrow">Planification</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Choisissez un jour</h1><p className="mt-2 text-sm leading-6 text-white/55">Les créneaux déjà occupés restent indisponibles. Sélectionnez un jour puis une demi-journée.</p>{focusedDay && <div className="mt-6"><div className="flex items-center justify-between gap-3"><button aria-label="Jour précédent" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(-1)} type="button"><ArrowLeft className="h-5 w-5" /></button><div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.18em] text-accentSoft">{weekdayShort(focusedDay.date)}</p><p className="bb-display mt-1 text-2xl font-black text-white">{formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}</p></div><button aria-label="Jour suivant" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(1)} type="button"><ArrowRight className="h-5 w-5" /></button></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{SLOT_ORDER.map((slot) => { const info = focusedDay.slots[slot]; return <button className={cn("rounded-[24px] border p-5 text-left transition", dayStatusClasses(info.status))} key={slot} onClick={() => chooseSlot(focusedDay, slot)} type="button"><span className="flex items-center justify-between gap-3"><span className="text-base font-black">{slotLabel(slot)}</span><CalendarClock className="h-5 w-5" /></span><span className="mt-2 block text-sm opacity-70">{slotWindowLabel(slot)}</span><span className="mt-4 block text-xs font-bold uppercase tracking-[0.14em]">{slotNavigatorStatusLabel(info.status)}</span></button>; })}</div></div>}</article>}
+
+        {bookingWizardStep === 2 && selectedDay && <article className="bc-step-card"><p className="bb-eyebrow">{formatDateFR(selectedDay.date)} · {slotLabel(selectedSlot)}</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Précisez votre heure</h1><div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{timeOptions.map((time) => <button className={cn("rounded-[20px] border px-4 py-4 text-center text-base font-black", selectedTime === time ? "border-accent/60 bg-accent/15 text-accentSoft" : "border-white/10 bg-white/[0.03] text-white")} key={time} onClick={() => setSelectedTime(time)} type="button">{formatTimeHHMM(time)}</button>)}</div><button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(3)} type="button">Continuer<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
+
+        {bookingWizardStep === 3 && <article className="bc-step-card"><h1 className="bb-display text-3xl font-black text-white">Où souhaitez-vous venir ?</h1><div className="mt-6 grid gap-3 sm:grid-cols-2">{[{ value: "atelier" as const, label: "À l'atelier", copy: "Bryan Cars Detailing · Louhans (71500)." }, { value: "domicile" as const, label: "À domicile", copy: "Intervention à votre adresse, selon les modalités convenues." }].map((option) => <button className={cn("rounded-[22px] border p-5 text-left", appointmentLocation === option.value ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={option.value} onClick={() => setAppointmentLocation(option.value)} type="button"><MapPin className="h-6 w-6 text-accent" /><span className="mt-4 block font-black text-white">{option.label}</span><span className="mt-2 block text-sm leading-6 text-white/50">{option.copy}</span></button>)}</div>{appointmentLocation === "atelier" && <a className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-accentSoft hover:underline" href={GOOGLE_MAPS_URL} rel="noreferrer" target="_blank"><MapPin className="h-4 w-4" />Voir l&apos;adresse de l&apos;atelier sur Google Maps</a>}<label className="mt-5 block"><span className="mb-2 block text-sm font-semibold text-white">Précision utile (optionnel)</span><textarea className="bb-textarea min-h-24" maxLength={300} onChange={(event) => setClientBookingNote(event.target.value)} placeholder="Accès, code portail, contrainte particulière..." value={clientBookingNote} /></label><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={!appointmentLocation} onClick={() => setBookingWizardStep(4)} type="button">Voir le récapitulatif<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
+
+        {bookingWizardStep === 4 && selectedDay && <article className="bc-step-card"><div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Intervention payée</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez votre disponibilité</h1></div><CheckCircle2 className="h-9 w-9 shrink-0 text-accent" /></div><div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">{[["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })], ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`], ["Lieu", locationLabel(appointmentLocation)], ["Véhicule", vehicleLabel], ["Montant payé", formatMoneyCents(quote.estimatedPriceCents || 0)]].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{value}</span></div>)}<div className="px-4 py-4"><p className="text-sm text-white/45">Prestations</p><div className="mt-2 space-y-1.5">{quote.serviceItems.map((service) => <p className="flex items-start gap-2 text-sm text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div></div><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Confirmation..." : "CONFIRMER LE RENDEZ-VOUS"}</button></article>}
+      </section>
+    );
+  }
+
+  function renderBookingView() {
     const serviceCatalog = data?.serviceCatalog ?? SERVICE_CATALOG;
     const serviceCategories = data?.serviceCategories ?? SERVICE_CATEGORIES;
     const selectedServices = serviceCatalog.filter((service) => selectedServiceKeys.includes(service.key));
     const isProBooking = clientData.clientType === "pro";
+    if (!isProBooking) {
+      const quote = data?.quoteRequest ?? null;
+      if (quote?.status === "paid" || quote?.paymentStatus === "paid") {
+        return renderPaidQuoteSchedulingView(quote);
+      }
+      return renderQuoteWorkspace();
+    }
     const timeOptions = availableHours.flatMap((hour) =>
       MINUTES.filter(
         (minute) => !(hour === availableHours[availableHours.length - 1] && minute === "30"),
@@ -6212,7 +6384,20 @@ export function ClientCardPage() {
         setBookingWizardStep(1);
         return;
       }
+      if (!isProBooking && vehicles.length === 1 && bookingWizardStep === 4) {
+        setBookingWizardStep(2);
+        return;
+      }
       setBookingWizardStep((step) => Math.max(1, step - 1));
+    }
+
+    function continueAfterTimeChoice() {
+      if (!isProBooking && vehicles.length === 1) {
+        setActiveVehicleId(vehicles[0].id);
+        setBookingWizardStep(4);
+        return;
+      }
+      setBookingWizardStep(3);
     }
 
     function selectWizardSlot(day: ApiDay, slot: AppointmentSlot) {
@@ -6323,7 +6508,7 @@ export function ClientCardPage() {
                 </button>
               ))}
             </div>
-            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(3)} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
+            <button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={continueAfterTimeChoice} type="button">Continuer <ArrowRight className="ml-2 h-4 w-4" /></button>
           </article>
         )}
 
@@ -6689,7 +6874,7 @@ export function ClientCardPage() {
                 onClick={() => navigateView("booking")}
                 type="button"
               >
-                Prendre rendez-vous
+                Faire un devis
               </button>
             )}
           </div>
@@ -6811,7 +6996,7 @@ export function ClientCardPage() {
                     </div>
                     <div className="mt-4 flex gap-2">
                       <button className="bb-button-ghost flex-1 justify-center" onClick={() => openVehicleEdit(vehicle)} type="button"><PencilLine className="mr-2 h-4 w-4" /> Modifier</button>
-                      <button className="bb-button-ghost flex-1 justify-center" onClick={() => { setActiveVehicleId(vehicle.id); navigateView("booking"); }} type="button"><CalendarPlus className="mr-2 h-4 w-4" /> Réserver</button>
+                      <button className="bb-button-ghost flex-1 justify-center" onClick={() => { setActiveVehicleId(vehicle.id); navigateView("booking"); }} type="button"><FileText className="mr-2 h-4 w-4" /> Faire un devis</button>
                     </div>
                   </article>
                 ))}
@@ -6853,37 +7038,6 @@ export function ClientCardPage() {
     }
   }
 
-  async function handleGenerateForfaitLink(forfait: PartnerForfait) {
-    if (forfaitBusyKey) return;
-    setForfaitBusyKey(forfait.key);
-    try {
-      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/forfaits/link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ forfaitKey: forfait.key }),
-      });
-      const json = await response.json();
-      if (json.ok && json.link) {
-        setGeneratedLinks((current) => ({ ...current, [forfait.key]: json.link as string }));
-        setForfaitData((current) =>
-          current
-            ? { ...current, orders: [json.order as PartnerOrder, ...current.orders] }
-            : current,
-        );
-        await copyForfaitLink(json.link as string, forfait.key);
-        showToast("Lien de paiement genere et copie.");
-      } else if (json.error === "sumup_not_ready") {
-        showToast("Le paiement en ligne n'est pas encore configure.");
-      } else {
-        showToast("Impossible de generer le lien pour le moment.");
-      }
-    } catch {
-      showToast("Erreur reseau pendant la generation du lien.");
-    } finally {
-      setForfaitBusyKey(null);
-    }
-  }
-
   function renderForfaitsView() {
     const forfaits = forfaitData?.forfaits ?? [];
     const orders = forfaitData?.orders ?? [];
@@ -6894,107 +7048,42 @@ export function ClientCardPage() {
       <section className="space-y-4">
         <article className="bb-surface-strong bb-steel-frame relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
-          <div className="relative z-10 space-y-3">
-            <span className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-200">
-              <Sparkles className="h-3.5 w-3.5" />
-              Forfaits partenaire
-            </span>
-            <h2 className="bb-display text-2xl font-semibold text-white">
-              Generez un lien de paiement pour vos clients
-            </h2>
-            <p className="max-w-2xl text-sm leading-7 text-white/68">
-              Choisissez un forfait, generez le lien de paiement et envoyez-le a votre client. Le
-              suivi se met a jour automatiquement des que le client a payé.
-            </p>
-            {!paymentsReady && (
-              <p className="rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">
-                Le paiement en ligne n'est pas encore configure cote Bryan Cars.
+          <div className="relative z-10 grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <span className="bb-pill border-sky-400/30 bg-sky-400/10 text-sky-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Page Préparation vente
+              </span>
+              <h2 className="bb-display mt-3 text-2xl font-semibold text-white">
+                Un seul lien pour tous vos clients
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-white/68">
+                Le client choisit son forfait, renseigne son véhicule, ajoute ses photos puis
+                paie directement. Scannez le QR code ou partagez le lien ci-dessous.
               </p>
-            )}
+              {forfaitData?.publicLink && (
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                  <input className="bb-input min-w-0 flex-1" onFocus={(event) => event.currentTarget.select()} readOnly value={forfaitData.publicLink} />
+                  <button className="bb-button-steel justify-center" onClick={() => void copyForfaitLink(forfaitData.publicLink, "public")} type="button">
+                    {copiedKey === "public" ? <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-300" /> : <Copy className="mr-2 h-4 w-4" />}
+                    {copiedKey === "public" ? "Copié" : "Copier"}
+                  </button>
+                  <a className="bb-button-ghost justify-center" href={forfaitData.publicLink} rel="noreferrer" target="_blank"><ExternalLink className="mr-2 h-4 w-4" />Ouvrir</a>
+                </div>
+              )}
+              {!paymentsReady && <p className="mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-3 text-sm text-amber-100">Le paiement SumUp n&apos;est pas encore configuré.</p>}
+            </div>
+            {forfaitData?.publicLink && <div className="mx-auto rounded-2xl bg-white p-3 shadow-[0_18px_50px_rgba(0,0,0,.35)]"><QrCodeImage className="h-36 w-36" value={forfaitData.publicLink} /></div>}
           </div>
         </article>
 
         <div className="grid gap-3 md:grid-cols-2">
-          {forfaits.map((forfait) => {
-            const link = generatedLinks[forfait.key];
-            const busy = forfaitBusyKey === forfait.key;
-            return (
-              <article className="bb-surface flex flex-col p-5" key={forfait.key}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{forfait.label}</h3>
-                    <p className="mt-1 text-sm text-white/55">{forfait.tagline}</p>
-                  </div>
-                  <p className="bb-text-gold shrink-0 text-2xl font-semibold">
-                    {formatMoneyCents(forfait.priceCents, forfait.currency)}
-                  </p>
-                </div>
-
-                <ul className="mt-4 space-y-1.5">
-                  {forfait.features.map((feature) => (
-                    <li className="flex items-start gap-2 text-sm text-white/72" key={feature}>
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-5">
-                  <button
-                    className="bb-button-steel w-full justify-center disabled:opacity-60"
-                    disabled={busy || !paymentsReady}
-                    onClick={() => void handleGenerateForfaitLink(forfait)}
-                    type="button"
-                  >
-                    {busy ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generation...
-                      </>
-                    ) : (
-                      <>
-                        <Link2 className="mr-2 h-4 w-4" />
-                        Generer le lien de paiement
-                      </>
-                    )}
-                  </button>
-
-                  {link && (
-                    <div className="mt-3 rounded-2xl border border-white/12 bg-black/30 p-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
-                        Lien a envoyer au client
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          className="min-w-0 flex-1 truncate rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/80 outline-none"
-                          onFocus={(event) => event.currentTarget.select()}
-                          readOnly
-                          value={link}
-                        />
-                        <button
-                          className="bb-button-ghost shrink-0 px-3 py-2"
-                          onClick={() => void copyForfaitLink(link, forfait.key)}
-                          type="button"
-                        >
-                          {copiedKey === forfait.key ? (
-                            <>
-                              <CheckCircle2 className="mr-1.5 h-4 w-4 text-[#43d79d]" />
-                              Copie
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="mr-1.5 h-4 w-4" />
-                              Copier
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+          {forfaits.map((forfait) => (
+            <article className="bb-surface flex flex-col p-5" key={forfait.key}>
+              <div className="flex items-start justify-between gap-3"><div><h3 className="text-lg font-semibold text-white">{forfait.label}</h3><p className="mt-1 text-sm text-white/55">{forfait.tagline}</p></div><p className="bb-text-gold shrink-0 text-right text-2xl font-semibold">{forfait.startingAt && <span className="block text-[9px] uppercase tracking-wider text-white/40">À partir de</span>}{formatMoneyCents(forfait.priceCents, forfait.currency)}</p></div>
+              <ul className="mt-4 space-y-1.5">{forfait.features.map((feature) => <li className="flex items-start gap-2 text-sm text-white/72" key={feature}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{feature}</li>)}</ul>
+            </article>
+          ))}
         </div>
 
         <article className="bb-surface p-5 md:p-6">
@@ -7027,8 +7116,12 @@ export function ClientCardPage() {
                         ? `${order.customerName || "Client"} a paye le ${formatUnixDateTimeFR(
                             order.paidAt,
                           )}`
-                        : `Lien genere le ${formatUnixDateTimeFR(order.createdAt)}`}
+                        : order.customerName
+                          ? `${order.customerName} · demande du ${formatUnixDateTimeFR(order.createdAt)}`
+                          : `Ancien lien genere le ${formatUnixDateTimeFR(order.createdAt)}`}
                     </p>
+                    {(order.vehicleModel || order.vehiclePlate) && <p className="mt-1 text-xs text-white/60"><CarFront className="mr-1.5 inline h-3.5 w-3.5 text-accent" />{[order.vehicleModel, order.vehiclePlate].filter(Boolean).join(" · ")}</p>}
+                    {order.customerPhone && <a className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-accentSoft hover:underline" href={`tel:${order.customerPhone}`}><Phone className="h-3.5 w-3.5" />{order.customerPhone}</a>}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-white">
@@ -7328,7 +7421,7 @@ export function ClientCardPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-white">
-                              Case &middot; {pc.credits} credit{pc.credits > 1 ? "s" : ""}
+                              Case fidélité
                             </p>
                             <p className="mt-0.5 text-xs text-white/48">A ouvrir</p>
                           </div>
@@ -7442,10 +7535,6 @@ export function ClientCardPage() {
   }
 
   function renderShopView() {
-    if (query.get("legacyCredits") === "1") {
-      return renderLegacyShopView();
-    }
-
     return (
       <section className="space-y-4">
         <div className="bc-page-hero bb-rise flex items-start justify-between gap-4">
@@ -7564,6 +7653,51 @@ export function ClientCardPage() {
     );
   }
 
+  // Les anciennes vues restent hors navigation uniquement pour conserver la
+  // compatibilité de lecture avec les historiques déjà stockés.
+  void renderLegacyHomeView;
+  void renderLegacyBookingView;
+  void renderLegacyShopView;
+
+  function openProfileInfo() {
+    setProfileInfoDraft({
+      firstName: clientData.firstName || "",
+      lastName: clientData.lastName || "",
+      phone: clientData.phone || "",
+      addressLine1: clientData.addressLine1 || "",
+      postalCode: clientData.postalCode || "",
+      city: clientData.city || "",
+    });
+    setProfileInfoOpen(true);
+  }
+
+  async function saveProfileInfo() {
+    if (!profileInfoDraft.firstName.trim() || !profileInfoDraft.lastName.trim()) {
+      showToast("Indiquez votre prénom et votre nom.");
+      return;
+    }
+    setProfileInfoBusy(true);
+    try {
+      const response = await fetch(`/api/client/${encodeURIComponent(slug)}/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profileInfoDraft),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        showToast("Impossible de mettre à jour vos informations.");
+        return;
+      }
+      setProfileInfoOpen(false);
+      setReloadToken((value) => value + 1);
+      showToast("Vos informations ont été mises à jour.");
+    } catch {
+      showToast("Erreur réseau pendant la mise à jour.");
+    } finally {
+      setProfileInfoBusy(false);
+    }
+  }
+
   function renderAccountView() {
     const displayName =
       clientData.fullName ||
@@ -7574,17 +7708,25 @@ export function ClientCardPage() {
       {
         label: "Mes informations",
         icon: UserRound,
-        action: () => setContactModalOpen(true),
+        action: openProfileInfo,
       },
       {
         label: "Mes factures",
         icon: FileText,
-        action: () => navigateView("history"),
+        action: () => {
+          setHistoryTab("mine");
+          setHistoryFilter("all");
+          navigateView("history");
+        },
       },
       {
         label: "Mes avis",
         icon: Star,
-        action: () => navigateView("history"),
+        action: () => {
+          setHistoryTab("mine");
+          setHistoryFilter("done");
+          navigateView("history");
+        },
       },
       {
         label: pushEffectivelyActive ? "Notifications activées" : "Activer les notifications",
@@ -7594,6 +7736,7 @@ export function ClientCardPage() {
     ];
 
     return (
+      <>
       <section className="mx-auto max-w-3xl space-y-5">
         <div className="bc-page-hero bb-rise flex items-center justify-between">
           <div><p className="bc-kicker"><UserRound className="h-4 w-4" /> Espace personnel</p><h1 className="bb-display mt-3 text-3xl font-black text-white">Mon <span className="bb-text-gold">compte</span></h1><p className="mt-2 text-sm text-white/50">Vos informations et préférences Bryan Cars.</p></div>
@@ -7657,6 +7800,42 @@ export function ClientCardPage() {
           Contacter Bryan Cars
         </button>
       </section>
+      {profileInfoOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/12 bg-[var(--bb-glass-solid-2)] p-6 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="bb-eyebrow">Profil</p><h3 className="mt-1 text-xl font-semibold text-white">Mes informations</h3></div>
+              <button aria-label="Fermer" className="bb-icon-btn" onClick={() => setProfileInfoOpen(false)} type="button"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {([
+                ["firstName", "Prénom", "Jean"],
+                ["lastName", "Nom", "Dupont"],
+                ["phone", "Téléphone", "06 12 34 56 78"],
+                ["addressLine1", "Adresse", "12 rue de la Paix"],
+                ["postalCode", "Code postal", "71500"],
+                ["city", "Ville", "Louhans"],
+              ] as const).map(([key, label, placeholder]) => (
+                <label className={cn("space-y-2", key === "addressLine1" && "sm:col-span-2")} key={key}>
+                  <span className="text-xs uppercase tracking-[0.14em] text-white/45">{label}</span>
+                  <input
+                    className="bb-input"
+                    onChange={(event) => setProfileInfoDraft((current) => ({ ...current, [key]: event.target.value }))}
+                    placeholder={placeholder}
+                    value={profileInfoDraft[key]}
+                  />
+                </label>
+              ))}
+            </div>
+            <p className="mt-4 text-xs leading-5 text-white/45">Votre adresse e-mail reste l&apos;identifiant de votre espace. Contactez Bryan Cars pour la modifier.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button className="bb-button-ghost justify-center" disabled={profileInfoBusy} onClick={() => setProfileInfoOpen(false)} type="button">Annuler</button>
+              <button className="bb-button-brand justify-center" disabled={profileInfoBusy} onClick={() => void saveProfileInfo()} type="button">{profileInfoBusy ? "Enregistrement..." : "Enregistrer"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
@@ -8299,9 +8478,7 @@ export function ClientCardPage() {
                           : selectedAppointment.priceStatus === "waiting_payment"
                             ? "Paiement requis pour confirmer"
                             : selectedAppointment.priceStatus === "approved"
-                              ? selectedAppointment.amountPaidCents > 0
-                                ? "Payé et confirmé"
-                                : "Crédits consommés"
+                              ? "Payé et confirmé"
                               : "Analyse admin en cours"}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-white/68">
@@ -8309,12 +8486,10 @@ export function ClientCardPage() {
                         ? `${selectedAppointment.serviceItems.length} prestation${selectedAppointment.serviceItems.length > 1 ? "s" : ""} dans votre panier`
                         : selectedAppointment.standardPriceCents != null
                           ? `Prestation: ${selectedAppointment.serviceLabel || "Detailing"} · Tarif standard: ${formatMoneyCents(selectedAppointment.standardPriceCents)}`
-                        : `Estimation: ${selectedAppointment.requestedCredits || 1} credit${(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}`}
+                        : "Devis personnalisé en cours d'étude"}
                       {selectedAppointment.approvedPriceCents != null
                         ? ` · Montant à payer: ${formatMoneyCents(selectedAppointment.approvedPriceCents)}`
-                        : selectedAppointment.approvedCredits != null
-                          ? ` · Tarif admin: ${selectedAppointment.approvedCredits} credit${selectedAppointment.approvedCredits > 1 ? "s" : ""}`
-                          : ""}
+                        : ""}
                       {selectedAppointment.photosRequestMessage
                         ? ` · ${selectedAppointment.photosRequestMessage}`
                         : ""}
@@ -8367,50 +8542,6 @@ export function ClientCardPage() {
                               : "Paiement temporairement indisponible"}
                         </button>
                       )}
-                    {(selectedAppointment.priceStatus === "waiting_client_approval" ||
-                      selectedAppointment.priceStatus === "waiting_payment") &&
-                      selectedAppointment.approvedPriceCents == null && (() => {
-                        const approvedNeeded =
-                          selectedAppointment.approvedCredits ??
-                          selectedAppointment.requestedCredits ??
-                          1;
-                        const lacksCredits =
-                          (clientData.formulaRemaining ?? 0) < approvedNeeded;
-                        return lacksCredits ? (
-                          <>
-                            <button
-                              className="bb-button-brand justify-center"
-                              onClick={() =>
-                                startCreditPurchaseForAppointment(selectedAppointment)
-                              }
-                              type="button"
-                            >
-                              Recharger {creditsNeededForAppointment(selectedAppointment)} credit(s)
-                            </button>
-                            <button
-                              className="bb-button-ghost justify-center"
-                              disabled={busyAction}
-                              onClick={() => {
-                                void acceptSelectedAppointmentPrice();
-                              }}
-                              type="button"
-                            >
-                              Accepter le tarif
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            className="bb-button-brand justify-center"
-                            disabled={busyAction}
-                            onClick={() => {
-                              void acceptSelectedAppointmentPrice();
-                            }}
-                            type="button"
-                          >
-                            Accepter le tarif
-                          </button>
-                        );
-                      })()}
                     {selectedAppointment.priceStatus === "waiting_photos" && (
                       <>
                         <button
@@ -9092,7 +9223,7 @@ export function ClientCardPage() {
                 <div className="mt-6 grid grid-cols-2 gap-3">
                   {[
                     { label: "Prestations", value: recapData.visits },
-                    { label: "Crédits utilises", value: recapData.creditsUsed },
+                    { label: "Montant réglé", value: formatMoneyCents(recapData.amountPaidCents) },
                     { label: "BC'Coins gagnes", value: recapData.bcEarned },
                     { label: "Véhicules choyes", value: recapData.vehicles },
                     { label: "Avis laisses", value: recapData.reviews },

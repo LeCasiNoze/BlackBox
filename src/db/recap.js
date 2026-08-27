@@ -1,7 +1,7 @@
 const { db } = require("./index");
 
-// Recap annuel d'un client (annee civile): visites effectuees, credits
-// consommes, BC'Coins gagnes, vehicules, avis, photos.
+// Recap annuel d'un client (annee civile): visites effectuees, montant paye,
+// BC'Coins gagnes, vehicules, avis, photos.
 function getClientYearRecap(clientId, year) {
   const y = Number(year) || new Date().getFullYear();
   const start = `${y}-01-01`;
@@ -12,7 +12,7 @@ function getClientYearRecap(clientId, year) {
       `
       SELECT
         COUNT(*) AS visits,
-        COALESCE(SUM(credits_charged), 0) AS credits,
+        COALESCE(SUM(amount_paid_cents), 0) AS amount_paid_cents,
         COALESCE(SUM(bc_points_granted), 0) AS bc,
         COUNT(DISTINCT vehicle_id) AS vehicles,
         MIN(date) AS first_date,
@@ -38,7 +38,7 @@ function getClientYearRecap(clientId, year) {
   return {
     year: y,
     visits: agg?.visits || 0,
-    creditsUsed: agg?.credits || 0,
+    amountPaidCents: agg?.amount_paid_cents || 0,
     bcEarned: agg?.bc || 0,
     vehicles: agg?.vehicles || 0,
     reviews: agg?.reviews || 0,

@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   ArrowRight,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -21,6 +22,8 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { InstallAppButton } from "../components/InstallAppButton";
+import { ServicePicker } from "../components/ServicePicker";
+import { SERVICE_CATALOG, SERVICE_CATEGORIES } from "../lib/serviceCatalog";
 
 const GOOGLE_MAPS_URL =
   "https://www.google.com/maps/place/Bryan+Cars+Detailing+%E2%80%93+Nettoyage+voiture+%C3%A0+Louhans/@46.6343847,5.2423649,13z/data=!4m8!3m7!1s0x47f327b91eec4c27:0x81bd1ae9f5024543!8m2!3d46.6343847!4d5.2423649!9m1!1b1!16s%2Fg%2F11nxrbfcrd!18m1!1e1?entry=ttu";
@@ -38,6 +41,13 @@ type SignupForm = {
   vehicleModel: string;
   vehiclePlate: string;
   quoteDescription: string;
+};
+
+type AccountSignupForm = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
 };
 
 const initialForm: SignupForm = {
@@ -229,6 +239,7 @@ function trackLandingEvent(eventType: string) {
 export function LandingPage() {
   const [form, setForm] = React.useState<SignupForm>(initialForm);
   const [selectedPhotos, setSelectedPhotos] = React.useState<File[]>([]);
+  const [selectedQuoteServiceKeys, setSelectedQuoteServiceKeys] = React.useState<string[]>([]);
   const [photoPreviews, setPhotoPreviews] = React.useState<string[]>([]);
   const [code, setCode] = React.useState("");
   const [step, setStep] = React.useState<"form" | "code" | "ready">("form");
@@ -242,6 +253,21 @@ export function LandingPage() {
   const [lookupEmail, setLookupEmail] = React.useState("");
   const [lookupBusy, setLookupBusy] = React.useState(false);
   const [lookupError, setLookupError] = React.useState<string | null>(null);
+
+  // Creation de compte autonome : aucun devis, véhicule ou photo requis.
+  const [accountSignupModalOpen, setAccountSignupModalOpen] = React.useState(false);
+  const [accountSignupStep, setAccountSignupStep] = React.useState<"form" | "code" | "ready">("form");
+  const [accountSignupForm, setAccountSignupForm] = React.useState<AccountSignupForm>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+  });
+  const [accountSignupCode, setAccountSignupCode] = React.useState("");
+  const [accountSignupTerms, setAccountSignupTerms] = React.useState(false);
+  const [accountSignupBusy, setAccountSignupBusy] = React.useState(false);
+  const [accountSignupError, setAccountSignupError] = React.useState<string | null>(null);
+  const [accountPortalUrl, setAccountPortalUrl] = React.useState("");
 
   // Navigation Mobile
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -310,6 +336,52 @@ export function LandingPage() {
     }
   }
 
+  function closeAccountSignup() {
+    setAccountSignupModalOpen(false);
+    setAccountSignupError(null);
+  }
+
+  async function requestAccountSignupCode() {
+    setAccountSignupBusy(true);
+    setAccountSignupError(null);
+    try {
+      const payload = new FormData();
+      Object.entries(accountSignupForm).forEach(([key, value]) => payload.append(key, value));
+      const response = await fetch("/api/client/signup/request-code", {
+        method: "POST",
+        body: payload,
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) throw new Error(json.error || "request_failed");
+      trackLandingEvent("submit_account");
+      setAccountSignupStep("code");
+    } catch {
+      setAccountSignupError("Impossible d'envoyer le code. Vérifiez vos informations et réessayez.");
+    } finally {
+      setAccountSignupBusy(false);
+    }
+  }
+
+  async function verifyAccountSignupCode() {
+    setAccountSignupBusy(true);
+    setAccountSignupError(null);
+    try {
+      const response = await fetch("/api/client/signup/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: accountSignupForm.email, code: accountSignupCode }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) throw new Error(json.error || "verify_failed");
+      setAccountPortalUrl(json.portalUrl || "");
+      setAccountSignupStep("ready");
+    } catch {
+      setAccountSignupError("Code invalide ou expiré. Vous pouvez demander un nouveau code.");
+    } finally {
+      setAccountSignupBusy(false);
+    }
+  }
+
   function scrollToSection(id: string) {
     setMobileMenuOpen(false);
     trackLandingEvent("click_" + id);
@@ -343,6 +415,10 @@ export function LandingPage() {
   }
 
   async function requestCode() {
+    if (selectedQuoteServiceKeys.length === 0 || selectedPhotos.length === 0 || !form.vehicleModel.trim()) {
+      setError("Choisissez au moins une prestation et ajoutez une photo du véhicule avant d'envoyer le devis.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -350,6 +426,7 @@ export function LandingPage() {
       Object.entries(form).forEach(([key, val]) => {
         formData.append(key, val);
       });
+      formData.append("quoteServiceKeys", JSON.stringify(selectedQuoteServiceKeys));
       selectedPhotos.forEach((file) => {
         formData.append("images", file);
       });
@@ -365,7 +442,11 @@ export function LandingPage() {
       }
       setStep("code");
     } catch (requestError) {
-      setError("Impossible d'envoyer la demande. Vérifiez les informations et réessayez.");
+      setError(
+        requestError instanceof Error && requestError.message === "invalid_quote_details"
+          ? "Une prestation, le modèle du véhicule et au moins une photo sont nécessaires."
+          : "Impossible d'envoyer la demande. Vérifiez les informations et réessayez.",
+      );
     } finally {
       setBusy(false);
     }
@@ -469,6 +550,12 @@ export function LandingPage() {
 
           <div className="hidden md:flex items-center gap-3">
             <button
+              className="px-4 py-2.5 text-white/75 text-xs font-bold uppercase tracking-[0.15em] hover:text-[#e8c98a] transition-colors cursor-pointer"
+              onClick={() => setAccountSignupModalOpen(true)}
+            >
+              CRÉER MON COMPTE
+            </button>
+            <button
               className="px-4 py-2.5 rounded-none border border-white/30 text-white text-xs font-bold uppercase tracking-[0.15em] hover:border-white hover:bg-white/10 transition-all cursor-pointer flex items-center gap-2"
               onClick={() => setPortalLookupModalOpen(true)}
             >
@@ -520,6 +607,15 @@ export function LandingPage() {
               }}
             >
               ACCÉDER À MON ESPACE MEMBRE
+            </button>
+            <button
+              className="w-full text-center py-3 border border-white/15 text-white/80 font-bold text-xs uppercase tracking-wider bg-white/[0.03] cursor-pointer"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setAccountSignupModalOpen(true);
+              }}
+            >
+              CRÉER MON COMPTE
             </button>
             <button
               className="w-full mt-2 px-5 py-3 border border-[#e8c98a] text-[#e8c98a] text-xs font-bold uppercase tracking-wider bg-[#e8c98a]/10 cursor-pointer"
@@ -636,9 +732,270 @@ export function LandingPage() {
               {lookupBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
               <span>RECHERCHER MON ESPACE →</span>
             </button>
+
+            <div className="border-t border-white/10 pt-4 text-center">
+              <p className="text-xs text-white/50">Pas encore de compte ?</p>
+              <button
+                className="mt-2 text-xs font-bold uppercase tracking-wider text-[#e8c98a] hover:text-[#f4dca0]"
+                onClick={() => {
+                  setPortalLookupModalOpen(false);
+                  setAccountSignupModalOpen(true);
+                }}
+                type="button"
+              >
+                Créer mon espace gratuitement
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* ── CREATION DE COMPTE SANS DEMANDE DE DEVIS ── */}
+      {accountSignupModalOpen && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center overflow-y-auto bg-black/90 p-4 backdrop-blur-md">
+          <div className="relative my-auto w-full max-w-lg space-y-5 rounded-2xl border border-white/20 bg-[#120e0e] p-6">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#e8c98a]">
+                  {accountSignupStep === "ready" ? "COMPTE CRÉÉ" : accountSignupStep === "code" ? "VÉRIFICATION" : "NOUVEAU CLIENT"}
+                </span>
+                <h3 className="mt-1 text-xl font-bold uppercase text-white">
+                  {accountSignupStep === "ready" ? "Bienvenue chez Bryan Cars" : accountSignupStep === "code" ? "Validez votre e-mail" : "Créer mon espace"}
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-white/55">
+                  {accountSignupStep === "form"
+                    ? "Créez votre compte maintenant. Vous pourrez ajouter votre véhicule et demander un rendez-vous plus tard."
+                    : accountSignupStep === "code"
+                      ? `Un code à 6 chiffres a été envoyé à ${accountSignupForm.email}.`
+                      : "Votre espace est prêt. Aucun devis n'a été créé automatiquement."}
+                </p>
+              </div>
+              <button
+                aria-label="Fermer"
+                className="rounded-full bg-white/5 p-2 text-white/60 hover:bg-white/10 hover:text-white"
+                onClick={closeAccountSignup}
+                type="button"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {accountSignupError && (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-medium text-rose-200">
+                {accountSignupError}
+              </div>
+            )}
+
+            {accountSignupStep === "form" && (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Prénom *</span>
+                    <input
+                      className="mt-1.5 w-full rounded-lg border border-white/15 bg-black/50 px-4 py-3 text-sm text-white outline-none focus:border-[#e8c98a]"
+                      onChange={(event) => setAccountSignupForm((current) => ({ ...current, firstName: event.target.value }))}
+                      placeholder="Jean"
+                      value={accountSignupForm.firstName}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Nom *</span>
+                    <input
+                      className="mt-1.5 w-full rounded-lg border border-white/15 bg-black/50 px-4 py-3 text-sm text-white outline-none focus:border-[#e8c98a]"
+                      onChange={(event) => setAccountSignupForm((current) => ({ ...current, lastName: event.target.value }))}
+                      placeholder="Dupont"
+                      value={accountSignupForm.lastName}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">E-mail *</span>
+                    <input
+                      className="mt-1.5 w-full rounded-lg border border-white/15 bg-black/50 px-4 py-3 text-sm text-white outline-none focus:border-[#e8c98a]"
+                      onChange={(event) => setAccountSignupForm((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="jean.dupont@email.com"
+                      type="email"
+                      value={accountSignupForm.email}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Téléphone (optionnel)</span>
+                    <input
+                      className="mt-1.5 w-full rounded-lg border border-white/15 bg-black/50 px-4 py-3 text-sm text-white outline-none focus:border-[#e8c98a]"
+                      onChange={(event) => setAccountSignupForm((current) => ({ ...current, phone: event.target.value }))}
+                      placeholder="06 12 34 56 78"
+                      value={accountSignupForm.phone}
+                    />
+                  </label>
+                </div>
+                <label className="flex cursor-pointer items-start gap-3 text-xs text-white/65">
+                  <input
+                    checked={accountSignupTerms}
+                    className="mt-0.5 h-4 w-4 accent-[#e8c98a]"
+                    onChange={(event) => setAccountSignupTerms(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    J&apos;accepte les <a className="text-[#e8c98a] underline" href="/conditions" target="_blank">conditions générales</a> et la <a className="text-[#e8c98a] underline" href="/confidentialite" target="_blank">politique de confidentialité</a>.
+                  </span>
+                </label>
+                <button
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e8c98a] py-3.5 text-xs font-extrabold uppercase tracking-widest text-black disabled:opacity-50"
+                  disabled={accountSignupBusy || !accountSignupTerms || !accountSignupForm.firstName.trim() || !accountSignupForm.lastName.trim() || !accountSignupForm.email.trim()}
+                  onClick={() => void requestAccountSignupCode()}
+                  type="button"
+                >
+                  {accountSignupBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Recevoir mon code
+                </button>
+              </div>
+            )}
+
+            {accountSignupStep === "code" && (
+              <div className="space-y-4">
+                <input
+                  className="w-full rounded-lg border border-[#e8c98a] bg-black/60 px-4 py-3.5 text-center font-mono text-2xl tracking-[0.4em] text-[#e8c98a] outline-none"
+                  inputMode="numeric"
+                  maxLength={6}
+                  onChange={(event) => setAccountSignupCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  value={accountSignupCode}
+                />
+                <button
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e8c98a] py-3.5 text-xs font-extrabold uppercase tracking-widest text-black disabled:opacity-50"
+                  disabled={accountSignupBusy || accountSignupCode.length !== 6}
+                  onClick={() => void verifyAccountSignupCode()}
+                  type="button"
+                >
+                  {accountSignupBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  Valider et créer mon compte
+                </button>
+                <button
+                  className="w-full py-2 text-xs font-bold uppercase tracking-wider text-white/55 hover:text-white"
+                  disabled={accountSignupBusy}
+                  onClick={() => void requestAccountSignupCode()}
+                  type="button"
+                >
+                  Renvoyer le code
+                </button>
+              </div>
+            )}
+
+            {accountSignupStep === "ready" && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm leading-6 text-emerald-100">
+                  Vous pouvez maintenant compléter votre garage ou demander un devis quand vous le souhaitez.
+                </div>
+                {accountPortalUrl && (
+                  <Link
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e8c98a] py-3.5 text-xs font-extrabold uppercase tracking-widest text-black"
+                    to={accountPortalUrl}
+                  >
+                    Accéder à mon espace <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── PARCOURS SIMPLE : un seul chemin du besoin au rendez-vous ── */}
+      <section className="border-t border-white/5 bg-[#0c0909] py-16 sm:py-24" id="fonctionnement">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#e8c98a]">
+              SIMPLE, CLAIR, SANS SURPRISE
+            </span>
+            <h2 className="mt-3 text-3xl font-black uppercase tracking-tight text-white sm:text-5xl">
+              Votre devis en 4 étapes
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-white/60">
+              Aucun paiement avant validation. Vous composez votre demande, Bryan Cars fixe le prix exact, puis vous décidez.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-3 md:grid-cols-4">
+            {[
+              { n: "01", icon: Car, title: "Composez", copy: "Choisissez votre véhicule, vos prestations et joignez ses photos." },
+              { n: "02", icon: ShieldCheck, title: "Recevez", copy: "Bryan Cars étudie la demande et fixe votre prix exact." },
+              { n: "03", icon: CheckCircle2, title: "Décidez", copy: "Payez le devis via SumUp ou refusez-le en indiquant votre motif." },
+              { n: "04", icon: CalendarDays, title: "Planifiez", copy: "Après paiement, choisissez le jour, l'heure et le lieu de l'intervention." },
+            ].map((item) => (
+              <article className="group border border-white/10 bg-[#120e0e] p-5 transition hover:border-[#e8c98a]/45" key={item.n}>
+                <div className="flex items-center justify-between">
+                  <span className="grid h-10 w-10 place-items-center rounded-full border border-[#e8c98a]/35 bg-[#e8c98a]/10 text-[#e8c98a]">
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  <span className="font-mono text-xs font-bold tracking-widest text-white/25">{item.n}</span>
+                </div>
+                <h3 className="mt-5 text-base font-black uppercase tracking-wide text-white">{item.title}</h3>
+                <p className="mt-2 text-xs leading-6 text-white/55">{item.copy}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <button
+              className="inline-flex items-center justify-center gap-2 bg-[#e8c98a] px-7 py-4 text-xs font-extrabold uppercase tracking-[0.16em] text-black transition hover:bg-[#f4dca0]"
+              onClick={() => setAccountSignupModalOpen(true)}
+              type="button"
+            >
+              Créer mon compte gratuitement
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              className="border border-white/20 px-7 py-4 text-xs font-bold uppercase tracking-[0.16em] text-white transition hover:border-white/45"
+              onClick={() => setPortalLookupModalOpen(true)}
+              type="button"
+            >
+              J'ai déjà un espace
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── PROGRAMME FONDATEUR ── */}
+      <section className="relative overflow-hidden border-t border-emerald-300/10 bg-[#050a07] py-16 sm:py-24" id="fondateur">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(45,212,128,0.12),transparent_36%)]" />
+        <div className="relative mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-8">
+          <div>
+            <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
+              Programme Fondateur
+            </span>
+            <h2 className="mt-5 max-w-2xl text-3xl font-black uppercase leading-tight text-white sm:text-5xl">
+              L'entretien régulier, réservé aux passionnés
+            </h2>
+            <p className="mt-5 max-w-2xl text-sm leading-7 text-white/60">
+              Accédez toute l'année aux prestations d'entretien intérieur, extérieur et complet réservées aux membres, tout en gagnant deux fois plus de BC'Coins.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2 text-xs font-semibold text-emerald-100">
+              {["Prestations exclusives", "Priorité membre", "BC'Coins x2"].map((benefit) => (
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[0.07] px-3 py-2" key={benefit}>
+                  {benefit}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="border border-emerald-300/25 bg-black/35 p-6 shadow-[0_30px_90px_rgba(16,185,129,0.12)] sm:p-8">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-200">Accès Fondateur</p>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-5xl font-black text-white">49,90 €</span>
+              <span className="pb-1 text-xs uppercase tracking-wider text-white/40">accès membre</span>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-white/55">
+              Créez votre espace gratuitement, puis demandez votre accès Fondateur depuis votre compte.
+            </p>
+            <button
+              className="mt-6 flex w-full items-center justify-center gap-2 bg-emerald-300 px-6 py-4 text-xs font-black uppercase tracking-[0.17em] text-[#031008] transition hover:bg-emerald-200"
+              onClick={() => setAccountSignupModalOpen(true)}
+              type="button"
+            >
+              Devenir Fondateur
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* ── SECTION DÉMONSTRATION VIDÉOS 9:16 VERTICAL REELS (AVEC SON D'ORIGINE) ── */}
       <section className="py-16 sm:py-24 bg-[#090707] border-t border-white/5 relative" id="realisations">
@@ -691,6 +1048,7 @@ export function LandingPage() {
                 controls
                 loop
                 playsInline
+                preload="none"
                 className="w-full h-full object-cover bg-black"
                 poster={activeReel.poster}
                 src={activeReel.src}
@@ -1034,7 +1392,46 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── SECTION FORMULAIRE DE DEVIS ── */}
+      {/* ── ENTREE UNIQUE VERS LE DEVIS ET LE RENDEZ-VOUS ── */}
+      <section className="relative border-t border-white/5 bg-[#090707] py-16 sm:py-24" id="devis-intro">
+        <div className="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#e8c98a]">
+            DEVIS PERSONNALISÉ
+          </span>
+          <h2 className="mt-3 text-3xl font-black uppercase tracking-tight text-white sm:text-5xl">
+            Composez votre demande dans votre espace
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white/60">
+            Créez votre compte gratuitement, renseignez votre véhicule, choisissez vos prestations et joignez vos photos. Bryan Cars fixe ensuite le prix exact ; le créneau ne se choisit qu&apos;après paiement.
+          </p>
+          <div className="mx-auto mt-8 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
+            {["Panier de prestations clair", "Photos jointes à la demande", "Prix validé avant paiement"].map((item) => (
+              <div className="flex items-center gap-3 border border-white/10 bg-white/[0.03] p-4 text-xs font-semibold text-white/75" key={item}>
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#e8c98a]" />
+                {item}
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <button
+              className="inline-flex items-center justify-center gap-2 bg-[#e8c98a] px-8 py-4 text-xs font-extrabold uppercase tracking-[0.17em] text-black transition hover:bg-[#f4dca0]"
+              onClick={() => scrollToSection("devis")}
+              type="button"
+            >
+              Créer mon compte et commencer
+              <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              className="border border-white/20 px-8 py-4 text-xs font-bold uppercase tracking-[0.17em] text-white transition hover:border-white/45"
+              onClick={() => setPortalLookupModalOpen(true)}
+              type="button"
+            >
+              Retrouver mon espace
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="py-16 sm:py-24 bg-[#090707] border-t border-white/5 relative" id="devis">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto space-y-2 mb-8 sm:mb-12">
@@ -1045,7 +1442,7 @@ export function LandingPage() {
               DEMANDER UN DEVIS
             </h2>
             <p className="text-xs sm:text-sm text-white/60">
-              Remplissez le formulaire et joignez les photos de votre véhicule pour recevoir votre estimation gratuite.
+              Choisissez vos prestations et joignez les photos de votre véhicule pour recevoir votre devis personnalisé.
             </p>
           </div>
 
@@ -1132,6 +1529,16 @@ export function LandingPage() {
                     />
                   </label>
 
+                  <div className="sm:col-span-2">
+                    <ServicePicker
+                      catalog={SERVICE_CATALOG}
+                      categories={SERVICE_CATEGORIES}
+                      onChange={setSelectedQuoteServiceKeys}
+                      selectedKeys={selectedQuoteServiceKeys}
+                      tone="landing"
+                    />
+                  </div>
+
                   <label className="block sm:col-span-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Description du travail souhaité</span>
                     <textarea
@@ -1145,7 +1552,7 @@ export function LandingPage() {
                   {/* UPLOAD PHOTOS VÉHICULE */}
                   <div className="sm:col-span-2 space-y-2 pt-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-                      Photos du Véhicule (Jusqu&apos;à 5 photos pour l&apos;estimation)
+                      Photos du Véhicule * (Jusqu&apos;à 5 photos)
                     </span>
                     <div className="flex flex-wrap items-center gap-3">
                       {photoPreviews.map((src, i) => (
@@ -1232,7 +1639,16 @@ export function LandingPage() {
 
                 <button
                   className="w-full py-4 mt-6 bg-[#e8c98a] text-black font-extrabold text-xs sm:text-sm uppercase tracking-[0.18em] flex items-center justify-center gap-2 hover:bg-[#f4dca0] transition-colors disabled:opacity-50 cursor-pointer shadow-[0_0_20px_rgba(232,201,138,0.2)]"
-                  disabled={busy || !acceptedTerms || !form.email || !form.firstName}
+                  disabled={
+                    busy ||
+                    !acceptedTerms ||
+                    !form.email ||
+                    !form.firstName ||
+                    !form.phone ||
+                    !form.vehicleModel ||
+                    selectedQuoteServiceKeys.length === 0 ||
+                    selectedPhotos.length === 0
+                  }
                   onClick={requestCode}
                   type="button"
                 >
@@ -1287,7 +1703,7 @@ export function LandingPage() {
                     <span>DEMANDE TRANSMISE À L&apos;ADMINISTRATEUR</span>
                   </div>
                   <p className="text-xs text-white/70 leading-relaxed">
-                    Votre demande de devis et vos photos ont bien été transmises à l&apos;équipe. Vous recevrez une notification par email dès que votre estimation sera prête.
+                    Votre demande de devis et vos photos ont bien été transmises à l&apos;équipe. Vous recevrez un e-mail avec un lien direct dès que votre prix sera prêt.
                   </p>
                 </div>
 

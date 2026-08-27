@@ -16,7 +16,6 @@ type InvoiceData = {
   number: string;
   issuedAt: number | null;
   label: string;
-  credits: number;
   amountCents: number;
   currency: string;
   paymentMethod: string;
@@ -170,7 +169,7 @@ export function InvoicePage() {
               <tr className="border-b border-neutral-200">
                 <td className="py-3 text-neutral-800">{invoice.label}</td>
                 <td className="py-3 text-center text-neutral-700">
-                  {invoice.credits > 0 ? invoice.credits : "-"}
+                  1
                 </td>
                 <td className="py-3 text-right text-neutral-800">{formatEuro(invoice.amountCents)}</td>
               </tr>

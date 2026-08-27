@@ -18,9 +18,12 @@ type ForfaitOrder = {
   currency: string;
   status: ForfaitStatus;
   partnerLabel: string | null;
+  vehicleModel: string | null;
+  vehiclePlate: string | null;
   paidAt: number | null;
   tagline: string | null;
   features: string[];
+  startingAt: boolean;
 };
 
 type ForfaitApiResponse = {
@@ -225,9 +228,12 @@ export function ForfaitPayPage() {
                     )}
                   </div>
                   <p className="bb-text-gold shrink-0 text-3xl font-semibold">
+                    {order.startingAt && <span className="block text-right text-[9px] uppercase tracking-[0.15em] text-white/40">Prix de base</span>}
                     {formatMoneyCents(order.amountCents, order.currency)}
                   </p>
                 </div>
+
+                {(order.vehicleModel || order.vehiclePlate) && <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/65">Véhicule : {[order.vehicleModel, order.vehiclePlate].filter(Boolean).join(" · ")}</p>}
 
                 {order.features.length > 0 && (
                   <ul className="mt-6 space-y-2">

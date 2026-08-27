@@ -2,7 +2,6 @@ const express = require("express");
 
 const {
   getTopupOrderByCheckoutId,
-  processPaidTopupOrder,
   syncTopupOrderFromCheckout,
 } = require("../db/topup_orders");
 const {
@@ -17,11 +16,15 @@ const {
   processPaidAppointmentOrder,
   syncAppointmentPaymentOrder,
 } = require("../db/appointment_payment_orders");
+const {
+  getQuoteRequestByCheckoutId,
+  syncQuotePaymentFromCheckout,
+} = require("../db/quoteRequests");
 const { getPartnerForfait } = require("../config/partnerForfaits");
 const {
   sendAdminNotification,
   sendClientAppointmentStatusEmail,
-  sendClientFormulaRecap,
+  sendQuotePaidNotifications,
 } = require("../email");
 const { getClientById } = require("../db/clients");
 const { createHostedCheckout, retrieveCheckout, sumupConfigured } = require("../services/sumup");
@@ -39,18 +42,6 @@ function publicBaseUrl(req) {
   return `${proto}://${req.get("host")}`;
 }
 
-async function maybeSendTopupRecap(client, applied) {
-  if (!applied || !client?.email) {
-    return;
-  }
-
-  try {
-    await sendClientFormulaRecap(client);
-  } catch (error) {
-    console.error("[TOPUP] recap client apres paiement:", error);
-  }
-}
-
 // Vue publique d'une commande forfait (lien client final): aucune donnee
 // sensible, juste de quoi afficher la page de paiement et son statut.
 function partnerOrderPublicView(order, forfait) {
@@ -62,9 +53,12 @@ function partnerOrderPublicView(order, forfait) {
     currency: order.currency,
     status: order.status,
     partnerLabel: order.partnerLabel,
+    vehicleModel: order.vehicleModel,
+    vehiclePlate: order.vehiclePlate,
     paidAt: order.paidAt,
     tagline: forfait ? forfait.tagline : null,
     features: forfait ? forfait.features : [],
+    startingAt: forfait ? forfait.startingAt === true : false,
   };
 }
 
@@ -79,7 +73,24 @@ router.post("/sumup/webhook", async (req, res) => {
   try {
     const checkout = await retrieveCheckout(checkoutId);
 
-    // 1) Paiement d'un rendez-vous valide par l'admin.
+    // 1) Paiement d'un devis BBX/Fondateur. La planification vient ensuite.
+    const quote = getQuoteRequestByCheckoutId(checkout.id);
+    if (quote) {
+      const result = syncQuotePaymentFromCheckout(quote.id, checkout);
+      if (result.amountMismatch) {
+        console.error(`[SUMUP] quote webhook amount mismatch (quoteId=${quote.id})`);
+        return res.status(204).end();
+      }
+      if (result.becamePaid && result.quote) {
+        const client = getClientById(result.quote.clientId);
+        if (client) {
+          await sendQuotePaidNotifications({ client, quote: result.quote });
+        }
+      }
+      return res.status(204).end();
+    }
+
+    // 2) Paiement historique d'un rendez-vous déjà créé.
     const appointmentOrder = getAppointmentPaymentOrderByCheckoutId(checkout.id);
     if (appointmentOrder) {
       syncAppointmentPaymentOrder(appointmentOrder.id, checkout);
@@ -110,18 +121,15 @@ router.post("/sumup/webhook", async (req, res) => {
       return res.status(204).end();
     }
 
-    // 2) Recharges credits (anciens clients/formules).
+    // 3) Anciennes recharges : on conserve uniquement le suivi du paiement.
+    // Les crédits ont été retirés du produit et ne sont plus attribués.
     const topupOrder = getTopupOrderByCheckoutId(checkout.id);
     if (topupOrder) {
       syncTopupOrderFromCheckout(topupOrder.id, checkout);
-      if (checkout.status === "PAID") {
-        const result = processPaidTopupOrder(topupOrder.id, checkout);
-        await maybeSendTopupRecap(result?.client, result?.applied);
-      }
       return res.status(204).end();
     }
 
-    // 3) Forfaits partenaire (liens generes par un compte pro).
+    // 4) Forfaits publics / partenaire.
     const partnerOrder = getPartnerOrderByCheckoutId(checkout.id);
     if (partnerOrder) {
       syncPartnerOrderFromCheckout(partnerOrder.id, checkout);

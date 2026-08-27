@@ -9,11 +9,11 @@ const {
 
 const { sendClientPush, sendAdminPush } = require("./services/webPush");
 
-// Notification push couplee a un email client (deep-link vers le RDV si fourni).
-function pushClient(client, { title, body, appointmentId = null } = {}) {
+// Notification push couplee a un email client (deep-link vers le RDV ou le devis).
+function pushClient(client, { title, body, appointmentId = null, quoteId = null } = {}) {
   if (!client?.id) return;
-  let url = clientPortalUrl(client) || "/";
-  if (appointmentId) {
+  let url = quoteId ? clientQuoteUrl(client, quoteId) : clientPortalUrl(client) || "/";
+  if (appointmentId && !quoteId) {
     url += `${url.includes("?") ? "&" : "?"}appointmentId=${appointmentId}`;
   }
   void sendClientPush(client.id, { title, body, url }).catch(() => {});
@@ -89,6 +89,13 @@ function formatUnixDateTimeFr(timestamp) {
   });
 }
 
+function formatEuros(cents) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Math.max(0, Number(cents) || 0) / 100);
+}
+
 function locationLabel(location) {
   const normalized = typeof location === "string" ? location.toLowerCase() : "";
   if (normalized === "domicile") return "A domicile";
@@ -137,7 +144,7 @@ function clientPortalUrl(client) {
   return `${base}/card/${encodeURIComponent(slug)}`;
 }
 
-// Lien profond vers le devis du client (ouvre directement la modale "Votre estimation").
+// Lien profond vers le devis du client (ouvre directement le détail du devis).
 function clientQuoteUrl(client, quoteId = null) {
   const portalUrl = clientPortalUrl(client);
   if (!portalUrl) return "";
@@ -146,6 +153,11 @@ function clientQuoteUrl(client, quoteId = null) {
     url += `&quoteId=${quoteId}`;
   }
   return url;
+}
+
+function adminQuoteUrl(quoteId = null) {
+  const base = (ADMIN_DASHBOARD_URL || `${basePortalUrl()}/admin` || "/admin").replace(/\/+$/, "");
+  return `${base}/devis${quoteId ? `?quoteId=${quoteId}` : ""}`;
 }
 
 function serviceLevelLabel(level) {
@@ -622,6 +634,42 @@ Admin : ${adminUrl}
   });
 }
 
+async function sendAdminPartnerOrderEmail({ order, photoCount = 0 }) {
+  const adminEmail = adminInboxEmail();
+  if (!adminEmail || !order) return false;
+  const adminUrl = `${ADMIN_DASHBOARD_URL}/preparation-vente`;
+  const amount = new Intl.NumberFormat("fr-FR", { style: "currency", currency: order.currency || "EUR" }).format((order.amountCents || 0) / 100);
+  const title = `Nouvelle préparation vente · ${order.forfaitLabel}`;
+
+  pushAdmin({
+    title: "Nouvelle préparation vente",
+    body: `${order.customerName || "Client"} · ${order.vehicleModel || "Véhicule"} · ${amount}`,
+    url: adminUrl,
+  });
+
+  const text = `${title}\n\nClient : ${order.customerName || "-"}\nTéléphone : ${order.customerPhone || "-"}\nE-mail : ${order.customerEmail || "-"}\nVéhicule : ${[order.vehicleModel, order.vehiclePlate].filter(Boolean).join(" · ") || "-"}\nForfait : ${order.forfaitLabel}\nMontant : ${amount}\nPhotos : ${photoCount}\nSource : ${order.partnerLabel || "Lien direct Bryan Cars"}\n\nAdmin : ${adminUrl}`;
+  const html = brandEmailShell({
+    eyebrow: "Préparation vente",
+    title,
+    subtitle: "Le client a préparé son dossier et va être redirigé vers le paiement SumUp.",
+    preheader: `${order.customerName || "Client"} · ${order.vehicleModel || "Véhicule"}`,
+    bodyHtml: panelCard({
+      title: "Dossier client",
+      bodyHtml: `${infoRows([
+        { label: "Client", value: order.customerName || "-" },
+        { label: "Téléphone", value: order.customerPhone || "-" },
+        { label: "E-mail", value: order.customerEmail || "-" },
+        { label: "Véhicule", value: [order.vehicleModel, order.vehiclePlate].filter(Boolean).join(" · ") || "-" },
+        { label: "Forfait", value: order.forfaitLabel },
+        { label: "Montant", value: amount },
+        { label: "Photos", value: String(photoCount) },
+        { label: "Source", value: order.partnerLabel || "Lien direct Bryan Cars" },
+      ])}${actionButtons([{ label: "Ouvrir Préparation vente", href: adminUrl, tone: "primary" }])}`,
+    }),
+  });
+  return sendBrevoEmail({ to: [{ email: adminEmail }], subject: `[Bryan Cars] ${title}`, html, text });
+}
+
 async function sendSignupVerificationCode({ email, code, fullName }) {
   if (!email || !code) return false;
 
@@ -717,16 +765,9 @@ async function sendClientPriceApprovalEmail({ client, appointment }) {
   const portalUrl = clientPortalUrl(client);
   const fullName = fallbackClientName(client);
   const formattedDate = formatDateFr(appointment.date);
-  const requested = Number(appointment.requested_credits || 1);
-  const approved = Number(appointment.approved_credits || requested);
   const standardPriceCents = Number(appointment.standard_price_cents || 0);
   const approvedPriceCents = Number(appointment.approved_price_cents || 0);
-  const usesEuros = approvedPriceCents > 0;
-  const formatEuros = (cents) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
-  const proposedPrice = usesEuros
-    ? formatEuros(approvedPriceCents)
-    : `${approved} credit${approved > 1 ? "s" : ""}`;
+  const proposedPrice = formatEuros(approvedPriceCents);
   const priceComment = appointment.price_comment || appointment.priceComment || null;
   let serviceItems = [];
   try {
@@ -739,7 +780,7 @@ async function sendClientPriceApprovalEmail({ client, appointment }) {
     : null;
 
   pushClient(client, {
-    title: usesEuros ? "Votre rendez-vous est prêt à être payé" : "Validez le nouveau tarif",
+    title: "Votre rendez-vous est prêt à être payé",
     body: `Tarif proposé : ${proposedPrice} pour le ${formattedDate}.${
       priceComment ? ` ${priceComment}` : ""
     }`,
@@ -752,7 +793,7 @@ Bonjour ${fullName},
 
 Votre rendez-vous du ${formattedDate} est prêt à être finalisé.
 
-${usesEuros ? `${serviceItems.length > 0 ? `Prestations : ${serviceItems.map((item) => item.label).join(", ")}\n` : standardPriceCents > 0 ? `Tarif standard : ${formatEuros(standardPriceCents)}\n` : ""}Montant à payer : ${proposedPrice}${quoteExpiry ? `\nDevis et créneau réservés jusqu'au ${quoteExpiry}.` : ""}` : `Estimation initiale : ${requested} credit(s)\nTarif confirme par l'admin : ${approved} credit(s)`}${
+${serviceItems.length > 0 ? `Prestations : ${serviceItems.map((item) => item.label).join(", ")}\n` : standardPriceCents > 0 ? `Tarif indicatif : ${formatEuros(standardPriceCents)}\n` : ""}Montant à payer : ${proposedPrice}${quoteExpiry ? `\nDevis et créneau réservés jusqu'au ${quoteExpiry}.` : ""}${
     priceComment ? `\nNote de l'admin : ${priceComment}` : ""
   }
 
@@ -761,20 +802,14 @@ Espace client : ${portalUrl || "Lien indisponible"}
 
   const html = brandEmailShell({
     eyebrow: "Validation tarif",
-    title: usesEuros ? "Finalisez votre rendez-vous" : "Un tarif est a confirmer",
+    title: "Finalisez votre rendez-vous",
     subtitle:
-      usesEuros
-        ? "Le tarif a été validé par l'atelier. Réglez-le en ligne pour confirmer définitivement le rendez-vous."
-        : "L'etat du vehicule demande plus de credits que l'estimation initiale. Vous pouvez accepter ou annuler depuis votre espace.",
+      "Le tarif a été validé par l'atelier. Réglez-le en ligne pour confirmer définitivement le rendez-vous.",
     preheader: `${proposedPrice} · ${formattedDate}`,
     bodyHtml: `
       ${metricRows([
-        usesEuros
-          ? { label: serviceItems.length > 0 ? "Prestations" : "Tarif standard", value: serviceItems.length > 0 ? `${serviceItems.length} sélectionnée${serviceItems.length > 1 ? "s" : ""}` : formatEuros(standardPriceCents) }
-          : { label: "Estimation client", value: `${requested} credit${requested > 1 ? "s" : ""}` },
-        usesEuros
-          ? { label: "Montant à payer", value: proposedPrice }
-          : { label: "Tarif admin", value: `${approved} credit${approved > 1 ? "s" : ""}` },
+        { label: serviceItems.length > 0 ? "Prestations" : "Tarif indicatif", value: serviceItems.length > 0 ? `${serviceItems.length} sélectionnée${serviceItems.length > 1 ? "s" : ""}` : formatEuros(standardPriceCents) },
+        { label: "Montant à payer", value: proposedPrice },
       ])}
       ${quoteExpiry ? `<p style="margin:12px 0 0;font-size:13px;line-height:20px;color:#fcd34d;">Devis et créneau réservés jusqu'au ${escapeHtml(quoteExpiry)}.</p>` : ""}
       ${
@@ -791,7 +826,7 @@ Espace client : ${portalUrl || "Lien indisponible"}
       ${actionButtons([
         portalUrl
           ? {
-              label: usesEuros ? `Finaliser et payer ${proposedPrice}` : "Accepter ou annuler",
+              label: `Finaliser et payer ${proposedPrice}`,
               href: clientAppointmentUrl(client, appointment.id),
               tone: "primary",
             }
@@ -808,16 +843,21 @@ Espace client : ${portalUrl || "Lien indisponible"}
   });
 }
 
-// Devis : notification admin a la reception d'une demande d'estimation.
+// Devis : notification admin à la réception d'une nouvelle demande.
 async function sendAdminQuoteRequestEmail({
   client,
   description = null,
   photoCount = 0,
   quoteId = null,
+  vehicle: vehicleOverride = null,
+  serviceItems = [],
 }) {
   const fullName = fallbackClientName(client);
-  const vehicle = vehicleSummary(client);
-  const adminUrl = `${ADMIN_DASHBOARD_URL}/devis${quoteId ? `?quoteId=${quoteId}` : ""}`;
+  const vehicle = vehicleOverride || vehicleSummary(client);
+  const services = Array.isArray(serviceItems)
+    ? serviceItems.map((service) => service?.label).filter(Boolean)
+    : [];
+  const adminUrl = adminQuoteUrl(quoteId);
 
   pushAdmin({
     title: "Nouvelle demande de devis",
@@ -839,6 +879,7 @@ Client : ${fullName}
 Telephone : ${client.phone || "-"}
 Vehicule : ${vehicle}
 Photos : ${photoCount > 0 ? `${photoCount} photo${photoCount > 1 ? "s" : ""}` : "-"}
+Prestations : ${services.length > 0 ? services.join(", ") : "-"}
 Description : ${description || "-"}
 
 Repondre : ${adminUrl}
@@ -846,8 +887,8 @@ Repondre : ${adminUrl}
 
   const html = brandEmailShell({
     eyebrow: "Demande de devis",
-    title: "Nouvelle demande d'estimation",
-    subtitle: "Un client souhaite une estimation en credits pour son vehicule.",
+    title: "Nouvelle demande de devis",
+    subtitle: "Un client souhaite recevoir un tarif personnalise pour son vehicule.",
     preheader: `Devis · ${fullName}`,
     bodyHtml: `
       ${metricRows([
@@ -859,14 +900,15 @@ Repondre : ${adminUrl}
       ])}
       ${panelCard({
         title: "Demande",
-        description: "Estimez le nombre de credits depuis votre tableau de bord.",
+        description: "Definissez le montant en euros depuis votre tableau de bord.",
         bodyHtml: `
           ${infoRows([
             { label: "Telephone", value: client.phone || "-" },
             { label: "Vehicule", value: vehicle },
+            { label: "Prestations", value: services.length > 0 ? services.join(", ") : "-" },
             { label: "Description", value: description || "-" },
           ])}
-          ${actionButtons([{ label: "Estimer ce devis", href: adminUrl, tone: "primary" }])}
+          ${actionButtons([{ label: "Chiffrer ce devis", href: adminUrl, tone: "primary" }])}
         `,
       })}
     `,
@@ -875,45 +917,50 @@ Repondre : ${adminUrl}
   return sendBrevoEmail({ to: [{ email: adminEmail }], subject, html, text });
 }
 
-// Devis : notification client quand l'admin a renvoye une estimation.
-async function sendClientQuoteAnsweredEmail({ client, estimatedCredits, adminComment = null }) {
-  const credits = Number(estimatedCredits) || 0;
+// Devis : notification client quand l'admin a fixe le montant exact.
+async function sendClientQuoteAnsweredEmail({
+  client,
+  quoteId = null,
+  estimatedPriceCents,
+  adminComment = null,
+}) {
+  const price = formatEuros(estimatedPriceCents);
   const fullName = fallbackClientName(client);
-  const targetUrl = clientQuoteUrl(client);
+  const targetUrl = clientQuoteUrl(client, quoteId);
 
   pushClient(client, {
     title: "Votre devis est prêt",
-    body: `Estimation : ${credits} crédit${credits > 1 ? "s" : ""} pour votre véhicule.`,
+    body: `Montant propose : ${price} pour votre véhicule.`,
+    quoteId,
   });
 
   if (!client?.email) return false;
 
-  const subject = `[Bryan Cars] Votre estimation est prête`;
+  const subject = `[Bryan Cars] Votre devis est prêt`;
   const text = `
 Bonjour ${fullName},
 
 Votre demande de devis a reçu une réponse.
 
-Estimation : ${credits} crédit(s)${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
+Montant propose : ${price}${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
 
-Consultez et validez votre devis depuis votre espace : ${targetUrl || "Lien indisponible"}
+Consultez votre devis, puis payez-le ou refusez-le depuis votre espace : ${targetUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
     eyebrow: "Votre devis",
-    title: "Estimation prête",
-    subtitle:
-      "Voici l'estimation en crédits pour votre véhicule. Rechargez puis prenez rendez-vous directement depuis votre espace.",
-    preheader: `${credits} crédit${credits > 1 ? "s" : ""} estimés`,
+    title: "Devis prêt",
+    subtitle: "Voici le montant personnalise propose pour votre véhicule.",
+    preheader: `${price} · devis disponible`,
     bodyHtml: `
       ${metricRows([
-        { label: "Estimation", value: `${credits} crédit${credits > 1 ? "s" : ""}` },
+        { label: "Montant propose", value: price },
       ])}
       ${
         adminComment
           ? panelCard({
               title: "Note de Bryan Cars",
-              description: "Précisions sur l'estimation de votre véhicule :",
+              description: "Précisions sur le devis de votre véhicule :",
               bodyHtml: `<p style="margin:0;font-size:14px;line-height:22px;color:#f1ede6;font-family:'Segoe UI',sans-serif;">${escapeHtml(
                 adminComment,
               )}</p>`,
@@ -921,7 +968,7 @@ Consultez et validez votre devis depuis votre espace : ${targetUrl || "Lien indi
           : ""
       }
       ${actionButtons([
-        targetUrl ? { label: "Voir mon estimation", href: targetUrl, tone: "primary" } : null,
+        targetUrl ? { label: "Voir mon devis", href: targetUrl, tone: "primary" } : null,
       ])}
     `,
   });
@@ -929,9 +976,113 @@ Consultez et validez votre devis depuis votre espace : ${targetUrl || "Lien indi
   return sendBrevoEmail({ to: [{ email: client.email, name: fullName }], subject, html, text });
 }
 
+function refusalReasonLabel(reason) {
+  const labels = {
+    trop_cher: "Tarif trop élevé / hors budget",
+    delai_incompatible: "Délai ou disponibilité incompatible",
+    autre_prestataire: "Choix d'un autre prestataire",
+    changement_avis: "Changement d'avis",
+    autre: "Autre raison",
+  };
+  return labels[reason] || reason || "Non précisé";
+}
+
+async function sendAdminQuoteRefusedEmail({ client, quote }) {
+  const reason = refusalReasonLabel(quote?.refusalReason);
+  const adminUrl = adminQuoteUrl(quote?.id);
+  pushAdmin({
+    title: "Devis refusé",
+    body: `${fallbackClientName(client)} · ${reason}`,
+    url: `/admin/devis?quoteId=${quote?.id || ""}`,
+  });
+
+  const adminEmail = adminInboxEmail();
+  if (!adminEmail) return false;
+  const text = `Devis refusé par ${fallbackClientName(client)}.\n\nMotif : ${reason}${quote?.refusalComment ? `\nCommentaire : ${quote.refusalComment}` : ""}\n\nAdmin : ${adminUrl}`;
+  const html = brandEmailShell({
+    eyebrow: "Décision client",
+    title: "Un devis a été refusé",
+    subtitle: `${escapeHtml(fallbackClientName(client))} a décliné la proposition.`,
+    preheader: reason,
+    bodyHtml: `${metricRows([{ label: "Motif", value: reason }])}${
+      quote?.refusalComment
+        ? panelCard({ title: "Commentaire", description: quote.refusalComment })
+        : ""
+    }${actionButtons([{ label: "Ouvrir le devis", href: adminUrl, tone: "primary" }])}`,
+  });
+  return sendBrevoEmail({
+    to: [{ email: adminEmail }],
+    subject: `[Bryan Cars] Devis refusé par ${fallbackClientName(client)}`,
+    html,
+    text,
+  });
+}
+
+async function sendQuotePaidNotifications({ client, quote }) {
+  const amount = formatEuros(quote?.estimatedPriceCents || 0);
+  const fullName = fallbackClientName(client);
+  const clientUrl = clientQuoteUrl(client, quote?.id);
+  const adminUrl = adminQuoteUrl(quote?.id);
+
+  pushClient(client, {
+    title: "Paiement reçu",
+    body: `${amount} reçu. Choisissez maintenant votre disponibilité.`,
+    quoteId: quote?.id,
+  });
+  pushAdmin({
+    title: "Devis payé",
+    body: `${fullName} · ${amount} · en attente de planification`,
+    url: `/admin/devis?quoteId=${quote?.id || ""}`,
+  });
+
+  const sends = [];
+  if (client?.email) {
+    sends.push(
+      sendBrevoEmail({
+        to: [{ email: client.email, name: fullName }],
+        subject: `[Bryan Cars] Paiement reçu — choisissez votre créneau`,
+        text: `Bonjour ${fullName},\n\nVotre paiement de ${amount} a bien été reçu. Vous pouvez maintenant choisir votre jour, votre demi-journée, votre heure et le lieu de l'intervention : ${clientUrl || "Lien indisponible"}`,
+        html: brandEmailShell({
+          eyebrow: "Paiement confirmé",
+          title: "Choisissez votre disponibilité",
+          subtitle: `Votre devis de ${amount} est payé. Il ne reste plus qu'à planifier l'intervention.`,
+          preheader: `${amount} reçu`,
+          bodyHtml: `${metricRows([{ label: "Montant payé", value: amount }])}${actionButtons([
+            clientUrl ? { label: "Choisir mon créneau", href: clientUrl, tone: "primary" } : null,
+          ])}`,
+        }),
+      }),
+    );
+  }
+  const adminEmail = adminInboxEmail();
+  if (adminEmail) {
+    sends.push(
+      sendBrevoEmail({
+        to: [{ email: adminEmail }],
+        subject: `[Bryan Cars] Devis payé par ${fullName}`,
+        text: `${fullName} a payé son devis de ${amount}. Le client doit maintenant choisir son créneau.\n\nAdmin : ${adminUrl}`,
+        html: brandEmailShell({
+          eyebrow: "Devis payé",
+          title: "Paiement reçu",
+          subtitle: `${escapeHtml(fullName)} peut maintenant planifier son intervention.`,
+          preheader: `${amount} reçu`,
+          bodyHtml: `${metricRows([
+            { label: "Client", value: fullName },
+            { label: "Montant", value: amount },
+          ])}${actionButtons([{ label: "Ouvrir le devis", href: adminUrl, tone: "primary" }])}`,
+        }),
+      }),
+    );
+  }
+  return Promise.allSettled(sends);
+}
+
 async function sendClientQuoteReminderEmail({ client, quote, isSecondReminder = false }) {
-  const credits = Number(quote?.estimatedCredits) || 0;
-  const priceEur = credits * 50;
+  const estimatedPriceCents = Number(quote?.estimatedPriceCents) || 0;
+  const legacyCredits = Number(quote?.estimatedCredits) || 0;
+  const quoteValue = estimatedPriceCents > 0
+    ? formatEuros(estimatedPriceCents)
+    : `${legacyCredits} crédit${legacyCredits > 1 ? "s" : ""} (devis historique)`;
   const fullName = fallbackClientName(client);
   const targetUrl = clientQuoteUrl(client, quote?.id);
 
@@ -941,36 +1092,37 @@ async function sendClientQuoteReminderEmail({ client, quote, isSecondReminder = 
 
   pushClient(client, {
     title: titleText,
-    body: `Estimation : ${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €). Acceptez ou refusez directement depuis votre espace.`,
+    body: `Montant : ${quoteValue}. Payez ou refusez directement depuis votre espace.`,
+    quoteId: quote?.id,
   });
 
   if (!client?.email) return false;
 
   const subject = isSecondReminder
-    ? `[Bryan Cars] Dernière relance pour votre devis (${credits} crédits · ${priceEur} €)`
+    ? `[Bryan Cars] Dernière relance pour votre devis (${quoteValue})`
     : `[Bryan Cars] Rappel de votre devis pour votre véhicule`;
 
   const text = `
 Bonjour ${fullName},
 
-${isSecondReminder ? "Ceci est une dernière relance concernant" : "Nous vous rappelons que"} votre devis de ${credits} crédit(s) (${priceEur} €) pour votre véhicule est toujours en attente de votre réponse.
+${isSecondReminder ? "Ceci est une dernière relance concernant" : "Nous vous rappelons que"} votre devis de ${quoteValue} pour votre véhicule est toujours en attente de votre décision.
 
-Vous pouvez valider ou refuser cette estimation directement depuis votre espace : ${targetUrl || "Lien indisponible"}
+Vous pouvez payer ou refuser ce devis directement depuis votre espace : ${targetUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
     eyebrow: isSecondReminder ? "Dernier rappel devis" : "Rappel devis",
-    title: isSecondReminder ? "Dernière relance pour votre devis" : "Votre estimation en attente",
+    title: isSecondReminder ? "Dernière relance pour votre devis" : "Votre devis en attente",
     subtitle: isSecondReminder
-      ? "Votre estimation expire bientôt. Souhaitez-vous confirmer ou décliner cette proposition ?"
-      : "Votre devis sur-mesure pour votre véhicule est toujours disponible. Vous pouvez l'accepter ou le refuser en un clic.",
-    preheader: `Devis ${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €)`,
+      ? "Votre devis attend votre décision. Souhaitez-vous le payer ou le décliner ?"
+      : "Votre devis sur-mesure pour votre véhicule est disponible. Vous pouvez le payer ou le refuser en un clic.",
+    preheader: `Devis ${quoteValue}`,
     bodyHtml: `
       ${metricRows([
-        { label: "Estimation", value: `${credits} crédit${credits > 1 ? "s" : ""} (${priceEur} €)` },
+        { label: "Montant", value: quoteValue },
       ])}
       ${actionButtons([
-        targetUrl ? { label: "Consulter mon estimation", href: targetUrl, tone: "primary" } : null,
+        targetUrl ? { label: "Consulter mon devis", href: targetUrl, tone: "primary" } : null,
       ])}
     `,
   });
@@ -1065,53 +1217,41 @@ async function sendClientFormulaRecap(client) {
   const fullName = fallbackClientName(client);
   const portalUrl = clientPortalUrl(client);
   const termsUrl = clientTermsUrl(client);
-  const purchasedAt = formatUnixDateFr(client.formula_purchased_at ?? client.formulaPurchasedAt);
-  const expiresAt = formatUnixDateFr(client.formula_expires_at ?? client.formulaExpiresAt);
   const acceptedAt = formatUnixDateTimeFr(
     client.terms_accepted_at ?? client.termsAcceptedAt,
   );
-  const formulaLabel = client.formula_name || client.formulaName || "Formule detailing";
-  const credits = `${client.formula_remaining ?? client.formulaRemaining ?? 0} / ${
-    client.formula_total ?? client.formulaTotal ?? 0
-  }`;
 
   pushClient(client, {
-    title: "Votre formule est a jour",
-    body: `${formulaLabel} · ${credits} credits disponibles.`,
+    title: "Votre espace est a jour",
+    body: "Retrouvez vos rendez-vous, paiements et avantages Bryan Cars.",
   });
 
-  const subject = `[Bryan Cars] Votre formule ${formulaLabel}`;
+  const subject = "[Bryan Cars] Votre espace client";
   const text = `
 Bonjour ${fullName},
 
-Votre formule Bryan Cars est activee.
+Votre espace Bryan Cars est actif.
 
-Formule : ${formulaLabel}
-Credits : ${credits}
-Date d'achat : ${purchasedAt}
-Date d'expiration : ${expiresAt}
 Conditions acceptees le : ${acceptedAt}
 Espace client : ${portalUrl || "Lien indisponible"}
 Conditions et reglement : ${termsUrl || portalUrl || "Lien indisponible"}
   `.trim();
 
   const html = brandEmailShell({
-    eyebrow: "Recapitulatif formule",
-    title: `Votre formule ${formulaLabel}`,
-    subtitle: "Voici un recapitulatif propre de votre formule, de vos credits et de sa validite.",
-    preheader: `Formule ${formulaLabel} · ${credits} credits restants`,
+    eyebrow: "Espace client",
+    title: "Votre espace Bryan Cars",
+    subtitle: "Vos rendez-vous, paiements, photos et avantages sont centralises ici.",
+    preheader: "Votre espace client est actif",
     bodyHtml: `
       ${metricRows([
-        { label: "Formule", value: formulaLabel },
-        { label: "Credits restants", value: credits },
-        { label: "Expiration", value: expiresAt },
+        { label: "Statut", value: "Acces actif" },
+        { label: "Conditions", value: acceptedAt },
       ])}
       ${panelCard({
         title: "Validite et acces",
         description: "Tout est centralise ici pour garder votre suivi clair en quelques secondes.",
         bodyHtml: `
           ${infoRows([
-            { label: "Date d'achat", value: purchasedAt },
             { label: "Conditions acceptees le", value: acceptedAt },
             { label: "Espace client", value: portalUrl || "Lien indisponible" },
           ])}
@@ -1141,13 +1281,7 @@ async function sendClientWelcomeEmail(client) {
   const fullName = fallbackClientName(client);
   const portalUrl = clientPortalUrl(client);
   const founder = !!(client.is_founder || client.isFounder);
-  const formulaLabel = client.formula_name || client.formulaName || "Formule detailing";
-  const purchasedAt = formatUnixDateFr(client.formula_purchased_at ?? client.formulaPurchasedAt);
-  const expiresAt = formatUnixDateFr(client.formula_expires_at ?? client.formulaExpiresAt);
   const founderImage = absoluteUrlMaybe(client.founder_media_url || client.founderMediaUrl);
-  const credits = `${client.formula_remaining ?? client.formulaRemaining ?? 0} / ${
-    client.formula_total ?? client.formulaTotal ?? 0
-  }`;
 
   pushClient(client, {
     title: "Bienvenue chez Bryan Cars",
@@ -1159,7 +1293,7 @@ async function sendClientWelcomeEmail(client) {
     : "Bienvenue chez Bryan Cars Detailing";
   const subtitle = founder
     ? "Votre acces fondateur est pret avec une experience premium dediee."
-    : "Votre acces client est pret pour suivre credits, rendez-vous, photos et retours de prestation.";
+    : "Votre acces client est pret pour suivre vos rendez-vous, paiements, photos et avantages.";
   const subject = founder
     ? "[Bryan Cars] Bienvenue Fondateur"
     : "[Bryan Cars] Bienvenue dans votre espace client";
@@ -1169,10 +1303,6 @@ Bonjour ${fullName},
 
 ${title}
 
-Formule : ${formulaLabel}
-Credits : ${credits}
-Date d'achat : ${purchasedAt}
-Date d'expiration : ${expiresAt}
 Lien d'acces : ${portalUrl || "Lien indisponible"}
   `.trim();
 
@@ -1181,7 +1311,7 @@ Lien d'acces : ${portalUrl || "Lien indisponible"}
     title,
     subtitle,
     accent: founder ? "#ffe08a" : "#f7b955",
-    preheader: `${title} · ${formulaLabel}`,
+    preheader: title,
     bodyHtml: `
       ${
         founderImage
@@ -1197,16 +1327,14 @@ Lien d'acces : ${portalUrl || "Lien indisponible"}
           : ""
       }
       ${metricRows([
-        { label: "Formule", value: formulaLabel },
-        { label: "Credits", value: credits },
-        { label: "Expiration", value: expiresAt },
+        { label: "Espace", value: founder ? "Fondateur" : "Client" },
+        { label: "Statut", value: "Acces actif" },
       ])}
       ${panelCard({
         title: "Votre acces est pret",
         description:
           "Vous pouvez maintenant consulter votre carte, vos passages, vos photos et vos prochains creneaux depuis votre espace Bryan Cars.",
         bodyHtml: `
-          ${infoRows([{ label: "Date d'achat", value: purchasedAt }])}
           ${actionButtons([
             portalUrl ? { label: "Ouvrir mon espace", href: portalUrl, tone: "primary" } : null,
           ])}
@@ -1239,8 +1367,7 @@ async function sendClientAppointmentStatusEmail({ client, appointment, eventType
   const place = locationLabel(appointment.location);
   const isDone = eventType === "done";
   const isReverted = eventType === "reverted";
-  // BC'Coins reellement credites a la cloture (fondateurs: credits consommes x20,
-  // pris dans le pool differe). 0 pour les non-fondateurs.
+  // BC'Coins credites a la cloture selon le montant reellement paye.
   const earnedBc = Math.max(0, Number(appointment.bc_points_granted || 0));
 
   pushClient(client, {
@@ -1263,7 +1390,7 @@ async function sendClientAppointmentStatusEmail({ client, appointment, eventType
       ? "Votre prestation est terminee"
       : "Votre rendez-vous est confirme";
   const subtitle = isReverted
-    ? "L'equipe Bryan Cars doit revalider le tarif de ce rendez-vous. Les credits eventuellement debites ont ete recredites."
+    ? "L'equipe Bryan Cars doit revalider le tarif de ce rendez-vous. Aucun nouveau paiement n'est demande tant que le tarif n'est pas pret."
     : isDone
       ? "Votre passage est maintenant cloture. Vous pouvez consulter vos photos, votre suivi et laisser votre avis."
       : "Votre creneau vient d'etre valide par l'equipe Bryan Cars. Tout est pret pour votre passage.";
@@ -1595,7 +1722,7 @@ Bonjour ${fullName},
 
 Ton annee ${year} chez Bryan Cars :
 - ${recap.visits} prestation(s) realisee(s)
-- ${recap.creditsUsed} credit(s) utilise(s)
+- ${formatEuros(recap.amountPaidCents)} regles en ligne
 - ${recap.bcEarned} BC'Coins gagnes
 
 Merci pour ta confiance ! Reserve ton prochain detailing : ${bookingUrl || "Lien indisponible"}
@@ -1609,7 +1736,7 @@ Merci pour ta confiance ! Reserve ton prochain detailing : ${bookingUrl || "Lien
     bodyHtml: `
       ${metricRows([
         { label: "Prestations", value: String(recap.visits) },
-        { label: "Credits utilises", value: String(recap.creditsUsed) },
+        { label: "Paiements", value: formatEuros(recap.amountPaidCents) },
         { label: "BC'Coins gagnes", value: String(recap.bcEarned) },
       ])}
       ${panelCard({
@@ -1878,9 +2005,12 @@ module.exports = {
   sendAdminDataExportEmail,
   sendAdminAppointmentReminderEmail,
   sendAdminNotification,
+  sendAdminPartnerOrderEmail,
   sendAdminQuoteRequestEmail,
   sendClientQuoteAnsweredEmail,
   sendClientQuoteReminderEmail,
+  sendAdminQuoteRefusedEmail,
+  sendQuotePaidNotifications,
   sendAdminRewardRedemption,
   sendClientPhotosRequestedEmail,
   sendClientPriceApprovalEmail,

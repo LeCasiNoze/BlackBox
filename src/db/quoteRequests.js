@@ -1,14 +1,77 @@
 const { db, nowUnix } = require("./index");
 
+function serializePayload(payload) {
+  try {
+    return payload ? JSON.stringify(payload) : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function parsePayload(payload) {
+  try {
+    return payload ? JSON.parse(payload) : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function resolvePaidAt(checkout) {
+  const transaction = Array.isArray(checkout?.transactions)
+    ? checkout.transactions.find((item) => item?.status === "SUCCESSFUL")
+    : null;
+  const parsed = Date.parse(transaction?.timestamp || transaction?.date || checkout?.date || "");
+  return Number.isNaN(parsed) ? nowUnix() : Math.floor(parsed / 1000);
+}
+
+function mapPaymentStatus(status) {
+  switch (String(status || "").toUpperCase()) {
+    case "PAID":
+      return "paid";
+    case "FAILED":
+      return "failed";
+    case "EXPIRED":
+      return "expired";
+    default:
+      return "pending";
+  }
+}
+
 function mapQuoteRow(row) {
   if (!row) return null;
+  let serviceItems = [];
+  try {
+    const parsed = JSON.parse(row.service_items_json || "[]");
+    serviceItems = Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    serviceItems = [];
+  }
   return {
     id: row.id,
     clientId: row.client_id,
     description: row.description || null,
     status: row.status,
+    estimatedPriceCents: row.estimated_price_cents ?? null,
+    // Conserve uniquement la valeur historique pour les anciens devis.
     estimatedCredits: row.estimated_credits ?? null,
     adminComment: row.admin_comment || null,
+    serviceItems,
+    vehicleId: row.vehicle_id ?? null,
+    vehicle: {
+      id: row.vehicle_id ?? null,
+      label: row.vehicle_label || row.vehicle_model || null,
+      model: row.vehicle_model || row.vehicle_label || null,
+      plate: row.vehicle_plate || null,
+    },
+    paymentStatus: row.payment_status || (row.paid_at ? "paid" : "unpaid"),
+    checkoutReference: row.checkout_reference || null,
+    checkoutId: row.checkout_id || null,
+    hostedCheckoutUrl: row.hosted_checkout_url || null,
+    sumupStatus: row.sumup_status || null,
+    sumupPayload: parsePayload(row.sumup_payload),
+    paidAt: row.paid_at ?? null,
+    appointmentId: row.appointment_id ?? null,
+    convertedAt: row.converted_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     answeredAt: row.answered_at ?? null,
@@ -20,14 +83,35 @@ function mapQuoteRow(row) {
   };
 }
 
-function createQuoteRequest({ clientId, description = null }) {
+function createQuoteRequest({
+  clientId,
+  description = null,
+  serviceItems = [],
+  vehicleId = null,
+  vehicleLabel = null,
+  vehicleModel = null,
+  vehiclePlate = null,
+}) {
   const now = nowUnix();
   const info = db
     .prepare(
-      `INSERT INTO quote_requests (client_id, description, status, created_at, updated_at)
-       VALUES (?, ?, 'pending', ?, ?)`,
+      `INSERT INTO quote_requests (
+         client_id, description, service_items_json,
+         vehicle_id, vehicle_label, vehicle_model, vehicle_plate,
+         status, payment_status, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 'unpaid', ?, ?)`,
     )
-    .run(clientId, description || null, now, now);
+    .run(
+      clientId,
+      description || null,
+      Array.isArray(serviceItems) && serviceItems.length > 0 ? JSON.stringify(serviceItems) : null,
+      vehicleId || null,
+      vehicleLabel || vehicleModel || null,
+      vehicleModel || vehicleLabel || null,
+      vehiclePlate || null,
+      now,
+      now,
+    );
   return info.lastInsertRowid;
 }
 
@@ -57,26 +141,108 @@ function getQuoteRequestById(id) {
   );
 }
 
-// La demande "active" d'un client = la plus récente (pending ou answered).
+function getQuoteRequestByCheckoutId(checkoutId) {
+  if (!checkoutId) return null;
+  return mapQuoteRow(
+    db.prepare(`SELECT * FROM quote_requests WHERE checkout_id = ? LIMIT 1`).get(checkoutId),
+  );
+}
+
+// Une demande convertie/archivée ne bloque jamais la création d'un nouveau devis.
 function getActiveQuoteRequestForClient(clientId) {
   return mapQuoteRow(
     db
       .prepare(
-        `SELECT * FROM quote_requests WHERE client_id = ? ORDER BY id DESC LIMIT 1`,
+        `SELECT * FROM quote_requests
+         WHERE client_id = ? AND status IN ('pending', 'answered', 'accepted', 'paid')
+         ORDER BY id DESC LIMIT 1`,
       )
       .get(clientId),
   );
 }
 
-function answerQuoteRequest(id, { estimatedCredits, adminComment = null }) {
+function markQuoteRequestConverted(id, appointmentId) {
   const now = nowUnix();
   db.prepare(
     `UPDATE quote_requests
-       SET status = 'answered', estimated_credits = ?, admin_comment = ?,
+     SET status = 'archived', appointment_id = ?, converted_at = ?, updated_at = ?
+     WHERE id = ?`,
+  ).run(appointmentId || null, now, now, id);
+  return getQuoteRequestById(id);
+}
+
+function answerQuoteRequest(id, { estimatedPriceCents, adminComment = null }) {
+  const now = nowUnix();
+  db.prepare(
+    `UPDATE quote_requests
+       SET status = 'answered', estimated_price_cents = ?, admin_comment = ?,
+           payment_status = 'unpaid', checkout_reference = NULL, checkout_id = NULL,
+           hosted_checkout_url = NULL, sumup_status = NULL, sumup_payload = NULL,
+           paid_at = NULL, accepted_at = NULL,
            answered_at = ?, updated_at = ?
      WHERE id = ?`,
-  ).run(Number(estimatedCredits) || 0, adminComment || null, now, now, id);
+  ).run(Math.max(1, Math.round(Number(estimatedPriceCents) || 0)), adminComment || null, now, now, id);
   return getQuoteRequestById(id);
+}
+
+function attachQuoteCheckout(id, checkoutReference, checkout) {
+  db.prepare(
+    `UPDATE quote_requests
+     SET checkout_reference = ?, checkout_id = ?, hosted_checkout_url = ?,
+         sumup_status = ?, sumup_payload = ?, payment_status = 'pending', updated_at = ?
+     WHERE id = ?`,
+  ).run(
+    checkoutReference,
+    checkout?.id || null,
+    checkout?.hosted_checkout_url || null,
+    checkout?.status || "PENDING",
+    serializePayload(checkout),
+    nowUnix(),
+    id,
+  );
+  return getQuoteRequestById(id);
+}
+
+function syncQuotePaymentFromCheckout(id, checkout) {
+  return db.transaction((quoteId) => {
+    const before = getQuoteRequestById(quoteId);
+    if (!before) return { quote: null, becamePaid: false };
+
+    const providerAmountCents =
+      checkout?.amount == null || !Number.isFinite(Number(checkout.amount))
+        ? null
+        : Math.round(Number(checkout.amount) * 100);
+    const amountMismatch =
+      String(checkout?.status || "").toUpperCase() === "PAID" &&
+      providerAmountCents != null &&
+      providerAmountCents !== Number(before.estimatedPriceCents || 0);
+    const paymentStatus = amountMismatch ? "failed" : mapPaymentStatus(checkout?.status);
+    const becamePaid = paymentStatus === "paid" && before.paymentStatus !== "paid";
+    const paidAt = paymentStatus === "paid" ? resolvePaidAt(checkout) : null;
+
+    db.prepare(
+      `UPDATE quote_requests
+       SET checkout_id = COALESCE(?, checkout_id), hosted_checkout_url = COALESCE(?, hosted_checkout_url),
+           sumup_status = ?, sumup_payload = ?,
+           payment_status = CASE WHEN payment_status = 'paid' THEN 'paid' ELSE ? END,
+           status = CASE WHEN status = 'archived' THEN status WHEN ? = 'paid' THEN 'paid' ELSE status END,
+           paid_at = COALESCE(paid_at, ?), accepted_at = COALESCE(accepted_at, ?), updated_at = ?
+       WHERE id = ?`,
+    ).run(
+      checkout?.id || null,
+      checkout?.hosted_checkout_url || null,
+      checkout?.status || null,
+      serializePayload(checkout),
+      paymentStatus,
+      paymentStatus,
+      paidAt,
+      paidAt,
+      nowUnix(),
+      quoteId,
+    );
+
+    return { quote: getQuoteRequestById(quoteId), becamePaid, amountMismatch };
+  })(id);
 }
 
 function acceptQuoteRequest(id) {
@@ -93,7 +259,10 @@ function refuseQuoteRequest(id, { refusalReason = null, refusalComment = null })
   const now = nowUnix();
   db.prepare(
     `UPDATE quote_requests
-       SET status = 'refused', refusal_reason = ?, refusal_comment = ?,
+       SET status = 'refused', payment_status = 'unpaid',
+           checkout_reference = NULL, checkout_id = NULL, hosted_checkout_url = NULL,
+           sumup_status = NULL, sumup_payload = NULL,
+           refusal_reason = ?, refusal_comment = ?,
            refused_at = ?, updated_at = ?
      WHERE id = ?`,
   ).run(refusalReason || null, refusalComment || null, now, now, id);
@@ -189,7 +358,11 @@ function archiveQuoteRequest(id) {
 function unarchiveQuoteRequest(id) {
   const now = nowUnix();
   const quote = getQuoteRequestById(id);
-  const newStatus = quote && quote.estimatedCredits ? "answered" : "pending";
+  const newStatus = quote?.paymentStatus === "paid"
+    ? "paid"
+    : quote && (quote.estimatedPriceCents || quote.estimatedCredits)
+      ? "answered"
+      : "pending";
   return db
     .prepare(
       `UPDATE quote_requests
@@ -205,7 +378,9 @@ function listQuoteRequestsForAdmin() {
     .prepare(
       `SELECT q.*, c.full_name, c.first_name, c.last_name, c.slug, c.card_code,
               c.client_type, c.is_founder, c.phone, c.email,
-              c.vehicle_model, c.vehicle_plate, c.formula_remaining
+              c.vehicle_model AS client_vehicle_model,
+              c.vehicle_plate AS client_vehicle_plate,
+              c.formula_remaining
          FROM quote_requests q
          JOIN clients c ON c.id = q.client_id
         ORDER BY (q.status = 'pending') DESC, q.id DESC`,
@@ -224,8 +399,8 @@ function listQuoteRequestsForAdmin() {
       isFounder: !!row.is_founder,
       phone: row.phone || null,
       email: row.email || null,
-      vehicleModel: row.vehicle_model || null,
-      vehiclePlate: row.vehicle_plate || null,
+      vehicleModel: row.client_vehicle_model || null,
+      vehiclePlate: row.client_vehicle_plate || null,
       formulaRemaining: row.formula_remaining ?? 0,
     },
   }));
@@ -245,9 +420,13 @@ module.exports = {
   insertQuoteRequestPhoto,
   getQuoteRequestPhotos,
   getQuoteRequestById,
+  getQuoteRequestByCheckoutId,
   getActiveQuoteRequestForClient,
   answerQuoteRequest,
+  attachQuoteCheckout,
+  syncQuotePaymentFromCheckout,
   acceptQuoteRequest,
+  markQuoteRequestConverted,
   refuseQuoteRequest,
   markQuoteReminderSent,
   getAnsweredQuotesPendingReminder,
@@ -259,5 +438,3 @@ module.exports = {
   listQuoteRequestsForAdmin,
   countPendingQuoteRequests,
 };
-
-

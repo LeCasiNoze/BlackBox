@@ -67,6 +67,40 @@ function createAppointmentPaymentOrder({ appointmentId, clientId, amountCents, c
   return getAppointmentPaymentOrderById(result.lastInsertRowid);
 }
 
+function createProcessedAppointmentPaymentOrderFromQuote({ appointmentId, clientId, quote }) {
+  if (!appointmentId || !clientId || !quote?.checkoutReference || !quote?.paidAt) {
+    throw new Error("invalid_paid_quote_order");
+  }
+  const existing = db
+    .prepare(`SELECT * FROM appointment_payment_orders WHERE checkout_reference = ? LIMIT 1`)
+    .get(quote.checkoutReference);
+  if (existing) return existing;
+
+  const now = nowUnix();
+  const result = db
+    .prepare(
+      `INSERT INTO appointment_payment_orders (
+         appointment_id, client_id, amount_cents, currency, checkout_reference,
+         checkout_id, hosted_checkout_url, status, sumup_status, paid_at,
+         processed_at, sumup_payload, created_at, updated_at
+       ) VALUES (?, ?, ?, 'EUR', ?, ?, ?, 'processed', 'PAID', ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      appointmentId,
+      clientId,
+      Math.max(1, Math.round(Number(quote.estimatedPriceCents) || 0)),
+      quote.checkoutReference,
+      quote.checkoutId || null,
+      quote.hostedCheckoutUrl || null,
+      quote.paidAt,
+      quote.paidAt,
+      serializePayload(quote.sumupPayload),
+      now,
+      now,
+    );
+  return getAppointmentPaymentOrderById(result.lastInsertRowid);
+}
+
 function attachAppointmentCheckout(orderId, checkout) {
   db.prepare(
     `UPDATE appointment_payment_orders
@@ -186,6 +220,7 @@ function getPaidAppointmentOrderForClient(clientId, orderId) {
 module.exports = {
   attachAppointmentCheckout,
   createAppointmentPaymentOrder,
+  createProcessedAppointmentPaymentOrderFromQuote,
   getAppointmentPaymentOrderByCheckoutId,
   getPaidAppointmentOrderForClient,
   getLatestAppointmentPaymentOrder,

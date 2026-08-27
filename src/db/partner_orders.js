@@ -97,6 +97,11 @@ function mapPartnerOrderRow(row) {
     sumupStatus: row.sumup_status || null,
     customerName: row.customer_name || null,
     customerEmail: row.customer_email || null,
+    customerPhone: row.customer_phone || null,
+    vehicleModel: row.vehicle_model || null,
+    vehiclePlate: row.vehicle_plate || null,
+    vehicleDetails: row.vehicle_details || null,
+    photos: getPartnerOrderPhotos(row.id),
     paidAt: row.paid_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -131,6 +136,12 @@ function createPartnerOrder({
   checkoutReference,
   redirectUrl,
   returnUrl,
+  customerName = null,
+  customerEmail = null,
+  customerPhone = null,
+  vehicleModel = null,
+  vehiclePlate = null,
+  vehicleDetails = null,
 }) {
   const now = nowUnix();
   const info = db
@@ -146,11 +157,17 @@ function createPartnerOrder({
         checkout_reference,
         redirect_url,
         return_url,
+        customer_name,
+        customer_email,
+        customer_phone,
+        vehicle_model,
+        vehicle_plate,
+        vehicle_details,
         status,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
     `,
     )
     .run(
@@ -163,11 +180,39 @@ function createPartnerOrder({
       checkoutReference,
       redirectUrl || null,
       returnUrl || null,
+      customerName || null,
+      customerEmail || null,
+      customerPhone || null,
+      vehicleModel || null,
+      vehiclePlate || null,
+      vehicleDetails || null,
       now,
       now,
     );
 
   return getPartnerOrderById(info.lastInsertRowid);
+}
+
+function insertPartnerOrderPhoto(partnerOrderId, url) {
+  if (!partnerOrderId || !url) return null;
+  const info = db
+    .prepare(
+      `INSERT INTO partner_order_photos (partner_order_id, url, created_at)
+       VALUES (?, ?, ?)`,
+    )
+    .run(partnerOrderId, url, nowUnix());
+  return info.lastInsertRowid;
+}
+
+function getPartnerOrderPhotos(partnerOrderId) {
+  if (!partnerOrderId) return [];
+  return db
+    .prepare(
+      `SELECT url FROM partner_order_photos
+       WHERE partner_order_id = ? ORDER BY id ASC`,
+    )
+    .all(partnerOrderId)
+    .map((row) => row.url);
 }
 
 function attachPartnerCheckoutSession(orderId, { checkoutId, hostedCheckoutUrl, sumupStatus, payload }) {
@@ -282,6 +327,8 @@ module.exports = {
   getPartnerOrderByCheckoutId,
   getPartnerOrderByCheckoutReference,
   getPartnerOrderById,
+  getPartnerOrderPhotos,
+  insertPartnerOrderPhoto,
   listPartnerOrders,
   listPendingPartnerOrdersWithCheckout,
   mapPartnerOrderRow,

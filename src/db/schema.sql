@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS clients (
   welcome_email_sent_at INTEGER,
   bc_points         INTEGER NOT NULL DEFAULT 0,
   bc_pending        INTEGER NOT NULL DEFAULT 0,
+  partner_public_token TEXT UNIQUE,
 
   notes             TEXT,
 
@@ -46,6 +47,8 @@ CREATE TABLE IF NOT EXISTS clients (
 
 CREATE INDEX IF NOT EXISTS idx_clients_card_code ON clients(card_code);
 CREATE INDEX IF NOT EXISTS idx_clients_type ON clients(client_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_partner_public_token
+  ON clients(partner_public_token);
 
 -- ============================
 -- TABLE vehicles
@@ -204,25 +207,48 @@ CREATE INDEX IF NOT EXISTS idx_photos_appointment
 
 -- ============================
 -- TABLE quote_requests (devis)
--- Demande d'estimation client (photos + description). L'admin repond avec une
--- estimation en credits ; le client recharge ensuite (unite BBX / packs fondateur).
+-- Demande d'estimation client (photos + description). L'admin repond avec un
+-- montant personnalise en euros. estimated_credits reste pour l'historique.
 -- ============================
 CREATE TABLE IF NOT EXISTS quote_requests (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   description       TEXT,
   status            TEXT NOT NULL DEFAULT 'pending',
+  estimated_price_cents INTEGER,
   estimated_credits INTEGER,
   admin_comment     TEXT,
+  service_items_json TEXT,
+  vehicle_id        INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  vehicle_label     TEXT,
+  vehicle_model     TEXT,
+  vehicle_plate     TEXT,
+  payment_status    TEXT NOT NULL DEFAULT 'unpaid',
+  checkout_reference TEXT UNIQUE,
+  checkout_id       TEXT UNIQUE,
+  hosted_checkout_url TEXT,
+  sumup_status      TEXT,
+  sumup_payload     TEXT,
+  paid_at           INTEGER,
+  appointment_id    INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+  converted_at      INTEGER,
   created_at        INTEGER NOT NULL,
   updated_at        INTEGER NOT NULL,
-  answered_at       INTEGER
+  answered_at       INTEGER,
+  accepted_at       INTEGER,
+  refused_at        INTEGER,
+  refusal_reason    TEXT,
+  refusal_comment   TEXT,
+  reminder_sent_at  INTEGER,
+  second_reminder_sent_at INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_quote_requests_client
   ON quote_requests(client_id);
 CREATE INDEX IF NOT EXISTS idx_quote_requests_status
   ON quote_requests(status);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_checkout
+  ON quote_requests(checkout_id);
 
 CREATE TABLE IF NOT EXISTS quote_request_photos (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,10 +317,10 @@ CREATE INDEX IF NOT EXISTS idx_topup_orders_checkout_id
   ON topup_orders(checkout_id);
 
 -- ============================
--- TABLE partner_orders (forfaits esthetiques des agences partenaires)
+-- TABLE partner_orders (forfaits esthetiques publics et partenaires)
 -- ============================
 -- Prestations ponctuelles payees par le client final via un lien SumUp genere
--- par un compte pro. Aucun lien avec les credits/formules ni les BC'Coins.
+-- par Bryan Cars ou un compte pro. Aucun lien avec les credits/formules ni les BC'Coins.
 CREATE TABLE IF NOT EXISTS partner_orders (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
   partner_client_id   INTEGER REFERENCES clients(id) ON DELETE SET NULL,
@@ -313,11 +339,25 @@ CREATE TABLE IF NOT EXISTS partner_orders (
   sumup_status        TEXT,
   customer_name       TEXT,
   customer_email      TEXT,
+  customer_phone      TEXT,
+  vehicle_model       TEXT,
+  vehicle_plate       TEXT,
+  vehicle_details     TEXT,
   paid_at             INTEGER,
   sumup_payload       TEXT,
   created_at          INTEGER NOT NULL,
   updated_at          INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS partner_order_photos (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  partner_order_id  INTEGER NOT NULL REFERENCES partner_orders(id) ON DELETE CASCADE,
+  url               TEXT NOT NULL,
+  created_at        INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_partner_order_photos_order
+  ON partner_order_photos(partner_order_id);
 
 CREATE INDEX IF NOT EXISTS idx_partner_orders_partner
   ON partner_orders(partner_client_id, created_at DESC);

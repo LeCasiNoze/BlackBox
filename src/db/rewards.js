@@ -1,5 +1,4 @@
 const { db, nowUnix } = require("./index");
-const { DEFERRED_BC_PER_CREDIT } = require("../config/bcoins");
 
 const BC_REWARDS = [
   {
@@ -116,13 +115,13 @@ function changeClientPoints(clientId, delta) {
   return nextPoints;
 }
 
-// RDV effectue (fondateur uniquement): libere 20 BC par credit consomme, pris
-// dans le pool differe (bc_pending). Remplace l'ancien bonus fixe de 100 BC.
+// RDV effectue: 1 BC par euro paye pour un BBX, 2 BC par euro pour un
+// Fondateur, 0 pour un Pro. Les anciens RDV sans paiement n'accordent rien.
 function awardPointsForAppointment(clientId, appointmentId) {
   return db.transaction((ownerId, apptId) => {
     const appointment = db
       .prepare(
-        `SELECT bc_points_awarded, credits_charged, client_id FROM appointments WHERE id = ? LIMIT 1`,
+        `SELECT bc_points_awarded, amount_paid_cents, client_id FROM appointments WHERE id = ? LIMIT 1`,
       )
       .get(apptId);
     if (!appointment || appointment.bc_points_awarded) {
@@ -130,10 +129,10 @@ function awardPointsForAppointment(clientId, appointmentId) {
     }
 
     const client = db
-      .prepare(`SELECT is_founder, bc_points, bc_pending FROM clients WHERE id = ? LIMIT 1`)
+      .prepare(`SELECT client_type, is_founder, bc_points FROM clients WHERE id = ? LIMIT 1`)
       .get(ownerId);
-    if (!client || !client.is_founder) {
-      // Pas de BC pour les non-fondateurs: on marque traite sans rien crediter.
+    const amountPaidCents = Math.max(0, Number(appointment.amount_paid_cents || 0));
+    if (!client || client.client_type === "pro" || amountPaidCents <= 0) {
       db.prepare(`UPDATE appointments SET bc_points_awarded = 1, bc_points_granted = 0, updated_at = ? WHERE id = ?`).run(
         nowUnix(),
         apptId,
@@ -141,19 +140,17 @@ function awardPointsForAppointment(clientId, appointmentId) {
       return false;
     }
 
-    const consumed = Math.max(0, Number(appointment.credits_charged || 0));
-    const pending = Math.max(0, Number(client.bc_pending || 0));
-    const amount = Math.min(DEFERRED_BC_PER_CREDIT * consumed, pending);
+    const eurosPaid = Math.floor(amountPaidCents / 100);
+    const amount = eurosPaid * (client.is_founder ? 2 : 1);
 
     db.prepare(
       `
       UPDATE clients
       SET bc_points = COALESCE(bc_points, 0) + ?,
-          bc_pending = COALESCE(bc_pending, 0) - ?,
           updated_at = ?
       WHERE id = ?
     `,
-    ).run(amount, amount, nowUnix(), ownerId);
+    ).run(amount, nowUnix(), ownerId);
 
     db.prepare(
       `UPDATE appointments SET bc_points_awarded = 1, bc_points_granted = ?, updated_at = ? WHERE id = ?`,
@@ -163,7 +160,7 @@ function awardPointsForAppointment(clientId, appointmentId) {
   })(clientId, appointmentId);
 }
 
-// Annulation/deconfirmation d'un RDV effectue: rend les BC differes au pool.
+// Annulation/deconfirmation d'un RDV effectue: retire le gain lie au paiement.
 function revokePointsForAppointment(clientId, appointmentId) {
   return db.transaction((ownerId, apptId) => {
     const appointment = db
@@ -181,11 +178,10 @@ function revokePointsForAppointment(clientId, appointmentId) {
         `
         UPDATE clients
         SET bc_points = ?,
-            bc_pending = COALESCE(bc_pending, 0) + ?,
             updated_at = ?
         WHERE id = ?
       `,
-      ).run(nextPoints, granted, nowUnix(), ownerId);
+      ).run(nextPoints, nowUnix(), ownerId);
     }
 
     db.prepare(

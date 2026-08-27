@@ -71,6 +71,15 @@ startReviewRequestScheduler();
 startQuoteReminderScheduler();
 startAppointmentQuoteExpiryScheduler();
 
+// Protections HTTP sans impact sur le parcours de connexion existant.
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -146,6 +155,10 @@ app.get(/^\/card(\/.*)?$/, (req, res) => {
 });
 
 app.get(/^\/forfait(\/.*)?$/, (req, res) => {
+  res.sendFile(path.join(distDir, "index.html"));
+});
+
+app.get(/^\/preparation-vente(\/.*)?$/, (req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 

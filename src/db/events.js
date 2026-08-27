@@ -277,16 +277,12 @@ function deleteEvent(id) {
 function applyInappPrize(client, event) {
   const now = nowUnix();
   const amount = Math.max(0, Number(event.prize_inapp_amount || 0));
-  if (event.prize_inapp_type === "bc") {
+  if (event.prize_inapp_type === "bc" || event.prize_inapp_type === "credit") {
     db.prepare(`UPDATE clients SET bc_points = COALESCE(bc_points,0) + ?, updated_at = ? WHERE id = ?`).run(
       amount,
       now,
       client.id,
     );
-  } else if (event.prize_inapp_type === "credit") {
-    db.prepare(
-      `UPDATE clients SET formula_total = COALESCE(formula_total,0) + ?, formula_remaining = COALESCE(formula_remaining,0) + ?, updated_at = ? WHERE id = ?`,
-    ).run(amount, amount, now, client.id);
   } else if (event.prize_inapp_type === "founder_month") {
     grantTemporaryFounder(client.id, 30);
   }

@@ -9,6 +9,7 @@ const DB_FILE = path.resolve(process.env.DB_FILE || path.join(DATA_DIR, "blackbo
 const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(DATA_DIR, "uploads"));
 const APPOINTMENTS_UPLOAD_DIR = path.join(UPLOADS_DIR, "appointments");
 const QUOTES_UPLOAD_DIR = path.join(UPLOADS_DIR, "quotes");
+const PARTNER_ORDERS_UPLOAD_DIR = path.join(UPLOADS_DIR, "partner-orders");
 const FOUNDERS_UPLOAD_DIR = path.join(UPLOADS_DIR, "founders");
 const VEHICLES_UPLOAD_DIR = path.join(UPLOADS_DIR, "vehicles");
 const EXPORTS_DIR = path.join(DATA_DIR, "exports");
@@ -26,6 +27,7 @@ module.exports = {
   UPLOADS_DIR,
   APPOINTMENTS_UPLOAD_DIR,
   QUOTES_UPLOAD_DIR,
+  PARTNER_ORDERS_UPLOAD_DIR,
   FOUNDERS_UPLOAD_DIR,
   VEHICLES_UPLOAD_DIR,
   EXPORTS_DIR,

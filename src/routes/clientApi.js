@@ -6,6 +6,7 @@ const router = express.Router();
 
 const {
   APPOINTMENTS_UPLOAD_DIR,
+  PARTNER_ORDERS_UPLOAD_DIR,
   QUOTES_UPLOAD_DIR,
   VEHICLES_UPLOAD_DIR,
   ensureDir,
@@ -15,27 +16,28 @@ const {
   insertQuoteRequestPhoto,
   getQuoteRequestPhotos,
   getActiveQuoteRequestForClient,
-  acceptQuoteRequest,
+  attachQuoteCheckout,
+  syncQuotePaymentFromCheckout,
+  getQuoteRequestById,
+  markQuoteRequestConverted,
   refuseQuoteRequest,
   deleteQuoteRequest,
 } = require("../db/quoteRequests");
-const {
-  getTopupOfferForClient,
-  getUnitTopupOfferForClient,
-  isSumupTopupReady,
-  listPublicTopupOffersForClient,
-} = require("../config/topupOffers");
+const { isSumupTopupReady } = require("../config/topupOffers");
 const {
   countFounders,
   createClient,
   expireTemporaryFounders,
   getClientById,
   getClientBySlugOrCardCode,
+  getClientByPartnerPublicToken,
+  getOrCreatePartnerPublicToken,
   getFounderLeaderboardRank,
   getFoundersLeaderboard,
   markWelcomeEmailSent,
   openReviewBox,
   setLeaderboardOptIn,
+  updateClientProfile,
   updateClientTermsAcceptance,
 } = require("../db/clients");
 
@@ -80,6 +82,7 @@ const {
   createRequestedAppointmentForSlot,
   defaultTimeForSlot,
   expireUnpaidAppointmentQuotes,
+  finalizeAppointmentFromPaidQuote,
   getAppointmentByDateAndSlot,
   getAppointmentById,
   getAppointmentPhotos,
@@ -91,6 +94,7 @@ const {
   insertAppointmentPhoto,
   markAppointmentClientPhotosAdded,
   normalizeAppointmentSlot,
+  reviewAppointmentPrice,
   updateAppointmentForClientSlot,
   updateAppointmentUserReview,
   cancelAppointmentForClientOnDate,
@@ -127,18 +131,22 @@ const { getClientYearRecap } = require("../db/recap");
 const { getPartnerForfait, listPartnerForfaits } = require("../config/partnerForfaits");
 const {
   createPartnerOrder,
+  deletePartnerOrder,
   getPartnerOrderById,
   listPartnerOrders,
   listPendingPartnerOrdersWithCheckout,
   mapPartnerOrderRow,
+  insertPartnerOrderPhoto,
   syncPartnerOrderFromCheckout,
 } = require("../db/partner_orders");
 const {
   sendAdminNotification,
+  sendAdminPartnerOrderEmail,
   sendAdminQuoteRequestEmail,
   sendAdminRewardRedemption,
   sendClientAppointmentStatusEmail,
-  sendClientFormulaRecap,
+  sendAdminQuoteRefusedEmail,
+  sendQuotePaidNotifications,
   sendClientWelcomeEmail,
   sendSignupVerificationCode,
 } = require("../email");
@@ -155,16 +163,70 @@ const { SERVICE_CATALOG, SERVICE_CATEGORIES, getServicesByKeys } = require("../c
 const {
   attachAppointmentCheckout,
   createAppointmentPaymentOrder,
+  createProcessedAppointmentPaymentOrderFromQuote,
   getPaidAppointmentOrderForClient,
   getLatestAppointmentPaymentOrder,
   listPaidAppointmentOrdersByClient,
 } = require("../db/appointment_payment_orders");
+const { db } = require("../db");
 
 const SLOT_END_TIMES = {
   morning: "12:00",
   afternoon: "18:00",
 };
 const MAX_BOOKING_IMAGES = 8;
+const PORTAL_LOOKUP_LIMIT = 8;
+const PORTAL_LOOKUP_WINDOW_MS = 15 * 60 * 1000;
+const portalLookupAttempts = new Map();
+const publicOrderAttempts = new Map();
+
+function consumePortalLookupAttempt(req) {
+  const forwardedFor = req.get("x-forwarded-for");
+  const forwardedAddresses =
+    typeof forwardedFor === "string"
+      ? forwardedFor.split(",").map((value) => value.trim()).filter(Boolean)
+      : [];
+  const key =
+    forwardedAddresses[forwardedAddresses.length - 1] ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    "unknown";
+  const now = Date.now();
+  if (portalLookupAttempts.size > 500) {
+    for (const [storedKey, value] of portalLookupAttempts) {
+      if (value.resetAt <= now) portalLookupAttempts.delete(storedKey);
+    }
+  }
+  const current = portalLookupAttempts.get(key);
+
+  if (!current || current.resetAt <= now) {
+    portalLookupAttempts.set(key, { count: 1, resetAt: now + PORTAL_LOOKUP_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+
+  if (current.count >= PORTAL_LOOKUP_LIMIT) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+    };
+  }
+
+  current.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+function consumePublicOrderAttempt(req) {
+  const key = req.ip || req.socket?.remoteAddress || "unknown";
+  const now = Date.now();
+  const current = publicOrderAttempts.get(key);
+  if (!current || current.resetAt <= now) {
+    publicOrderAttempts.set(key, { count: 1, resetAt: now + 60 * 60 * 1000 });
+    return true;
+  }
+  if (current.count >= 12) return false;
+  current.count += 1;
+  return true;
+}
 
 ensureDir(VEHICLES_UPLOAD_DIR);
 
@@ -193,6 +255,7 @@ function handleVehicleUpload(req, res, next) {
 }
 
 ensureDir(APPOINTMENTS_UPLOAD_DIR);
+ensureDir(PARTNER_ORDERS_UPLOAD_DIR);
 
 const clientAppointmentUpload = multer({
   storage: multer.diskStorage({
@@ -317,6 +380,46 @@ function handleQuoteUpload(req, res, next) {
   });
 }
 
+const partnerOrderUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, PARTNER_ORDERS_UPLOAD_DIR),
+    filename: (_req, file, callback) => {
+      const ext = path.extname(file.originalname) || ".jpg";
+      callback(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext.toLowerCase()}`);
+    },
+  }),
+  limits: { files: MAX_BOOKING_IMAGES, fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) =>
+    callback(null, typeof file.mimetype === "string" && file.mimetype.startsWith("image/")),
+});
+
+function handlePartnerOrderUpload(req, res, next) {
+  partnerOrderUpload.array("images", MAX_BOOKING_IMAGES)(req, res, (error) => {
+    if (!error) return next();
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ ok: false, error: "image_too_large" });
+    }
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_COUNT") {
+      return res.status(400).json({ ok: false, error: "too_many_images" });
+    }
+    return res.status(400).json({ ok: false, error: "image_upload_failed" });
+  });
+}
+
+async function attachPartnerOrderImages(orderId, files = []) {
+  let count = 0;
+  for (const file of Array.isArray(files) ? files : []) {
+    try {
+      const finalName = await optimizeUploadedImage(PARTNER_ORDERS_UPLOAD_DIR, file.filename);
+      insertPartnerOrderPhoto(orderId, `/uploads/partner-orders/${finalName}`);
+      count += 1;
+    } catch (error) {
+      console.error("[PARTNER ORDER] attach images:", error);
+    }
+  }
+  return count;
+}
+
 async function attachQuoteImages(quoteId, files = []) {
   if (!quoteId || !Array.isArray(files) || files.length === 0) return 0;
   let count = 0;
@@ -335,6 +438,26 @@ async function attachQuoteImages(quoteId, files = []) {
 function quotePayload(quote) {
   if (!quote) return null;
   return { ...quote, photos: getQuoteRequestPhotos(quote.id) };
+}
+
+function parseServiceKeys(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (_error) {
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+}
+
+function serviceSnapshot(services) {
+  return services.map(({ key, category, label, founderOnly }) => ({
+    key,
+    category,
+    label,
+    founderOnly,
+  }));
 }
 
 function parseMonthParam(value) {
@@ -360,13 +483,6 @@ function publicBaseUrl(req) {
   return `${proto}://${req.get("host")}`;
 }
 
-function buildTopupCheckoutReference(client, offer) {
-  return `bbx-topup-${client.id}-${offer.key}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`.slice(
-    0,
-    90,
-  );
-}
-
 // Reference courte et lisible servant a la fois de jeton public du lien
 // (`/forfait/<reference>`) et de reference SumUp. Le forfait apparait dans
 // l'URL ("en fonction du tarif").
@@ -379,18 +495,6 @@ function buildForfaitCheckoutReference(forfait) {
 
 function isBbxClient(client) {
   return (client.client_type || client.clientType || "bbx") === "bbx";
-}
-
-async function maybeSendTopupRecap(client, applied) {
-  if (!applied || !client?.email) {
-    return;
-  }
-
-  try {
-    await sendClientFormulaRecap(client);
-  } catch (error) {
-    console.error("[TOPUP] recap client:", error);
-  }
 }
 
 function formatDateLocal(date) {
@@ -691,6 +795,104 @@ function ensureProClient(client, res) {
   return true;
 }
 
+router.get("/public/services", (_req, res) => {
+  return res.json({
+    ok: true,
+    services: SERVICE_CATALOG.filter((service) => !service.founderOnly),
+    categories: SERVICE_CATEGORIES.filter((category) => category.key !== "founder"),
+  });
+});
+
+router.get(["/public/partner-sales", "/public/partner-sales/:token"], (req, res) => {
+  const token = String(req.params.token || "").trim();
+  const partner = token ? getClientByPartnerPublicToken(token) : null;
+  if (token && !partner) {
+    return res.status(404).json({ ok: false, error: "partner_not_found" });
+  }
+  return res.json({
+    ok: true,
+    paymentsReady: sumupConfigured(),
+    partner: partner
+      ? { label: partner.company || partner.full_name || "Partenaire Bryan Cars" }
+      : null,
+    forfaits: listPartnerForfaits(),
+  });
+});
+
+router.post(
+  ["/public/partner-sales/orders", "/public/partner-sales/:token/orders"],
+  handlePartnerOrderUpload,
+  async (req, res) => {
+    if (!consumePublicOrderAttempt(req)) {
+      return res.status(429).json({ ok: false, error: "too_many_requests" });
+    }
+    const token = String(req.params.token || "").trim();
+    const partner = token ? getClientByPartnerPublicToken(token) : null;
+    if (token && !partner) {
+      return res.status(404).json({ ok: false, error: "partner_not_found" });
+    }
+    const forfait = getPartnerForfait(req.body?.forfaitKey);
+    if (!forfait || !listPartnerForfaits().some((item) => item.key === forfait.key)) {
+      return res.status(400).json({ ok: false, error: "invalid_forfait" });
+    }
+
+    const customerName = String(req.body?.customerName || "").trim().slice(0, 140);
+    const customerEmail = String(req.body?.customerEmail || "").trim().toLowerCase().slice(0, 180);
+    const customerPhone = String(req.body?.customerPhone || "").trim().slice(0, 40);
+    const vehicleModel = String(req.body?.vehicleModel || "").trim().slice(0, 160);
+    const vehiclePlate = String(req.body?.vehiclePlate || "").trim().slice(0, 40);
+    const vehicleDetails = String(req.body?.vehicleDetails || "").trim().slice(0, 600);
+    const files = Array.isArray(req.files) ? req.files : [];
+
+    if (
+      !customerName ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ||
+      customerPhone.replace(/\D/g, "").length < 8 ||
+      !vehicleModel ||
+      files.length === 0 ||
+      String(req.body?.acceptedTerms || "") !== "true"
+    ) {
+      return res.status(400).json({ ok: false, error: "invalid_customer_details" });
+    }
+
+    const baseUrl = publicBaseUrl(req);
+    const checkoutReference = buildForfaitCheckoutReference(forfait);
+    const order = createPartnerOrder({
+      partnerClientId: partner?.id || null,
+      partnerLabel: partner?.company || partner?.full_name || partner?.card_code || null,
+      forfait,
+      checkoutReference,
+      redirectUrl: `${baseUrl}/forfait/${encodeURIComponent(checkoutReference)}?paid=1`,
+      returnUrl: `${baseUrl}/api/payments/sumup/webhook`,
+      customerName,
+      customerEmail,
+      customerPhone,
+      vehicleModel,
+      vehiclePlate,
+      vehicleDetails,
+    });
+    const photoCount = await attachPartnerOrderImages(order.id, files);
+    if (photoCount === 0) {
+      deletePartnerOrder(order.id, partner?.id || null);
+      return res.status(500).json({ ok: false, error: "image_processing_failed" });
+    }
+    const mappedOrder = mapPartnerOrderRow(order);
+    try {
+      await sendAdminPartnerOrderEmail({ order: mappedOrder, photoCount });
+    } catch (error) {
+      console.error("[MAIL] partner order admin notification:", error);
+    }
+
+    return res.status(201).json({
+      ok: true,
+      paymentsReady: sumupConfigured(),
+      paymentPath: `/forfait/${encodeURIComponent(checkoutReference)}`,
+      checkoutPath: `/api/payments/forfait/${encodeURIComponent(checkoutReference)}/checkout`,
+      order: { ...mappedOrder, photoCount },
+    });
+  },
+);
+
 router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   const body = req.body || {};
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -699,6 +901,25 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   }
 
   const uploadedImages = Array.isArray(req.files) ? req.files.map((f) => f.filename) : [];
+  const requestedQuoteServiceKeys = parseServiceKeys(body.quoteServiceKeys || body.serviceKeys);
+  const quoteServices = getServicesByKeys(requestedQuoteServiceKeys);
+  const quoteIntent =
+    requestedQuoteServiceKeys.length > 0 ||
+    uploadedImages.length > 0 ||
+    Boolean(String(body.quoteDescription || "").trim());
+  if (
+    requestedQuoteServiceKeys.length > 0 &&
+    (quoteServices.length !== new Set(requestedQuoteServiceKeys).size ||
+      quoteServices.some((service) => service.founderOnly))
+  ) {
+    return res.status(400).json({ ok: false, error: "invalid_services" });
+  }
+  if (
+    quoteIntent &&
+    (quoteServices.length === 0 || uploadedImages.length === 0 || !String(body.vehicleModel || "").trim())
+  ) {
+    return res.status(400).json({ ok: false, error: "invalid_quote_details" });
+  }
 
   const payload = {
     firstName: body.firstName,
@@ -713,6 +934,7 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
     vehiclePlate: body.vehiclePlate,
     quoteDescription: typeof body.quoteDescription === "string" ? body.quoteDescription.trim().slice(0, 600) : null,
     quoteImageFilenames: uploadedImages,
+    quoteServiceItems: serviceSnapshot(quoteServices),
     clientType: "bbx",
     formulaTotal: 0,
     formulaRemaining: 0,
@@ -756,9 +978,22 @@ router.post("/signup/verify", async (req, res) => {
     }
 
     // Auto-creation de la demande de devis si une description ou des images ont ete fournies
-    if (payload.quoteDescription || (payload.quoteImageFilenames && payload.quoteImageFilenames.length > 0)) {
+    if (
+      payload.quoteDescription ||
+      (payload.quoteImageFilenames && payload.quoteImageFilenames.length > 0) ||
+      (payload.quoteServiceItems && payload.quoteServiceItems.length > 0)
+    ) {
       try {
-        const quoteId = createQuoteRequest({ clientId: client.id, description: payload.quoteDescription || null });
+        const signupVehicle = getPrimaryVehicleByClientId(client.id);
+        const quoteId = createQuoteRequest({
+          clientId: client.id,
+          description: payload.quoteDescription || null,
+          serviceItems: payload.quoteServiceItems || [],
+          vehicleId: signupVehicle?.id || null,
+          vehicleLabel: signupVehicle?.label || payload.vehicleModel || null,
+          vehicleModel: signupVehicle?.model || payload.vehicleModel || null,
+          vehiclePlate: signupVehicle?.plate || payload.vehiclePlate || null,
+        });
         let photoCount = 0;
         if (Array.isArray(payload.quoteImageFilenames) && payload.quoteImageFilenames.length > 0) {
           photoCount = await attachQuoteImages(
@@ -766,7 +1001,14 @@ router.post("/signup/verify", async (req, res) => {
             payload.quoteImageFilenames.map((filename) => ({ filename }))
           );
         }
-        await sendAdminQuoteRequestEmail({ client, description: payload.quoteDescription || null, photoCount, quoteId });
+        await sendAdminQuoteRequestEmail({
+          client,
+          description: payload.quoteDescription || null,
+          photoCount,
+          quoteId,
+          vehicle: [signupVehicle?.model || payload.vehicleModel, signupVehicle?.plate || payload.vehiclePlate].filter(Boolean).join(" · "),
+          serviceItems: payload.quoteServiceItems || [],
+        });
       } catch (quoteError) {
         console.error("[API] auto quote request error:", quoteError);
       }
@@ -828,7 +1070,9 @@ router.get("/:idOrSlug", (req, res) => {
     vehicles,
     rewardCatalog: isBbxClient(client) ? BC_REWARDS : [],
     rewardRedemptions: isBbxClient(client) ? rewardRedemptions : [],
-    topupOffers: listPublicTopupOffersForClient(client),
+    // Les achats de credits sont desactives. Le paiement d'un rendez-vous et
+    // l'acces Fondateur continuent d'utiliser SumUp independamment.
+    topupOffers: [],
     paymentsReady: isSumupTopupReady(),
     serviceCatalog: SERVICE_CATALOG,
     serviceCategories: SERVICE_CATEGORIES,
@@ -864,19 +1108,54 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
   const description =
     (req.body?.description || "").toString().trim().slice(0, 600) || null;
   const uploadedImages = Array.isArray(req.files) ? req.files : [];
+  const requestedServiceKeys = parseServiceKeys(req.body?.serviceKeys);
+  const services = getServicesByKeys(requestedServiceKeys);
+  if (services.length === 0 || services.length !== new Set(requestedServiceKeys).size) {
+    return res.status(400).json({ ok: false, error: "invalid_services" });
+  }
+  if (!client.is_founder && services.some((service) => service.founderOnly)) {
+    return res.status(403).json({ ok: false, error: "founder_service_required" });
+  }
+  if (uploadedImages.length === 0) {
+    return res.status(400).json({ ok: false, error: "photos_required" });
+  }
+  const vehicleId = Number(req.body?.vehicleId || 0) || null;
+  const vehicle = vehicleId ? getVehicleById(vehicleId) : null;
+  if (!vehicle || vehicle.client_id !== client.id) {
+    return res.status(400).json({ ok: false, error: "vehicle_required" });
+  }
 
   let quoteId;
   try {
-    quoteId = createQuoteRequest({ clientId: client.id, description });
+    quoteId = createQuoteRequest({
+      clientId: client.id,
+      description,
+      serviceItems: serviceSnapshot(services),
+      vehicleId: vehicle.id,
+      vehicleLabel: vehicle.label || vehicle.model || null,
+      vehicleModel: vehicle.model || vehicle.label || null,
+      vehiclePlate: vehicle.plate || null,
+    });
   } catch (error) {
     console.error("[QUOTE] createQuoteRequest:", error);
     return res.status(500).json({ ok: false, error: "db_error" });
   }
 
   const photoCount = await attachQuoteImages(quoteId, uploadedImages);
+  if (photoCount === 0) {
+    deleteQuoteRequest(quoteId);
+    return res.status(500).json({ ok: false, error: "image_processing_failed" });
+  }
 
   try {
-    await sendAdminQuoteRequestEmail({ client, description, photoCount, quoteId });
+    await sendAdminQuoteRequestEmail({
+      client,
+      description,
+      photoCount,
+      quoteId,
+      vehicle: [vehicle.model || vehicle.label, vehicle.plate].filter(Boolean).join(" · "),
+      serviceItems: serviceSnapshot(services),
+    });
   } catch (error) {
     console.error("[MAIL] notif devis admin:", error);
   }
@@ -894,40 +1173,139 @@ router.delete("/:idOrSlug/quote", (req, res) => {
     return;
   }
   const existing = getActiveQuoteRequestForClient(client.id);
-  if (existing) {
+  if (existing?.status === "pending") {
     deleteQuoteRequest(existing.id);
   }
   return res.json({ ok: true });
 });
 
-// ── Devis : acceptation du devis par le client ──────────────────────────────
-router.post("/:idOrSlug/quote/accept", (req, res) => {
+// ── Devis : paiement du montant exact avant toute planification ─────────────
+router.post("/:idOrSlug/quote/checkout", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
     return;
   }
+  if ((client.client_type || "bbx") === "pro") {
+    return res.status(403).json({ ok: false, error: "not_available_for_pro" });
+  }
+  if (!sumupConfigured()) {
+    return res.status(503).json({ ok: false, error: "sumup_not_ready" });
+  }
   const existing = getActiveQuoteRequestForClient(client.id);
-  if (!existing || existing.status !== "answered") {
+  if (!existing || !["answered", "accepted", "paid"].includes(existing.status)) {
     return res.status(404).json({ ok: false, error: "no_answered_quote" });
   }
-  const updated = acceptQuoteRequest(existing.id);
-  return res.json({ ok: true, quoteRequest: quotePayload(updated) });
+  if (!Number.isFinite(Number(existing.estimatedPriceCents)) || Number(existing.estimatedPriceCents) <= 0) {
+    return res.status(409).json({ ok: false, error: "quote_not_priced" });
+  }
+  if (existing.paymentStatus === "paid" || existing.status === "paid") {
+    return res.json({ ok: true, alreadyPaid: true, quoteRequest: quotePayload(existing) });
+  }
+
+  if (existing.checkoutId && existing.hostedCheckoutUrl) {
+    try {
+      const checkout = await retrieveCheckout(existing.checkoutId);
+      const result = syncQuotePaymentFromCheckout(existing.id, checkout);
+      if (result.amountMismatch) {
+        console.error(`[SUMUP] quote amount mismatch (quoteId=${existing.id})`);
+        return res.status(409).json({ ok: false, error: "payment_amount_mismatch" });
+      }
+      if (result.becamePaid) {
+        await sendQuotePaidNotifications({ client, quote: result.quote });
+      }
+      if (result.quote?.paymentStatus === "paid") {
+        return res.json({ ok: true, alreadyPaid: true, quoteRequest: quotePayload(result.quote) });
+      }
+      if (String(checkout?.status || "").toUpperCase() === "PENDING" && checkout.hosted_checkout_url) {
+        return res.json({ ok: true, hostedCheckoutUrl: checkout.hosted_checkout_url });
+      }
+    } catch (_error) {
+      // Le checkout n'est plus réutilisable : une nouvelle tentative est créée.
+    }
+  }
+
+  const baseUrl = publicBaseUrl(req);
+  const checkoutReference = `bbx-devis-${existing.id}-${Date.now().toString(36)}`.slice(0, 90);
+  const redirectUrl = `${baseUrl}/card/${encodeURIComponent(
+    client.slug || client.card_code,
+  )}?view=booking&devis=1&quoteId=${existing.id}&quotePaid=1`;
+
+  try {
+    const checkout = await createHostedCheckout({
+      checkoutReference,
+      amountCents: existing.estimatedPriceCents,
+      currency: "EUR",
+      description: `Devis Bryan Cars #${existing.id}`,
+      redirectUrl,
+      returnUrl: `${baseUrl}/api/payments/sumup/webhook`,
+    });
+    const updated = attachQuoteCheckout(existing.id, checkoutReference, checkout);
+    return res.json({
+      ok: true,
+      hostedCheckoutUrl: checkout.hosted_checkout_url,
+      quoteRequest: quotePayload(updated),
+    });
+  } catch (error) {
+    console.error("[SUMUP] quote checkout:", error);
+    return res.status(502).json({ ok: false, error: "sumup_checkout_failed" });
+  }
+});
+
+router.post("/:idOrSlug/quote/sync-payment", async (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) return;
+  const existing = getActiveQuoteRequestForClient(client.id);
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: "quote_not_found" });
+  }
+  if (existing.paymentStatus === "paid") {
+    return res.json({ ok: true, quoteRequest: quotePayload(existing) });
+  }
+  if (!existing.checkoutId || !sumupConfigured()) {
+    return res.status(400).json({ ok: false, error: "payment_not_started" });
+  }
+  try {
+    const checkout = await retrieveCheckout(existing.checkoutId);
+    const result = syncQuotePaymentFromCheckout(existing.id, checkout);
+    if (result.amountMismatch) {
+      console.error(`[SUMUP] quote amount mismatch (quoteId=${existing.id})`);
+      return res.status(409).json({ ok: false, error: "payment_amount_mismatch" });
+    }
+    if (result.becamePaid) {
+      await sendQuotePaidNotifications({ client, quote: result.quote });
+    }
+    return res.json({ ok: true, quoteRequest: quotePayload(result.quote) });
+  } catch (error) {
+    console.error("[SUMUP] quote sync:", error);
+    return res.status(502).json({ ok: false, error: "sumup_sync_failed" });
+  }
 });
 
 // ── Devis : refus du devis par le client avec motif ─────────────────────────
-router.post("/:idOrSlug/quote/refuse", (req, res) => {
+router.post("/:idOrSlug/quote/refuse", async (req, res) => {
   const client = getClientBySlugOrCardCode(req.params.idOrSlug);
   if (!ensurePortalEligible(client, res)) {
     return;
   }
   const existing = getActiveQuoteRequestForClient(client.id);
-  if (!existing || existing.status !== "answered") {
+  if (!existing || !["answered", "accepted"].includes(existing.status) || existing.paymentStatus === "paid") {
     return res.status(404).json({ ok: false, error: "no_answered_quote" });
   }
-  const refusalReason = (req.body?.refusalReason || "").toString().trim() || null;
-  const refusalComment = (req.body?.refusalComment || "").toString().trim() || null;
+  if (existing.paymentStatus === "pending") {
+    return res.status(409).json({ ok: false, error: "payment_started" });
+  }
+  const refusalReason = (req.body?.refusalReason || "").toString().trim().slice(0, 80) || null;
+  const refusalComment = (req.body?.refusalComment || "").toString().trim().slice(0, 600) || null;
+  if (!refusalReason) {
+    return res.status(400).json({ ok: false, error: "refusal_reason_required" });
+  }
 
   const updated = refuseQuoteRequest(existing.id, { refusalReason, refusalComment });
+  try {
+    await sendAdminQuoteRefusedEmail({ client, quote: updated });
+  } catch (error) {
+    console.error("[MAIL] quote refused:", error);
+  }
   return res.json({ ok: true, quoteRequest: quotePayload(updated) });
 });
 
@@ -948,6 +1326,43 @@ router.post("/:idOrSlug/terms/accept", (req, res) => {
     });
   } catch (error) {
     console.error("[API] client terms accept:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+router.patch("/:idOrSlug/profile", (req, res) => {
+  const client = getClientBySlugOrCardCode(req.params.idOrSlug);
+  if (!ensurePortalEligible(client, res)) {
+    return;
+  }
+
+  const fields = {
+    firstName: 80,
+    lastName: 80,
+    phone: 40,
+    addressLine1: 180,
+    postalCode: 20,
+    city: 100,
+  };
+  const payload = {};
+
+  for (const [field, maxLength] of Object.entries(fields)) {
+    if (!Object.prototype.hasOwnProperty.call(req.body || {}, field)) continue;
+    if (typeof req.body[field] !== "string") {
+      return res.status(400).json({ ok: false, error: "invalid_profile" });
+    }
+    payload[field] = req.body[field].trim().slice(0, maxLength);
+  }
+
+  if (Object.keys(payload).length === 0) {
+    return res.status(400).json({ ok: false, error: "empty_profile" });
+  }
+
+  try {
+    const updated = updateClientProfile(client.id, payload);
+    return res.json({ ok: true, client: mapClientPayload(updated) });
+  } catch (error) {
+    console.error("[API] client profile update:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
@@ -996,11 +1411,17 @@ router.get("/:idOrSlug/forfaits", async (req, res) => {
     );
   }
 
+  const publicToken = getOrCreatePartnerPublicToken(client.id);
+  if (!publicToken) {
+    return res.status(500).json({ ok: false, error: "partner_link_unavailable" });
+  }
+
   return res.json({
     ok: true,
     paymentsReady: sumupConfigured(),
     forfaits: listPartnerForfaits(),
     orders: listPartnerOrders({ partnerClientId: client.id, limit: 100 }),
+    publicLink: `${publicBaseUrl(req)}/preparation-vente/${encodeURIComponent(publicToken)}`,
   });
 });
 
@@ -1062,62 +1483,7 @@ router.post("/:idOrSlug/topup/checkout", async (req, res) => {
   if (!ensurePortalEligible(client, res)) {
     return;
   }
-
-  if (!isSumupTopupReady()) {
-    return res.status(503).json({ ok: false, error: "sumup_not_ready" });
-  }
-
-  const requestedQuantity = Number(req.body?.quantity || 1);
-  const offer =
-    req.body?.unitPurchase === true || requestedQuantity > 1
-      ? getUnitTopupOfferForClient(client, requestedQuantity)
-      : getTopupOfferForClient(client, req.body?.offerKey);
-  if (!offer) {
-    return res.status(400).json({ ok: false, error: "invalid_topup_offer" });
-  }
-
-  const baseUrl = publicBaseUrl(req);
-  const checkoutReference = buildTopupCheckoutReference(client, offer);
-  const redirectUrl = `${baseUrl}/card/${encodeURIComponent(
-    client.slug || client.card_code || req.params.idOrSlug,
-  )}?view=shop&topupRef=${encodeURIComponent(checkoutReference)}`;
-  const returnUrl = `${baseUrl}/api/payments/sumup/webhook`;
-
-  const order = createTopupOrder({
-    clientId: client.id,
-    offer,
-    checkoutReference,
-    redirectUrl,
-    returnUrl,
-  });
-
-  try {
-    const checkout = await createHostedCheckout({
-      checkoutReference,
-      amountCents: offer.priceCents,
-      currency: offer.currency,
-      description: `${offer.label} - ${client.full_name || client.card_code || client.slug}`,
-      redirectUrl,
-      returnUrl,
-    });
-
-    const updatedOrder = attachTopupCheckoutSession(order.id, {
-      checkoutId: checkout.id,
-      hostedCheckoutUrl: checkout.hosted_checkout_url,
-      sumupStatus: checkout.status || "PENDING",
-      payload: checkout,
-    });
-
-    return res.json({
-      ok: true,
-      hostedCheckoutUrl: checkout.hosted_checkout_url,
-      checkoutReference,
-      topupOrder: mapTopupOrderRow(updatedOrder),
-    });
-  } catch (error) {
-    console.error("[SUMUP] create checkout:", error);
-    return res.status(502).json({ ok: false, error: "sumup_checkout_failed" });
-  }
+  return res.status(410).json({ ok: false, error: "credits_disabled" });
 });
 
 // Acces fondateur: paiement SumUp unique (49,90 EUR, places limitees a 50).
@@ -1447,6 +1813,9 @@ router.post("/:idOrSlug/topup/sync", async (req, res) => {
   if (!order || order.client_id !== client.id) {
     return res.status(404).json({ ok: false, error: "topup_order_not_found" });
   }
+  if (order.offer_key !== "founder-access") {
+    return res.status(410).json({ ok: false, error: "credits_disabled" });
+  }
 
   let nextOrder = order;
   let nextClient = getClientById(client.id);
@@ -1464,7 +1833,6 @@ router.post("/:idOrSlug/topup/sync", async (req, res) => {
         if (result?.order) {
           nextOrder = result.order;
         }
-        await maybeSendTopupRecap(result?.client, result?.applied);
       }
     } catch (error) {
       console.error("[SUMUP] sync checkout:", error);
@@ -1687,6 +2055,12 @@ router.get("/public/reviews", (_req, res) => {
 // ── Espace membre : recherche par email (Landing page) ─────────────────────
 router.post("/public/find-portal", (req, res) => {
   try {
+    const attempt = consumePortalLookupAttempt(req);
+    if (!attempt.allowed) {
+      res.set("Retry-After", String(attempt.retryAfterSeconds));
+      return res.status(429).json({ ok: false, error: "too_many_attempts" });
+    }
+
     const email = (req.body?.email || "").toString().trim().toLowerCase();
     if (!email) {
       return res.status(400).json({ ok: false, error: "email_required" });
@@ -1834,12 +2208,14 @@ router.post("/:idOrSlug/appointments/:appointmentId/accept-price", async (req, r
     const result = acceptAppointmentPriceForClient(appointmentId, client.id);
     const updated = getAppointmentById(appointmentId);
 
-    if (!result.ok && result.error === "not_enough_credits") {
-      return res.status(402).json({
+    if (!result.ok && result.error === "credits_disabled") {
+      return res.status(410).json({ ok: false, error: "credits_disabled" });
+    }
+    if (!result.ok && result.error === "payment_required") {
+      return res.status(409).json({
         ok: false,
-        error: "not_enough_credits",
+        error: "payment_required",
         appointment: mapClientAppointment(updated),
-        client: mapClientPayload(getClientById(client.id)),
       });
     }
 
@@ -2060,20 +2436,36 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
   const { date, time, location, slot: rawSlot, clientNote } = req.body || {};
   const serviceLevel = req.body?.serviceLevel || req.body?.cleanlinessEstimate || "clean";
-  let requestedServiceKeys = [];
-  try {
-    requestedServiceKeys = JSON.parse(req.body?.serviceKeys || "[]");
-  } catch (_error) {
-    requestedServiceKeys = [];
+  let requestedServiceKeys = parseServiceKeys(req.body?.serviceKeys);
+  const quoteId = Number(req.body?.quoteId || 0) || null;
+  let acceptedQuote = null;
+  if (quoteId) {
+    const candidate = getQuoteRequestById(quoteId);
+    if (
+      !candidate ||
+      candidate.clientId !== client.id ||
+      candidate.status !== "paid" ||
+      candidate.paymentStatus !== "paid" ||
+      !candidate.estimatedPriceCents ||
+      !candidate.paidAt
+    ) {
+      return res.status(400).json({ ok: false, error: "invalid_quote" });
+    }
+    acceptedQuote = candidate;
+    requestedServiceKeys = candidate.serviceItems.map((service) => service.key);
   }
   const services = getServicesByKeys(requestedServiceKeys);
   const vehicleId = Number(req.body?.vehicleId || 0) || null;
   const isPro = (client.client_type || "bbx") === "pro";
+  if (!isPro && !acceptedQuote) {
+    return res.status(403).json({ ok: false, error: "paid_quote_required" });
+  }
   const vehicleText =
     typeof req.body?.vehicleText === "string" ? req.body.vehicleText.trim().slice(0, 120) : "";
   const normalizedClientNote =
     typeof clientNote === "string" && clientNote.trim() !== "" ? clientNote.trim() : null;
   const uploadedImages = Array.isArray(req.files) ? req.files : [];
+  const acceptedQuotePhotoUrls = acceptedQuote ? getQuoteRequestPhotos(acceptedQuote.id) : [];
 
   if (!date) {
     return res.status(400).json({ ok: false, error: "missing_date" });
@@ -2096,9 +2488,25 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       ? services[0].label
       : `${services.length} prestations`;
 
+  const quoteVehicleRow = acceptedQuote?.vehicleId
+    ? getVehicleById(acceptedQuote.vehicleId)
+    : null;
   const { vehicle, error: vehicleError } = isPro
     ? { vehicle: null, error: null }
-    : getBookingVehicleForClient(client, vehicleId);
+    : acceptedQuote
+      ? {
+          vehicle:
+            quoteVehicleRow?.client_id === client.id
+              ? quoteVehicleRow
+              : {
+                  id: null,
+                  model: acceptedQuote.vehicle?.model || acceptedQuote.vehicle?.label || null,
+                  label: acceptedQuote.vehicle?.label || acceptedQuote.vehicle?.model || null,
+                  plate: acceptedQuote.vehicle?.plate || null,
+                },
+          error: null,
+        }
+      : getBookingVehicleForClient(client, vehicleId);
   if (vehicleError) {
     return res.status(400).json({ ok: false, error: vehicleError });
   }
@@ -2115,33 +2523,39 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
 
   const normalizedLocation = typeof location === "string" ? location.toLowerCase() : "";
   const loc = isPro
-    ? null
+    ? "atelier"
     : normalizedLocation === "domicile"
       ? "domicile"
       : normalizedLocation === "atelier"
         ? "atelier"
         : null;
+  if (!isPro && !loc) {
+    return res.status(400).json({ ok: false, error: "location_required" });
+  }
 
   const existing = getAppointmentByDateAndSlot(date, slot);
   const isMineActive =
     existing &&
     existing.client_id === client.id &&
     (existing.status === "requested" || existing.status === "confirmed");
+  const canUpdateExisting = isPro && isMineActive;
 
-  if (!isPro && uploadedImages.length === 0 && !(isMineActive && hasAppointmentPhotos(existing.id))) {
+  if (
+    !isPro && acceptedQuotePhotoUrls.length === 0
+  ) {
     return res.status(400).json({ ok: false, error: "photos_required" });
   }
 
-  if (existing && !isMineActive && existing.status !== "cancelled") {
+  if (existing && !canUpdateExisting && existing.status !== "cancelled") {
     return res.status(409).json({ ok: false, error: "slot_taken" });
   }
 
-  if (isMineActive) {
+  if (canUpdateExisting) {
     try {
       const changed = updateAppointmentForClientSlot({
         clientId: client.id,
         vehicleId: vehicle?.id || null,
-        vehicleText: isPro ? vehicleText : null,
+        vehicleText: vehicleText,
         dateStr: date,
         slot,
         time: normalizedTime,
@@ -2166,8 +2580,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       }
 
       const appointmentId = existing?.id || null;
-      const clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
-
+      let clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
       try {
         await sendAdminNotification({
           type: "update",
@@ -2197,29 +2610,49 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
     let appointmentId = null;
 
     try {
-      appointmentId = createRequestedAppointmentForSlot({
-        clientId: client.id,
-        vehicleId: vehicle?.id || null,
-        vehicleText: isPro ? vehicleText : null,
-        dateStr: date,
-        slot,
-        time: normalizedTime,
-        clientNote: normalizedClientNote,
-        location: loc,
-        serviceLevel,
-        serviceKey: isPro ? null : services[0].key,
-        serviceLabel: serviceSummary,
-        serviceItems: isPro ? [] : services.map(({ key, category, label, founderOnly }) => ({
-          key,
-          category,
-          label,
-          founderOnly,
-        })),
-        status: isPro ? "confirmed" : "requested",
-        priceStatus: isPro ? "not_required" : "pending_admin",
-        approvedCredits: isPro ? 0 : null,
-        creditsCharged: 0,
-      });
+      appointmentId = db.transaction(() => {
+        const createdId = createRequestedAppointmentForSlot({
+          clientId: client.id,
+          vehicleId: vehicle?.id || null,
+          vehicleText:
+            isPro
+              ? vehicleText
+              : vehicle?.id
+                ? null
+                : [vehicle?.model || vehicle?.label, vehicle?.plate].filter(Boolean).join(" · ") || null,
+          dateStr: date,
+          slot,
+          time: normalizedTime,
+          clientNote: normalizedClientNote,
+          location: loc,
+          serviceLevel,
+          serviceKey: isPro ? null : services[0].key,
+          serviceLabel: serviceSummary,
+          serviceItems: isPro ? [] : services.map(({ key, category, label, founderOnly }) => ({
+            key,
+            category,
+            label,
+            founderOnly,
+          })),
+          status: "confirmed",
+          priceStatus: isPro ? "not_required" : "approved",
+          approvedCredits: isPro ? 0 : null,
+          creditsCharged: 0,
+        });
+        if (acceptedQuote) {
+          finalizeAppointmentFromPaidQuote(createdId, {
+            amountCents: acceptedQuote.estimatedPriceCents,
+            paidAt: acceptedQuote.paidAt,
+          });
+          createProcessedAppointmentPaymentOrderFromQuote({
+            appointmentId: createdId,
+            clientId: client.id,
+            quote: acceptedQuote,
+          });
+          markQuoteRequestConverted(acceptedQuote.id, createdId);
+        }
+        return createdId;
+      })();
     } catch (error) {
       console.error("[BOOK] createRequestedAppointmentForSlot:", error);
 
@@ -2230,7 +2663,13 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       return res.status(500).json({ ok: false, error: "db_error" });
     }
 
-    const clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
+    let clientImageCount = await attachClientBookingImages(appointmentId, uploadedImages);
+    if (acceptedQuote && appointmentId) {
+      for (const url of acceptedQuotePhotoUrls) {
+        insertAppointmentPhoto(appointmentId, url, "Photo du devis accepte", 0, 0, "before");
+        clientImageCount += 1;
+      }
+    }
 
     // Notifications d'abord : aucun effet de bord (lots, liste d'attente) ne doit
     // pouvoir empecher l'e-mail + push admin de partir (notamment pour les pros,
@@ -2260,7 +2699,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
       console.error("[MAIL] notif book:", error);
     }
 
-    if (isPro) {
+    if (isPro || acceptedQuote) {
       try {
         await sendClientAppointmentStatusEmail({
           client,

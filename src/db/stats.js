@@ -15,7 +15,16 @@ function getAdminMonthlyStats(year, monthIndex) {
   const revenue = db
     .prepare(
       `SELECT COALESCE(SUM(amount_cents), 0) AS cents, COUNT(*) AS n
-       FROM topup_orders WHERE paid_at >= ? AND paid_at < ?`,
+       FROM (
+         SELECT amount_cents, paid_at
+         FROM appointment_payment_orders
+         WHERE status IN ('paid', 'processed')
+         UNION ALL
+         SELECT amount_cents, paid_at
+         FROM topup_orders
+         WHERE offer_key = 'founder-access' AND status IN ('paid', 'processed')
+       )
+       WHERE paid_at >= ? AND paid_at < ?`,
     )
     .get(startUnix, endUnix);
 
@@ -28,8 +37,7 @@ function getAdminMonthlyStats(year, monthIndex) {
 
   const doneAgg = db
     .prepare(
-      `SELECT COALESCE(SUM(credits_charged), 0) AS credits,
-              COALESCE(SUM(bc_points_granted), 0) AS bc
+      `SELECT COALESCE(SUM(bc_points_granted), 0) AS bc
        FROM appointments WHERE status = 'done' AND date LIKE ?`,
     )
     .get(monthLike);
@@ -54,7 +62,6 @@ function getAdminMonthlyStats(year, monthIndex) {
     appointments: byStatus,
     appointmentsTotal:
       byStatus.requested + byStatus.confirmed + byStatus.done + byStatus.cancelled,
-    creditsConsumed: doneAgg?.credits || 0,
     bcDistributed: doneAgg?.bc || 0,
     newClients: newClients?.n || 0,
     totalClients: totals?.clients || 0,

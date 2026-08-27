@@ -225,7 +225,9 @@ function createRequestedAppointmentForSlot({
   const normalizedTime = time || defaultTimeForSlot(normalizedSlot);
   const normalizedLocation = sanitizeLocation(location);
   const normalizedServiceLevel = normalizeServiceLevel(serviceLevel) || "clean";
-  const requestedCredits = serviceLevelCredits(normalizedServiceLevel);
+  // Les colonnes de credits restent presentes pour lire l'historique, mais les
+  // nouveaux rendez-vous n'en demandent ni n'en consomment plus.
+  const requestedCredits = 0;
 
   const info = db
     .prepare(
@@ -331,7 +333,7 @@ function updateAppointmentForClientSlot({
           vehicle_text = COALESCE(?, vehicle_text),
           client_cleanliness_estimate = COALESCE(?, client_cleanliness_estimate),
           requested_credits = CASE
-            WHEN ? IS NOT NULL THEN ?
+            WHEN ? IS NOT NULL THEN 0
             ELSE requested_credits
           END,
           service_key = COALESCE(?, service_key),
@@ -353,7 +355,6 @@ function updateAppointmentForClientSlot({
       vehicleText || null,
       normalizedServiceLevel,
       normalizedServiceLevel,
-      normalizedServiceLevel ? serviceLevelCredits(normalizedServiceLevel) : null,
       serviceKey || null,
       serviceLabel || null,
       Array.isArray(serviceItems) && serviceItems.length > 0 ? JSON.stringify(serviceItems) : null,
@@ -367,171 +368,42 @@ function updateAppointmentForClientSlot({
   return info.changes;
 }
 
-function refundChargedCreditsInTransaction(appointment) {
-  const charged = Math.max(0, Number(appointment?.credits_charged || 0));
-  if (!charged || !appointment?.client_id) {
-    return false;
-  }
-
-  db.prepare(
-    `
-    UPDATE clients
-    SET formula_remaining = COALESCE(formula_remaining, 0) + ?,
-        updated_at = ?
-    WHERE id = ?
-  `,
-  ).run(charged, nowUnix(), appointment.client_id);
-
-  db.prepare(
-    `
-    UPDATE appointments
-    SET credits_charged = 0,
-        credits_charged_at = NULL,
-        updated_at = ?
-    WHERE id = ?
-  `,
-  ).run(nowUnix(), appointment.id);
-
-  return true;
-}
-
-// Deconfirmation admin: rembourse les credits consommes et repasse le RDV
-// "en attente" (re-validation du tarif), sans le supprimer.
+// Deconfirmation admin: repasse le RDV en attente de tarification en euros.
+// Les anciennes informations de credits restent intactes pour l'historique.
 function revertAppointmentToRequested(id) {
   return db.transaction((appointmentId) => {
     const appointment = getAppointmentById(appointmentId);
     if (!appointment) return { ok: false, error: "appointment_not_found" };
 
-    const refunded = refundChargedCreditsInTransaction(appointment);
-
     const clientRow = db
       .prepare(`SELECT client_type FROM clients WHERE id = ? LIMIT 1`)
       .get(appointment.client_id);
-    const isPro = clientRow && clientRow.client_type === "pro";
+    const isPro =
+      (clientRow && clientRow.client_type === "pro") || appointment.price_status === "not_required";
 
     db.prepare(
       `
       UPDATE appointments
-      SET status = 'requested',
+      SET status = ?,
           price_status = ?,
-          approved_credits = ?,
           client_price_approved_at = NULL,
           updated_at = ?
       WHERE id = ?
     `,
     ).run(
+      isPro ? "confirmed" : "requested",
       isPro ? "not_required" : "pending_admin",
-      isPro ? 0 : null,
       nowUnix(),
       appointmentId,
     );
 
-    return { ok: true, refunded, appointment: getAppointmentById(appointmentId) };
+    return { ok: true, refunded: false, appointment: getAppointmentById(appointmentId) };
   })(id);
-}
-
-function chargeAppointmentCreditsInTransaction(appointmentId, credits) {
-  const appointment = db
-    .prepare(
-      `
-      SELECT *
-      FROM appointments
-      WHERE id = ?
-      LIMIT 1
-    `,
-    )
-    .get(appointmentId);
-
-  if (!appointment) return { ok: false, error: "appointment_not_found" };
-  if (Number(appointment.credits_charged || 0) > 0) {
-    return { ok: true, alreadyCharged: true, appointment };
-  }
-
-  // Les comptes Pro ne consomment jamais de credits: le tarif est valide sans charge.
-  const chargeClient = db
-    .prepare(`SELECT client_type FROM clients WHERE id = ? LIMIT 1`)
-    .get(appointment.client_id);
-  if (chargeClient && chargeClient.client_type === "pro") {
-    db.prepare(
-      `
-      UPDATE appointments
-      SET approved_credits = 0,
-          credits_charged = 0,
-          price_status = 'not_required',
-          status = 'confirmed',
-          updated_at = ?
-      WHERE id = ?
-    `,
-    ).run(nowUnix(), appointmentId);
-
-    return { ok: true, appointment: getAppointmentById(appointmentId) };
-  }
-
-  const needed = Math.max(0, Number(credits || 0));
-  if (needed <= 0) {
-    db.prepare(
-      `
-      UPDATE appointments
-      SET approved_credits = 0,
-          credits_charged = 0,
-          price_status = 'not_required',
-          status = 'confirmed',
-          updated_at = ?
-      WHERE id = ?
-    `,
-    ).run(nowUnix(), appointmentId);
-
-    return { ok: true, appointment: getAppointmentById(appointmentId) };
-  }
-
-  const client = db
-    .prepare(`SELECT id, formula_remaining FROM clients WHERE id = ? LIMIT 1`)
-    .get(appointment.client_id);
-  if (!client) return { ok: false, error: "client_not_found" };
-  if (Number(client.formula_remaining || 0) < needed) {
-    db.prepare(
-      `
-      UPDATE appointments
-      SET approved_credits = ?,
-          price_status = 'waiting_payment',
-          updated_at = ?
-      WHERE id = ?
-    `,
-    ).run(needed, nowUnix(), appointmentId);
-
-    return { ok: false, error: "not_enough_credits", appointment: getAppointmentById(appointmentId) };
-  }
-
-  db.prepare(
-    `
-    UPDATE clients
-    SET formula_remaining = COALESCE(formula_remaining, 0) - ?,
-        updated_at = ?
-    WHERE id = ?
-  `,
-  ).run(needed, nowUnix(), appointment.client_id);
-
-  db.prepare(
-    `
-    UPDATE appointments
-    SET approved_credits = ?,
-        credits_charged = ?,
-        credits_charged_at = ?,
-        price_status = 'approved',
-        status = 'confirmed',
-        updated_at = ?
-    WHERE id = ?
-  `,
-  ).run(needed, needed, nowUnix(), nowUnix(), appointmentId);
-
-  return { ok: true, appointment: getAppointmentById(appointmentId) };
 }
 
 function reviewAppointmentPrice(
   id,
   {
-    adminLevel,
-    customCredits = null,
     customPriceCents = null,
     requestPhotos = false,
     photosMessage = null,
@@ -562,73 +434,47 @@ function reviewAppointmentPrice(
       return { ok: true, appointment: getAppointmentById(appointmentId), needsPhotos: true };
     }
 
-    // Nouveau parcours en euros : le prix standard vient de la prestation choisie.
-    // L'admin peut le remplacer par un montant personnalise. Le rendez-vous reste
-    // en attente jusqu'au paiement SumUp, qui seul le passera en "confirmed".
-    const standardPriceCents = Number(appointment.standard_price_cents || 0);
-    const hasServiceBasket = typeof appointment.service_items_json === "string" && appointment.service_items_json !== "";
-    if (standardPriceCents > 0 || hasServiceBasket) {
-      const customValue = Number(customPriceCents);
-      if (hasServiceBasket && (!Number.isFinite(customValue) || customValue <= 0)) {
-        return { ok: false, error: "price_required", appointment };
-      }
-      const approvedPriceCents = Number.isFinite(customValue) && customValue > 0
-        ? Math.round(customValue)
-        : Math.round(standardPriceCents);
-      const quoteExpiresAt = nowUnix() + 48 * 60 * 60;
-
-      db.prepare(
-        `UPDATE appointments
-         SET approved_price_cents = ?, price_comment = COALESCE(?, price_comment),
-             price_status = 'waiting_payment', status = 'requested',
-             quote_expires_at = ?, updated_at = ?
-         WHERE id = ?`,
-      ).run(approvedPriceCents, normalizedPriceComment, quoteExpiresAt, nowUnix(), appointmentId);
-
-      return {
-        ok: true,
-        requiresPayment: true,
-        appointment: getAppointmentById(appointmentId),
-      };
-    }
-
-    const normalizedAdminLevel =
-      normalizeServiceLevel(adminLevel) || normalizeServiceLevel(appointment.client_cleanliness_estimate) || "clean";
-    const requestedCredits = Math.max(
-      serviceLevelCredits(appointment.client_cleanliness_estimate),
-      Number(appointment.requested_credits || 1),
-    );
-    const adminCredits = serviceLevelCredits(normalizedAdminLevel);
-    const customCreditValue = Number(customCredits);
-    const approvedCredits = Number.isFinite(customCreditValue) && customCreditValue > 0
-      ? Math.floor(customCreditValue)
-      : Math.max(requestedCredits, adminCredits);
-
-    db.prepare(
-      `
-      UPDATE appointments
-      SET admin_cleanliness_estimate = ?,
-          approved_credits = ?,
-          price_comment = COALESCE(?, price_comment),
-          updated_at = ?
-      WHERE id = ?
-    `,
-    ).run(normalizedAdminLevel, approvedCredits, normalizedPriceComment, nowUnix(), appointmentId);
-
-    if (approvedCredits > requestedCredits) {
+    const clientRow = db
+      .prepare(`SELECT client_type FROM clients WHERE id = ? LIMIT 1`)
+      .get(appointment.client_id);
+    if (clientRow?.client_type === "pro") {
       db.prepare(
         `
         UPDATE appointments
-        SET price_status = 'waiting_client_approval',
+        SET price_status = 'not_required',
+            status = 'confirmed',
             updated_at = ?
         WHERE id = ?
       `,
       ).run(nowUnix(), appointmentId);
-
-      return { ok: true, appointment: getAppointmentById(appointmentId), requiresClientApproval: true };
+      return { ok: true, appointment: getAppointmentById(appointmentId) };
     }
 
-    return chargeAppointmentCreditsInTransaction(appointmentId, approvedCredits);
+    const approvedPriceCents = Number(customPriceCents);
+    if (!Number.isFinite(approvedPriceCents) || approvedPriceCents <= 0) {
+      return { ok: false, error: "price_required", appointment };
+    }
+
+    const quoteExpiresAt = nowUnix() + 48 * 60 * 60;
+    db.prepare(
+      `UPDATE appointments
+       SET approved_price_cents = ?, price_comment = COALESCE(?, price_comment),
+           price_status = 'waiting_payment', status = 'requested',
+           quote_expires_at = ?, updated_at = ?
+       WHERE id = ?`,
+    ).run(
+      Math.round(approvedPriceCents),
+      normalizedPriceComment,
+      quoteExpiresAt,
+      nowUnix(),
+      appointmentId,
+    );
+
+    return {
+      ok: true,
+      requiresPayment: true,
+      appointment: getAppointmentById(appointmentId),
+    };
   })(id);
 }
 
@@ -653,25 +499,34 @@ function acceptAppointmentPriceForClient(appointmentId, clientId) {
     if (!appointment || appointment.client_id !== ownerId) {
       return { ok: false, error: "appointment_not_found" };
     }
-    if (!["waiting_client_approval", "waiting_payment"].includes(appointment.price_status)) {
+    if (appointment.price_status === "waiting_client_approval") {
+      return { ok: false, error: "credits_disabled" };
+    }
+    if (appointment.price_status !== "waiting_payment") {
       return { ok: false, error: "price_not_waiting" };
     }
     if (Number(appointment.approved_price_cents || 0) > 0) {
       return { ok: false, error: "payment_required" };
     }
-
-    db.prepare(
-      `
-      UPDATE appointments
-      SET client_price_approved_at = COALESCE(client_price_approved_at, ?),
-          updated_at = ?
-      WHERE id = ?
-    `,
-    ).run(nowUnix(), nowUnix(), id);
-
-    const credits = Number(appointment.approved_credits || appointment.requested_credits || 1);
-    return chargeAppointmentCreditsInTransaction(id, credits);
+    return { ok: false, error: "credits_disabled" };
   })(appointmentId, clientId);
+}
+
+// Un devis est désormais payé avant la réservation. Quand le client choisit
+// enfin son créneau, le rendez-vous hérite immédiatement du montant déjà payé
+// et naît confirmé : aucun second paiement ni validation tarifaire.
+function finalizeAppointmentFromPaidQuote(appointmentId, { amountCents, paidAt }) {
+  const amount = Math.max(1, Math.round(Number(amountCents) || 0));
+  const paymentDate = Number(paidAt) || nowUnix();
+  db.prepare(
+    `UPDATE appointments
+     SET approved_price_cents = ?, amount_paid_cents = ?, paid_at = ?,
+         price_status = 'approved', status = 'confirmed',
+         client_price_approved_at = COALESCE(client_price_approved_at, ?),
+         quote_expires_at = NULL, updated_at = ?
+     WHERE id = ?`,
+  ).run(amount, amount, paymentDate, paymentDate, nowUnix(), appointmentId);
+  return getAppointmentById(appointmentId);
 }
 
 function markAppointmentClientPhotosAdded(appointmentId) {
@@ -691,22 +546,17 @@ function markAppointmentClientPhotosAdded(appointmentId) {
 }
 
 function cancelAppointmentAndRefund(id) {
-  return db.transaction((appointmentId) => {
-    const appointment = getAppointmentById(appointmentId);
-    if (!appointment) return 0;
-    refundChargedCreditsInTransaction(appointment);
-    return db
-      .prepare(
-        `
-        UPDATE appointments
-        SET status = 'cancelled',
-            price_status = 'declined',
-            updated_at = ?
-        WHERE id = ?
-      `,
-      )
-      .run(nowUnix(), appointmentId).changes;
-  })(id);
+  return db
+    .prepare(
+      `
+      UPDATE appointments
+      SET status = 'cancelled',
+          price_status = 'declined',
+          updated_at = ?
+      WHERE id = ?
+    `,
+    )
+    .run(nowUnix(), id).changes;
 }
 
 function updateAppointmentTimeForClient(clientId, dateStr, time, clientNote, slot, location, vehicleId) {
@@ -829,39 +679,12 @@ function syncAppointmentCleanlinessPenaltyInTransaction(appointmentId) {
   }
 
   const currentPenalty = Number(appointment.cleanliness_penalty_applied || 0);
-  // Les comptes Pro ne sont jamais penalises en credits (ils n'en consomment pas).
-  const targetPenalty =
-    appointment.status === "done" && appointment.client_type !== "pro"
-      ? cleanlinessPenaltyCredits(appointment.cleanliness_rating)
-      : 0;
-  const delta = targetPenalty - currentPenalty;
-
-  if (delta !== 0) {
-    db.prepare(
-      `
-      UPDATE clients
-      SET formula_remaining = COALESCE(formula_remaining, 0) - ?,
-          updated_at = ?
-      WHERE id = ?
-    `,
-    ).run(delta, nowUnix(), appointment.client_id);
-  }
-
-  if (delta !== 0 || currentPenalty !== targetPenalty) {
-    db.prepare(
-      `
-      UPDATE appointments
-      SET cleanliness_penalty_applied = ?
-      WHERE id = ?
-    `,
-    ).run(targetPenalty, appointmentId);
-  }
-
   return {
     appointmentId,
     currentPenalty,
-    targetPenalty,
-    delta,
+    targetPenalty: currentPenalty,
+    delta: 0,
+    disabled: true,
   };
 }
 
@@ -1092,6 +915,7 @@ module.exports = {
   createRequestedAppointmentForSlot,
   defaultTimeForSlot,
   expireUnpaidAppointmentQuotes,
+  finalizeAppointmentFromPaidQuote,
   formatDateLocal,
   getAllAppointmentsWithClient,
   getAppointmentByDate,

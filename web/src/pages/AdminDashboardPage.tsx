@@ -42,6 +42,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ImageLightbox, type LightboxImage } from "../components/ImageLightbox";
 import { InstallAppButton } from "../components/InstallAppButton";
 import { DrawModal } from "../components/DrawModal";
+import { QrCodeImage } from "../components/QrCodeImage";
 import { APP_VERSION, PATCH_NOTES } from "../lib/patchNotes";
 import { downloadIcs, googleCalendarUrl, type CalendarEvent } from "../lib/calendar";
 import {
@@ -54,7 +55,6 @@ import {
   appointmentDateTime,
   appointmentStatusClasses,
   appointmentStatusLabel,
-  clampNumber,
   cn,
   dateBlockParts,
   formatDateFR,
@@ -229,7 +229,7 @@ function emptyEventDraft(): EventDraft {
     conditionsLink: "",
     prizeKind: "text",
     prizeText: "",
-    prizeInappType: "credit",
+    prizeInappType: "bc",
     prizeInappAmount: "1",
     isActive: true,
     consolationEnabled: true,
@@ -388,6 +388,7 @@ type AdminSection =
   | "appointments"
   | "delivery"
   | "devis"
+  | "sales"
   | "archives"
   | "clients"
   | "stats"
@@ -405,6 +406,7 @@ const ADMIN_NAV_ITEMS: Array<{
   { key: "appointments", label: "Agenda", shortLabel: "Agenda", icon: CalendarClock },
   { key: "delivery", label: "Livraison", shortLabel: "Livraison", icon: Truck },
   { key: "devis", label: "Devis", shortLabel: "Devis", icon: FileText },
+  { key: "sales", label: "Prépa vente", shortLabel: "Vente", icon: CarFront },
   { key: "archives", label: "Archives", shortLabel: "Archives", icon: Archive },
   { key: "clients", label: "Clients", shortLabel: "Clients", icon: Users },
   { key: "stats", label: "Stats", shortLabel: "Stats", icon: BarChart3 },
@@ -417,12 +419,20 @@ type AdminQuote = {
   id: number;
   clientId: number;
   description: string | null;
-  status: "pending" | "answered" | "archived";
-  estimatedCredits: number | null;
+  status: "pending" | "answered" | "accepted" | "paid" | "refused" | "archived";
+  paymentStatus: "unpaid" | "pending" | "paid" | "failed" | "expired";
+  estimatedPriceCents: number | null;
   adminComment: string | null;
   createdAt: number;
   answeredAt: number | null;
+  paidAt: number | null;
+  appointmentId: number | null;
+  convertedAt: number | null;
+  refusalReason: string | null;
+  refusalComment: string | null;
+  vehicle: { id: number | null; label: string | null; model: string | null; plate: string | null };
   photos: string[];
+  serviceItems: Array<{ key: string; category: string; label: string; founderOnly: boolean }>;
   client: {
     id: number;
     fullName: string;
@@ -436,6 +446,25 @@ type AdminQuote = {
     vehiclePlate: string | null;
     formulaRemaining: number;
   };
+};
+
+type AdminPartnerOrder = {
+  id: number;
+  partnerLabel: string | null;
+  forfaitLabel: string;
+  amountCents: number;
+  currency: string;
+  checkoutReference: string;
+  status: "pending" | "paid" | "failed" | "expired" | "cancelled" | "refunded";
+  customerName: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  vehicleModel: string | null;
+  vehiclePlate: string | null;
+  vehicleDetails: string | null;
+  photos: string[];
+  paidAt: number | null;
+  createdAt: number;
 };
 
 const CLEANLINESS_OPTIONS: Array<{
@@ -453,6 +482,16 @@ function formatMoneyCents(cents: number | null | undefined) {
     style: "currency",
     currency: "EUR",
   }).format(Number(cents || 0) / 100);
+}
+
+function quoteRefusalLabel(reason: string | null) {
+  return ({
+    trop_cher: "Tarif trop élevé / hors budget",
+    delai_incompatible: "Délai ou disponibilité incompatible",
+    autre_prestataire: "Choix d'un autre prestataire",
+    changement_avis: "Changement d'avis",
+    autre: "Autre raison",
+  } as Record<string, string>)[reason || ""] || reason || "Autre raison";
 }
 
 function normalizeCleanlinessRating(
@@ -757,8 +796,6 @@ export function AdminDashboardPage() {
   const [globalAppointmentsLoading, setGlobalAppointmentsLoading] = React.useState(true);
 
   const [busyAction, setBusyAction] = React.useState(false);
-  const [busyFormula, setBusyFormula] = React.useState(false);
-  const [busyFormulaRecap, setBusyFormulaRecap] = React.useState(false);
   const [busyPoints, setBusyPoints] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [refreshToken, setRefreshToken] = React.useState(0);
@@ -802,7 +839,6 @@ export function AdminDashboardPage() {
   const [cleanlinessDrafts, setCleanlinessDrafts] = React.useState<
     Record<number, CleanlinessRating | null>
   >({});
-  const [customCreditDrafts, setCustomCreditDrafts] = React.useState<Record<number, string>>({});
   const [customPriceDrafts, setCustomPriceDrafts] = React.useState<Record<number, string>>({});
   const [vehiclePhotoBusyId, setVehiclePhotoBusyId] = React.useState<number | null>(null);
   const [photoRequestDrafts, setPhotoRequestDrafts] = React.useState<Record<number, string>>({});
@@ -838,9 +874,10 @@ export function AdminDashboardPage() {
   const [goodies, setGoodies] = React.useState<AdminGoodie[]>([]);
   const [goodieFilter, setGoodieFilter] = React.useState<"pending" | "honored">("pending");
   const [goodiePending, setGoodiePending] = React.useState(0);
-  // Devis : liste + brouillons de reponse (credits / commentaire) par demande.
+  // Devis : liste + brouillons de prix en euros / commentaire par demande.
   const [quotes, setQuotes] = React.useState<AdminQuote[]>([]);
-  const [quoteCreditDrafts, setQuoteCreditDrafts] = React.useState<Record<number, string>>({});
+  const [partnerOrders, setPartnerOrders] = React.useState<AdminPartnerOrder[]>([]);
+  const [quotePriceDrafts, setQuotePriceDrafts] = React.useState<Record<number, string>>({});
   const [quoteCommentDrafts, setQuoteCommentDrafts] = React.useState<Record<number, string>>({});
   const [quoteBusyId, setQuoteBusyId] = React.useState<number | null>(null);
   // LOT "RDV plus rapides" : id du RDV en attente de confirmation du tarif
@@ -873,13 +910,6 @@ export function AdminDashboardPage() {
     buttonUrl: "",
   });
   const [broadcastSending, setBroadcastSending] = React.useState(false);
-
-  const [formulaEditOpen, setFormulaEditOpen] = React.useState(false);
-  const [formulaDraftTotal, setFormulaDraftTotal] = React.useState<number | null>(
-    null,
-  );
-  const [formulaDraftRemaining, setFormulaDraftRemaining] =
-    React.useState<number | null>(null);
 
   const [deepLink, setDeepLink] = React.useState<{
     appointmentId: number | null;
@@ -1096,6 +1126,7 @@ export function AdminDashboardPage() {
       appointments: `/admin/appointments${appointmentQuery}`,
       delivery: `/admin/delivery${appointmentQuery}`,
       devis: "/admin/devis",
+      sales: "/admin/preparation-vente",
       archives: "/admin/archives",
       clients: `/admin/clients${clientQuery}`,
       stats: "/admin/stats",
@@ -1138,7 +1169,7 @@ export function AdminDashboardPage() {
       setQuotes((prev) =>
         prev.map((quote) =>
           quote.id === id
-            ? { ...quote, status: quote.estimatedCredits ? "answered" : "pending" }
+            ? { ...quote, status: quote.paymentStatus === "paid" ? "paid" : quote.estimatedPriceCents ? "answered" : "pending" }
             : quote,
         ),
       );
@@ -1510,10 +1541,29 @@ export function AdminDashboardPage() {
     };
   }, [refreshToken]);
 
+  React.useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/admin/partner-orders");
+        const json = await response.json();
+        if (active && response.ok && json.ok) {
+          setPartnerOrders(json.orders as AdminPartnerOrder[]);
+        }
+      } catch (_error) {
+        // Le suivi reste disponible au prochain rafraîchissement.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshToken]);
+
   async function answerQuote(quote: AdminQuote) {
-    const credits = Math.max(1, Math.round(Number(quoteCreditDrafts[quote.id]) || 0));
-    if (!credits) {
-      showToast("Indiquez un nombre de credits.");
+    const euros = Number((quotePriceDrafts[quote.id] || "").replace(",", "."));
+    const estimatedPriceCents = Number.isFinite(euros) ? Math.round(euros * 100) : 0;
+    if (estimatedPriceCents <= 0) {
+      showToast("Indiquez un prix en euros.");
       return;
     }
     setQuoteBusyId(quote.id);
@@ -1522,16 +1572,22 @@ export function AdminDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          estimatedCredits: credits,
+          estimatedPriceCents,
           adminComment: (quoteCommentDrafts[quote.id] || "").trim() || null,
         }),
       });
       const json = await response.json();
       if (!response.ok || !json.ok) {
-        showToast("Impossible d'envoyer l'estimation.");
+        if (json?.error === "payment_started") {
+          showToast("Le paiement est déjà lancé : ce prix ne peut plus être modifié.");
+        } else if (json?.error === "quote_locked") {
+          showToast("Ce devis est verrouillé car il est déjà payé, refusé ou archivé.");
+        } else {
+          showToast("Impossible d'envoyer le devis.");
+        }
         return;
       }
-      showToast("Estimation envoyee au client.");
+      showToast("Devis envoyé au client.");
       setRefreshToken((value) => value + 1);
     } catch (_error) {
       showToast("Erreur reseau.");
@@ -1570,7 +1626,7 @@ export function AdminDashboardPage() {
       conditionsLink: event.conditionsLink ?? "",
       prizeKind: event.prizeKind,
       prizeText: event.prizeText ?? "",
-      prizeInappType: event.prizeInappType ?? "credit",
+      prizeInappType: event.prizeInappType === "founder_month" ? "founder_month" : "bc",
       prizeInappAmount: String(event.prizeInappAmount ?? 1),
       isActive: event.isActive,
       consolationEnabled: event.consolationEnabled,
@@ -1860,10 +1916,6 @@ export function AdminDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status,
-          customCredits:
-            customCreditDrafts[appointmentId] && Number(customCreditDrafts[appointmentId]) > 0
-              ? Number(customCreditDrafts[appointmentId])
-              : undefined,
           customPriceCents: (() => {
             const raw = customPriceDrafts[appointmentId]?.replace(",", ".");
             const euros = raw ? Number(raw) : Number.NaN;
@@ -1892,12 +1944,8 @@ export function AdminDashboardPage() {
       const updated = json.appointment as AdminAppointment;
       applyAppointmentUpdate(updated);
 
-      if (updated.priceStatus === "waiting_payment" || json.warning === "not_enough_credits") {
-        showToast(
-          updated.approvedPriceCents != null
-            ? "Tarif enregistré. Le client peut maintenant finaliser et payer."
-            : "Tarif enregistré. Le client doit recharger pour confirmer.",
-        );
+      if (updated.priceStatus === "waiting_payment") {
+        showToast("Tarif enregistré. Le client peut maintenant finaliser et payer.");
       } else if (updated.priceStatus === "waiting_client_approval") {
         showToast("Tarif envoye au client pour validation.");
       } else {
@@ -2023,116 +2071,6 @@ export function AdminDashboardPage() {
     }
   }
 
-  async function updateFormula(mode: "reset" | "empty" | "custom") {
-    const client = selectedClient?.client;
-    if (!client) return;
-
-    let nextTotal = client.formulaTotal;
-    let nextRemaining = client.formulaRemaining;
-
-    if (mode === "reset") {
-      nextRemaining = client.formulaTotal;
-    } else if (mode === "empty") {
-      nextRemaining = 0;
-    } else {
-      nextTotal = clampNumber(Math.floor(formulaDraftTotal ?? client.formulaTotal), 0);
-      nextRemaining = clampNumber(
-        Math.floor(formulaDraftRemaining ?? client.formulaRemaining),
-        0,
-        nextTotal,
-      );
-    }
-
-    setBusyFormula(true);
-
-    try {
-      const response = await fetch(`/api/admin/clients/${client.id}/formula`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          total: nextTotal,
-          remaining: nextRemaining,
-        }),
-      });
-
-      const json = await response.json();
-      if (!response.ok || json.ok === false) {
-        showToast("Impossible de mettre a jour la formule.");
-        return;
-      }
-
-      setSelectedClient((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          client: {
-            ...current.client,
-            formulaTotal: nextTotal,
-            formulaRemaining: nextRemaining,
-          },
-        };
-      });
-
-      setClients((current) =>
-        current.map((entry) =>
-          entry.id === client.id
-            ? {
-                ...entry,
-                formulaTotal: nextTotal,
-                formulaRemaining: nextRemaining,
-              }
-            : entry,
-        ),
-      );
-
-      showToast("Formule mise a jour.");
-      setFormulaEditOpen(false);
-    } catch (error) {
-      showToast("Erreur reseau pendant la mise a jour formule.");
-    } finally {
-      setBusyFormula(false);
-    }
-  }
-
-  async function sendFormulaRecap() {
-    const client = selectedClient?.client;
-    if (!client) return;
-
-    if (!client.email) {
-      showToast("Ajoutez un email client avant l'envoi du recapitulatif.");
-      return;
-    }
-
-    setBusyFormulaRecap(true);
-
-    try {
-      const response = await fetch(`/api/admin/clients/${client.id}/formula-recap`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const json = await response.json();
-      if (!response.ok || !json.ok || !json.client) {
-        showToast("Impossible d'envoyer le recapitulatif client.");
-        return;
-      }
-
-      const updated = json.client as AdminClient;
-      setClients((current) =>
-        current.map((entry) => (entry.id === updated.id ? updated : entry)),
-      );
-      setSelectedClient((current) =>
-        current ? { ...current, client: updated } : current,
-      );
-      showToast("Recapitulatif formule envoye au client.");
-    } catch (error) {
-      showToast("Erreur reseau pendant l'envoi du recapitulatif.");
-    } finally {
-      setBusyFormulaRecap(false);
-    }
-  }
-
   async function updateClientPoints(deltaOverride?: number) {
     const client = selectedClient?.client;
     if (!client) return;
@@ -2198,15 +2136,6 @@ export function AdminDashboardPage() {
     } finally {
       setExportingData(false);
     }
-  }
-
-  function openFormulaEdit() {
-    const client = selectedClient?.client;
-    if (!client) return;
-
-    setFormulaDraftTotal(client.formulaRemaining);
-    setFormulaDraftRemaining(client.formulaRemaining);
-    setFormulaEditOpen(true);
   }
 
   function openCreateProfile() {
@@ -2276,13 +2205,6 @@ export function AdminDashboardPage() {
       payload.append("city", profileDraft.city);
       payload.append("vehicleModel", profileDraft.vehicleModel);
       payload.append("vehiclePlate", profileDraft.vehiclePlate);
-      // Credit unique: total et restant suivent la meme valeur.
-      const creditsValue = String(Number(profileDraft.formulaRemaining || 0));
-      payload.append("formulaName", profileDraft.formulaName);
-      payload.append("formulaTotal", creditsValue);
-      payload.append("formulaRemaining", creditsValue);
-      payload.append("formulaPurchasedAt", profileDraft.formulaPurchasedAt);
-      payload.append("formulaExpiresAt", profileDraft.formulaExpiresAt);
       payload.append("notes", profileDraft.notes);
       if (founderMediaFile) {
         payload.append("founderImage", founderMediaFile);
@@ -2394,10 +2316,12 @@ export function AdminDashboardPage() {
 
   // Compteurs de notification par onglet de navigation admin.
   const quotesPendingCount = quotes.filter((quote) => quote.status === "pending").length;
+  const partnerOrdersPendingCount = partnerOrders.filter((order) => order.status === "pending").length;
   const adminNavBadges: Record<string, number> = {
     appointments: pendingRequests.length,
     delivery: deliveryPendingCount,
     devis: quotesPendingCount,
+    sales: partnerOrdersPendingCount,
     clients: 0,
     events: goodiePending,
   };
@@ -2467,24 +2391,24 @@ export function AdminDashboardPage() {
     [selectedClient],
   );
 
-  const totalCreditsRemaining = clients.reduce(
-    (sum, client) => sum + (client.formulaRemaining ?? 0),
-    0,
-  );
-  const clientsLowOnCredits = clients.filter((client) => client.formulaRemaining <= 1).length;
+  const founderClientsCount = clients.filter((client) => client.isFounder).length;
+  const proClientsCount = clients.filter((client) => client.clientType === "pro").length;
   const doneThisMonth = globalAppointments.filter(
     (appointment) =>
       appointment.status === "done" &&
       appointment.date.startsWith(new Date().toISOString().slice(0, 7)),
   ).length;
   const firstPendingRequest = pendingRequests[0] ?? null;
-  const firstUpcomingAppointment = upcomingAppointments[0] ?? null;
+  const firstUpcomingAppointment =
+    upcomingAppointments.find((appointment) => appointment.status === "confirmed") ?? null;
   const adminSection: AdminSection = location.pathname.startsWith("/admin/appointments")
     ? "appointments"
     : location.pathname.startsWith("/admin/delivery")
       ? "delivery"
       : location.pathname.startsWith("/admin/devis")
         ? "devis"
+        : location.pathname.startsWith("/admin/preparation-vente")
+          ? "sales"
         : location.pathname.startsWith("/admin/archives")
           ? "archives"
           : location.pathname.startsWith("/admin/clients")
@@ -2517,6 +2441,8 @@ export function AdminDashboardPage() {
         ? "Livraison"
         : adminSection === "devis"
           ? "Devis"
+          : adminSection === "sales"
+            ? "Préparation vente"
           : adminSection === "archives"
             ? "Archives"
             : adminSection === "clients"
@@ -2536,11 +2462,13 @@ export function AdminDashboardPage() {
       : adminSection === "delivery"
         ? "Rendez-vous confirmés: compte-rendu, photos et passage en effectué."
         : adminSection === "devis"
-          ? "Demandes d'estimation: chiffrez en credits, le client est notifie."
+          ? "Demandes de devis : fixez le prix exact avant paiement et planification."
+          : adminSection === "sales"
+            ? "Commandes publiques des partenaires : coordonnées, véhicule, photos et paiement."
           : adminSection === "archives"
             ? "Consultez et gérez l'historique des éléments archivés."
             : adminSection === "clients"
-              ? "Fiches, formules, BC'Coins et historique client."
+              ? "Fiches, profils, BC'Coins et historique client."
               : adminSection === "stats"
                 ? "Statistiques par mois et analytics (conversion, rétention, créneaux)."
                 : adminSection === "events"
@@ -2578,19 +2506,6 @@ export function AdminDashboardPage() {
 
   function appointmentAdminLink(appointment: AdminAppointment) {
     return `/admin/appointments?clientId=${appointment.clientId}&appointmentId=${appointment.id}`;
-  }
-
-  // LOT "RDV plus rapides" : credits qui seront factures si l'admin valide le
-  // tarif maintenant (custom > palier de proprete > tarif admin > estimation).
-  function plannedCreditsFor(appointment: AdminAppointment) {
-    const customRaw = customCreditDrafts[appointment.id];
-    const customNum = customRaw ? Number.parseInt(customRaw, 10) : Number.NaN;
-    if (Number.isFinite(customNum) && customNum > 0) return customNum;
-    const tier = cleanlinessDrafts[appointment.id];
-    if (tier === "very_clean") return 1;
-    if (tier === "correct") return 2;
-    if (tier === "dirty") return 3;
-    return appointment.approvedCredits || appointment.requestedCredits || 1;
   }
 
   function clientAdminLink(client: AdminClient) {
@@ -2812,7 +2727,6 @@ export function AdminDashboardPage() {
                       }
                       value={eventDraft.prizeInappType}
                     >
-                      <option value="credit">Crédits</option>
                       <option value="bc">BC'Coins</option>
                       <option value="founder_month">Mois fondateur</option>
                     </select>
@@ -3156,21 +3070,22 @@ export function AdminDashboardPage() {
     );
   }
 
-  // Devis : page admin — liste des demandes actives + estimation en credits.
+  // Devis : demande, chiffrage, paiement puis planification par le client.
   function renderQuotesPage() {
-    const activeQuotes = quotes.filter((quote) => quote.status !== "archived");
+    const focusedQuoteId = Number(new URLSearchParams(location.search).get("quoteId") || 0);
+    const activeQuotes = quotes
+      .filter((quote) => quote.status !== "archived")
+      .sort((a, b) => Number(b.id === focusedQuoteId) - Number(a.id === focusedQuoteId));
     const pendingQuotes = activeQuotes.filter((quote) => quote.status === "pending");
     return (
       <section className="bb-surface p-5 md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="bb-eyebrow">Devis</p>
-            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">
-              Demandes d&apos;estimation
-            </h2>
+            <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Demandes de devis</h2>
             <p className="mt-2 text-sm text-white/55">
-              Chiffrez chaque demande en credits : le client est notifie (push + e-mail)
-              et peut recharger directement.
+              Fixez le montant exact. Le client paie ou refuse, puis choisit son créneau
+              uniquement après confirmation du paiement.
             </p>
           </div>
           <span
@@ -3195,19 +3110,32 @@ export function AdminDashboardPage() {
         ) : (
           <div className="mt-5 space-y-4">
             {activeQuotes.map((quote) => {
-              const answered = quote.status === "answered";
-              const creditValue =
-                quoteCreditDrafts[quote.id] ??
-                (answered && quote.estimatedCredits ? String(quote.estimatedCredits) : "");
+              const answered = quote.status === "answered" || quote.status === "accepted";
+              const paid = quote.status === "paid" || quote.paymentStatus === "paid";
+              const refused = quote.status === "refused";
+              const paymentStarted = quote.paymentStatus === "pending";
+              const editable = !paid && !refused && !paymentStarted;
+              const priceValue =
+                quotePriceDrafts[quote.id] ??
+                (quote.estimatedPriceCents
+                  ? (quote.estimatedPriceCents / 100).toFixed(2)
+                  : "");
               const busy = quoteBusyId === quote.id;
+              const vehicleName = quote.vehicle?.model || quote.vehicle?.label || quote.client.vehicleModel || "Véhicule non renseigné";
+              const vehiclePlate = quote.vehicle?.plate || quote.client.vehiclePlate;
               return (
                 <article
                   key={quote.id}
                   className={cn(
                     "rounded-2xl border p-4",
-                    answered
-                      ? "border-white/10 bg-white/[0.02]"
-                      : "border-amber-300/20 bg-amber-300/[0.04]",
+                    quote.id === focusedQuoteId && "ring-2 ring-accent/60 ring-offset-2 ring-offset-black",
+                    paid
+                      ? "border-emerald-300/20 bg-emerald-300/[0.035]"
+                      : refused
+                        ? "border-rose-300/18 bg-rose-400/[0.03]"
+                        : answered
+                          ? "border-sky-300/18 bg-sky-300/[0.025]"
+                          : "border-amber-300/20 bg-amber-300/[0.04]",
                   )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3221,10 +3149,14 @@ export function AdminDashboardPage() {
                             ? "Fondateur"
                             : (quote.client.clientType || "bbx").toUpperCase()}
                         </span>
-                        {answered ? (
-                          <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
-                            Estime {quote.estimatedCredits} cr.
-                          </span>
+                        {paid ? (
+                          <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">Payé · à planifier</span>
+                        ) : refused ? (
+                          <span className="bb-pill border-rose-300/25 bg-rose-400/10 text-rose-100">Refusé</span>
+                        ) : paymentStarted ? (
+                          <span className="bb-pill border-violet-300/25 bg-violet-300/10 text-violet-100">Paiement en cours</span>
+                        ) : answered ? (
+                          <span className="bb-pill border-sky-300/25 bg-sky-300/10 text-sky-100">Envoyé · {formatMoneyCents(quote.estimatedPriceCents)}</span>
                         ) : (
                           <span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
                             En attente
@@ -3232,11 +3164,11 @@ export function AdminDashboardPage() {
                         )}
                       </div>
                       <p className="mt-1 text-xs text-white/45">
-                        {quote.client.vehicleModel || "Vehicule non renseigne"}
+                        {vehicleName}{vehiclePlate ? ` · ${vehiclePlate}` : ""}
                         {quote.client.phone ? ` · ${quote.client.phone}` : ""}
                       </p>
                     </div>
-                    <button
+                    {!paid && !paymentStarted && <button
                       className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 shadow-sm transition hover:border-rose-400/40 hover:bg-rose-500/20 hover:text-rose-100 active:scale-95 disabled:opacity-50"
                       disabled={busy}
                       onClick={() => void archiveQuote(quote.id)}
@@ -3245,13 +3177,30 @@ export function AdminDashboardPage() {
                     >
                       <Archive className="h-3.5 w-3.5" />
                       <span>Archiver</span>
-                    </button>
+                    </button>}
                   </div>
 
                   {quote.description && (
                     <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/70">
                       {quote.description}
                     </p>
+                  )}
+
+                  {refused && (
+                    <div className="mt-3 rounded-xl border border-rose-300/16 bg-rose-400/[0.05] p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-rose-200">Motif du refus</p>
+                      <p className="mt-2 text-sm font-semibold text-white">{quoteRefusalLabel(quote.refusalReason)}</p>
+                      {quote.refusalComment && <p className="mt-1 text-sm leading-6 text-white/60">{quote.refusalComment}</p>}
+                    </div>
+                  )}
+
+                  {quote.serviceItems.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-[#e8c98a]/18 bg-[#e8c98a]/[0.045] p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#e8c98a]">Panier de prestations</p>
+                      <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                        {quote.serviceItems.map((service) => <li className="flex items-start gap-2 text-xs text-white/70" key={service.key}><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#e8c98a]" />{service.label}</li>)}
+                      </ul>
+                    </div>
                   )}
 
                   {quote.photos.length > 0 && (
@@ -3278,70 +3227,88 @@ export function AdminDashboardPage() {
                     </div>
                   )}
 
-                  <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-                      Estimation en credits
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <button
-                          className={cn(
-                            "grid h-9 w-9 place-items-center rounded-lg border text-sm font-semibold transition",
-                            creditValue === String(n)
-                              ? "border-accent/45 bg-accent/15 text-white"
-                              : "border-white/12 bg-black/20 text-white/65 hover:bg-white/[0.05]",
-                          )}
-                          key={n}
-                          onClick={() =>
-                            setQuoteCreditDrafts((current) => ({
-                              ...current,
-                              [quote.id]: String(n),
-                            }))
-                          }
-                          type="button"
-                        >
-                          {n}
-                        </button>
-                      ))}
-                      <input
-                        className="bb-input w-24"
-                        min={1}
-                        onChange={(event) =>
-                          setQuoteCreditDrafts((current) => ({
-                            ...current,
-                            [quote.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="Autre"
-                        type="number"
-                        value={creditValue}
-                      />
+                  {editable ? (
+                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-white/40">Prix exact du devis (€)</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <input className="bb-input max-w-[220px]" min={0.01} onChange={(event) => setQuotePriceDrafts((current) => ({ ...current, [quote.id]: event.target.value }))} placeholder="Ex : 450,00" step="0.01" type="number" value={priceValue} />
+                      </div>
+                      <input className="bb-input mt-2" onChange={(event) => setQuoteCommentDrafts((current) => ({ ...current, [quote.id]: event.target.value }))} placeholder="Justification ou commentaire pour le client" value={quoteCommentDrafts[quote.id] ?? quote.adminComment ?? ""} />
+                      <button className="bb-button-brand mt-3 justify-center" disabled={busy} onClick={() => void answerQuote(quote)} type="button">
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        {busy ? "Envoi..." : answered ? "Mettre à jour le devis" : "Envoyer le devis"}
+                      </button>
                     </div>
-                    <input
-                      className="bb-input mt-2"
-                      onChange={(event) =>
-                        setQuoteCommentDrafts((current) => ({
-                          ...current,
-                          [quote.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Commentaire pour le client (optionnel)"
-                      value={quoteCommentDrafts[quote.id] ?? quote.adminComment ?? ""}
-                    />
-                    <button
-                      className="bb-button-brand mt-3 justify-center"
-                      disabled={busy}
-                      onClick={() => void answerQuote(quote)}
-                      type="button"
-                    >
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      {busy
-                        ? "Envoi..."
-                        : answered
-                          ? "Mettre a jour l'estimation"
-                          : "Envoyer l'estimation"}
-                    </button>
+                  ) : (
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/38">Montant du devis</p>
+                        <p className="mt-1 text-xl font-bold text-white">{formatMoneyCents(quote.estimatedPriceCents)}</p>
+                      </div>
+                      <p className="max-w-md text-right text-xs leading-5 text-white/48">
+                        {paid ? "Paiement reçu. Le devis reste ici jusqu'au choix du créneau par le client." : refused ? "Le client a refusé cette proposition. Vous pouvez l'archiver." : "Le paiement a démarré : le montant est verrouillé pour éviter toute incohérence."}
+                      </p>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  function renderPartnerSalesPage() {
+    const paidCount = partnerOrders.filter((order) => order.status === "paid").length;
+    const pendingCount = partnerOrders.filter((order) => order.status === "pending").length;
+    const publicSalesLink = `${window.location.origin}/preparation-vente`;
+    return (
+      <section className="space-y-4">
+        <article className="bb-surface p-5 md:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="bb-eyebrow">Préparation vente</p>
+              <h2 className="bb-display mt-2 text-2xl font-semibold text-white">Lien public et commandes</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">Partagez ce lien directement à n&apos;importe quel client. Il choisit son forfait, renseigne son véhicule et ses photos, puis paie en ligne. Les liens des pros continuent d&apos;identifier le partenaire apporteur.</p>
+            </div>
+            <div className="flex gap-2"><span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">{pendingCount} en attente</span><span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-100">{paidCount} payé{paidCount > 1 ? "s" : ""}</span></div>
+          </div>
+
+          <div className="mt-5 grid gap-4 rounded-[24px] border border-[#e8c98a]/20 bg-[linear-gradient(135deg,rgba(232,201,138,.10),rgba(255,255,255,.025))] p-4 sm:grid-cols-[1fr_auto] sm:items-center md:p-5">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#e8c98a]">Lien permanent Bryan Cars</p>
+              <p className="mt-2 text-sm leading-6 text-white/62">À envoyer par SMS, WhatsApp ou e-mail. Aucun compte n&apos;est nécessaire pour commander.</p>
+              <div className="mt-3 flex flex-col gap-2 lg:flex-row">
+                <input className="bb-input min-w-0 flex-1" onFocus={(event) => event.currentTarget.select()} readOnly value={publicSalesLink} />
+                <button className="bb-button-steel justify-center" onClick={() => void navigator.clipboard.writeText(publicSalesLink).catch(() => undefined)} type="button"><Copy className="mr-2 h-4 w-4" />Copier</button>
+                <a className="bb-button-ghost justify-center" href={publicSalesLink} rel="noreferrer" target="_blank"><ExternalLink className="mr-2 h-4 w-4" />Ouvrir</a>
+              </div>
+            </div>
+            <div className="mx-auto rounded-2xl bg-white p-3 shadow-[0_16px_44px_rgba(0,0,0,.35)]"><QrCodeImage className="h-32 w-32" value={publicSalesLink} /></div>
+          </div>
+        </article>
+
+        {partnerOrders.length === 0 ? (
+          <article className="bb-surface grid min-h-48 place-items-center p-8 text-center"><div><CarFront className="mx-auto h-9 w-9 text-white/30" /><p className="mt-3 text-sm text-white/50">Aucune commande Préparation vente pour le moment.</p></div></article>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {partnerOrders.map((order) => {
+              const paid = order.status === "paid";
+              return (
+                <article className={cn("bb-surface overflow-hidden p-5", paid && "border-emerald-300/20")} key={order.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold text-white">{order.forfaitLabel}</h3><span className={cn("bb-pill", paid ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100" : "border-amber-300/25 bg-amber-300/10 text-amber-100")}>{paid ? "Payé" : order.status === "pending" ? "Paiement en attente" : order.status}</span></div><p className="mt-1 text-xs text-white/42">via {order.partnerLabel || "Lien direct Bryan Cars"} · {formatUnixDateTimeFR(order.createdAt)}</p></div>
+                    <p className="text-xl font-bold text-[#e8c98a]">{formatMoneyCents(order.amountCents)}</p>
                   </div>
+
+                  <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 sm:grid-cols-2">
+                    <div><p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/38">Client</p><p className="mt-1.5 text-sm font-semibold text-white">{order.customerName || "Non renseigné"}</p>{order.customerEmail && <a className="mt-1 block text-xs text-white/58 hover:text-white" href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a>}{order.customerPhone && <a className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#e8c98a] hover:underline" href={`tel:${order.customerPhone}`}><Phone className="h-3.5 w-3.5" />{order.customerPhone}</a>}</div>
+                    <div><p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/38">Véhicule</p><p className="mt-1.5 text-sm font-semibold text-white">{order.vehicleModel || "Non renseigné"}</p>{order.vehiclePlate && <p className="mt-1 text-xs text-white/58">{order.vehiclePlate}</p>}</div>
+                  </div>
+                  {order.vehicleDetails && <p className="mt-3 rounded-xl border border-white/8 bg-white/[0.025] p-3 text-sm leading-6 text-white/62">{order.vehicleDetails}</p>}
+                  {order.photos.length > 0 && <div className="mt-3 grid grid-cols-5 gap-2">{order.photos.map((url, index) => <button className="aspect-square overflow-hidden rounded-xl border border-white/10 bg-black/30 hover:border-[#e8c98a]" key={url} onClick={() => openLightbox(order.photos.map((photo, photoIndex) => ({ id: `partner-${order.id}-${photoIndex}`, url: photo, label: `${order.vehicleModel || "Véhicule"} (${photoIndex + 1}/${order.photos.length})` })), url)} type="button"><img alt={`Véhicule ${index + 1}`} className="h-full w-full object-cover" src={url} /></button>)}</div>}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-white/45"><span>Réf. {order.checkoutReference}</span>{paid && order.paidAt && <span className="font-semibold text-emerald-200">Payé le {formatUnixDateTimeFR(order.paidAt)}</span>}</div>
                 </article>
               );
             })}
@@ -3467,20 +3434,21 @@ export function AdminDashboardPage() {
                     <span className="bb-pill border-white/15 bg-white/10 text-white/70">
                       Archive
                     </span>
-                    {selectedQuote.estimatedCredits && (
+                    {selectedQuote.estimatedPriceCents && (
                       <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
-                        {selectedQuote.estimatedCredits} cr.
+                        {formatMoneyCents(selectedQuote.estimatedPriceCents)}
                       </span>
                     )}
                   </div>
                   <p className="mt-2 text-sm text-white/50">
-                    {selectedQuote.client.vehicleModel || "Vehicule non renseigne"}
+                    {selectedQuote.vehicle?.model || selectedQuote.vehicle?.label || selectedQuote.client.vehicleModel || "Véhicule non renseigné"}
+                    {(selectedQuote.vehicle?.plate || selectedQuote.client.vehiclePlate) ? ` · ${selectedQuote.vehicle?.plate || selectedQuote.client.vehiclePlate}` : ""}
                     {selectedQuote.client.phone ? ` · ${selectedQuote.client.phone}` : ""}
                     {selectedQuote.client.email ? ` · ${selectedQuote.client.email}` : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  {!selectedQuote.appointmentId && <button
                     className="bb-button-ghost px-3 py-2 text-xs"
                     disabled={quoteBusyId === selectedQuote.id}
                     onClick={() => void unarchiveQuote(selectedQuote.id)}
@@ -3488,7 +3456,7 @@ export function AdminDashboardPage() {
                   >
                     <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
                     Desarchiver
-                  </button>
+                  </button>}
                   <button
                     className="inline-flex items-center rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200"
                     disabled={quoteBusyId === selectedQuote.id}
@@ -3501,6 +3469,12 @@ export function AdminDashboardPage() {
                 </div>
               </div>
 
+              {selectedQuote.appointmentId && (
+                <div className="mt-4 rounded-xl border border-emerald-300/18 bg-emerald-300/[0.05] p-3 text-sm text-emerald-100">
+                  <CheckCircle2 className="mr-2 inline h-4 w-4" />Devis payé et converti en rendez-vous #{selectedQuote.appointmentId}.
+                </div>
+              )}
+
               {selectedQuote.description && (
                 <p className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/70">
                   {selectedQuote.description}
@@ -3508,6 +3482,21 @@ export function AdminDashboardPage() {
               )}
               {selectedQuote.adminComment && (
                 <p className="mt-3 text-sm leading-6 text-white/55">{selectedQuote.adminComment}</p>
+              )}
+              {selectedQuote.refusalReason && (
+                <div className="mt-3 rounded-xl border border-rose-300/16 bg-rose-400/[0.04] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-rose-200">Refus client</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{quoteRefusalLabel(selectedQuote.refusalReason)}</p>
+                  {selectedQuote.refusalComment && <p className="mt-1 text-sm text-white/58">{selectedQuote.refusalComment}</p>}
+                </div>
+              )}
+              {selectedQuote.serviceItems.length > 0 && (
+                <div className="mt-4 rounded-xl border border-accent/18 bg-accent/[0.04] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-accentSoft">Prestations du devis</p>
+                  <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                    {selectedQuote.serviceItems.map((service) => <li className="flex items-start gap-2 text-xs text-white/70" key={service.key}><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />{service.label}</li>)}
+                  </ul>
+                </div>
               )}
               {selectedQuote.photos.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -3682,10 +3671,6 @@ export function AdminDashboardPage() {
     return appointment.approvedPriceCents || appointment.standardPriceCents || 0;
   }
 
-  function appointmentUsesEuroQuote(appointment: AdminAppointment) {
-    return appointment.standardPriceCents != null || appointment.serviceItems.length > 0;
-  }
-
 
   function renderLandingStatsPanel() {
     const ls = landingStatsData;
@@ -3842,11 +3827,9 @@ export function AdminDashboardPage() {
       (appointment) => appointment.status === "confirmed",
     );
     const topDeliveries = deliveriesToPrep.slice(0, 3);
-    const lowCreditClients = clients.filter((client) => client.formulaRemaining <= 1);
     const allClear =
       topPending.length === 0 &&
       topDeliveries.length === 0 &&
-      lowCreditClients.length === 0 &&
       goodiePending === 0 &&
       quotesPendingCount === 0;
 
@@ -3923,7 +3906,7 @@ export function AdminDashboardPage() {
           </p>
         ) : (
           <>
-            {(lowCreditClients.length > 0 || goodiePending > 0 || quotesPendingCount > 0) && (
+            {(goodiePending > 0 || quotesPendingCount > 0) && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {quotesPendingCount > 0 && (
                   <Link
@@ -3932,15 +3915,6 @@ export function AdminDashboardPage() {
                   >
                     <FileText className="h-3.5 w-3.5" />
                     {quotesPendingCount} devis a estimer
-                  </Link>
-                )}
-                {lowCreditClients.length > 0 && (
-                  <Link
-                    className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3.5 py-1.5 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45"
-                    to="/admin/clients"
-                  >
-                    <Coins className="h-3.5 w-3.5" />
-                    {lowCreditClients.length} client{lowCreditClients.length > 1 ? "s" : ""} a court de credits
                   </Link>
                 )}
                 {goodiePending > 0 && (
@@ -4130,17 +4104,9 @@ export function AdminDashboardPage() {
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {doneThisMonth} effectue{doneThisMonth > 1 ? "s" : ""} ce mois
               </span>
-              <span
-                className={cn(
-                  "bb-pill",
-                  clientsLowOnCredits > 0
-                    ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
-                    : "border-white/10 bg-white/[0.04] text-white/60",
-                )}
-              >
-                <Coins className="h-3.5 w-3.5" />
-                {totalCreditsRemaining} credits
-                {clientsLowOnCredits > 0 ? ` · ${clientsLowOnCredits} en tension` : ""}
+              <span className="bb-pill border-accent/25 bg-accent/10 text-accentSoft">
+                <Crown className="h-3.5 w-3.5" />
+                {founderClientsCount} fondateur{founderClientsCount > 1 ? "s" : ""}
               </span>
             </div>
           </div>
@@ -4189,7 +4155,7 @@ export function AdminDashboardPage() {
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {[
               { icon: CalendarClock, title: "Agenda", value: pendingRequests.length, sub: "en attente", to: "/admin/appointments" },
-              { icon: Truck, title: "Livraison", value: upcomingAppointments.length, sub: "a preparer", to: "/admin/delivery" },
+              { icon: Truck, title: "Livraison", value: deliveryPendingCount, sub: "a preparer", to: "/admin/delivery" },
               { icon: Users, title: "Clients", value: clients.length, sub: "fiches", to: "/admin/clients" },
             ].map((tile) => {
               const TileIcon = tile.icon;
@@ -4435,7 +4401,7 @@ export function AdminDashboardPage() {
           { label: "En attente", value: String(s.appointments.requested), sub: "a traiter" },
           { label: "Confirmes", value: String(s.appointments.confirmed), sub: "a faire" },
           { label: "Annules", value: String(s.appointments.cancelled), sub: "ce mois" },
-          { label: "Crédits consommés", value: String(s.creditsConsumed), sub: "sur RDV effectués" },
+          { label: "Panier moyen", value: euro(s.payments > 0 ? Math.round(s.revenueCents / s.payments) : 0), sub: "sur paiements encaissés" },
           { label: "BC'Coins distribues", value: String(s.bcDistributed), sub: "ce mois" },
           { label: "Nouveaux clients", value: String(s.newClients), sub: "ce mois" },
         ]
@@ -5217,23 +5183,28 @@ export function AdminDashboardPage() {
 
                     {selectedAppointmentActions && (
                       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                        <button
-                          className={selectedAppointmentActions.primary.className}
-                          disabled={
-                            busyAction || selectedAppointmentActions.primary.disabled
-                          }
-                          onClick={() => {
-                            if (selectedAppointmentActions.primary.disabled) return;
-                            void changeStatus(
-                              selectedAppointment.id,
-                              selectedAppointmentActions.primary.nextStatus,
-                            );
-                          }}
-                          type="button"
-                        >
-                          <selectedAppointmentActions.primary.icon className="mr-2 h-4 w-4" />
-                          {selectedAppointmentActions.primary.label}
-                        </button>
+                        {!(
+                          selectedAppointment.status === "requested" &&
+                          selectedAppointment.priceStatus !== "not_required"
+                        ) && (
+                          <button
+                            className={selectedAppointmentActions.primary.className}
+                            disabled={
+                              busyAction || selectedAppointmentActions.primary.disabled
+                            }
+                            onClick={() => {
+                              if (selectedAppointmentActions.primary.disabled) return;
+                              void changeStatus(
+                                selectedAppointment.id,
+                                selectedAppointmentActions.primary.nextStatus,
+                              );
+                            }}
+                            type="button"
+                          >
+                            <selectedAppointmentActions.primary.icon className="mr-2 h-4 w-4" />
+                            {selectedAppointmentActions.primary.label}
+                          </button>
+                        )}
                         <button
                           className={selectedAppointmentActions.secondary.className}
                           disabled={
@@ -5346,24 +5317,20 @@ export function AdminDashboardPage() {
                                 : selectedAppointment.priceStatus === "approved"
                                   ? selectedAppointment.amountPaidCents > 0
                                     ? "Paiement reçu, rendez-vous confirmé"
-                                    : "Tarif validé et crédits consommés"
+                                    : "Tarif validé"
                                   : "Controle admin requis"}
                         </h3>
                         <p className="mt-2 text-sm leading-6 text-white/62">
-                          {appointmentUsesEuroQuote(selectedAppointment)
-                            ? `${selectedAppointment.serviceItems.length || 1} prestation${selectedAppointment.serviceItems.length > 1 ? "s" : ""} sélectionnée${selectedAppointment.serviceItems.length > 1 ? "s" : ""}.`
-                            : `Estimation client: ${selectedAppointment.requestedCredits || 1} credit${(selectedAppointment.requestedCredits || 1) > 1 ? "s" : ""}.`}
+                          {`${selectedAppointment.serviceItems.length || 1} prestation${selectedAppointment.serviceItems.length > 1 ? "s" : ""} sélectionnée${selectedAppointment.serviceItems.length > 1 ? "s" : ""}.`}
                           {selectedAppointment.approvedPriceCents != null
                             ? ` Tarif validé: ${formatMoneyCents(selectedAppointment.approvedPriceCents)}.`
-                            : selectedAppointment.approvedCredits
-                              ? ` Tarif admin: ${selectedAppointment.approvedCredits} credit${selectedAppointment.approvedCredits > 1 ? "s" : ""}.`
-                              : " Vous pouvez confirmer, modifier ou demander des photos."}
+                            : " Vous pouvez fixer le prix exact ou demander des photos."}
                         </p>
                       </div>
                       <div className="bb-pill border-white/12 bg-white/[0.04] text-white/75">
-                        {appointmentUsesEuroQuote(selectedAppointment)
+                        {selectedAppointment.amountPaidCents > 0
                           ? `${formatMoneyCents(selectedAppointment.amountPaidCents)} payé`
-                          : `${selectedAppointment.creditsCharged || 0} credit${(selectedAppointment.creditsCharged || 0) > 1 ? "s" : ""} consomme`}
+                          : "Paiement à venir"}
                       </div>
                     </div>
 
@@ -5381,63 +5348,24 @@ export function AdminDashboardPage() {
                       </div>
                     )}
 
-                    {!appointmentUsesEuroQuote(selectedAppointment) && (
-                    <div className="mt-5 grid gap-3 md:grid-cols-3">
-                      {[
-                        { value: "very_clean" as const, label: "Propre", credits: 1 },
-                        { value: "correct" as const, label: "Correct", credits: 2 },
-                        { value: "dirty" as const, label: "Sale", credits: 3 },
-                      ].map((option) => (
-                        <button
-                          className={cn(
-                            "rounded-[22px] border p-4 text-left transition duration-200",
-                            cleanlinessDrafts[selectedAppointment.id] === option.value
-                              ? "border-accent/45 bg-accent/10 text-white"
-                              : "border-white/10 bg-black/20 text-white/65 hover:bg-white/[0.04]",
-                          )}
-                          key={option.value}
-                          onClick={() =>
-                            setCleanlinessDrafts((current) => ({
-                              ...current,
-                              [selectedAppointment.id]: option.value,
-                            }))
-                          }
-                          type="button"
-                        >
-                          <p className="text-base font-semibold text-white">{option.label}</p>
-                          <p className="mt-2 text-sm text-white/58">
-                            {option.credits} credit{option.credits > 1 ? "s" : ""}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                    )}
-
                     <div className="mt-4 grid gap-3 md:grid-cols-[0.8fr_1.2fr]">
                       <label className="space-y-2">
                         <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                          {appointmentUsesEuroQuote(selectedAppointment) ? "Prix total du devis (€)" : "Prix personnalisé"}
+                          Prix total du devis (€)
                         </span>
                         <input
                           className="bb-input"
                           min={1}
                           onChange={(event) =>
-                            appointmentUsesEuroQuote(selectedAppointment)
-                              ? setCustomPriceDrafts((current) => ({
-                                  ...current,
-                                  [selectedAppointment.id]: event.target.value,
-                                }))
-                              : setCustomCreditDrafts((current) => ({
-                                  ...current,
-                                  [selectedAppointment.id]: event.target.value,
-                                }))
+                            setCustomPriceDrafts((current) => ({
+                              ...current,
+                              [selectedAppointment.id]: event.target.value,
+                            }))
                           }
-                          placeholder={appointmentUsesEuroQuote(selectedAppointment) ? "Ex : 450,00" : "Ex : 6 crédits"}
-                          step={appointmentUsesEuroQuote(selectedAppointment) ? "0.01" : "1"}
+                          placeholder="Ex : 450,00"
+                          step="0.01"
                           type="number"
-                          value={appointmentUsesEuroQuote(selectedAppointment)
-                            ? customPriceDrafts[selectedAppointment.id] ?? ""
-                            : customCreditDrafts[selectedAppointment.id] ?? ""}
+                          value={customPriceDrafts[selectedAppointment.id] ?? ""}
                         />
                       </label>
                       <label className="space-y-2">
@@ -5480,16 +5408,14 @@ export function AdminDashboardPage() {
                       </p>
                     )}
 
-                    {/* LOT "RDV plus rapides" : recap credits avant de valider */}
+                    {/* Récapitulatif du tarif avant envoi au client. */}
                     {pendingPriceConfirm === selectedAppointment.id ? (
                       <div className="mt-5 rounded-2xl border border-accent/35 bg-accent/[0.08] p-4">
                         <p className="text-sm font-semibold text-white">Confirmer le tarif</p>
                         <p className="mt-1 text-sm leading-6 text-white/65">
                           Le client devra payer{" "}
                           <span className="font-semibold text-accent">
-                            {appointmentUsesEuroQuote(selectedAppointment)
-                              ? formatMoneyCents(plannedPriceCentsFor(selectedAppointment))
-                              : `${plannedCreditsFor(selectedAppointment)} credit${plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}`}
+                            {formatMoneyCents(plannedPriceCentsFor(selectedAppointment))}
                           </span>{" "}
                           pour finaliser et confirmer ce rendez-vous.
                         </p>
@@ -5504,9 +5430,7 @@ export function AdminDashboardPage() {
                             type="button"
                           >
                             <CheckCircle2 className="mr-2 h-4 w-4" />
-                            {appointmentUsesEuroQuote(selectedAppointment)
-                              ? `Valider ${formatMoneyCents(plannedPriceCentsFor(selectedAppointment))}`
-                              : `Confirmer ${plannedCreditsFor(selectedAppointment)} credit${plannedCreditsFor(selectedAppointment) > 1 ? "s" : ""}`}
+                            {`Valider ${formatMoneyCents(plannedPriceCentsFor(selectedAppointment))}`}
                           </button>
                           <button
                             className="bb-button-ghost justify-center"
@@ -5522,9 +5446,9 @@ export function AdminDashboardPage() {
                       <div className="mt-5 grid gap-3 sm:grid-cols-2">
                         <button
                           className="bb-button-brand justify-center"
-                          disabled={busyAction || (appointmentUsesEuroQuote(selectedAppointment) && plannedPriceCentsFor(selectedAppointment) <= 0)}
+                          disabled={busyAction || plannedPriceCentsFor(selectedAppointment) <= 0}
                           onClick={() => {
-                            if (appointmentUsesEuroQuote(selectedAppointment) && plannedPriceCentsFor(selectedAppointment) <= 0) {
+                            if (plannedPriceCentsFor(selectedAppointment) <= 0) {
                               showToast("Saisissez le prix total du devis.");
                               return;
                             }
@@ -5824,13 +5748,10 @@ export function AdminDashboardPage() {
                       </div>
                       <div className="w-full rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 sm:w-auto sm:text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Crédits
+                          BC'Coins
                         </p>
                         <p className="mt-2 text-xl font-semibold text-white">
-                          {activeClientContext.formulaRemaining}
-                          <span className="ml-1 text-sm text-white/35">
-                            / {activeClientContext.formulaTotal}
-                          </span>
+                          {activeClientContext.bcPoints}
                         </p>
                       </div>
                     </div>
@@ -5935,24 +5856,24 @@ export function AdminDashboardPage() {
               <Sparkles className="h-5 w-5" />
             </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-              En tension
+              Fondateurs
             </p>
             <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
-              {clientsLowOnCredits}
+              {founderClientsCount}
             </p>
-            <p className="mt-2 text-sm text-white/55">Crédits bas</p>
+            <p className="mt-2 text-sm text-white/55">Membres actifs</p>
           </article>
           <article className="bb-metric bb-rise bb-rise-3">
             <span className="mb-4 inline-grid h-10 w-10 place-items-center rounded-xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
               <Coins className="h-5 w-5" />
             </span>
             <p className="text-xs uppercase tracking-[0.16em] text-white/40">
-              Crédits cumules
+              Professionnels
             </p>
             <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
-              {totalCreditsRemaining}
+              {proClientsCount}
             </p>
-            <p className="mt-2 text-sm text-white/55">Base client</p>
+            <p className="mt-2 text-sm text-white/55">Comptes Pro</p>
           </article>
         </section>
 
@@ -6061,21 +5982,11 @@ export function AdminDashboardPage() {
               ) : (
                 filteredClients.map((client) => {
                   const active = client.id === selectedClientId;
-                  const creditsRatio =
-                    client.formulaTotal > 0
-                      ? clampNumber(client.formulaRemaining / client.formulaTotal, 0, 1)
-                      : 0;
                   const initials = [client.firstName, client.lastName]
                     .filter(Boolean)
                     .map((n) => (n as string)[0])
                     .join("")
                     .toUpperCase() || "?";
-                  const creditsTint =
-                    creditsRatio > 0.5
-                      ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-200"
-                      : creditsRatio > 0
-                        ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
-                        : "border-rose-300/25 bg-rose-300/10 text-rose-200";
 
                   return (
                     <button
@@ -6109,8 +6020,8 @@ export function AdminDashboardPage() {
                                 <Crown className="h-3 w-3" />
                               </span>
                             )}
-                            <span className={cn("bb-pill", creditsTint)}>
-                              {client.formulaRemaining}/{client.formulaTotal}
+                            <span className="bb-pill border-accent/25 bg-accent/10 text-accentSoft">
+                              {client.bcPoints} BC
                             </span>
                           </div>
                           <p className="mt-1 text-sm text-white/50">
@@ -6132,13 +6043,6 @@ export function AdminDashboardPage() {
                           </div>
                         </div>
                         <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-1 group-hover:text-accent" />
-                      </div>
-
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-accent to-accent"
-                          style={{ width: `${creditsRatio * 100}%` }}
-                        />
                       </div>
                     </button>
                   );
@@ -6219,24 +6123,6 @@ export function AdminDashboardPage() {
                     {managedClient ? fullClientName(managedClient) : "Aucun client"}
                   </h2>
                 </div>
-                {managedClient && (
-                  <div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
-                    <button className="bb-button-ghost w-full" onClick={openFormulaEdit} type="button">
-                      Editer formule
-                    </button>
-                    <button
-                      className="bb-button-ghost w-full"
-                      disabled={busyFormulaRecap}
-                      onClick={() => {
-                        void sendFormulaRecap();
-                      }}
-                      type="button"
-                    >
-                      <Mail className="mr-2 h-4 w-4" />
-                      {busyFormulaRecap ? "Envoi..." : "Envoyer récap"}
-                    </button>
-                  </div>
-                )}
               </div>
 
               {clientLoading || isNavigatingSelection ? (
@@ -6246,7 +6132,7 @@ export function AdminDashboardPage() {
                 </div>
               ) : managedClient ? (
                 <>
-                  {/* Identite + credits — signature carte membre */}
+                  {/* Identité — signature carte membre */}
                   <div className="bb-gold-frame mt-6 rounded-[28px] border border-white/10 bg-[var(--bb-glass-solid)] p-5">
                     <div className="flex items-start gap-4">
                       {/* Avatar large */}
@@ -6287,15 +6173,12 @@ export function AdminDashboardPage() {
                       </div>
                       <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-right">
                         <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-                          Credits / BC&apos;Coins
+                          BC&apos;Coins
                         </p>
                         <p className="mt-2 text-xl font-semibold tabular-nums text-white">
-                          {managedClient.formulaRemaining}
-                          <span className="ml-1 text-sm text-white/35">
-                            / {managedClient.formulaTotal}
-                          </span>
+                          {managedClient.bcPoints}
                         </p>
-                        <p className="mt-2 text-sm text-white/55">{managedClient.bcPoints} points</p>
+                        <p className="mt-2 text-sm text-white/55">Solde fidélité</p>
                       </div>
                     </div>
 
@@ -6464,28 +6347,21 @@ export function AdminDashboardPage() {
                     )}
                   </div>
 
-                  {/* Formule + Conditions */}
+                  {/* Fidélité + conditions */}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="bb-eyebrow">Crédits</p>
+                          <p className="bb-eyebrow">Fidélité</p>
                           <p className="mt-2 text-3xl font-semibold tabular-nums text-white">
-                            {managedClient.formulaRemaining}
+                            {managedClient.bcPoints} <span className="text-base text-accentSoft">BC'Coins</span>
                           </p>
                         </div>
-                        <button className="bb-button-ghost" onClick={openFormulaEdit} type="button">
-                          <PencilLine className="mr-2 h-4 w-4" />
-                          Modifier
-                        </button>
+                        <Coins className="h-7 w-7 text-accent" />
                       </div>
 
                       <p className="mt-3 text-sm leading-6 text-white/55">
-                        Credits disponibles sur le compte
-                        {managedClient.isFounder
-                          ? ` · ${managedClient.bcPoints} BC'Coins`
-                          : ""}
-                        .
+                        Solde de fidélité attribué après les prestations payées.
                       </p>
                       {managedClient.reviewBoxRewardLabel && (
                         <p className="mt-3 rounded-[16px] border border-accent/25 bg-accent/[0.06] px-3 py-2 text-sm text-white/75">
@@ -6526,8 +6402,8 @@ export function AdminDashboardPage() {
                         </p>
                         <p>
                           {managedClient.email
-                            ? "Le recapitulatif client peut être renvoye depuis cette fiche."
-                            : "Ajoutez un email client pour envoyer le recapitulatif formule."}
+                            ? "L'adresse e-mail est renseignée pour les notifications et factures."
+                            : "Ajoutez une adresse e-mail pour les notifications et factures."}
                         </p>
                       </div>
                     </div>
@@ -6733,7 +6609,11 @@ export function AdminDashboardPage() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-white">
-                          {managedClient.formulaName || "Formule libre"}
+                          {managedClient.isFounder
+                            ? "Membre Fondateur"
+                            : managedClient.clientType === "pro"
+                              ? "Compte professionnel"
+                              : "Membre BBX"}
                         </p>
                         <p className="mt-0.5 text-sm text-white/45">
                           {managedClient.city || "Ville non renseignee"}
@@ -6840,6 +6720,8 @@ export function AdminDashboardPage() {
               ? renderAppointmentsPage()
               : adminSection === "devis"
                 ? renderQuotesPage()
+                : adminSection === "sales"
+                  ? renderPartnerSalesPage()
                 : adminSection === "archives"
                   ? renderArchivesPage()
                   : adminSection === "clients"
@@ -7067,25 +6949,6 @@ export function AdminDashboardPage() {
                   value={profileDraft.vehicleModel}
                 />
               </label>
-              {profileDraft.clientType !== "pro" && (
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                    Crédits
-                  </span>
-                  <input
-                    className="bb-input"
-                    min={0}
-                    onChange={(event) =>
-                      updateProfileDraft("formulaRemaining", event.target.value)
-                    }
-                    type="number"
-                    value={profileDraft.formulaRemaining}
-                  />
-                  <p className="text-sm text-white/50">
-                    Nombre de crédits disponibles sur le compte.
-                  </p>
-                </label>
-              )}
               {profileMode === "edit" && selectedClientData && (
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/40">
@@ -7136,69 +6999,6 @@ export function AdminDashboardPage() {
                 type="button"
               >
                 {profileSubmitting ? "Enregistrement..." : "Enregistrer la fiche"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {formulaEditOpen && selectedClientData && (
-        <div className="bb-backdrop-in fixed inset-0 z-50 flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center">
-          <div className="bb-modal-panel bb-surface-strong w-full max-w-lg p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="bb-eyebrow">Crédits</p>
-                <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
-                  Ajuster {fullClientName(selectedClientData)}
-                </h3>
-              </div>
-              <button
-                className="bb-button-ghost"
-                disabled={busyFormula}
-                onClick={() => setFormulaEditOpen(false)}
-                type="button"
-              >
-                Fermer
-              </button>
-            </div>
-
-            <div className="mt-6">
-              <label className="block space-y-2">
-                <span className="text-xs uppercase tracking-[0.16em] text-white/40">
-                  Crédits du compte
-                </span>
-                <input
-                  className="bb-input"
-                  min={0}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    setFormulaDraftTotal(value);
-                    setFormulaDraftRemaining(value);
-                  }}
-                  type="number"
-                  value={formulaDraftRemaining ?? 0}
-                />
-              </label>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button
-                className="bb-button-ghost"
-                disabled={busyFormula}
-                onClick={() => setFormulaEditOpen(false)}
-                type="button"
-              >
-                Annuler
-              </button>
-              <button
-                className="bb-button-brand"
-                disabled={busyFormula}
-                onClick={() => {
-                  void updateFormula("custom");
-                }}
-                type="button"
-              >
-                {busyFormula ? "Sauvegarde..." : "Appliquer"}
               </button>
             </div>
           </div>

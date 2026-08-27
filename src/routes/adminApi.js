@@ -17,14 +17,11 @@ const {
   deleteClient,
   formulaNameFromTotal,
   getClientById,
-  incrementFormulaRemaining,
   listClients,
   listClientsForSegment,
-  markFormulaRecapSent,
   markWelcomeEmailSent,
   parseDateInputToUnix,
   sanitizeString,
-  updateClientFormulaBalance,
   updateClientProfile,
 } = require("../db/clients");
 const { getReviewBoxGoodie } = require("../config/reviewBox");
@@ -87,7 +84,6 @@ const {
   sendClientPhotosRequestedEmail,
   sendBroadcastEmail,
   sendClientPriceApprovalEmail,
-  sendClientFormulaRecap,
   sendClientWelcomeEmail,
   sendClientYearRecapEmail,
   sendClientQuoteAnsweredEmail,
@@ -105,6 +101,7 @@ const {
 } = require("../db/quoteRequests");
 const { getAdminMonthlyStats, getAdminAnalytics } = require("../db/stats");
 const { getLandingStats } = require("../db/landingStats");
+const { listPartnerOrders } = require("../db/partner_orders");
 const {
   attachPendingGoodieWinsToNextAppointment,
   countPendingGoodieWins,
@@ -339,11 +336,11 @@ function buildClientPayloadFromRequest(req, options = {}) {
     vehicleLabel: body.vehicleLabel,
     vehicleModel: body.vehicleModel,
     vehiclePlate: body.vehiclePlate,
-    formulaName: body.formulaName,
-    formulaTotal: parseInteger(body.formulaTotal, 0),
-    formulaRemaining: parseInteger(body.formulaRemaining, parseInteger(body.formulaTotal, 0)),
-    formulaPurchasedAt: body.formulaPurchasedAt,
-    formulaExpiresAt: body.formulaExpiresAt,
+    formulaName: null,
+    formulaTotal: 0,
+    formulaRemaining: 0,
+    formulaPurchasedAt: null,
+    formulaExpiresAt: null,
     notes: body.notes,
     clientType,
     isFounder: clientType === "bbx" ? founderRequested : false,
@@ -476,6 +473,13 @@ router.post("/clients/:id/profile", founderUpload.single("founderImage"), (req, 
     const payload = buildClientPayloadFromRequest(req, {
       allowExistingFounderMedia: true,
     });
+    // Les colonnes de formule restent historiques : une modification de profil
+    // ne doit pas les ecraser.
+    delete payload.formulaName;
+    delete payload.formulaTotal;
+    delete payload.formulaRemaining;
+    delete payload.formulaPurchasedAt;
+    delete payload.formulaExpiresAt;
     const updated = updateClientProfile(id, payload);
 
     return res.json({
@@ -639,80 +643,12 @@ router.get("/appointments", (req, res) => {
   }
 });
 
-router.post("/clients/:id/formula", (req, res) => {
-  const id = Number(req.params.id || 0);
-  const { mode, total, remaining } = req.body || {};
-
-  if (!id) {
-    return res.status(400).json({ ok: false, error: "invalid_id" });
-  }
-
-  try {
-    const client = getClientById(id);
-    if (!client) {
-      return res.status(404).json({ ok: false, error: "not_found" });
-    }
-
-    let nextTotal = client.formula_total ?? 0;
-    let nextRemaining = client.formula_remaining ?? 0;
-
-    if (mode === "reset") {
-      nextRemaining = nextTotal;
-    } else if (mode === "empty") {
-      nextRemaining = 0;
-    } else if (mode === "custom") {
-      nextTotal = Math.max(0, parseInteger(total, nextTotal));
-      nextRemaining = Math.min(Math.max(0, parseInteger(remaining, nextRemaining)), nextTotal);
-    } else {
-      return res.status(400).json({ ok: false, error: "invalid_mode" });
-    }
-
-    const updated = updateClientFormulaBalance(id, {
-      total: nextTotal,
-      remaining: nextRemaining,
-    });
-
-    return res.json({
-      ok: true,
-      client: mapClientRow(updated),
-    });
-  } catch (error) {
-    console.error("[adminApi] POST /clients/:id/formula:", error);
-    return res.status(500).json({ ok: false, error: "server_error" });
-  }
+router.post("/clients/:id/formula", (_req, res) => {
+  return res.status(410).json({ ok: false, error: "credits_disabled" });
 });
 
-router.post("/clients/:id/formula-recap", async (req, res) => {
-  const id = Number(req.params.id || 0);
-  if (!id) {
-    return res.status(400).json({ ok: false, error: "invalid_id" });
-  }
-
-  try {
-    const client = getClientById(id);
-    if (!client) {
-      return res.status(404).json({ ok: false, error: "not_found" });
-    }
-
-    if (!client.email) {
-      return res.status(400).json({ ok: false, error: "missing_email" });
-    }
-
-    const sent = await sendClientFormulaRecap(client);
-    if (!sent) {
-      return res.status(500).json({ ok: false, error: "formula_recap_not_sent" });
-    }
-
-    markFormulaRecapSent(id);
-
-    return res.json({
-      ok: true,
-      client: mapClientRow(getClientById(id)),
-    });
-  } catch (error) {
-    console.error("[adminApi] POST /clients/:id/formula-recap:", error);
-    return res.status(500).json({ ok: false, error: "server_error" });
-  }
+router.post("/clients/:id/formula-recap", (_req, res) => {
+  return res.status(410).json({ ok: false, error: "credits_disabled" });
 });
 
 router.post("/clients/:id/bc-points", (req, res) => {
@@ -785,21 +721,39 @@ router.get("/quotes", (_req, res) => {
   }
 });
 
-// ── Devis : reponse de l'admin avec une estimation en credits ───────────────
+router.get("/partner-orders", (_req, res) => {
+  try {
+    return res.json({ ok: true, orders: listPartnerOrders({ limit: 250 }) });
+  } catch (error) {
+    console.error("[adminApi] GET /partner-orders:", error);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+// ── Devis : reponse de l'admin avec un montant personnalise en euros ────────
 router.post("/quotes/:id/answer", async (req, res) => {
   const id = Number(req.params.id) || 0;
   const quote = getQuoteRequestById(id);
   if (!quote) {
     return res.status(404).json({ ok: false, error: "quote_not_found" });
   }
+  if (["paid", "archived", "refused"].includes(quote.status) || quote.paymentStatus === "paid") {
+    return res.status(409).json({ ok: false, error: "quote_locked" });
+  }
+  if (quote.paymentStatus === "pending") {
+    return res.status(409).json({ ok: false, error: "payment_started" });
+  }
 
-  const credits = Math.max(1, Math.round(Number(req.body?.estimatedCredits) || 0));
+  const estimatedPriceCents = Math.round(Number(req.body?.estimatedPriceCents) || 0);
+  if (estimatedPriceCents <= 0) {
+    return res.status(400).json({ ok: false, error: "invalid_price" });
+  }
   const adminComment =
     (req.body?.adminComment || "").toString().trim().slice(0, 600) || null;
 
   let updated;
   try {
-    updated = answerQuoteRequest(id, { estimatedCredits: credits, adminComment });
+    updated = answerQuoteRequest(id, { estimatedPriceCents, adminComment });
   } catch (error) {
     console.error("[adminApi] answerQuoteRequest:", error);
     return res.status(500).json({ ok: false, error: "db_error" });
@@ -810,7 +764,8 @@ router.post("/quotes/:id/answer", async (req, res) => {
     try {
       await sendClientQuoteAnsweredEmail({
         client,
-        estimatedCredits: credits,
+        quoteId: quote.id,
+        estimatedPriceCents,
         adminComment,
       });
     } catch (error) {
@@ -828,6 +783,13 @@ router.post("/quotes/:id/archive", (req, res) => {
     if (!id) {
       return res.status(400).json({ ok: false, error: "invalid_id" });
     }
+    const quote = getQuoteRequestById(id);
+    if (!quote) {
+      return res.status(404).json({ ok: false, error: "quote_not_found" });
+    }
+    if (quote.status === "paid" || ["pending", "paid"].includes(quote.paymentStatus)) {
+      return res.status(409).json({ ok: false, error: "quote_must_be_planned" });
+    }
     archiveQuoteRequest(id);
     return res.json({ ok: true });
   } catch (error) {
@@ -843,6 +805,13 @@ router.post("/quotes/:id/unarchive", (req, res) => {
     if (!id) {
       return res.status(400).json({ ok: false, error: "invalid_id" });
     }
+    const quote = getQuoteRequestById(id);
+    if (!quote) {
+      return res.status(404).json({ ok: false, error: "quote_not_found" });
+    }
+    if (quote.appointmentId) {
+      return res.status(409).json({ ok: false, error: "quote_converted" });
+    }
     unarchiveQuoteRequest(id);
     return res.json({ ok: true });
   } catch (error) {
@@ -855,6 +824,10 @@ router.post("/quotes/:id/unarchive", (req, res) => {
 // ── Devis : suppression d'une demande (admin) ───────────────────────────────
 router.delete("/quotes/:id", (req, res) => {
   const id = Number(req.params.id) || 0;
+  const quote = getQuoteRequestById(id);
+  if (quote && quote.paymentStatus === "paid" && !quote.appointmentId) {
+    return res.status(409).json({ ok: false, error: "paid_quote_must_be_planned" });
+  }
   deleteQuoteRequest(id);
   return res.json({ ok: true });
 });
@@ -884,6 +857,15 @@ router.post("/appointments/:id/status", async (req, res) => {
       });
     }
 
+    if (status === "done") {
+      const owner = getClientById(appointment.client_id);
+      const isPro =
+        (owner?.client_type || "bbx") === "pro" || appointment.price_status === "not_required";
+      if (!isPro && Number(appointment.amount_paid_cents || 0) <= 0) {
+        return res.status(409).json({ ok: false, error: "payment_required" });
+      }
+    }
+
     if (status === "cancelled") {
       cancelAppointmentAndRefund(id);
 
@@ -905,8 +887,6 @@ router.post("/appointments/:id/status", async (req, res) => {
 
     if (status === "confirmed") {
       const result = reviewAppointmentPrice(id, {
-        adminLevel: req.body?.adminCleanlinessEstimate || req.body?.cleanlinessEstimate,
-        customCredits: req.body?.customCredits,
         customPriceCents: req.body?.customPriceCents,
         priceComment: sanitizeString(req.body?.priceComment),
       });
@@ -918,7 +898,7 @@ router.post("/appointments/:id/status", async (req, res) => {
 
       if (client && updatedAppointment) {
         try {
-          if (result.requiresClientApproval || updatedAppointment.price_status === "waiting_payment") {
+          if (updatedAppointment.price_status === "waiting_payment") {
             await sendClientPriceApprovalEmail({ client, appointment: updatedAppointment });
           } else if (updatedAppointment.status === "confirmed") {
             await sendClientAppointmentStatusEmail({
@@ -932,12 +912,8 @@ router.post("/appointments/:id/status", async (req, res) => {
         }
       }
 
-      // "not_enough_credits" n'est PAS un echec: le tarif est bien enregistre et
-      // le rendez-vous passe en attente de recharge cote client (waiting_payment).
-      const softWarning = result.error === "not_enough_credits";
-
       return res.json({
-        ok: result.ok !== false || softWarning,
+        ok: result.ok !== false,
         appointment: mapAppointmentRow(updatedAppointment),
         warning: result.error || null,
       });
@@ -947,8 +923,7 @@ router.post("/appointments/:id/status", async (req, res) => {
       revokePointsForAppointment(appointment.client_id, appointment.id);
     }
 
-    // Deconfirmation: repasser un RDV "en attente" rembourse les credits
-    // consommes, remet le tarif a revalider, et previent le client.
+    // Deconfirmation: repasser un RDV non-Pro en attente de nouveau tarif.
     if (status === "requested") {
       revertAppointmentToRequested(id);
     } else {
@@ -956,7 +931,9 @@ router.post("/appointments/:id/status", async (req, res) => {
     }
 
     if (status === "done") {
-      awardPointsForAppointment(appointment.client_id, appointment.id);
+      if (appointment.price_status !== "not_required") {
+        awardPointsForAppointment(appointment.client_id, appointment.id);
+      }
       // Le passage est effectue: les lots rattaches a ce RDV sont remis.
       honorGoodieWinsForAppointment(appointment.id);
     }
@@ -1320,7 +1297,9 @@ function parseEventBody(body) {
   if (typeof body?.conditionsLink === "string") out.conditionsLink = body.conditionsLink;
   if (["text", "inapp"].includes(body?.prizeKind)) out.prizeKind = body.prizeKind;
   if (typeof body?.prizeText === "string") out.prizeText = body.prizeText;
-  if (typeof body?.prizeInappType === "string") out.prizeInappType = body.prizeInappType;
+  if (["bc", "founder_month"].includes(body?.prizeInappType)) {
+    out.prizeInappType = body.prizeInappType;
+  }
   if (body?.prizeInappAmount !== undefined)
     out.prizeInappAmount = body.prizeInappAmount ? Number(body.prizeInappAmount) : 0;
   if (typeof body?.consolationEnabled === "boolean") out.consolationEnabled = body.consolationEnabled;
