@@ -13,6 +13,7 @@ import { InvoicePage } from "./pages/InvoicePage";
 import { LegalPage } from "./pages/LegalPage";
 import { LandingTestPage } from "./pages/LandingTestPage";
 import { SalesPrepPage } from "./pages/SalesPrepPage";
+import { LocalSeoPage } from "./pages/LocalSeoPage";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <Route path="/forfait/:reference" element={<ForfaitPayPage />} />
         <Route path="/preparation-vente" element={<SalesPrepPage />} />
         <Route path="/preparation-vente/:token" element={<SalesPrepPage />} />
+        <Route path="/nettoyage-voiture-louhans" element={<LocalSeoPage />} />
         <Route path="/demo/box-bryan-cars" element={<CaseDemoPage />} />
         <Route path="/mentions-legales" element={<LegalPage doc="mentions" />} />
         <Route path="/confidentialite" element={<LegalPage doc="confidentialite" />} />

@@ -52,6 +52,12 @@ function mapQuoteRow(row) {
     description: row.description || null,
     status: row.status,
     estimatedPriceCents: row.estimated_price_cents ?? null,
+    discountPercent: row.discount_percent ?? 0,
+    discountCents: row.discount_cents ?? 0,
+    amountDueCents: row.amount_due_cents ?? row.estimated_price_cents ?? null,
+    discountSource: row.discount_source || null,
+    referralId: row.referral_id ?? null,
+    referralRewardId: row.referral_reward_id ?? null,
     // Conserve uniquement la valeur historique pour les anciens devis.
     estimatedCredits: row.estimated_credits ?? null,
     adminComment: row.admin_comment || null,
@@ -181,12 +187,20 @@ function answerQuoteRequest(id, { estimatedPriceCents, adminComment = null }) {
   db.prepare(
     `UPDATE quote_requests
        SET status = 'answered', estimated_price_cents = ?, admin_comment = ?,
+           amount_due_cents = ?,
            payment_status = 'unpaid', checkout_reference = NULL, checkout_id = NULL,
            hosted_checkout_url = NULL, sumup_status = NULL, sumup_payload = NULL,
            paid_at = NULL, accepted_at = NULL,
            answered_at = ?, updated_at = ?
      WHERE id = ?`,
-  ).run(Math.max(1, Math.round(Number(estimatedPriceCents) || 0)), adminComment || null, now, now, id);
+  ).run(
+    Math.max(1, Math.round(Number(estimatedPriceCents) || 0)),
+    adminComment || null,
+    Math.max(1, Math.round(Number(estimatedPriceCents) || 0)),
+    now,
+    now,
+    id,
+  );
   return getQuoteRequestById(id);
 }
 
@@ -220,7 +234,7 @@ function syncQuotePaymentFromCheckout(id, checkout) {
     const amountMismatch =
       String(checkout?.status || "").toUpperCase() === "PAID" &&
       providerAmountCents != null &&
-      providerAmountCents !== Number(before.estimatedPriceCents || 0);
+      providerAmountCents !== Number(before.amountDueCents || before.estimatedPriceCents || 0);
     const paymentStatus = amountMismatch ? "failed" : mapPaymentStatus(checkout?.status);
     const becamePaid = paymentStatus === "paid" && before.paymentStatus !== "paid";
     const paidAt = paymentStatus === "paid" ? resolvePaidAt(checkout) : null;

@@ -20,11 +20,13 @@ const {
   getQuoteRequestByCheckoutId,
   syncQuotePaymentFromCheckout,
 } = require("../db/quoteRequests");
+const { finalizeReferralBenefitsForPaidQuote } = require("../db/referrals");
 const { getPartnerForfait } = require("../config/partnerForfaits");
 const {
   sendAdminNotification,
   sendClientAppointmentStatusEmail,
   sendQuotePaidNotifications,
+  sendReferralRewardAvailableNotification,
 } = require("../email");
 const { getClientById } = require("../db/clients");
 const { createHostedCheckout, retrieveCheckout, sumupConfigured } = require("../services/sumup");
@@ -82,6 +84,11 @@ router.post("/sumup/webhook", async (req, res) => {
         return res.status(204).end();
       }
       if (result.becamePaid && result.quote) {
+        const referralResult = finalizeReferralBenefitsForPaidQuote(result.quote.id);
+        if (referralResult?.rewardCreated && referralResult.referrerClientId) {
+          const referrer = getClientById(referralResult.referrerClientId);
+          if (referrer) await sendReferralRewardAvailableNotification({ client: referrer });
+        }
         const client = getClientById(result.quote.clientId);
         if (client) {
           await sendQuotePaidNotifications({ client, quote: result.quote });

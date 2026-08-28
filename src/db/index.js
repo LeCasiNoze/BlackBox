@@ -232,6 +232,7 @@ function ensureClientsExtraColumns() {
     addColumnIfMissing("bc_points", "bc_points INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing("bc_pending", "bc_pending INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing("partner_public_token", "partner_public_token TEXT");
+    addColumnIfMissing("referral_code", "referral_code TEXT");
     addColumnIfMissing("review_box_opened_at", "review_box_opened_at INTEGER");
     addColumnIfMissing("review_box_reward", "review_box_reward TEXT");
     addColumnIfMissing("founder_until", "founder_until INTEGER");
@@ -242,6 +243,9 @@ function ensureClientsExtraColumns() {
     );
     db.exec(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_partner_public_token ON clients(partner_public_token)",
+    );
+    db.exec(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_referral_code ON clients(referral_code)",
     );
   } catch (error) {
     console.error("[DB] Erreur ensureClientsExtraColumns:", error);
@@ -730,6 +734,12 @@ function ensureQuoteRequestsExtraColumns() {
     addColumnIfMissing("paid_at", "paid_at INTEGER");
     addColumnIfMissing("appointment_id", "appointment_id INTEGER");
     addColumnIfMissing("converted_at", "converted_at INTEGER");
+    addColumnIfMissing("discount_percent", "discount_percent INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing("discount_cents", "discount_cents INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing("amount_due_cents", "amount_due_cents INTEGER");
+    addColumnIfMissing("discount_source", "discount_source TEXT");
+    addColumnIfMissing("referral_id", "referral_id INTEGER");
+    addColumnIfMissing("referral_reward_id", "referral_reward_id INTEGER");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_checkout_reference ON quote_requests(checkout_reference)");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_checkout_id ON quote_requests(checkout_id)");
   } catch (error) {

@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS clients (
   bc_points         INTEGER NOT NULL DEFAULT 0,
   bc_pending        INTEGER NOT NULL DEFAULT 0,
   partner_public_token TEXT UNIQUE,
+  referral_code     TEXT UNIQUE,
 
   notes             TEXT,
 
@@ -49,6 +50,8 @@ CREATE INDEX IF NOT EXISTS idx_clients_card_code ON clients(card_code);
 CREATE INDEX IF NOT EXISTS idx_clients_type ON clients(client_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_partner_public_token
   ON clients(partner_public_token);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_referral_code
+  ON clients(referral_code);
 
 -- ============================
 -- TABLE vehicles
@@ -241,7 +244,13 @@ CREATE TABLE IF NOT EXISTS quote_requests (
   refusal_reason    TEXT,
   refusal_comment   TEXT,
   reminder_sent_at  INTEGER,
-  second_reminder_sent_at INTEGER
+  second_reminder_sent_at INTEGER,
+  discount_percent  INTEGER NOT NULL DEFAULT 0,
+  discount_cents    INTEGER NOT NULL DEFAULT 0,
+  amount_due_cents  INTEGER,
+  discount_source   TEXT,
+  referral_id       INTEGER REFERENCES referrals(id) ON DELETE SET NULL,
+  referral_reward_id INTEGER REFERENCES referral_rewards(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_quote_requests_client
@@ -260,6 +269,45 @@ CREATE TABLE IF NOT EXISTS quote_request_photos (
 
 CREATE INDEX IF NOT EXISTS idx_quote_photos_request
   ON quote_request_photos(quote_request_id);
+
+-- ============================
+-- Parrainage
+-- Le filleul recoit 10 % sur son premier devis paye. Le parrain debloque
+-- ensuite une remise de 10 % utilisable une seule fois sur son prochain devis.
+-- ============================
+CREATE TABLE IF NOT EXISTS referrals (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  referrer_client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  referred_client_id    INTEGER NOT NULL UNIQUE REFERENCES clients(id) ON DELETE CASCADE,
+  referral_code         TEXT NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending', 'qualified', 'cancelled')),
+  qualifying_quote_id   INTEGER UNIQUE REFERENCES quote_requests(id) ON DELETE SET NULL,
+  referred_discount_percent INTEGER NOT NULL DEFAULT 10,
+  referred_discount_cents INTEGER NOT NULL DEFAULT 0,
+  qualified_at          INTEGER,
+  created_at            INTEGER NOT NULL,
+  updated_at            INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer
+  ON referrals(referrer_client_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  referral_id       INTEGER NOT NULL UNIQUE REFERENCES referrals(id) ON DELETE CASCADE,
+  discount_percent  INTEGER NOT NULL DEFAULT 10,
+  status            TEXT NOT NULL DEFAULT 'available'
+                    CHECK (status IN ('available', 'reserved', 'redeemed', 'cancelled')),
+  applied_quote_id  INTEGER UNIQUE REFERENCES quote_requests(id) ON DELETE SET NULL,
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  redeemed_at       INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_referral_rewards_client
+  ON referral_rewards(client_id, status, created_at ASC);
 
 -- ============================
 -- TABLE reward_redemptions

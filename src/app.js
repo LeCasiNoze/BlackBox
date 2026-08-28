@@ -29,6 +29,7 @@ const { startInactivityReminderScheduler } = require("./services/inactivityRemin
 const { startReviewRequestScheduler } = require("./services/reviewRequestScheduler");
 const { startQuoteReminderScheduler } = require("./services/quoteReminderScheduler");
 const { startAppointmentQuoteExpiryScheduler } = require("./services/appointmentQuoteExpiryScheduler");
+const { sendSeoHtml } = require("./services/seoRenderer");
 
 if (process.env.SEED_DEMO_CLIENT === "true") {
   ensureDemoClient();
@@ -78,6 +79,17 @@ app.use((_req, res, next) => {
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   next();
+});
+
+// Consolide les signaux d'indexation sur le domaine canonique sans perturber
+// les appels API non-GET ou le développement local.
+app.use((req, res, next) => {
+  const hostname = String(req.hostname || "").toLowerCase();
+  const legacyHost = hostname === "www.blackboxbc.com" || hostname === "blackbox-vs7c.onrender.com";
+  if (legacyHost && (req.method === "GET" || req.method === "HEAD")) {
+    return res.redirect(301, `https://blackboxbc.com${req.originalUrl || "/"}`);
+  }
+  return next();
 });
 
 app.use(express.urlencoded({ extended: true }));
@@ -140,37 +152,48 @@ function pwaManifest(req, res) {
 app.get("/api/pwa/manifest", pwaManifest);
 app.get("/manifest.webmanifest", pwaManifest);
 
-app.use(express.static(distDir));
+// L'index HTML est servi explicitement plus bas afin d'envoyer les bonnes
+// métadonnées dès la réponse serveur. Les robots n'ont ainsi pas besoin
+// d'exécuter React pour distinguer une page publique d'un espace privé.
+app.use(express.static(distDir, { index: false }));
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(distDir, "index.html"));
+app.get("/", (_req, res) => {
+  sendSeoHtml(res, distDir, "/");
 });
 
 app.get(/^\/admin(\/.*)?$/, requireAdminPageAuth, (req, res) => {
-  res.sendFile(path.join(distDir, "index.html"));
+  sendSeoHtml(res, distDir, req.path);
 });
 
 app.get(/^\/card(\/.*)?$/, (req, res) => {
-  res.sendFile(path.join(distDir, "index.html"));
+  sendSeoHtml(res, distDir, req.path);
 });
 
 app.get(/^\/forfait(\/.*)?$/, (req, res) => {
-  res.sendFile(path.join(distDir, "index.html"));
+  sendSeoHtml(res, distDir, req.path);
 });
 
 app.get(/^\/preparation-vente(\/.*)?$/, (req, res) => {
-  res.sendFile(path.join(distDir, "index.html"));
+  sendSeoHtml(res, distDir, req.path);
+});
+
+app.get("/nettoyage-voiture-louhans", (req, res) => {
+  sendSeoHtml(res, distDir, req.path);
 });
 
 app.get(/^\/demo(\/.*)?$/, (req, res) => {
-  res.sendFile(path.join(distDir, "index.html"));
+  sendSeoHtml(res, distDir, req.path);
+});
+
+app.get("/landing-test", (req, res) => {
+  sendSeoHtml(res, distDir, req.path);
 });
 
 // Pages legales publiques (mentions legales, confidentialite, cookies, CGU).
 app.get(
   /^\/(mentions-legales|confidentialite|cookies|conditions)$/,
   (req, res) => {
-    res.sendFile(path.join(distDir, "index.html"));
+    sendSeoHtml(res, distDir, req.path);
   },
 );
 

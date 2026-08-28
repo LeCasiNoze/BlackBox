@@ -422,6 +422,10 @@ type AdminQuote = {
   status: "pending" | "answered" | "accepted" | "paid" | "refused" | "archived";
   paymentStatus: "unpaid" | "pending" | "paid" | "failed" | "expired";
   estimatedPriceCents: number | null;
+  discountPercent: number;
+  discountCents: number;
+  amountDueCents: number | null;
+  discountSource: "referred_client" | "referrer_reward" | null;
   adminComment: string | null;
   createdAt: number;
   answeredAt: number | null;
@@ -3157,7 +3161,7 @@ export function AdminDashboardPage() {
                         ) : paymentStarted ? (
                           <span className="bb-pill border-violet-300/25 bg-violet-300/10 text-violet-100">Paiement en cours</span>
                         ) : answered ? (
-                          <span className="bb-pill border-sky-300/25 bg-sky-300/10 text-sky-100">Envoyé · {formatMoneyCents(quote.estimatedPriceCents)}</span>
+                          <span className="bb-pill border-sky-300/25 bg-sky-300/10 text-sky-100">Envoyé · {formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents)}</span>
                         ) : (
                           <span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">
                             En attente
@@ -3192,6 +3196,16 @@ export function AdminDashboardPage() {
                     <p className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white/70">
                       {quote.description}
                     </p>
+                  )}
+
+                  {!!quote.discountCents && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-2.5">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-100/60">Remise parrainage automatique</p>
+                        <p className="mt-1 text-sm font-bold text-emerald-100">-{quote.discountPercent} % · {formatMoneyCents(quote.discountCents)} déduits</p>
+                      </div>
+                      <p className="text-right text-xs text-white/55">Prix saisi {formatMoneyCents(quote.estimatedPriceCents)}<br /><strong className="text-white">Client : {formatMoneyCents(quote.amountDueCents)}</strong></p>
+                    </div>
                   )}
 
                   {refused && (
@@ -3242,6 +3256,7 @@ export function AdminDashboardPage() {
                         <input className="bb-input max-w-[220px]" min={0.01} onChange={(event) => setQuotePriceDrafts((current) => ({ ...current, [quote.id]: event.target.value }))} placeholder="Ex : 450,00" step="0.01" type="number" value={priceValue} />
                       </div>
                       <input className="bb-input mt-2" onChange={(event) => setQuoteCommentDrafts((current) => ({ ...current, [quote.id]: event.target.value }))} placeholder="Justification ou commentaire pour le client" value={quoteCommentDrafts[quote.id] ?? quote.adminComment ?? ""} />
+                      <p className="mt-2 text-[11px] leading-5 text-white/38">Saisissez le prix normal. Si une remise de parrainage est disponible, elle sera calculée automatiquement lors de l&apos;envoi.</p>
                       <button className="bb-button-brand mt-3 justify-center" disabled={busy} onClick={() => void answerQuote(quote)} type="button">
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                         {busy ? "Envoi..." : answered ? "Mettre à jour le devis" : "Envoyer le devis"}
@@ -3251,7 +3266,7 @@ export function AdminDashboardPage() {
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-3">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/38">Montant du devis</p>
-                        <p className="mt-1 text-xl font-bold text-white">{formatMoneyCents(quote.estimatedPriceCents)}</p>
+                        <p className="mt-1 text-xl font-bold text-white">{formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents)}</p>
                       </div>
                       <p className="max-w-md text-right text-xs leading-5 text-white/48">
                         {paid ? "Paiement reçu. Le devis reste ici jusqu'au choix du créneau par le client." : refused ? "Le client a refusé cette proposition. Vous pouvez l'archiver." : "Le paiement a démarré : le montant est verrouillé pour éviter toute incohérence."}
@@ -3444,7 +3459,7 @@ export function AdminDashboardPage() {
                     </span>
                     {selectedQuote.estimatedPriceCents && (
                       <span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
-                        {formatMoneyCents(selectedQuote.estimatedPriceCents)}
+                        {formatMoneyCents(selectedQuote.amountDueCents || selectedQuote.estimatedPriceCents)}
                       </span>
                     )}
                   </div>

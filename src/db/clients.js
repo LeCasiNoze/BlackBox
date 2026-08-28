@@ -901,12 +901,16 @@ function resetAllClientsAndRelatedData() {
     db.exec("BEGIN");
     db.exec(`DELETE FROM appointment_photos;`);
     db.exec(`DELETE FROM appointments;`);
+    db.exec(`DELETE FROM referral_rewards;`);
+    db.exec(`DELETE FROM referrals;`);
+    db.exec(`DELETE FROM quote_request_photos;`);
+    db.exec(`DELETE FROM quote_requests;`);
     db.exec(`DELETE FROM reward_redemptions;`);
     db.exec(`DELETE FROM vehicles;`);
     db.exec(`DELETE FROM export_jobs;`);
     db.exec(`DELETE FROM clients;`);
     db.exec(
-      `DELETE FROM sqlite_sequence WHERE name IN ('clients','vehicles','appointments','appointment_photos','reward_redemptions','export_jobs');`,
+      `DELETE FROM sqlite_sequence WHERE name IN ('clients','vehicles','appointments','appointment_photos','quote_requests','quote_request_photos','referrals','referral_rewards','reward_redemptions','export_jobs');`,
     );
     db.exec("COMMIT");
   } catch (error) {

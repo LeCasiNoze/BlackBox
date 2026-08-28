@@ -928,15 +928,22 @@ async function sendClientQuoteAnsweredEmail({
   client,
   quoteId = null,
   estimatedPriceCents,
+  amountDueCents = estimatedPriceCents,
+  discountPercent = 0,
+  discountCents = 0,
   adminComment = null,
 }) {
-  const price = formatEuros(estimatedPriceCents);
+  const basePrice = formatEuros(estimatedPriceCents);
+  const price = formatEuros(amountDueCents);
+  const hasDiscount = Number(discountCents) > 0;
   const fullName = fallbackClientName(client);
   const targetUrl = clientQuoteUrl(client, quoteId);
 
   pushClient(client, {
     title: "Votre devis est prêt",
-    body: `Montant propose : ${price} pour votre véhicule.`,
+    body: hasDiscount
+      ? `Votre remise de ${discountPercent} % est appliquée : ${price} à régler.`
+      : `Montant proposé : ${price} pour votre véhicule.`,
     quoteId,
   });
 
@@ -948,7 +955,7 @@ Bonjour ${fullName},
 
 Votre demande de devis a reçu une réponse.
 
-Montant propose : ${price}${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
+${hasDiscount ? `Montant initial : ${basePrice}\nRemise parrainage (${discountPercent} %) : -${formatEuros(discountCents)}\n` : ""}Montant à régler : ${price}${adminComment ? `\nNote de l'admin : ${adminComment}` : ""}
 
 Consultez votre devis, puis payez-le ou refusez-le depuis votre espace : ${targetUrl || "Lien indisponible"}
   `.trim();
@@ -959,9 +966,13 @@ Consultez votre devis, puis payez-le ou refusez-le depuis votre espace : ${targe
     subtitle: "Voici le montant personnalise propose pour votre véhicule.",
     preheader: `${price} · devis disponible`,
     bodyHtml: `
-      ${metricRows([
-        { label: "Montant propose", value: price },
-      ])}
+      ${metricRows(hasDiscount
+        ? [
+            { label: "Montant initial", value: basePrice },
+            { label: `Remise parrainage (${discountPercent} %)`, value: `-${formatEuros(discountCents)}` },
+            { label: "Montant à régler", value: price },
+          ]
+        : [{ label: "Montant à régler", value: price }])}
       ${
         adminComment
           ? panelCard({
@@ -1025,7 +1036,7 @@ async function sendAdminQuoteRefusedEmail({ client, quote }) {
 }
 
 async function sendQuotePaidNotifications({ client, quote }) {
-  const amount = formatEuros(quote?.estimatedPriceCents || 0);
+  const amount = formatEuros(quote?.amountDueCents || quote?.estimatedPriceCents || 0);
   const fullName = fallbackClientName(client);
   const clientUrl = clientQuoteUrl(client, quote?.id);
   const adminUrl = adminQuoteUrl(quote?.id);
@@ -1083,8 +1094,38 @@ async function sendQuotePaidNotifications({ client, quote }) {
   return Promise.allSettled(sends);
 }
 
+async function sendReferralRewardAvailableNotification({ client }) {
+  if (!client?.id) return false;
+  const portalUrl = clientPortalUrl(client);
+  const targetUrl = portalUrl
+    ? `${portalUrl}${portalUrl.includes("?") ? "&" : "?"}view=account`
+    : null;
+  const fullName = fallbackClientName(client);
+
+  pushClient(client, {
+    title: "Votre remise de parrainage est prête",
+    body: "Votre invité a réglé son devis : 10 % seront déduits de votre prochain devis.",
+  });
+
+  if (!client.email) return true;
+  return sendBrevoEmail({
+    to: [{ email: client.email, name: fullName }],
+    subject: "[Bryan Cars] Votre remise de parrainage de 10 % est disponible",
+    text: `Bonjour ${fullName},\n\nVotre invité a réglé son devis. Votre remise de 10 % sera automatiquement appliquée à votre prochain devis Bryan Cars.${targetUrl ? `\n\nVoir mon compte : ${targetUrl}` : ""}`,
+    html: brandEmailShell({
+      eyebrow: "Parrainage validé",
+      title: "10 % sur votre prochain devis",
+      subtitle: "Votre invité a payé son devis : votre récompense est maintenant disponible.",
+      preheader: "Votre remise Bryan Cars est prête",
+      bodyHtml: `${metricRows([{ label: "Votre récompense", value: "-10 %" }])}${actionButtons([
+        targetUrl ? { label: "Voir mon compte", href: targetUrl, tone: "primary" } : null,
+      ])}`,
+    }),
+  });
+}
+
 async function sendClientQuoteReminderEmail({ client, quote, isSecondReminder = false }) {
-  const estimatedPriceCents = Number(quote?.estimatedPriceCents) || 0;
+  const estimatedPriceCents = Number(quote?.amountDueCents || quote?.estimatedPriceCents) || 0;
   const legacyCredits = Number(quote?.estimatedCredits) || 0;
   const quoteValue = estimatedPriceCents > 0
     ? formatEuros(estimatedPriceCents)
@@ -2017,6 +2058,7 @@ module.exports = {
   sendClientQuoteReminderEmail,
   sendAdminQuoteRefusedEmail,
   sendQuotePaidNotifications,
+  sendReferralRewardAvailableNotification,
   sendAdminRewardRedemption,
   sendClientPhotosRequestedEmail,
   sendClientPriceApprovalEmail,

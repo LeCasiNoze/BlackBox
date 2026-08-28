@@ -1,7 +1,12 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /login
+Disallow: /logout
 Disallow: /card/
+Disallow: /forfait/
+Disallow: /demo/
+Disallow: /landing-test
 Disallow: /api/
 
-Sitemap: https://blackbox-vs7c.onrender.com/sitemap.xml
+Sitemap: https://blackboxbc.com/sitemap.xml

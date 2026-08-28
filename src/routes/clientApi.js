@@ -28,6 +28,7 @@ const {
   countFounders,
   createClient,
   expireTemporaryFounders,
+  getClientByEmail,
   getClientById,
   getClientBySlugOrCardCode,
   getClientByPartnerPublicToken,
@@ -40,6 +41,14 @@ const {
   updateClientProfile,
   updateClientTermsAcceptance,
 } = require("../db/clients");
+const {
+  createReferralForNewClient,
+  finalizeReferralBenefitsForPaidQuote,
+  getReferralSummary,
+  normalizeReferralCode,
+  referralPublicView,
+  releaseReferralDiscountForQuote,
+} = require("../db/referrals");
 
 const { recordLandingEvent } = require("../db/landingStats");
 
@@ -57,6 +66,14 @@ router.post("/landing/track", (req, res) => {
     console.error("[clientApi] POST /landing/track:", error);
     return res.status(500).json({ ok: false, error: "server_error" });
   }
+});
+
+router.get("/referral/:code", (req, res) => {
+  const referral = referralPublicView(req.params.code);
+  if (!referral) {
+    return res.status(404).json({ ok: false, error: "invalid_referral_code" });
+  }
+  return res.json({ ok: true, referral });
 });
 
 // Nombre maximum de fondateurs (places limitees).
@@ -147,6 +164,7 @@ const {
   sendClientAppointmentStatusEmail,
   sendAdminQuoteRefusedEmail,
   sendQuotePaidNotifications,
+  sendReferralRewardAvailableNotification,
   sendClientWelcomeEmail,
   sendSignupVerificationCode,
 } = require("../email");
@@ -909,6 +927,13 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
   const requestedQuoteServiceKeys = parseServiceKeys(body.quoteServiceKeys || body.serviceKeys);
   const quoteServices = getServicesByKeys(requestedQuoteServiceKeys);
   const vehicleConditionScore = parseVehicleConditionScore(body.vehicleConditionScore);
+  const referralCode = normalizeReferralCode(body.referralCode);
+  if (referralCode && !referralPublicView(referralCode)) {
+    return res.status(400).json({ ok: false, error: "invalid_referral_code" });
+  }
+  if (referralCode && getClientByEmail(email)) {
+    return res.status(409).json({ ok: false, error: "referral_new_clients_only" });
+  }
   const quoteIntent =
     requestedQuoteServiceKeys.length > 0 ||
     uploadedImages.length > 0 ||
@@ -944,6 +969,7 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
     vehicleConditionScore,
     quoteImageFilenames: uploadedImages,
     quoteServiceItems: serviceSnapshot(quoteServices),
+    referralCode,
     clientType: "bbx",
     formulaTotal: 0,
     formulaRemaining: 0,
@@ -968,6 +994,13 @@ router.post("/signup/verify", async (req, res) => {
 
   try {
     const client = createClient(payload);
+    if (payload.referralCode) {
+      try {
+        createReferralForNewClient(payload.referralCode, client.id);
+      } catch (referralError) {
+        console.error("[API] signup referral:", referralError);
+      }
+    }
     // Les conditions sont acceptees a l'inscription (avant le code), on
     // enregistre l'acceptation des la creation du compte.
     try {
@@ -1092,6 +1125,10 @@ router.get("/:idOrSlug", (req, res) => {
     founderCap: FOUNDER_CAP,
     foundersRemaining: Math.max(0, FOUNDER_CAP - foundersCount),
     waitlist: getClientWaitlist(client.id),
+    referral:
+      (client.client_type || "bbx") === "pro"
+        ? null
+        : getReferralSummary(client.id, publicBaseUrl(req)),
     month,
     // Devis (BBX & fondateurs uniquement ; les pros passent par les forfaits).
     quoteRequest:
@@ -1209,7 +1246,7 @@ router.post("/:idOrSlug/quote/checkout", async (req, res) => {
   if (!existing || !["answered", "accepted", "paid"].includes(existing.status)) {
     return res.status(404).json({ ok: false, error: "no_answered_quote" });
   }
-  if (!Number.isFinite(Number(existing.estimatedPriceCents)) || Number(existing.estimatedPriceCents) <= 0) {
+  if (!Number.isFinite(Number(existing.amountDueCents || existing.estimatedPriceCents)) || Number(existing.amountDueCents || existing.estimatedPriceCents) <= 0) {
     return res.status(409).json({ ok: false, error: "quote_not_priced" });
   }
   if (existing.paymentStatus === "paid" || existing.status === "paid") {
@@ -1225,6 +1262,11 @@ router.post("/:idOrSlug/quote/checkout", async (req, res) => {
         return res.status(409).json({ ok: false, error: "payment_amount_mismatch" });
       }
       if (result.becamePaid) {
+        const referralResult = finalizeReferralBenefitsForPaidQuote(result.quote.id);
+        if (referralResult?.rewardCreated && referralResult.referrerClientId) {
+          const referrer = getClientById(referralResult.referrerClientId);
+          if (referrer) await sendReferralRewardAvailableNotification({ client: referrer });
+        }
         await sendQuotePaidNotifications({ client, quote: result.quote });
       }
       if (result.quote?.paymentStatus === "paid") {
@@ -1247,7 +1289,7 @@ router.post("/:idOrSlug/quote/checkout", async (req, res) => {
   try {
     const checkout = await createHostedCheckout({
       checkoutReference,
-      amountCents: existing.estimatedPriceCents,
+      amountCents: existing.amountDueCents || existing.estimatedPriceCents,
       currency: "EUR",
       description: `Devis Bryan Cars #${existing.id}`,
       redirectUrl,
@@ -1286,6 +1328,11 @@ router.post("/:idOrSlug/quote/sync-payment", async (req, res) => {
       return res.status(409).json({ ok: false, error: "payment_amount_mismatch" });
     }
     if (result.becamePaid) {
+      const referralResult = finalizeReferralBenefitsForPaidQuote(result.quote.id);
+      if (referralResult?.rewardCreated && referralResult.referrerClientId) {
+        const referrer = getClientById(referralResult.referrerClientId);
+        if (referrer) await sendReferralRewardAvailableNotification({ client: referrer });
+      }
       await sendQuotePaidNotifications({ client, quote: result.quote });
     }
     return res.json({ ok: true, quoteRequest: quotePayload(result.quote) });
@@ -1314,6 +1361,7 @@ router.post("/:idOrSlug/quote/refuse", async (req, res) => {
     return res.status(400).json({ ok: false, error: "refusal_reason_required" });
   }
 
+  releaseReferralDiscountForQuote(existing.id);
   const updated = refuseQuoteRequest(existing.id, { refusalReason, refusalComment });
   try {
     await sendAdminQuoteRefusedEmail({ client, quote: updated });
@@ -2655,7 +2703,7 @@ router.post("/:idOrSlug/book", handleBookingUpload, async (req, res) => {
         });
         if (acceptedQuote) {
           finalizeAppointmentFromPaidQuote(createdId, {
-            amountCents: acceptedQuote.estimatedPriceCents,
+            amountCents: acceptedQuote.amountDueCents || acceptedQuote.estimatedPriceCents,
             paidAt: acceptedQuote.paidAt,
           });
           createProcessedAppointmentPaymentOrderFromQuote({

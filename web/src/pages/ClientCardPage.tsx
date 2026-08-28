@@ -303,6 +303,19 @@ type ApiResponse = {
   foundersRemaining?: number;
   waitlist?: Array<{ date: string; slot: AppointmentSlot; createdAt: number }>;
   quoteRequest?: QuoteRequest | null;
+  referral?: ReferralSummary | null;
+};
+
+type ReferralSummary = {
+  code: string;
+  shareUrl: string;
+  discountPercent: number;
+  qualifiedReferrals: number;
+  pendingReferrals: number;
+  availableRewards: number;
+  reservedRewards: number;
+  redeemedRewards: number;
+  referredBy: { firstName: string | null; status: string } | null;
 };
 
 type QuoteRequest = {
@@ -312,6 +325,10 @@ type QuoteRequest = {
   status: "pending" | "answered" | "accepted" | "paid" | "refused" | "archived";
   paymentStatus: "unpaid" | "pending" | "paid" | "failed" | "expired";
   estimatedPriceCents: number | null;
+  discountPercent: number;
+  discountCents: number;
+  amountDueCents: number | null;
+  discountSource: "referred_client" | "referrer_reward" | null;
   adminComment: string | null;
   createdAt: number;
   updatedAt: number;
@@ -2135,7 +2152,7 @@ export function ClientCardPage() {
   function renderQuoteModal() {
     if (!quoteModalOpen || !client) return null;
     const quote = data?.quoteRequest ?? null;
-    const priceCents = quote?.estimatedPriceCents ?? 0;
+    const priceCents = quote?.amountDueCents ?? quote?.estimatedPriceCents ?? 0;
     const quoteStepLabels = ["Prestations", "État", "Détails & photos", "Récapitulatif"];
     const selectedQuoteVehicle = vehicles.find((vehicle) => vehicle.id === quoteVehicleId) ?? null;
     const selectedQuoteServices = (data?.serviceCatalog ?? SERVICE_CATALOG).filter((service) =>
@@ -2211,6 +2228,14 @@ export function ClientCardPage() {
                 <p className="mt-2 text-4xl font-bold text-accent">
                   {formatMoneyCents(priceCents)}
                 </p>
+                {!!quote.discountCents && (
+                  <div className="mt-3 flex items-center justify-center gap-2 text-xs font-bold text-emerald-200">
+                    <Gift className="h-4 w-4" />
+                    <span>
+                      Remise parrainage de {quote.discountPercent} % appliquée · prix initial {formatMoneyCents(quote.estimatedPriceCents || 0)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -6410,7 +6435,7 @@ export function ClientCardPage() {
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-accent/25 bg-accent/10 text-accent">{answered ? <CreditCard className="h-5 w-5" /> : quote ? <Clock3 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}</span>
             <div className="min-w-0 flex-1">
               <p className="bb-eyebrow">{answered ? "Action requise" : quote ? "Demande en cours" : "Nouveau devis"}</p>
-              <h2 className="bb-display mt-2 text-2xl font-black text-white">{answered ? `${formatMoneyCents(quote?.estimatedPriceCents || 0)} à régler` : quote ? "Bryan Cars étudie votre demande" : "Composer ma demande"}</h2>
+              <h2 className="bb-display mt-2 text-2xl font-black text-white">{answered ? `${formatMoneyCents(quote?.amountDueCents || quote?.estimatedPriceCents || 0)} à régler` : quote ? "Bryan Cars étudie votre demande" : "Composer ma demande"}</h2>
               <p className="mt-2 text-sm leading-6 text-white/55">{answered ? "Consultez le détail, payez le montant exact ou refusez la proposition en indiquant votre motif." : quote ? "Vous recevrez une notification et un e-mail dès que le prix sera disponible." : "Le devis est gratuit et aucun créneau n'est bloqué avant le paiement."}</p>
             </div>
           </div>
@@ -6460,7 +6485,7 @@ export function ClientCardPage() {
     return (
       <section className="mx-auto max-w-3xl space-y-4 pb-4">
         <div className="rounded-[22px] border border-emerald-300/25 bg-emerald-300/[0.07] p-4">
-          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-300/12 text-emerald-200"><CheckCircle2 className="h-5 w-5" /></span><div><p className="text-sm font-black text-white">Devis payé · {formatMoneyCents(quote.estimatedPriceCents || 0)}</p><p className="mt-1 text-xs text-white/50">Choisissez maintenant une disponibilité encore libre.</p></div></div>
+          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-300/12 text-emerald-200"><CheckCircle2 className="h-5 w-5" /></span><div><p className="text-sm font-black text-white">Devis payé · {formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents || 0)}</p><p className="mt-1 text-xs text-white/50">Choisissez maintenant une disponibilité encore libre.</p></div></div>
         </div>
 
         <header className="bc-panel flex items-center gap-3 p-3">
@@ -6474,7 +6499,7 @@ export function ClientCardPage() {
 
         {bookingWizardStep === 3 && <article className="bc-step-card"><h1 className="bb-display text-3xl font-black text-white">Où souhaitez-vous venir ?</h1><div className="mt-6 grid gap-3 sm:grid-cols-2">{[{ value: "atelier" as const, label: "À l'atelier", copy: "Bryan Cars Detailing · Louhans (71500)." }, { value: "domicile" as const, label: "À domicile", copy: "Intervention à votre adresse, selon les modalités convenues." }].map((option) => <button className={cn("rounded-[22px] border p-5 text-left", appointmentLocation === option.value ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={option.value} onClick={() => setAppointmentLocation(option.value)} type="button"><MapPin className="h-6 w-6 text-accent" /><span className="mt-4 block font-black text-white">{option.label}</span><span className="mt-2 block text-sm leading-6 text-white/50">{option.copy}</span></button>)}</div>{appointmentLocation === "atelier" && <a className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-accentSoft hover:underline" href={GOOGLE_MAPS_URL} rel="noreferrer" target="_blank"><MapPin className="h-4 w-4" />Voir l&apos;adresse de l&apos;atelier sur Google Maps</a>}<label className="mt-5 block"><span className="mb-2 block text-sm font-semibold text-white">Précision utile (optionnel)</span><textarea className="bb-textarea min-h-24" maxLength={300} onChange={(event) => setClientBookingNote(event.target.value)} placeholder="Accès, code portail, contrainte particulière..." value={clientBookingNote} /></label><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={!appointmentLocation} onClick={() => setBookingWizardStep(4)} type="button">Voir le récapitulatif<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
 
-        {bookingWizardStep === 4 && selectedDay && <article className="bc-step-card"><div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Intervention payée</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez votre disponibilité</h1></div><CheckCircle2 className="h-9 w-9 shrink-0 text-accent" /></div><div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">{[["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })], ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`], ["Lieu", locationLabel(appointmentLocation)], ["Véhicule", vehicleLabel], ["Montant payé", formatMoneyCents(quote.estimatedPriceCents || 0)]].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{value}</span></div>)}<div className="px-4 py-4"><p className="text-sm text-white/45">Prestations</p><div className="mt-2 space-y-1.5">{quote.serviceItems.map((service) => <p className="flex items-start gap-2 text-sm text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div></div><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Confirmation..." : "CONFIRMER LE RENDEZ-VOUS"}</button></article>}
+        {bookingWizardStep === 4 && selectedDay && <article className="bc-step-card"><div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Intervention payée</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez votre disponibilité</h1></div><CheckCircle2 className="h-9 w-9 shrink-0 text-accent" /></div><div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">{[["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })], ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`], ["Lieu", locationLabel(appointmentLocation)], ["Véhicule", vehicleLabel], ["Montant payé", formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents || 0)]].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{value}</span></div>)}<div className="px-4 py-4"><p className="text-sm text-white/45">Prestations</p><div className="mt-2 space-y-1.5">{quote.serviceItems.map((service) => <p className="flex items-start gap-2 text-sm text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div></div><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Confirmation..." : "CONFIRMER LE RENDEZ-VOUS"}</button></article>}
       </section>
     );
   }
@@ -7822,6 +7847,28 @@ export function ClientCardPage() {
     }
   }
 
+  async function shareReferralLink() {
+    const referral = data?.referral;
+    if (!referral?.shareUrl) return;
+    const shareText = `Je t'invite chez Bryan Cars Detailing : tu profites de ${referral.discountPercent} % sur ton premier devis payé.`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Invitation Bryan Cars", text: shareText, url: referral.shareUrl });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n${referral.shareUrl}`);
+      setCopiedKey("referral");
+      window.setTimeout(() => setCopiedKey((current) => (current === "referral" ? null : current)), 1800);
+      showToast("Lien d'invitation copié.");
+    } catch {
+      showToast("Impossible de copier le lien sur cet appareil.");
+    }
+  }
+
   function renderAccountView() {
     const displayName =
       clientData.fullName ||
@@ -7879,6 +7926,46 @@ export function ClientCardPage() {
             </div>
           </div>
         </article>
+
+        {clientData.clientType !== "pro" && data?.referral && (
+          <article className="bc-panel bc-panel-accent overflow-hidden p-5 md:p-6">
+            <div className="flex items-start gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-accent/30 bg-accent/12 text-accent">
+                <Gift className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="bb-eyebrow">Parrainage</p>
+                <h2 className="bb-display mt-2 text-xl font-black text-white">10 % pour vous deux</h2>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  Votre invité profite de 10 % sur son premier devis. Dès que ce devis est payé, vous recevez 10 % sur votre prochain devis.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">Invitations validées</p>
+                <p className="mt-2 text-2xl font-black text-white">{data.referral.qualifiedReferrals}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-100/60">Remises disponibles</p>
+                <p className="mt-2 text-2xl font-black text-emerald-200">{data.referral.availableRewards}</p>
+              </div>
+            </div>
+
+            {data.referral.availableRewards > 0 && (
+              <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-2.5 text-xs font-semibold leading-5 text-emerald-100">
+                Votre prochaine remise sera automatiquement déduite du prochain devis chiffré par Bryan Cars.
+              </p>
+            )}
+
+            <button className="bb-button-brand mt-5 w-full justify-center py-4" onClick={() => void shareReferralLink()} type="button">
+              {copiedKey === "referral" ? <CheckCircle2 className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+              {copiedKey === "referral" ? "LIEN COPIÉ" : "INVITER QUELQU'UN"}
+            </button>
+            <p className="mt-3 text-center text-[10px] uppercase tracking-[0.12em] text-white/32">Code {data.referral.code} · une remise maximum par devis</p>
+          </article>
+        )}
 
         {clientData.isFounder && (
           <article className="bc-panel p-5 md:p-6">

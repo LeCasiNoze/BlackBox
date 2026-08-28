@@ -88,7 +88,7 @@ function createProcessedAppointmentPaymentOrderFromQuote({ appointmentId, client
     .run(
       appointmentId,
       clientId,
-      Math.max(1, Math.round(Number(quote.estimatedPriceCents) || 0)),
+      Math.max(1, Math.round(Number(quote.amountDueCents || quote.estimatedPriceCents) || 0)),
       quote.checkoutReference,
       quote.checkoutId || null,
       quote.hostedCheckoutUrl || null,

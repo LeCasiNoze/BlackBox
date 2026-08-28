@@ -99,6 +99,10 @@ const {
   archiveQuoteRequest,
   unarchiveQuoteRequest,
 } = require("../db/quoteRequests");
+const {
+  applyReferralDiscountToAnsweredQuote,
+  releaseReferralDiscountForQuote,
+} = require("../db/referrals");
 const { getAdminMonthlyStats, getAdminAnalytics } = require("../db/stats");
 const { getLandingStats } = require("../db/landingStats");
 const { listPartnerOrders } = require("../db/partner_orders");
@@ -753,7 +757,9 @@ router.post("/quotes/:id/answer", async (req, res) => {
 
   let updated;
   try {
-    updated = answerQuoteRequest(id, { estimatedPriceCents, adminComment });
+    answerQuoteRequest(id, { estimatedPriceCents, adminComment });
+    applyReferralDiscountToAnsweredQuote(id);
+    updated = getQuoteRequestById(id);
   } catch (error) {
     console.error("[adminApi] answerQuoteRequest:", error);
     return res.status(500).json({ ok: false, error: "db_error" });
@@ -765,7 +771,10 @@ router.post("/quotes/:id/answer", async (req, res) => {
       await sendClientQuoteAnsweredEmail({
         client,
         quoteId: quote.id,
-        estimatedPriceCents,
+        estimatedPriceCents: updated.estimatedPriceCents,
+        amountDueCents: updated.amountDueCents,
+        discountPercent: updated.discountPercent,
+        discountCents: updated.discountCents,
         adminComment,
       });
     } catch (error) {
@@ -790,6 +799,7 @@ router.post("/quotes/:id/archive", (req, res) => {
     if (quote.status === "paid" || ["pending", "paid"].includes(quote.paymentStatus)) {
       return res.status(409).json({ ok: false, error: "quote_must_be_planned" });
     }
+    releaseReferralDiscountForQuote(id);
     archiveQuoteRequest(id);
     return res.json({ ok: true });
   } catch (error) {
@@ -828,6 +838,7 @@ router.delete("/quotes/:id", (req, res) => {
   if (quote && quote.paymentStatus === "paid" && !quote.appointmentId) {
     return res.status(409).json({ ok: false, error: "paid_quote_must_be_planned" });
   }
+  if (quote) releaseReferralDiscountForQuote(id);
   deleteQuoteRequest(id);
   return res.json({ ok: true });
 });

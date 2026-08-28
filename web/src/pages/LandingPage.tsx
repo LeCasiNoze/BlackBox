@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Gift,
   Loader2,
   MapPin,
   Menu,
@@ -251,6 +252,12 @@ export function LandingPage() {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = React.useState(false);
+  const [referralCode, setReferralCode] = React.useState("");
+  const [referralInfo, setReferralInfo] = React.useState<{
+    referrerFirstName: string;
+    discountPercent: number;
+  } | null>(null);
+  const [referralInvalid, setReferralInvalid] = React.useState(false);
 
   // Modal Accéder à mon Espace par Email
   const [portalLookupModalOpen, setPortalLookupModalOpen] = React.useState(false);
@@ -293,6 +300,30 @@ export function LandingPage() {
 
   React.useEffect(() => {
     trackLandingEvent("pageview");
+  }, []);
+
+  React.useEffect(() => {
+    const codeFromUrl = new URLSearchParams(window.location.search).get("parrain")?.trim() || "";
+    if (!codeFromUrl) return;
+    setReferralCode(codeFromUrl);
+    let active = true;
+    void fetch(`/api/client/referral/${encodeURIComponent(codeFromUrl)}`)
+      .then(async (response) => ({ response, json: await response.json().catch(() => ({})) }))
+      .then(({ response, json }) => {
+        if (!active) return;
+        if (response.ok && json.ok && json.referral) {
+          setReferralInfo(json.referral);
+          setReferralInvalid(false);
+        } else {
+          setReferralInvalid(true);
+        }
+      })
+      .catch(() => {
+        if (active) setReferralInvalid(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   React.useEffect(() => {
@@ -352,6 +383,7 @@ export function LandingPage() {
     try {
       const payload = new FormData();
       Object.entries(accountSignupForm).forEach(([key, value]) => payload.append(key, value));
+      if (referralCode) payload.append("referralCode", referralCode);
       const response = await fetch("/api/client/signup/request-code", {
         method: "POST",
         body: payload,
@@ -360,8 +392,12 @@ export function LandingPage() {
       if (!response.ok || !json.ok) throw new Error(json.error || "request_failed");
       trackLandingEvent("submit_account");
       setAccountSignupStep("code");
-    } catch {
-      setAccountSignupError("Impossible d'envoyer le code. Vérifiez vos informations et réessayez.");
+    } catch (requestError) {
+      setAccountSignupError(
+        requestError instanceof Error && requestError.message === "referral_new_clients_only"
+          ? "Cette invitation est réservée aux nouveaux clients. Retrouvez votre espace existant pour continuer."
+          : "Impossible d'envoyer le code. Vérifiez vos informations et réessayez.",
+      );
     } finally {
       setAccountSignupBusy(false);
     }
@@ -475,6 +511,7 @@ export function LandingPage() {
       });
       formData.append("quoteServiceKeys", JSON.stringify(selectedQuoteServiceKeys));
       formData.append("vehicleConditionScore", String(quoteConditionScore));
+      if (referralCode) formData.append("referralCode", referralCode);
       selectedPhotos.forEach((file) => {
         formData.append("images", file);
       });
@@ -493,7 +530,11 @@ export function LandingPage() {
       setError(
         requestError instanceof Error && requestError.message === "invalid_quote_details"
           ? "Une prestation et le modèle du véhicule sont nécessaires."
-          : "Impossible d'envoyer la demande. Vérifiez les informations et réessayez.",
+          : requestError instanceof Error && requestError.message === "referral_new_clients_only"
+            ? "Cette invitation est réservée aux nouveaux clients. Retrouvez votre espace existant pour continuer."
+            : requestError instanceof Error && requestError.message === "invalid_referral_code"
+              ? "Ce lien de parrainage n'est plus valide. Vous pouvez quand même demander un devis sans remise."
+              : "Impossible d'envoyer la demande. Vérifiez les informations et réessayez.",
       );
     } finally {
       setBusy(false);
@@ -1523,6 +1564,21 @@ export function LandingPage() {
               </div>
             </div>
 
+            {referralInfo && (
+              <div className="mb-6 flex items-start gap-3 border border-emerald-300/25 bg-emerald-300/[0.07] p-4 text-left">
+                <Gift className="mt-0.5 h-5 w-5 shrink-0 text-emerald-200" />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-100">Invitation de {referralInfo.referrerFirstName}</p>
+                  <p className="mt-1 text-xs leading-5 text-white/65">Votre remise de {referralInfo.discountPercent} % sera automatiquement appliquée au prix transmis par Bryan Cars.</p>
+                </div>
+              </div>
+            )}
+            {referralInvalid && (
+              <div className="mb-6 border border-rose-400/25 bg-rose-400/[0.07] p-4 text-xs leading-5 text-rose-100">
+                Ce lien de parrainage n&apos;est pas valide. La demande de devis reste disponible sans remise.
+              </div>
+            )}
+
             {step === "form" && (
               <div className="mb-6">
                 <div className="mb-2 flex items-center justify-between text-[9px] font-black uppercase tracking-[0.14em] text-white/35">
@@ -1756,6 +1812,7 @@ export function LandingPage() {
           <span>· Bryan Cars Detailing Premium</span>
         </div>
         <nav className="flex flex-wrap justify-center gap-4 text-[11px] text-white/50">
+          <a className="hover:text-white" href="/nettoyage-voiture-louhans">Detailing à Louhans</a>
           <a className="hover:text-white" href="/mentions-legales">Mentions légales</a>
           <a className="hover:text-white" href="/confidentialite">Confidentialité</a>
           <a className="hover:text-white" href="/cookies">Cookies</a>

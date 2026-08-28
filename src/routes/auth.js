@@ -19,6 +19,7 @@ function renderLoginPage({ error = null, next = "/admin" } = {}) {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content="noindex, nofollow, noarchive" />
         <title>Bryan Cars - Connexion admin</title>
         <style>
           @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap");
