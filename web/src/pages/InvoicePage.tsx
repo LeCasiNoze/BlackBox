@@ -93,7 +93,7 @@ export function InvoicePage() {
   const hasCompany = company.name || company.siret || company.address;
 
   return (
-    <div className="min-h-dvh bg-neutral-200 px-3 py-6 print:bg-white print:p-0">
+    <div className="invoice-page min-h-dvh bg-neutral-200 px-3 py-6 print:bg-white print:p-0">
       <div className="mx-auto max-w-[800px]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
           <Link className="rounded-full border border-neutral-400 px-4 py-2 text-sm font-semibold text-neutral-700" to={`/card/${slug}`}>
@@ -108,7 +108,7 @@ export function InvoicePage() {
           </button>
         </div>
 
-        <div className="rounded-lg bg-white p-8 text-neutral-800 shadow-lg print:rounded-none print:shadow-none md:p-12">
+        <div className="invoice-sheet rounded-lg bg-white p-5 sm:p-8 text-neutral-800 shadow-lg print:rounded-none print:shadow-none md:p-12">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
               <img
@@ -171,7 +171,7 @@ export function InvoicePage() {
                 <td className="py-3 text-center text-neutral-700">
                   1
                 </td>
-                <td className="py-3 text-right text-neutral-800">{formatEuro(invoice.amountCents)}</td>
+                <td className="whitespace-nowrap py-3 pl-3 text-right text-neutral-800">{formatEuro(invoice.amountCents)}</td>
               </tr>
             </tbody>
           </table>

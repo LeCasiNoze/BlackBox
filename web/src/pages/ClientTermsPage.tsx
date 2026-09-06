@@ -142,7 +142,7 @@ export function ClientTermsPage() {
 
   if (loading) {
     return (
-      <div className="bb-shell">
+      <div className="terms-page bb-shell">
         <div className="bb-content flex min-h-[70vh] items-center justify-center">
           <div className="bb-surface flex items-center gap-3 px-6 py-4 text-sm text-white/70">
             <Loader2 className="h-4 w-4 animate-spin text-[#f7b955]" />
@@ -155,9 +155,9 @@ export function ClientTermsPage() {
 
   if (!client || error) {
     return (
-      <div className="bb-shell">
+      <div className="terms-page bb-shell">
         <div className="bb-content py-10">
-          <div className="rounded-[28px] border border-rose-300/20 bg-rose-300/10 p-6 text-white">
+          <div className="rounded-[18px] border border-rose-300/20 bg-rose-300/10 p-6 text-white">
             <p className="text-lg font-semibold">Conditions indisponibles</p>
             <p className="mt-2 text-sm text-white/75">
               {error || "Cette carte client n'a pas pu être retrouvee."}
@@ -173,7 +173,7 @@ export function ClientTermsPage() {
   }
 
   return (
-    <div className="bb-shell">
+    <div className="terms-page bb-shell">
       <main className="bb-content space-y-6 py-8 md:py-10">
         <section className="bb-surface-strong overflow-hidden p-6 md:p-8">
           <div className="flex flex-col gap-5">
@@ -199,7 +199,7 @@ export function ClientTermsPage() {
 
             <div
               className={cn(
-                "rounded-[28px] border p-5",
+                "rounded-[18px] border p-5",
                 alreadyAccepted
                   ? "border-emerald-300/25 bg-emerald-300/10"
                   : "border-amber-300/25 bg-amber-300/10",
@@ -272,7 +272,7 @@ export function ClientTermsPage() {
             <div className="mt-6 space-y-3">
               {TERMS_HIGHLIGHTS.map((item) => (
                 <div
-                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/68"
+                  className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/68"
                   key={item}
                 >
                   {item}
@@ -290,7 +290,7 @@ export function ClientTermsPage() {
             <div className="mt-6 space-y-4">
               {TERMS_SECTIONS.map((section) => (
                 <section
-                  className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5"
+                  className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5"
                   key={section.title}
                 >
                   <h3 className="text-lg font-semibold text-white">{section.title}</h3>

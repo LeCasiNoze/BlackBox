@@ -72,7 +72,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
   const publisher = c?.publisher || "";
 
   return (
-    <div className="min-h-dvh bg-[#05070b] px-4 py-10 text-white/80">
+    <div className="legal-page min-h-dvh bg-[#05070b] px-4 py-10 text-white/80">
       <div className="mx-auto max-w-3xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
@@ -94,6 +94,7 @@ export function LegalPage({ doc }: { doc: LegalDoc }) {
                   ? "rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent"
                   : "rounded-full border border-white/12 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white/60 transition hover:border-white/25 hover:text-white"
               }
+              aria-current={item.doc === doc ? "page" : undefined}
               key={item.doc}
               to={item.to}
             >

@@ -140,7 +140,7 @@ export function ForfaitPayPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden px-4 py-10 md:py-16">
+    <div className="payment-page relative min-h-screen overflow-hidden px-4 py-10 md:py-16">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-7rem] top-16 h-72 w-72 rounded-full bg-[#e8c98a]/12 blur-3xl" />
         <div className="absolute bottom-0 right-[-6rem] h-80 w-80 rounded-full bg-[#d99a4e]/10 blur-3xl" />

@@ -1,3 +1,4 @@
+import { MediaDialog } from "./MediaDialog";
 import { ArrowRight, Camera, X } from "lucide-react";
 
 type PhotoRecommendationDialogProps = {
@@ -16,17 +17,12 @@ export function PhotoRecommendationDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center p-3 sm:items-center">
-      <button
-        aria-label="Fermer"
-        className="absolute inset-0 cursor-default bg-black/80 backdrop-blur-sm"
-        onClick={onClose}
-        type="button"
-      />
-      <section className="relative w-full max-w-md rounded-[26px] border border-amber-200/25 bg-[#15110f] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.7)] sm:p-6">
+    <MediaDialog onClose={onClose} label="Photos recommandées">
+
+      <section className="bb-surface-strong relative w-full max-w-md rounded-[18px] border border-amber-200/25 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.7)] sm:p-6">
         <button
           aria-label="Fermer"
-          className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/50"
+          className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/50"
           onClick={onClose}
           type="button"
         >
@@ -59,6 +55,6 @@ export function PhotoRecommendationDialog({
           </button>
         </div>
       </section>
-    </div>
+    </MediaDialog>
   );
 }

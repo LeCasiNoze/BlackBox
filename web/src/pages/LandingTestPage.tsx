@@ -1,3 +1,4 @@
+import { ImageLightbox } from "../components/ImageLightbox";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -885,14 +886,7 @@ export function LandingTestPage() {
       )}
 
       {/* MODALE LIGHTBOX PHOTO */}
-      {lightboxUrl && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md"
-          onClick={() => setLightboxUrl(null)}
-        >
-          <img src={lightboxUrl} alt="Agrandissement" className="max-h-[90vh] max-w-full rounded-2xl border border-white/20 object-contain shadow-2xl" />
-        </div>
-      )}
+      <ImageLightbox images={lightboxUrl ? [{ id: lightboxUrl, url: lightboxUrl }] : []} currentUrl={lightboxUrl} onClose={() => setLightboxUrl(null)} onChange={setLightboxUrl} />
     </div>
   );
 }

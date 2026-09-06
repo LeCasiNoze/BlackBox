@@ -179,7 +179,7 @@ export function SalesPrepPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="sales-page min-h-screen bg-[#050505] text-white">
       <header className="relative overflow-hidden border-b border-[#e8c98a]/18 bg-[radial-gradient(circle_at_78%_5%,rgba(232,201,138,0.17),transparent_32%),linear-gradient(150deg,#050505,#101010)] px-4 pb-14 pt-8 sm:px-6 sm:pb-20">
         <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:42px_42px]" />
         <div className="relative mx-auto max-w-6xl">

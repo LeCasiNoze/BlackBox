@@ -1,3 +1,5 @@
+import { InterfaceMotion, ActiveNavIndicator } from "../components/InterfaceMotion";
+import { MediaDialog } from "../components/MediaDialog";
 import * as React from "react";
 import {
   Archive,
@@ -922,6 +924,7 @@ export function AdminDashboardPage() {
   }>({ appointmentId: null, date: null });
 
   const [isNavigatingSelection, startSelectingClient] = React.useTransition();
+  const hasInitializedClientSelection = React.useRef(false);
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -959,8 +962,11 @@ export function AdminDashboardPage() {
 
         setClients(json.clients ?? []);
 
-        if ((json.clients?.length ?? 0) > 0 && selectedClientId == null) {
-          setSelectedClientId(json.clients[0].id);
+        // Only choose a default on initial load. A deliberate return to the
+        // list must survive selection changes, filters and background refresh.
+        if (!hasInitializedClientSelection.current) {
+          hasInitializedClientSelection.current = true;
+          setSelectedClientId((current) => current ?? json.clients?.[0]?.id ?? null);
         }
       } catch (error) {
         if (active) {
@@ -979,7 +985,7 @@ export function AdminDashboardPage() {
     return () => {
       active = false;
     };
-  }, [clientTypeFilter, refreshToken, selectedClientId]);
+  }, [clientTypeFilter, refreshToken]);
 
   React.useEffect(() => {
     let active = true;
@@ -2622,7 +2628,7 @@ export function AdminDashboardPage() {
         </div>
 
         {eventDraft && (
-          <div className="mt-5 rounded-[24px] border border-accent/25 bg-accent/[0.05] p-5">
+          <div className="mt-5 rounded-[18px] border border-accent/25 bg-accent/[0.05] p-5">
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-2 md:col-span-2">
                 <span className="text-xs uppercase tracking-[0.16em] text-white/40">Titre</span>
@@ -2987,7 +2993,7 @@ export function AdminDashboardPage() {
   // Utilise par le rail desktop ET le tiroir mobile (onNavigate ferme le tiroir).
   function renderAdminMenu(onNavigate?: () => void) {
     return (
-      <div className="space-y-3">
+      <div className="admin-menu space-y-3">
         <div className="bb-surface-strong flex items-center gap-2.5 p-4">
           <img
             alt=""
@@ -3011,10 +3017,12 @@ export function AdminDashboardPage() {
                   "flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition duration-200",
                   active ? "bb-tab-active text-white" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
                 )}
+                aria-current={active ? "page" : undefined}
                 key={item.key}
                 onClick={onNavigate}
                 to={adminSectionHrefs[item.key]}
               >
+                {active && <ActiveNavIndicator id={onNavigate ? "admin-mobile" : "admin-desktop"} />}
                 <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-white/45")} />
                 <span className="flex-1">{item.label}</span>
                 {badge > 0 && (
@@ -3298,7 +3306,7 @@ export function AdminDashboardPage() {
             <div className="flex gap-2"><span className="bb-pill border-amber-300/25 bg-amber-300/10 text-amber-100">{pendingCount} en attente</span><span className="bb-pill border-emerald-300/25 bg-emerald-300/10 text-emerald-100">{paidCount} payé{paidCount > 1 ? "s" : ""}</span></div>
           </div>
 
-          <div className="mt-5 grid gap-4 rounded-[24px] border border-[#e8c98a]/20 bg-[linear-gradient(135deg,rgba(232,201,138,.10),rgba(255,255,255,.025))] p-4 sm:grid-cols-[1fr_auto] sm:items-center md:p-5">
+          <div className="mt-5 grid gap-4 rounded-[18px] border border-[#e8c98a]/20 bg-[linear-gradient(135deg,rgba(232,201,138,.10),rgba(255,255,255,.025))] p-4 sm:grid-cols-[1fr_auto] sm:items-center md:p-5">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#e8c98a]">Lien permanent Bryan Cars</p>
               <p className="mt-2 text-sm leading-6 text-white/62">À envoyer par SMS, WhatsApp ou e-mail. Aucun compte n&apos;est nécessaire pour commander.</p>
@@ -3418,7 +3426,7 @@ export function AdminDashboardPage() {
               <p className="text-sm text-white/55">Aucun devis archive pour le moment.</p>
             </div>
           ) : (
-            <article className="mt-5 rounded-[26px] border border-white/10 bg-white/[0.02] p-4 md:p-5">
+            <article className="mt-5 rounded-[18px] border border-white/10 bg-white/[0.02] p-4 md:p-5">
               <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/10 pb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
                   Devis archive
@@ -3552,7 +3560,7 @@ export function AdminDashboardPage() {
             <p className="text-sm text-white/55">Aucune livraison effectuee pour le moment.</p>
           </div>
         ) : (
-          <article className="mt-5 rounded-[26px] border border-emerald-300/15 bg-emerald-300/[0.03] p-4 md:p-5">
+          <article className="mt-5 rounded-[18px] border border-emerald-300/15 bg-emerald-300/[0.03] p-4 md:p-5">
             <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/10 pb-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/70">
                 Livraison effectuee
@@ -4632,7 +4640,7 @@ export function AdminDashboardPage() {
                     </h2>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="admin-agenda-metrics grid grid-cols-2 gap-3">
                     <button
                       className="bb-metric text-left transition duration-200 hover:border-amber-300/30"
                       onClick={() => {
@@ -4674,7 +4682,7 @@ export function AdminDashboardPage() {
                     Chargement des rendez-vous...
                   </div>
                 ) : boardTab === "agenda" && pendingRequests.length > 0 ? (
-                  <div ref={pendingRef} className="scroll-mt-4 rounded-[28px] border border-amber-300/20 bg-amber-300/[0.06] p-5">
+                  <div ref={pendingRef} className="scroll-mt-4 rounded-[18px] border border-amber-300/20 bg-amber-300/[0.06] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-amber-300/25 bg-amber-300/10 text-amber-200">
@@ -4701,7 +4709,7 @@ export function AdminDashboardPage() {
                         return (
                           <button
                             className={cn(
-                              "bb-hover-lift group w-full rounded-[24px] border p-4 text-left transition duration-200",
+                              "bb-hover-lift group w-full rounded-[18px] border p-4 text-left transition duration-200",
                               active
                                 ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
                                 : "border-white/10 bg-black/20 hover:border-amber-300/20",
@@ -4774,7 +4782,7 @@ export function AdminDashboardPage() {
                     )}
                   </div>
                 ) : boardTab === "agenda" ? (
-                  <div className="flex flex-col items-center gap-3 rounded-[28px] border border-emerald-300/20 bg-emerald-300/[0.05] p-8 text-center">
+                  <div className="flex flex-col items-center gap-3 rounded-[18px] border border-emerald-300/20 bg-emerald-300/[0.05] p-8 text-center">
                     <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
                       <CheckCircle2 className="h-6 w-6" />
                     </span>
@@ -4842,7 +4850,7 @@ export function AdminDashboardPage() {
                     Chargement de l'agenda...
                   </div>
                 ) : agendaSections.length === 0 ? (
-                  <div className="flex flex-col items-center gap-3 rounded-[24px] border border-white/10 bg-black/20 p-8 text-center">
+                  <div className="flex flex-col items-center gap-3 rounded-[18px] border border-white/10 bg-black/20 p-8 text-center">
                     <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/40">
                       <CalendarClock className="h-6 w-6" />
                     </span>
@@ -5086,7 +5094,7 @@ export function AdminDashboardPage() {
                 selectedOnBoard &&
                 selectedAppointment.goodies &&
                 selectedAppointment.goodies.length > 0 && (
-                  <div className="mt-5 flex items-start gap-3 rounded-[24px] border border-accent/45 bg-accent/12 p-4 shadow-[0_0_36px_rgb(var(--bb-accent-rgb)/0.15)]">
+                  <div className="mt-5 flex items-start gap-3 rounded-[18px] border border-accent/45 bg-accent/12 p-4 shadow-[0_0_36px_rgb(var(--bb-accent-rgb)/0.15)]">
                     <span className="mt-0.5 inline-grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/45 bg-accent/15 text-accent">
                       <Gift className="h-5 w-5" />
                     </span>
@@ -5105,7 +5113,7 @@ export function AdminDashboardPage() {
                 )}
 
               {!selectedAppointment || !selectedOnBoard ? (
-                <div className="mt-6 flex flex-col items-center gap-3 rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
+                <div className="mt-6 flex flex-col items-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.03] p-8 text-center">
                   <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/35">
                     <CalendarClock className="h-6 w-6" />
                   </span>
@@ -5121,7 +5129,7 @@ export function AdminDashboardPage() {
               ) : (
                 <>
                   {/* Resume + actions rapides */}
-                  <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-6 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <p className="bb-eyebrow">Resume</p>
@@ -5250,7 +5258,7 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Demande client */}
-                  <div className="mt-4 rounded-[28px] border border-accent/18 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.08),rgba(255,255,255,0.02))] p-5">
+                  <div className="mt-4 rounded-[18px] border border-accent/18 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex items-center gap-3">
                         <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
@@ -5326,7 +5334,7 @@ export function AdminDashboardPage() {
                   </div>
 
                   {selectedAppointment.status === "requested" && (
-                  <div className="mt-4 rounded-[28px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.08),rgba(255,255,255,0.02))] p-5">
+                  <div className="mt-4 rounded-[18px] border border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.08),rgba(255,255,255,0.02))] p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <p className="bb-eyebrow">Tarif a valider</p>
@@ -5497,7 +5505,7 @@ export function AdminDashboardPage() {
                   )}
 
                   {/* Infos utiles */}
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="bb-eyebrow mb-4">Infos utiles</p>
                     <div className="grid gap-3">
                       <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
@@ -5542,7 +5550,7 @@ export function AdminDashboardPage() {
                   {selectedAppointment.status === "confirmed" && (
                   <>
                   {/* Compte-rendu (pas de bouton: applique au passage en Effectue) */}
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="bb-eyebrow">Compte-rendu (visible par le client)</p>
                     <p className="mt-3 text-sm leading-6 text-white/55">
                       Commentaire + photos sont enregistres automatiquement au passage en{" "}
@@ -5562,7 +5570,7 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Photos a ajouter (plusieurs, sans bouton d'upload) */}
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-center gap-3">
                       <span className="inline-grid h-9 w-9 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
                         <Camera className="h-4 w-4" />
@@ -5689,7 +5697,7 @@ export function AdminDashboardPage() {
                   {selectedAppointment.status === "done" && (
                   <>
                     {selectedAppointment.adminNote && (
-                      <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                      <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                         <p className="bb-eyebrow">Compte-rendu</p>
                         <p className="mt-3 text-sm leading-6 text-white/72">
                           {selectedAppointment.adminNote}
@@ -5697,7 +5705,7 @@ export function AdminDashboardPage() {
                       </div>
                     )}
                     {publicAppointmentPhotos.length > 0 && (
-                      <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                      <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                         <p className="bb-eyebrow">Photos</p>
                         <div className="mt-4 grid gap-3 sm:grid-cols-3">
                           {publicAppointmentPhotos.map((photo) => (
@@ -5756,7 +5764,7 @@ export function AdminDashboardPage() {
                 </div>
               ) : activeClientContext ? (
                 <>
-                  <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-6 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="bb-pill border-white/12 bg-white/[0.04] text-white/70">
@@ -5785,7 +5793,7 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                       Historique rapide
                     </p>
@@ -5845,7 +5853,7 @@ export function AdminDashboardPage() {
                   </div>
                 </>
               ) : (
-                <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                <div className="mt-6 rounded-[18px] border border-white/10 bg-white/[0.03] p-6">
                   <p className="text-sm leading-6 text-white/62">
                     Aucun client contextuel disponible sur le panneau pour le moment.
                   </p>
@@ -5989,14 +5997,14 @@ export function AdminDashboardPage() {
                   Chargement des clients...
                 </div>
               ) : clientsError ? (
-                <div className="flex flex-col items-center gap-3 rounded-[24px] border border-rose-300/20 bg-rose-300/10 p-6 text-center">
+                <div className="flex flex-col items-center gap-3 rounded-[18px] border border-rose-300/20 bg-rose-300/10 p-6 text-center">
                   <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-rose-300/25 bg-rose-300/10 text-rose-200">
                     <XCircle className="h-5 w-5" />
                   </span>
                   <p className="text-sm text-rose-100">{clientsError}</p>
                 </div>
               ) : filteredClients.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-6 text-center">
+                <div className="flex flex-col items-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.03] p-6 text-center">
                   <span className="inline-grid h-10 w-10 place-items-center rounded-xl border border-white/12 bg-white/[0.04] text-white/35">
                     <Users className="h-5 w-5" />
                   </span>
@@ -6014,7 +6022,7 @@ export function AdminDashboardPage() {
                   return (
                     <button
                       className={cn(
-                        "bb-hover-lift group w-full rounded-[26px] border p-4 text-left transition duration-200",
+                        "bb-hover-lift group w-full rounded-[18px] border p-4 text-left transition duration-200",
                         active
                           ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
                           : "border-white/10 bg-white/[0.03] hover:border-white/20",
@@ -6156,7 +6164,7 @@ export function AdminDashboardPage() {
               ) : managedClient ? (
                 <>
                   {/* Identité — signature carte membre */}
-                  <div className="bb-gold-frame mt-6 rounded-[28px] border border-white/10 bg-[var(--bb-glass-solid)] p-5">
+                  <div className="bb-gold-frame mt-6 rounded-[18px] border border-white/10 bg-[var(--bb-glass-solid)] p-5">
                     <div className="flex items-start gap-4">
                       {/* Avatar large */}
                       <div className={cn(
@@ -6297,7 +6305,7 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Garage du client : consultation et remplacement de la photo. */}
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="bb-eyebrow">Garage</p>
@@ -6372,7 +6380,7 @@ export function AdminDashboardPage() {
 
                   {/* Fidélité + conditions */}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="bb-eyebrow">Fidélité</p>
@@ -6394,7 +6402,7 @@ export function AdminDashboardPage() {
                       )}
                     </div>
 
-                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="bb-eyebrow">Conditions & récap</p>
@@ -6434,7 +6442,7 @@ export function AdminDashboardPage() {
 
                   {/* Qualite vehicule + BC'Coins */}
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                       <p className="bb-eyebrow mb-3">Qualite véhicule moyenne</p>
                       <div className="flex items-center gap-3">
                         <div
@@ -6459,7 +6467,7 @@ export function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <p className="bb-eyebrow">BC&apos;Coins</p>
@@ -6547,7 +6555,7 @@ export function AdminDashboardPage() {
                   </div>
 
                   {/* Historique rendez-vous — replie par defaut (divulgation progressive) */}
-                  <details className="group/hist mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <details className="group/hist mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
                       <p className="bb-eyebrow">Historique rapide du client</p>
                       <span className="flex items-center gap-2">
@@ -6614,7 +6622,7 @@ export function AdminDashboardPage() {
                   </details>
 
                   {/* Notes internes */}
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                  <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                     <div className="flex items-start gap-3">
                       <span className="inline-grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accentSoft">
                         <PencilLine className="h-4 w-4" />
@@ -6646,7 +6654,7 @@ export function AdminDashboardPage() {
                   </div>
                 </>
               ) : (
-                <div className="mt-6 flex flex-col items-center gap-3 rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
+                <div className="mt-6 flex flex-col items-center gap-3 rounded-[18px] border border-white/10 bg-white/[0.03] p-8 text-center">
                   <span className="inline-grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-white/[0.04] text-white/30">
                     <Users className="h-6 w-6" />
                   </span>
@@ -6666,7 +6674,8 @@ export function AdminDashboardPage() {
   }
 
   return (
-    <div className="bb-shell pb-16">
+    <div className="bb-shell admin-shell pb-16">
+      <InterfaceMotion scope=".admin-shell" identity={adminSection} />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[-6rem] top-24 h-72 w-72 rounded-full bg-accent/10 blur-3xl" />
         <div className="absolute right-[-7rem] top-12 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" />
@@ -6675,9 +6684,10 @@ export function AdminDashboardPage() {
 
       <main className="bb-content">
         {/* Barre du haut mobile : hamburger qui ouvre le menu complet */}
-        <div className="mb-4 flex items-center gap-3 md:hidden">
+        <div className="admin-mobile-header mb-4 flex items-center gap-3 md:hidden">
           <button
             aria-label="Ouvrir le menu"
+            aria-expanded={adminMenuOpen}
             className="bb-icon-btn"
             onClick={() => setAdminMenuOpen(true)}
             type="button"
@@ -6696,11 +6706,8 @@ export function AdminDashboardPage() {
 
         {/* Tiroir lateral (mobile) : tout au meme endroit */}
         {adminMenuOpen && (
-          <div className="fixed inset-0 z-[60] md:hidden">
-            <div
-              className="bb-backdrop-in absolute inset-0 bg-black/70 backdrop-blur-sm"
-              onClick={() => setAdminMenuOpen(false)}
-            />
+          <MediaDialog className="admin-drawer" label="Navigation administration" onClose={() => setAdminMenuOpen(false)}>
+
             <div className="bb-drawer-in absolute inset-y-0 left-0 flex w-[84%] max-w-xs flex-col gap-3 overflow-y-auto bg-[var(--bb-glass-solid-2)] p-3 shadow-[0_24px_80px_rgba(0,0,0,0.6)]">
               <div className="flex justify-end">
                 <button
@@ -6714,20 +6721,20 @@ export function AdminDashboardPage() {
               </div>
               {renderAdminMenu(() => setAdminMenuOpen(false))}
             </div>
-          </div>
+          </MediaDialog>
         )}
 
-        <div className="md:flex md:items-start md:gap-6">
+        <div className="admin-layout md:flex md:items-start md:gap-6">
           {/* Menu lateral — desktop */}
-          <aside className="hidden md:block md:w-60 md:shrink-0">
-            <div className="sticky top-6">{renderAdminMenu()}</div>
+          <aside className="admin-rail hidden md:block md:w-60 md:shrink-0">
+            {renderAdminMenu()}
           </aside>
 
           {/* Colonne contenu */}
           <div className="min-w-0 flex-1 space-y-6 md:space-y-8">
             {/* Bandeau de section — meme signature que la carte membre client. */}
-            <section className="bb-member">
-              <div className="bb-member-in p-6 md:p-8">
+            <section className="admin-section-heading">
+              <div>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="max-w-4xl">
                     <p className="bb-eyebrow">Operations Bryan Cars</p>
@@ -6852,7 +6859,7 @@ export function AdminDashboardPage() {
                   value={profileDraft.email}
                 />
               </label>
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+              <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                   Type de compte
                 </p>
@@ -6973,7 +6980,7 @@ export function AdminDashboardPage() {
                 />
               </label>
               {profileMode === "edit" && selectedClientData && (
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/40">
                     Conditions & récap
                   </p>
@@ -7031,7 +7038,7 @@ export function AdminDashboardPage() {
       {/* ── LOT "Confort mobile" : bouton d'acces rapide flottant (mobile) ──────
           Retirable d'un coup : supprimer ce bloc + l'etat fabOpen. Raccourcis 1
           tap vers Demandes / Livraisons / Clients, avec compteurs. */}
-      <div className="fixed bottom-5 right-4 z-[65] flex flex-col items-end gap-3 md:hidden">
+      <div className="fixed bottom-5 right-4 z-[35] flex flex-col items-end gap-3 md:hidden">
         {fabOpen && (
           <div className="bb-rise flex flex-col items-end gap-2">
             {[

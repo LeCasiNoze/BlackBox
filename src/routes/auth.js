@@ -167,6 +167,17 @@ function renderLoginPage({ error = null, next = "/admin" } = {}) {
             line-height: 1.6;
             color: rgba(237, 242, 255, 0.62);
           }
+          body { min-height: 100dvh; background: #101112; color: #f3f2ef; font-family: "Segoe UI", sans-serif; }
+          .card { border-radius: 20px; background: #191b1d; box-shadow: 0 12px 48px #0003; backdrop-filter: none; }
+          h1 { font-family: inherit; font-size: 30px; font-weight: 650; line-height: 1.15; }
+          .eyebrow, .footer a { color: #e8c98a; }
+          label span { color: #a9abad; letter-spacing: .08em; }
+          input { background: #101112; border-color: #ffffff24; border-radius: 10px; font-size: 16px; min-height: 48px; }
+          input:focus { border-color: #e8c98a; box-shadow: 0 0 0 3px #e8c98a18; }
+          button { border-radius: 10px; background: #e8c98a; box-shadow: none; min-height: 48px; font-weight: 650; }
+          button:focus-visible, a:focus-visible { outline: 2px solid #e8c98a; outline-offset: 4px; }
+          .error, .hint { border-radius: 10px; }
+          @media (max-width: 480px) { body { padding: 16px; } .card { padding: 24px; } }
         </style>
       </head>
       <body>

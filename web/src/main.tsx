@@ -3,22 +3,26 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
-import "./index.css";
-import { ClientCardPage, CaseDemoPage } from "./pages/ClientCardPage";
-import { ClientTermsPage } from "./pages/ClientTermsPage";
-import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { LandingPage } from "./pages/LandingPage";
-import { ForfaitPayPage } from "./pages/ForfaitPayPage";
-import { InvoicePage } from "./pages/InvoicePage";
-import { LegalPage } from "./pages/LegalPage";
-import { LandingTestPage } from "./pages/LandingTestPage";
-import { SalesPrepPage } from "./pages/SalesPrepPage";
-import { LocalSeoPage } from "./pages/LocalSeoPage";
+import "./index.css";
+import "./refinement.css";
+import "./motion.css";
+const ClientCardPage = React.lazy(() => import("./pages/ClientCardPage").then(m => ({ default: m.ClientCardPage })));
+const CaseDemoPage = React.lazy(() => import("./pages/ClientCardPage").then(m => ({ default: m.CaseDemoPage })));
+const ClientTermsPage = React.lazy(() => import("./pages/ClientTermsPage").then(m => ({ default: m.ClientTermsPage })));
+const AdminDashboardPage = React.lazy(() => import("./pages/AdminDashboardPage").then(m => ({ default: m.AdminDashboardPage })));
+const ForfaitPayPage = React.lazy(() => import("./pages/ForfaitPayPage").then(m => ({ default: m.ForfaitPayPage })));
+const InvoicePage = React.lazy(() => import("./pages/InvoicePage").then(m => ({ default: m.InvoicePage })));
+const LegalPage = React.lazy(() => import("./pages/LegalPage").then(m => ({ default: m.LegalPage })));
+const LandingTestPage = React.lazy(() => import("./pages/LandingTestPage").then(m => ({ default: m.LandingTestPage })));
+const SalesPrepPage = React.lazy(() => import("./pages/SalesPrepPage").then(m => ({ default: m.SalesPrepPage })));
+const LocalSeoPage = React.lazy(() => import("./pages/LocalSeoPage").then(m => ({ default: m.LocalSeoPage })));
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <MotionConfig reducedMotion="user">
       <BrowserRouter>
+      <React.Suspense fallback={<div className="route-loading" role="status" aria-label="Chargement"><span /></div>}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/landing-test" element={<LandingTestPage />} />
@@ -37,6 +41,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <Route path="/admin/*" element={<AdminDashboardPage />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
+      </React.Suspense>
       </BrowserRouter>
     </MotionConfig>
   </React.StrictMode>

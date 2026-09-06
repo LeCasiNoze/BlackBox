@@ -1,3 +1,4 @@
+import { InterfaceMotion, ActiveNavIndicator, JourneyStep } from "../components/InterfaceMotion";
 import * as React from "react";
 import { motion } from "framer-motion";
 import {
@@ -952,7 +953,7 @@ function CaseOpeningModal({
         {revealed && result && (
           <motion.div
             className={cn(
-              "flex flex-col items-center gap-4 rounded-[24px] border p-6 text-center",
+              "flex flex-col items-center gap-4 rounded-[18px] border p-6 text-center",
               highlightWin
                 ? "border-accent/50 bg-accent/10 shadow-[0_0_48px_rgb(var(--bb-accent-rgb)/0.25)]"
                 : "border-white/10 bg-white/[0.04]",
@@ -2185,7 +2186,7 @@ export function ClientCardPage() {
           className="absolute inset-0 bg-black/70 backdrop-blur-sm"
           onClick={() => setQuoteModalOpen(false)}
         />
-        <div className="relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/12 bg-[var(--bb-glass-solid-2)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)] sm:rounded-3xl">
+        <div className="client-quote-panel relative max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/12 bg-[var(--bb-glass-solid-2)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)] sm:rounded-3xl">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="bb-eyebrow">Devis</p>
@@ -2427,10 +2428,10 @@ export function ClientCardPage() {
               </button>
             </div>
           ) : (
-            <div className="mt-5 space-y-4">
+            <JourneyStep step={quoteWizardStep}>
               <div>
                 <p className="bb-eyebrow">{quoteStepLabels[quoteWizardStep - 1]}</p>
-                <h4 className="bb-display mt-2 text-2xl font-black text-white">
+                <h4 tabIndex={-1} className="bb-display mt-2 text-2xl font-black text-white">
                   {quoteWizardStep === 1
                     ? "Composez votre demande"
                     : quoteWizardStep === 2
@@ -2589,7 +2590,7 @@ export function ClientCardPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </JourneyStep>
           )}
         </div>
         <PhotoRecommendationDialog
@@ -3653,7 +3654,7 @@ export function ClientCardPage() {
           ))}
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-accent/30 bg-accent/[0.06] p-4">
+        <div className="mt-4 rounded-[18px] border border-accent/30 bg-accent/[0.06] p-4">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent/12 text-accent">
               <Gift className="h-5 w-5" />
@@ -3761,7 +3762,7 @@ export function ClientCardPage() {
     if (!activeEvent) return null;
 
     return (
-      <div className="bb-event-glow bb-rise rounded-[26px]">
+      <div className="bb-event-glow bb-rise rounded-[18px]">
         <div
           className="relative z-[2] flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 md:p-5"
           onClick={() => setEventModalOpen(true)}
@@ -4409,7 +4410,7 @@ export function ClientCardPage() {
   function renderHeader() {
     return (
       <>
-        <header className="bc-panel flex items-center justify-between gap-3 px-3 py-2.5">
+        <header className="client-header bc-panel flex items-center justify-between gap-3 px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-accent/25 bg-black/30 shadow-[0_0_24px_rgb(var(--bb-glow-rgb)/0.12)]">
               <img alt="Bryan Cars" className="h-9 w-9 rounded-xl object-cover" src="/app-icon-192.png" />
@@ -4449,7 +4450,7 @@ export function ClientCardPage() {
           </div>
         </header>
 
-        <nav className={cn("bc-nav-shell hidden gap-2 rounded-[24px] p-1.5 md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <nav className={cn("bc-nav-shell hidden gap-2 rounded-[18px] p-1.5 md:grid", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -4459,9 +4460,11 @@ export function ClientCardPage() {
                   "flex items-center justify-center gap-2 rounded-[22px] px-4 py-3 text-sm font-semibold transition duration-200",
                   active ? "bc-nav-item-active" : "text-white/58 hover:bg-white/[0.05]",
                 )}
+                aria-current={active ? "page" : undefined}
                 key={item.view}
                 to={portalHref(item.view)}
               >
+                {active && <ActiveNavIndicator id="client-desktop" />}
                 <Icon className="h-4 w-4" />
                 {item.label}
               </Link>
@@ -4674,7 +4677,7 @@ export function ClientCardPage() {
     if (!clientData.isFounder) return null;
     return (
       <button
-        className="bb-rise bb-hover-lift group flex w-full items-center justify-between gap-4 rounded-[26px] border border-accent/25 bg-accent/[0.06] p-5 text-left"
+        className="bb-rise bb-hover-lift group flex w-full items-center justify-between gap-4 rounded-[18px] border border-accent/25 bg-accent/[0.06] p-5 text-left"
         onClick={() => {
           void openLeaderboard();
         }}
@@ -4869,7 +4872,7 @@ export function ClientCardPage() {
         {!assistantOpen && (
           <button
             aria-label="Assistant"
-            className="bb-button-brand fixed bottom-20 right-4 z-[58] grid h-14 w-14 touch-none place-items-center rounded-full p-0 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:bottom-6"
+            className="bb-button-brand fixed bottom-20 right-4 z-[35] grid h-14 w-14 touch-none place-items-center rounded-full p-0 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:bottom-6"
             onPointerDown={(event) => {
               chatDragRef.current = { startX: event.clientX, startY: event.clientY, moved: false };
               try {
@@ -4908,7 +4911,7 @@ export function ClientCardPage() {
         )}
         {assistantOpen && (
           <div
-            className="bb-modal-panel fixed bottom-20 right-4 z-[58] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[26px] border border-[color:var(--bb-border-strong)] shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6"
+            className="bb-modal-panel fixed bottom-20 right-4 z-[35] flex w-[min(92vw,360px)] flex-col overflow-hidden rounded-[18px] border border-[color:var(--bb-border-strong)] shadow-[0_24px_70px_rgba(0,0,0,0.6)] md:bottom-6"
             style={{ background: "var(--bb-glass-solid-2)" }}
           >
             <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
@@ -4961,7 +4964,7 @@ export function ClientCardPage() {
     const year = new Date().getFullYear();
     return (
       <button
-        className="bb-rise bb-gold-frame bb-hover-lift group flex w-full items-center justify-between gap-4 overflow-hidden rounded-[26px] bg-[color:var(--bb-glass-solid)] p-5 text-left"
+        className="bb-rise bb-gold-frame bb-hover-lift group flex w-full items-center justify-between gap-4 overflow-hidden rounded-[18px] bg-[color:var(--bb-glass-solid)] p-5 text-left"
         onClick={() => {
           void openRecap();
         }}
@@ -5011,7 +5014,7 @@ export function ClientCardPage() {
     // iPhone/iPad hors application installee: push indisponible -> installer d'abord.
     if (!pushSupported && isIOS && !isStandalone) {
       return (
-        <div className="bb-rise flex items-start justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
+        <div className="bb-rise flex items-start justify-between gap-3 rounded-[18px] border border-accent/30 bg-accent/[0.08] p-4">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/40 bg-accent/15 text-accentSoft">
               <Bell className="h-5 w-5" />
@@ -5039,7 +5042,7 @@ export function ClientCardPage() {
     if (!pushSupported) return null;
 
     return (
-      <div className="bb-rise flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-accent/30 bg-accent/[0.08] p-4">
+      <div className="bb-rise flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-accent/30 bg-accent/[0.08] p-4">
         <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-accent/40 bg-accent/15 text-accentSoft">
             <Bell className="h-5 w-5" />
@@ -5083,7 +5086,7 @@ export function ClientCardPage() {
     if (!appt) return null;
     return (
       <button
-        className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[26px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
+        className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[18px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
         onClick={() => {
           void openAppointmentModal(appt);
         }}
@@ -5116,7 +5119,7 @@ export function ClientCardPage() {
     const euroPrice = appt.approvedPriceCents;
     return (
       <button
-        className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[26px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
+        className="bb-rise group flex w-full items-center justify-between gap-4 rounded-[18px] border border-amber-300/40 bg-amber-300/[0.10] p-4 text-left transition duration-200 hover:bg-amber-300/[0.16] md:p-5"
         onClick={() => {
           void openAppointmentModal(appt);
         }}
@@ -5634,12 +5637,12 @@ export function ClientCardPage() {
     ];
 
     return (
-      <section className="mx-auto max-w-3xl space-y-7 pb-4">
+      <section className="client-home mx-auto max-w-3xl space-y-5 pb-4">
         {renderPhotosRequestBanner()}
         {renderPriceValidationBanner()}
-        {renderNotifBanner()}
 
-        <header className="bc-page-hero bb-rise">
+
+        <header className="client-greeting bc-page-hero bb-rise">
           <div className="absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-full border border-accent/20 bg-black/20 text-lg font-black text-accent/70">
             BC
           </div>
@@ -5648,7 +5651,7 @@ export function ClientCardPage() {
             {statusLabel}
           </div>
           <h1 className="bb-display mt-5 max-w-[82%] text-[2.65rem] font-black leading-[0.98] text-white">
-            Bonjour <span className="bb-text-gold">{firstName}</span><span className="ml-2 inline-block origin-bottom animate-[bb-wave_2.4s_ease-in-out_infinite]" aria-hidden="true">👋</span>
+            Bonjour <span className="bb-text-gold">{firstName}</span>
           </h1>
           <p className="mt-3 max-w-xl text-base leading-7 text-white/58">
             {clientData.isFounder
@@ -5699,6 +5702,8 @@ export function ClientCardPage() {
             Voir tous mes rendez-vous <ArrowRight className="h-5 w-5" />
           </button>
         </section>
+
+        {renderNotifBanner()}
 
         <section>
           <p className="bb-eyebrow mb-3">Accès rapides</p>
@@ -5859,7 +5864,7 @@ export function ClientCardPage() {
                   </button>
                 </div>
 
-                <div className="w-full rounded-[28px] border border-accent/45 bg-accent/10 p-4 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]">
+                <div className="w-full rounded-[18px] border border-accent/45 bg-accent/10 p-4 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.16em] text-white/45">
@@ -5937,7 +5942,7 @@ export function ClientCardPage() {
                 day ? (
                   <div
                     className={cn(
-                      "rounded-[26px] border p-4 transition duration-200",
+                      "rounded-[18px] border p-4 transition duration-200",
                       focusedDay?.date === day.date
                         ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.12)]"
                         : "border-white/10 bg-white/[0.03]",
@@ -5989,7 +5994,7 @@ export function ClientCardPage() {
                   </div>
                 ) : (
                   <div
-                    className="rounded-[26px] border border-dashed border-white/8 bg-black/10 p-4 text-sm text-white/28"
+                    className="rounded-[18px] border border-dashed border-white/8 bg-black/10 p-4 text-sm text-white/28"
                     key={`empty-${index}`}
                   >
                     Hors mois
@@ -6493,13 +6498,13 @@ export function ClientCardPage() {
           <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="bb-eyebrow">Étape {bookingWizardStep} sur 4</p><p className="text-xs font-bold text-accentSoft">{stepLabels[bookingWizardStep - 1]}</p></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all" style={{ width: `${bookingWizardStep * 25}%` }} /></div></div>
         </header>
 
-        {bookingWizardStep === 1 && <article className="bc-step-card"><p className="bb-eyebrow">Planification</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Choisissez un jour</h1><p className="mt-2 text-sm leading-6 text-white/55">Les créneaux déjà occupés restent indisponibles. Sélectionnez un jour puis une demi-journée.</p>{focusedDay && <div className="mt-6"><div className="flex items-center justify-between gap-3"><button aria-label="Jour précédent" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(-1)} type="button"><ArrowLeft className="h-5 w-5" /></button><div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.18em] text-accentSoft">{weekdayShort(focusedDay.date)}</p><p className="bb-display mt-1 text-2xl font-black text-white">{formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}</p></div><button aria-label="Jour suivant" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(1)} type="button"><ArrowRight className="h-5 w-5" /></button></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{SLOT_ORDER.map((slot) => { const info = focusedDay.slots[slot]; return <button className={cn("rounded-[24px] border p-5 text-left transition", dayStatusClasses(info.status))} key={slot} onClick={() => chooseSlot(focusedDay, slot)} type="button"><span className="flex items-center justify-between gap-3"><span className="text-base font-black">{slotLabel(slot)}</span><CalendarClock className="h-5 w-5" /></span><span className="mt-2 block text-sm opacity-70">{slotWindowLabel(slot)}</span><span className="mt-4 block text-xs font-bold uppercase tracking-[0.14em]">{slotNavigatorStatusLabel(info.status)}</span></button>; })}</div></div>}</article>}
+        {bookingWizardStep === 1 && <article className="bc-step-card"><p className="bb-eyebrow">Planification</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Choisissez un jour</h1><p className="mt-2 text-sm leading-6 text-white/55">Les créneaux déjà occupés restent indisponibles. Sélectionnez un jour puis une demi-journée.</p>{focusedDay && <div className="mt-6"><div className="flex items-center justify-between gap-3"><button aria-label="Jour précédent" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(-1)} type="button"><ArrowLeft className="h-5 w-5" /></button><div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.18em] text-accentSoft">{weekdayShort(focusedDay.date)}</p><p className="bb-display mt-1 text-2xl font-black text-white">{formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}</p></div><button aria-label="Jour suivant" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(1)} type="button"><ArrowRight className="h-5 w-5" /></button></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{SLOT_ORDER.map((slot) => { const info = focusedDay.slots[slot]; return <button className={cn("rounded-[18px] border p-5 text-left transition", dayStatusClasses(info.status))} key={slot} onClick={() => chooseSlot(focusedDay, slot)} type="button"><span className="flex items-center justify-between gap-3"><span className="text-base font-black">{slotLabel(slot)}</span><CalendarClock className="h-5 w-5" /></span><span className="mt-2 block text-sm opacity-70">{slotWindowLabel(slot)}</span><span className="mt-4 block text-xs font-bold uppercase tracking-[0.14em]">{slotNavigatorStatusLabel(info.status)}</span></button>; })}</div></div>}</article>}
 
         {bookingWizardStep === 2 && selectedDay && <article className="bc-step-card"><p className="bb-eyebrow">{formatDateFR(selectedDay.date)} · {slotLabel(selectedSlot)}</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Précisez votre heure</h1><div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{timeOptions.map((time) => <button className={cn("rounded-[20px] border px-4 py-4 text-center text-base font-black", selectedTime === time ? "border-accent/60 bg-accent/15 text-accentSoft" : "border-white/10 bg-white/[0.03] text-white")} key={time} onClick={() => setSelectedTime(time)} type="button">{formatTimeHHMM(time)}</button>)}</div><button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(3)} type="button">Continuer<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
 
         {bookingWizardStep === 3 && <article className="bc-step-card"><h1 className="bb-display text-3xl font-black text-white">Où souhaitez-vous venir ?</h1><div className="mt-6 grid gap-3 sm:grid-cols-2">{[{ value: "atelier" as const, label: "À l'atelier", copy: "Bryan Cars Detailing · Louhans (71500)." }, { value: "domicile" as const, label: "À domicile", copy: "Intervention à votre adresse, selon les modalités convenues." }].map((option) => <button className={cn("rounded-[22px] border p-5 text-left", appointmentLocation === option.value ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={option.value} onClick={() => setAppointmentLocation(option.value)} type="button"><MapPin className="h-6 w-6 text-accent" /><span className="mt-4 block font-black text-white">{option.label}</span><span className="mt-2 block text-sm leading-6 text-white/50">{option.copy}</span></button>)}</div>{appointmentLocation === "atelier" && <a className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-accentSoft hover:underline" href={GOOGLE_MAPS_URL} rel="noreferrer" target="_blank"><MapPin className="h-4 w-4" />Voir l&apos;adresse de l&apos;atelier sur Google Maps</a>}<label className="mt-5 block"><span className="mb-2 block text-sm font-semibold text-white">Précision utile (optionnel)</span><textarea className="bb-textarea min-h-24" maxLength={300} onChange={(event) => setClientBookingNote(event.target.value)} placeholder="Accès, code portail, contrainte particulière..." value={clientBookingNote} /></label><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={!appointmentLocation} onClick={() => setBookingWizardStep(4)} type="button">Voir le récapitulatif<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
 
-        {bookingWizardStep === 4 && selectedDay && <article className="bc-step-card"><div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Intervention payée</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez votre disponibilité</h1></div><CheckCircle2 className="h-9 w-9 shrink-0 text-accent" /></div><div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">{[["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })], ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`], ["Lieu", locationLabel(appointmentLocation)], ["Véhicule", vehicleLabel], ["Montant payé", formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents || 0)]].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{value}</span></div>)}<div className="px-4 py-4"><p className="text-sm text-white/45">Prestations</p><div className="mt-2 space-y-1.5">{quote.serviceItems.map((service) => <p className="flex items-start gap-2 text-sm text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div></div><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Confirmation..." : "CONFIRMER LE RENDEZ-VOUS"}</button></article>}
+        {bookingWizardStep === 4 && selectedDay && <article className="bc-step-card"><div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Intervention payée</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez votre disponibilité</h1></div><CheckCircle2 className="h-9 w-9 shrink-0 text-accent" /></div><div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.025]">{[["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })], ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`], ["Lieu", locationLabel(appointmentLocation)], ["Véhicule", vehicleLabel], ["Montant payé", formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents || 0)]].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{value}</span></div>)}<div className="px-4 py-4"><p className="text-sm text-white/45">Prestations</p><div className="mt-2 space-y-1.5">{quote.serviceItems.map((service) => <p className="flex items-start gap-2 text-sm text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div></div><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Confirmation..." : "CONFIRMER LE RENDEZ-VOUS"}</button></article>}
       </section>
     );
   }
@@ -6620,7 +6625,7 @@ export function ClientCardPage() {
                     const info = focusedDay.slots[slot];
                     return (
                       <button
-                        className={cn("rounded-[24px] border p-5 text-left transition active:scale-[0.99]", dayStatusClasses(info.status))}
+                        className={cn("rounded-[18px] border p-5 text-left transition active:scale-[0.99]", dayStatusClasses(info.status))}
                         key={slot}
                         onClick={() => selectWizardSlot(focusedDay, slot)}
                         type="button"
@@ -6668,7 +6673,7 @@ export function ClientCardPage() {
             {clientData.clientType === "pro" ? (
               <textarea className="bb-textarea mt-6 min-h-28" maxLength={120} onChange={(event) => setProVehicleText(event.target.value)} placeholder="Ex. 8008 rouge" value={proVehicleText} />
             ) : vehicles.length === 0 ? (
-              <div className="mt-6 rounded-[24px] border border-dashed border-accent/30 bg-accent/[0.06] p-6 text-center">
+              <div className="mt-6 rounded-[18px] border border-dashed border-accent/30 bg-accent/[0.06] p-6 text-center">
                 <CarFront className="mx-auto h-12 w-12 text-accent" />
                 <p className="mt-4 font-bold text-white">Aucun véhicule renseigné</p>
                 <button className="bb-button-brand mt-4 justify-center" onClick={() => { setGarageTab("add"); navigateView("vehicles"); }} type="button"><Plus className="mr-2 h-4 w-4" /> Ajouter mon véhicule</button>
@@ -6702,7 +6707,7 @@ export function ClientCardPage() {
               <CheckCircle2 className="h-9 w-9 shrink-0 text-accent" />
             </div>
             <p className="mt-2 text-sm leading-6 text-white/55">Votre rendez-vous sera validé immédiatement, sans devis ni paiement.</p>
-            <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">
+            <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.025]">
               {[
                 ["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })],
                 ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`],
@@ -6824,7 +6829,7 @@ export function ClientCardPage() {
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Ajouter des photos</h1>
             <p className="mt-2 text-sm text-white/55">Ajoutez au moins une photo du véhicule pour permettre à l&apos;admin d&apos;établir un devis juste. Jusqu&apos;à 8 images.</p>
-            <button className="mt-6 flex min-h-36 w-full flex-col items-center justify-center rounded-[24px] border border-dashed border-accent/35 bg-accent/[0.05] text-accentSoft" onClick={() => bookingImageInputRef.current?.click()} type="button"><Camera className="h-9 w-9" /><span className="mt-3 font-bold">Choisir des photos</span></button>
+            <button className="mt-6 flex min-h-36 w-full flex-col items-center justify-center rounded-[18px] border border-dashed border-accent/35 bg-accent/[0.05] text-accentSoft" onClick={() => bookingImageInputRef.current?.click()} type="button"><Camera className="h-9 w-9" /><span className="mt-3 font-bold">Choisir des photos</span></button>
             {bookingImageDrafts.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{bookingImageDrafts.map((draft) => <div className="relative overflow-hidden rounded-[16px]" key={draft.id}><img alt="" className="h-24 w-full object-cover" src={draft.previewUrl} /><button aria-label="Retirer" className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-black/70" onClick={() => removeBookingImage(draft.id)} type="button"><X className="h-4 w-4" /></button></div>)}</div>}
             <button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={bookingImageDrafts.length === 0} onClick={() => setBookingWizardStep(8)} type="button">Voir le récapitulatif <ArrowRight className="ml-2 h-4 w-4" /></button>
           </article>
@@ -6833,7 +6838,7 @@ export function ClientCardPage() {
         {bookingWizardStep === 8 && !isProBooking && selectedDay && (
           <article className="bc-step-card">
             <div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Votre rendez-vous</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Tout est prêt</h1></div><CheckCircle2 className="h-9 w-9 text-accent" /></div>
-            <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.025]">
+            <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.025]">
               {[
                 ["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })],
                 ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`],
@@ -6890,7 +6895,7 @@ export function ClientCardPage() {
               return (
                 <div
                   className={cn(
-                    "rounded-[24px] border p-4 transition duration-200",
+                    "rounded-[18px] border p-4 transition duration-200",
                     active
                       ? "border-accent/45 bg-accent/10 shadow-[0_18px_48px_rgb(var(--bb-accent-rgb)/0.1)]"
                       : "border-white/10 bg-white/[0.03]",
@@ -6988,14 +6993,14 @@ export function ClientCardPage() {
             })}
 
             {vehicles.length === 0 && (
-              <div className="rounded-[24px] border border-dashed border-white/12 bg-black/15 p-5 text-sm leading-6 text-white/62">
+              <div className="rounded-[18px] border border-dashed border-white/12 bg-black/15 p-5 text-sm leading-6 text-white/62">
                 Aucun vehicule n&apos;est encore enregistre sur ce compte. Ajoutez-en un pour relier
                 les rendez-vous au bon vehicule.
               </div>
             )}
 
             <button
-              className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[24px] border-[1.5px] border-dashed border-accent/40 bg-transparent text-sm font-bold text-accentSoft transition duration-200 hover:bg-accent/[0.06] active:scale-[0.99]"
+              className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-accent/40 bg-transparent text-sm font-bold text-accentSoft transition duration-200 hover:bg-accent/[0.06] active:scale-[0.99]"
               onClick={openVehicleCreate}
               type="button"
             >
@@ -7159,7 +7164,7 @@ export function ClientCardPage() {
           <article className="bc-step-card">
             <h2 className="bb-display text-2xl font-black text-white">Ajouter un véhicule</h2>
             <p className="mt-2 text-sm text-white/50">La photo est optionnelle. Un visuel générique sera utilisé sinon.</p>
-            <div className="mt-5 grid h-44 place-items-center overflow-hidden rounded-[24px] border border-dashed border-accent/30 bg-black/20 text-accent">
+            <div className="mt-5 grid h-44 place-items-center overflow-hidden rounded-[18px] border border-dashed border-accent/30 bg-black/20 text-accent">
               {vehicleDraft.imagePreviewUrl ? <img alt="Aperçu" className="h-full w-full object-cover" src={vehicleDraft.imagePreviewUrl} /> : <CarFront className="h-16 w-16" />}
             </div>
             <label className="bb-button-ghost mt-3 w-full cursor-pointer justify-center"><Camera className="mr-2 h-4 w-4" /> Choisir une photo<input accept="image/*" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (!file) return; setVehicleDraft((current) => { if (current.imageFile && current.imagePreviewUrl) URL.revokeObjectURL(current.imagePreviewUrl); return { ...current, imageFile: file, imagePreviewUrl: URL.createObjectURL(file) }; }); }} type="file" /></label>
@@ -7348,7 +7353,7 @@ export function ClientCardPage() {
               topupOffers.map((offer) => (
                 <div
                   className={cn(
-                    "relative rounded-[24px] border p-4",
+                    "relative rounded-[18px] border p-4",
                     offer.key === bestOfferKey
                       ? "border-accent/45 bg-[radial-gradient(320px_120px_at_100%_0%,rgb(var(--bb-accent2-rgb)/0.13),transparent_70%),linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.12),rgba(255,255,255,0.02))]"
                       : "border-accent/20 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.03))]",
@@ -7403,7 +7408,7 @@ export function ClientCardPage() {
                   return (
                     <div
                       className={cn(
-                        "relative flex items-center gap-4 rounded-[24px] border p-4",
+                        "relative flex items-center gap-4 rounded-[18px] border p-4",
                         hot
                           ? "border-accent/45 bg-[radial-gradient(320px_120px_at_100%_0%,rgb(var(--bb-accent2-rgb)/0.13),transparent_70%),linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.1),rgba(255,255,255,0.02))]"
                           : "border-white/10 bg-white/[0.03]",
@@ -7458,7 +7463,7 @@ export function ClientCardPage() {
 
             {/* Repli si le paiement en ligne n'est pas encore configure. */}
             {!paymentsReady && (
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
                 <p className="text-lg font-semibold text-white">Recharge a finaliser</p>
                 <p className="mt-2 text-sm leading-6 text-white/58">
                   Le paiement en ligne n&apos;est pas encore disponible. Contactez Bryan Cars pour
@@ -7473,7 +7478,7 @@ export function ClientCardPage() {
             )}
 
             {paymentsReady && topupOffers[0] && (
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-lg font-semibold text-white">Recharge de crédits sur-mesure</p>
                   {clientData.isFounder && (
@@ -7529,7 +7534,7 @@ export function ClientCardPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-4 rounded-[24px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.1),rgba(255,255,255,0.02))] p-4">
+              <div className="mt-4 flex items-center gap-4 rounded-[18px] border border-accent/25 bg-[linear-gradient(180deg,rgb(var(--bb-accent-rgb)/0.1),rgba(255,255,255,0.02))] p-4">
                 <div
                   className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-extrabold shadow-[0_8px_20px_rgb(var(--bb-glow-rgb)/0.35)]"
                   style={{
@@ -7597,7 +7602,7 @@ export function ClientCardPage() {
               const affordable = clientData.bcPoints >= reward.pointsCost;
               return (
                 <div
-                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                  className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4"
                   key={reward.key}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -7660,7 +7665,7 @@ export function ClientCardPage() {
             ) : (
               rewardRedemptions.map((redemption) => (
                 <div
-                  className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                  className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4"
                   key={redemption.id}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -8163,7 +8168,7 @@ export function ClientCardPage() {
                 ) : (
                   communityReviews.map((item) => (
                     <article
-                      className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
+                      className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5"
                       key={item.id}
                     >
                       <div className="flex flex-wrap items-center gap-2">
@@ -8231,7 +8236,7 @@ export function ClientCardPage() {
               <div className="mt-6 space-y-3">
                 {GOOGLE_REVIEWS_FALLBACK.map((review) => (
                   <div
-                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4"
+                    className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4"
                     key={review.author}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -8294,9 +8299,10 @@ export function ClientCardPage() {
 
   return (
     <div
-      className="bb-shell pb-24 md:pb-16"
+      className="bb-shell client-shell pb-24 md:pb-16"
       data-theme={accountTheme ?? undefined}
     >
+      <InterfaceMotion scope=".client-shell" identity={requestedView} />
       <input
         accept="image/*"
         className="hidden"
@@ -8325,8 +8331,8 @@ export function ClientCardPage() {
         {requestedView === "history" && renderHistoryView()}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
-        <div className={cn("bc-nav-shell mx-auto grid max-w-xl rounded-[26px] p-1.5", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+      <nav className="client-bottom-nav fixed inset-x-0 bottom-3 z-30 px-3 md:hidden">
+        <div className={cn("bc-nav-shell mx-auto grid max-w-xl rounded-[18px] p-1.5", navItems.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = requestedView === item.view;
@@ -8336,9 +8342,11 @@ export function ClientCardPage() {
                   "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[22px] px-1.5 py-2 text-[10px] font-semibold transition duration-200 active:scale-95",
                   active ? "bc-nav-item-active" : "text-white/48",
                 )}
+                aria-current={active ? "page" : undefined}
                 key={item.view}
                 to={portalHref(item.view)}
               >
+                {active && <ActiveNavIndicator id="client-mobile" />}
                 <Icon className={cn("h-4 w-4", active && "text-accent")} />
                 <span>{item.label}</span>
               </Link>
@@ -8398,7 +8406,7 @@ export function ClientCardPage() {
                   return (
                     <button
                       className={cn(
-                        "rounded-[24px] border p-4 text-left transition duration-200",
+                        "rounded-[18px] border p-4 text-left transition duration-200",
                         dayStatusClasses(slotInfo.status),
                         selectedSlot === slot && "shadow-[0_0_0_1px_rgb(var(--bb-accent-rgb)/0.45)]",
                       )}
@@ -8445,7 +8453,7 @@ export function ClientCardPage() {
                     (w) => w.date === selectedDay.date && w.slot === selectedSlot,
                   );
                   return (
-                    <div className="rounded-[24px] border border-accent/25 bg-accent/[0.06] p-4">
+                    <div className="rounded-[18px] border border-accent/25 bg-accent/[0.06] p-4">
                       <p className="text-sm font-semibold text-white">Ce créneau est déjà pris</p>
                       <p className="mt-1 text-sm leading-6 text-white/65">
                         Rejoins la liste d&apos;attente : si ce creneau se libere, tu seras prevenu
@@ -8475,7 +8483,7 @@ export function ClientCardPage() {
 
               {selectedMode === "manage" && currentDayAppointment && (
                 <>
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">Lieu de prestation</p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {[
@@ -8556,7 +8564,7 @@ export function ClientCardPage() {
               )}
 
               {selectedMode === "past" && (
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                   <p className="text-sm leading-6 text-white/65">
                     {currentDayAppointment
                       ? "Ce passage fait déjà partie de votre historique. Ouvrez la fiche pour revoir le compte-rendu, les photos et votre évaluation client."
@@ -8675,7 +8683,7 @@ export function ClientCardPage() {
             </div>
 
             {clientData.clientType !== "pro" && (
-              <div className="mt-6 rounded-[26px] border border-accent/25 bg-accent/10 p-5">
+              <div className="mt-6 rounded-[18px] border border-accent/25 bg-accent/10 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-accentSoft">
@@ -8791,7 +8799,7 @@ export function ClientCardPage() {
 
             <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
               <section className="space-y-4">
-                <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+                <article className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-accent">
                       <Clock3 className="h-5 w-5" />
@@ -8812,7 +8820,7 @@ export function ClientCardPage() {
                   </div>
                 </article>
 
-                <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+                <article className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 text-sky-200">
                       <MapPin className="h-5 w-5" />
@@ -8829,7 +8837,7 @@ export function ClientCardPage() {
 
               <section className="space-y-4">
                 {(appointmentPhotosLoading || appointmentPhotos.length > 0) && (
-                <article className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+                <article className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-white">Photos du véhicule</p>
@@ -8901,7 +8909,7 @@ export function ClientCardPage() {
 
                 {selectedAppointment.status === "done" && (
                 <article
-                  className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5"
+                  className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5"
                   ref={reviewSectionRef}
                 >
                   <div className="flex items-center gap-3">
@@ -9015,7 +9023,7 @@ export function ClientCardPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-[24px] border border-dashed border-accent/30 bg-black/20 p-4 md:col-span-2">
+              <div className="rounded-[18px] border border-dashed border-accent/30 bg-black/20 p-4 md:col-span-2">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div className="grid h-32 w-full shrink-0 place-items-center overflow-hidden rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_50%_35%,rgb(var(--bb-accent-rgb)/0.2),transparent_70%)] text-accent sm:w-48">
                     {vehicleDraft.imagePreviewUrl ? (
@@ -9163,7 +9171,7 @@ export function ClientCardPage() {
               <section className="space-y-4">
                 <div
                   className={cn(
-                    "rounded-[24px] border p-4",
+                    "rounded-[18px] border p-4",
                     termsAccepted
                       ? "border-emerald-300/25 bg-emerald-300/10"
                       : "border-amber-300/25 bg-amber-300/10",
@@ -9181,7 +9189,7 @@ export function ClientCardPage() {
 
                 {TERMS_HIGHLIGHTS.map((item) => (
                   <article
-                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/68"
+                    className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/68"
                     key={item}
                   >
                     {item}
@@ -9192,7 +9200,7 @@ export function ClientCardPage() {
               <section className="space-y-4">
                 {TERMS_SECTIONS.slice(0, 3).map((section) => (
                   <article
-                    className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5"
+                    className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5"
                     key={section.title}
                   >
                     <h4 className="text-base font-semibold text-white">{section.title}</h4>

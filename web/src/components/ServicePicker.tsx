@@ -52,17 +52,18 @@ export function ServicePicker({
           featured
             ? `min-h-[76px] rounded-[18px] border p-3.5 ${
                 active
-                  ? "border-[#e8c98a]/70 bg-[#e8c98a]/12 shadow-[0_10px_30px_rgba(232,201,138,0.08)]"
-                  : "border-white/10 bg-black/25 hover:border-[#e8c98a]/35 hover:bg-[#e8c98a]/[0.05]"
+                  ? "border-accent/70 bg-accent/12 shadow-none"
+                  : "border-white/10 bg-black/25 hover:border-accent/35 hover:bg-accent/[0.05]"
               }`
-            : `rounded-xl px-3 py-3 ${active ? "bg-[#e8c98a]/10" : "hover:bg-white/[0.04]"}`
+            : `rounded-xl px-3 py-3 ${active ? "bg-accent/10" : "hover:bg-white/[0.04]"}`
         }`}
+        aria-pressed={active}
         key={service.key}
         onClick={() => toggle(service.key)}
         type="button"
       >
         {featured && (
-          <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[#e8c98a]/20 bg-[#e8c98a]/[0.07] text-[#e8c98a]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-accent/20 bg-accent/[0.07] text-accent">
             {service.imageUrl ? (
               <img alt="" className="h-full w-full object-cover" src={service.imageUrl} />
             ) : (
@@ -73,7 +74,7 @@ export function ServicePicker({
         <span
           className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
             active
-              ? "border-[#e8c98a] bg-[#e8c98a] text-black"
+              ? "border-accent bg-accent text-black"
               : "border-white/20 bg-black/20 text-transparent"
           }`}
         >
@@ -91,12 +92,12 @@ export function ServicePicker({
       className={
         landing
           ? "border border-white/15 bg-black/25 p-4 sm:p-5"
-          : "rounded-[24px] border border-white/10 bg-black/20 p-4 sm:p-5"
+          : "rounded-[16px] border border-white/10 bg-black/20 p-4 sm:p-5"
       }
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#e8c98a]">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">
             Prestations souhaitées
           </p>
           <p className="mt-1.5 text-sm font-semibold text-white">
@@ -131,10 +132,10 @@ export function ServicePicker({
             <section
               className={`overflow-hidden border transition ${
                 featured
-                  ? "rounded-[22px] border-[#e8c98a]/35 bg-[linear-gradient(145deg,rgba(232,201,138,0.10),rgba(255,255,255,0.025))]"
+                  ? "rounded-[14px] border-accent/35 bg-[linear-gradient(145deg,rgba(232,201,138,0.10),rgba(255,255,255,0.025))]"
                   : expanded
-                    ? "rounded-[20px] border-[#e8c98a]/25 bg-white/[0.035]"
-                    : "rounded-[20px] border-white/10 bg-white/[0.02]"
+                    ? "rounded-[14px] border-accent/25 bg-white/[0.035]"
+                    : "rounded-[14px] border-white/10 bg-white/[0.02]"
               }`}
               key={category.key}
             >
@@ -149,7 +150,7 @@ export function ServicePicker({
                 <span
                   className={`grid shrink-0 place-items-center rounded-[13px] border ${
                     featured
-                      ? "h-11 w-11 border-[#e8c98a]/35 bg-[#e8c98a]/12 text-[#f4dca0]"
+                      ? "h-11 w-11 border-accent/35 bg-accent/12 text-accentSoft"
                       : "h-10 w-10 border-white/10 bg-black/20 text-white/50"
                   }`}
                 >
@@ -162,7 +163,7 @@ export function ServicePicker({
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={`block font-black ${featured ? "text-[#f4dca0]" : "text-white"}`}>
+                  <span className={`block font-black ${featured ? "text-accentSoft" : "text-white"}`}>
                     {category.label}
                   </span>
                   <span className="mt-1 block text-[11px] text-white/42">
@@ -172,13 +173,13 @@ export function ServicePicker({
                   </span>
                 </span>
                 {categorySelected > 0 && (
-                  <span className="rounded-full border border-[#e8c98a]/25 bg-[#e8c98a]/10 px-2.5 py-1 text-[10px] font-black text-[#f4dca0]">
+                  <span className="rounded-full border border-accent/25 bg-accent/10 px-2.5 py-1 text-[10px] font-black text-accentSoft">
                     {categorySelected}
                   </span>
                 )}
                 <ChevronDown
                   className={`h-4 w-4 shrink-0 text-white/40 transition-transform ${
-                    expanded ? "rotate-180 text-[#e8c98a]" : ""
+                    expanded ? "rotate-180 text-accent" : ""
                   }`}
                 />
               </button>
@@ -190,7 +191,7 @@ export function ServicePicker({
                   </p>
                   {onFounderAction && (
                     <button
-                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8c98a]/35 bg-[#e8c98a]/10 px-4 py-3 text-xs font-black text-[#f4dca0] transition hover:bg-[#e8c98a]/15"
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/35 bg-accent/10 px-4 py-3 text-xs font-black text-accentSoft transition hover:bg-accent/15"
                       onClick={onFounderAction}
                       type="button"
                     >
@@ -233,13 +234,13 @@ export function ServicePicker({
                                 {subcategory}
                               </span>
                               {subgroupSelected > 0 && (
-                                <span className="rounded-full bg-[#e8c98a]/12 px-2 py-1 text-[10px] font-black text-[#e8c98a]">
+                                <span className="rounded-full bg-accent/12 px-2 py-1 text-[10px] font-black text-accent">
                                   {subgroupSelected}
                                 </span>
                               )}
                               <ChevronDown
                                 className={`h-4 w-4 text-white/35 transition-transform ${
-                                  subgroupExpanded ? "rotate-180 text-[#e8c98a]" : ""
+                                  subgroupExpanded ? "rotate-180 text-accent" : ""
                                 }`}
                               />
                             </button>
@@ -268,7 +269,7 @@ export function ServicePicker({
           <div className="flex flex-wrap gap-1.5">
             {selected.map((service) => (
               <button
-                className="inline-flex items-center gap-1.5 rounded-full border border-[#e8c98a]/25 bg-[#e8c98a]/[0.07] px-2.5 py-1.5 text-[10px] font-semibold text-[#f4dca0]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.07] px-2.5 py-1.5 text-[10px] font-semibold text-accentSoft"
                 key={service.key}
                 onClick={() => toggle(service.key)}
                 type="button"
