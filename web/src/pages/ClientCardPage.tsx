@@ -4872,6 +4872,8 @@ export function ClientCardPage() {
         {!assistantOpen && (
           <button
             aria-label="Assistant"
+            data-docked={requestedView === "booking" && !chatPos ? "true" : undefined}
+            onClick={(event) => { if (event.detail === 0) setAssistantOpen(true); }}
             className="bb-button-brand fixed bottom-20 right-4 z-[35] grid h-14 w-14 touch-none place-items-center rounded-full p-0 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:bottom-6"
             onPointerDown={(event) => {
               chatDragRef.current = { startX: event.clientX, startY: event.clientY, moved: false };
@@ -6498,13 +6500,15 @@ export function ClientCardPage() {
           <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="bb-eyebrow">Étape {bookingWizardStep} sur 4</p><p className="text-xs font-bold text-accentSoft">{stepLabels[bookingWizardStep - 1]}</p></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--bb-accent),var(--bb-accent-strong))] transition-all" style={{ width: `${bookingWizardStep * 25}%` }} /></div></div>
         </header>
 
+        <JourneyStep step={bookingWizardStep} className="space-y-4">
         {bookingWizardStep === 1 && <article className="bc-step-card"><p className="bb-eyebrow">Planification</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Choisissez un jour</h1><p className="mt-2 text-sm leading-6 text-white/55">Les créneaux déjà occupés restent indisponibles. Sélectionnez un jour puis une demi-journée.</p>{focusedDay && <div className="mt-6"><div className="flex items-center justify-between gap-3"><button aria-label="Jour précédent" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(-1)} type="button"><ArrowLeft className="h-5 w-5" /></button><div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.18em] text-accentSoft">{weekdayShort(focusedDay.date)}</p><p className="bb-display mt-1 text-2xl font-black text-white">{formatDateFR(focusedDay.date, { day: "numeric", month: "long" })}</p></div><button aria-label="Jour suivant" className="bb-icon-btn h-11 w-11" onClick={() => goFocusedDay(1)} type="button"><ArrowRight className="h-5 w-5" /></button></div><div className="mt-6 grid gap-3 sm:grid-cols-2">{SLOT_ORDER.map((slot) => { const info = focusedDay.slots[slot]; return <button className={cn("rounded-[18px] border p-5 text-left transition", dayStatusClasses(info.status))} key={slot} onClick={() => chooseSlot(focusedDay, slot)} type="button"><span className="flex items-center justify-between gap-3"><span className="text-base font-black">{slotLabel(slot)}</span><CalendarClock className="h-5 w-5" /></span><span className="mt-2 block text-sm opacity-70">{slotWindowLabel(slot)}</span><span className="mt-4 block text-xs font-bold uppercase tracking-[0.14em]">{slotNavigatorStatusLabel(info.status)}</span></button>; })}</div></div>}</article>}
 
-        {bookingWizardStep === 2 && selectedDay && <article className="bc-step-card"><p className="bb-eyebrow">{formatDateFR(selectedDay.date)} · {slotLabel(selectedSlot)}</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Précisez votre heure</h1><div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{timeOptions.map((time) => <button className={cn("rounded-[20px] border px-4 py-4 text-center text-base font-black", selectedTime === time ? "border-accent/60 bg-accent/15 text-accentSoft" : "border-white/10 bg-white/[0.03] text-white")} key={time} onClick={() => setSelectedTime(time)} type="button">{formatTimeHHMM(time)}</button>)}</div><button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(3)} type="button">Continuer<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
+        {bookingWizardStep === 2 && selectedDay && <article className="bc-step-card"><p className="bb-eyebrow">{formatDateFR(selectedDay.date)} · {slotLabel(selectedSlot)}</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Précisez votre heure</h1><div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{timeOptions.map((time) => <button className={cn("rounded-[20px] border px-4 py-4 text-center text-base font-black", selectedTime === time ? "border-accent/60 bg-accent/15 text-accentSoft" : "border-white/10 bg-white/[0.03] text-white")} aria-pressed={selectedTime === time} key={time} onClick={() => setSelectedTime(time)} type="button">{formatTimeHHMM(time)}</button>)}</div><button className="bb-button-brand mt-6 w-full justify-center py-4" onClick={() => setBookingWizardStep(3)} type="button">Continuer<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
 
         {bookingWizardStep === 3 && <article className="bc-step-card"><h1 className="bb-display text-3xl font-black text-white">Où souhaitez-vous venir ?</h1><div className="mt-6 grid gap-3 sm:grid-cols-2">{[{ value: "atelier" as const, label: "À l'atelier", copy: "Bryan Cars Detailing · Louhans (71500)." }, { value: "domicile" as const, label: "À domicile", copy: "Intervention à votre adresse, selon les modalités convenues." }].map((option) => <button className={cn("rounded-[22px] border p-5 text-left", appointmentLocation === option.value ? "border-accent/55 bg-accent/12" : "border-white/10 bg-white/[0.03]")} key={option.value} onClick={() => setAppointmentLocation(option.value)} type="button"><MapPin className="h-6 w-6 text-accent" /><span className="mt-4 block font-black text-white">{option.label}</span><span className="mt-2 block text-sm leading-6 text-white/50">{option.copy}</span></button>)}</div>{appointmentLocation === "atelier" && <a className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-accentSoft hover:underline" href={GOOGLE_MAPS_URL} rel="noreferrer" target="_blank"><MapPin className="h-4 w-4" />Voir l&apos;adresse de l&apos;atelier sur Google Maps</a>}<label className="mt-5 block"><span className="mb-2 block text-sm font-semibold text-white">Précision utile (optionnel)</span><textarea className="bb-textarea min-h-24" maxLength={300} onChange={(event) => setClientBookingNote(event.target.value)} placeholder="Accès, code portail, contrainte particulière..." value={clientBookingNote} /></label><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={!appointmentLocation} onClick={() => setBookingWizardStep(4)} type="button">Voir le récapitulatif<ArrowRight className="ml-2 h-4 w-4" /></button></article>}
 
         {bookingWizardStep === 4 && selectedDay && <article className="bc-step-card"><div className="flex items-start justify-between gap-4"><div><p className="bb-eyebrow">Intervention payée</p><h1 className="bb-display mt-2 text-3xl font-black text-white">Confirmez votre disponibilité</h1></div><CheckCircle2 className="h-9 w-9 shrink-0 text-accent" /></div><div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.025]">{[["Date", formatDateFR(selectedDay.date, { weekday: "long", day: "numeric", month: "long" })], ["Heure", `${slotLabel(selectedSlot)} · ${formatTimeHHMM(selectedTime)}`], ["Lieu", locationLabel(appointmentLocation)], ["Véhicule", vehicleLabel], ["Montant payé", formatMoneyCents(quote.amountDueCents || quote.estimatedPriceCents || 0)]].map(([label, value]) => <div className="flex items-start justify-between gap-4 px-4 py-4" key={label}><span className="text-sm text-white/45">{label}</span><span className="max-w-[68%] text-right text-sm font-bold text-white">{value}</span></div>)}<div className="px-4 py-4"><p className="text-sm text-white/45">Prestations</p><div className="mt-2 space-y-1.5">{quote.serviceItems.map((service) => <p className="flex items-start gap-2 text-sm text-white" key={service.key}><Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{service.label}</p>)}</div></div></div><button className="bb-button-brand mt-6 w-full justify-center py-4" disabled={busyAction} onClick={() => void submitBooking(selectedDay.date, selectedSlot, selectedTime)} type="button">{busyAction ? "Confirmation..." : "CONFIRMER LE RENDEZ-VOUS"}</button></article>}
+        </JourneyStep>
       </section>
     );
   }
@@ -6606,6 +6610,7 @@ export function ClientCardPage() {
           </div>
         </header>
 
+        <JourneyStep step={bookingWizardStep} className="space-y-4">
         {bookingWizardStep === 1 && (
           <article className="bc-step-card">
             <h1 className="bb-display text-3xl font-black text-white">Choisissez une date</h1>
@@ -6655,6 +6660,7 @@ export function ClientCardPage() {
                 <button
                   className={cn("rounded-[20px] border px-4 py-4 text-center text-base font-black transition", selectedTime === time ? "border-accent/60 bg-accent/15 text-accentSoft" : "border-white/10 bg-white/[0.03] text-white")}
                   key={time}
+                  aria-pressed={selectedTime === time}
                   onClick={() => setSelectedTime(time)}
                   type="button"
                 >
@@ -6855,6 +6861,7 @@ export function ClientCardPage() {
             <button className="bb-button-ghost mt-3 w-full justify-center" onClick={() => setBookingWizardStep(1)} type="button">Recommencer</button>
           </article>
         )}
+        </JourneyStep>
       </section>
     );
   }
@@ -7113,14 +7120,14 @@ export function ClientCardPage() {
     }
 
     return (
-      <section className="mx-auto max-w-3xl space-y-5 pb-4">
+      <section className="client-garage mx-auto max-w-3xl space-y-5 pb-4">
         <header className="bc-page-hero flex items-center justify-between gap-4">
           <div><p className="bc-kicker"><CarFront className="h-4 w-4" /> Espace véhicules</p><h1 className="bb-display mt-3 text-3xl font-black text-white">Mon <span className="bb-text-gold">garage</span></h1><p className="mt-2 text-sm text-white/50">Vos véhicules, leurs photos et leurs rendez-vous au même endroit.</p></div>
           <span className="bc-icon-tile h-14 w-14 shrink-0"><CarFront className="h-7 w-7" /></span>
         </header>
         <div className="bc-segmented grid-cols-2">
-          <button className={cn("bc-segment", garageTab === "vehicles" && "bc-segment-active")} onClick={() => setGarageTab("vehicles")} type="button">Mes véhicules</button>
-          <button className={cn("bc-segment", garageTab === "add" && "bc-segment-active")} onClick={openAddTab} type="button">Ajouter</button>
+          <button aria-pressed={garageTab === "vehicles"} className={cn("bc-segment", garageTab === "vehicles" && "bc-segment-active")} onClick={() => setGarageTab("vehicles")} type="button">Mes véhicules</button>
+          <button aria-pressed={garageTab === "add"} className={cn("bc-segment", garageTab === "add" && "bc-segment-active")} onClick={openAddTab} type="button">Ajouter</button>
         </div>
 
         {garageTab === "vehicles" && (
@@ -7199,7 +7206,7 @@ export function ClientCardPage() {
     const paidCount = orders.filter((order) => order.status === "paid").length;
 
     return (
-      <section className="space-y-4">
+      <section className="client-forfaits space-y-4">
         <article className="bb-surface-strong bb-steel-frame relative overflow-hidden p-5 md:p-7">
           <div className="bb-pro-orb bb-pro-orb-steel" />
           <div className="relative z-10 grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
@@ -7690,7 +7697,7 @@ export function ClientCardPage() {
 
   function renderShopView() {
     return (
-      <section className="space-y-4">
+      <section className="client-rewards space-y-4">
         <div className="bc-page-hero bb-rise flex items-start justify-between gap-4">
           <div>
             <p className="bc-kicker"><Gift className="h-4 w-4" /> Programme fidélité</p>
@@ -7707,6 +7714,7 @@ export function ClientCardPage() {
         <div className="bc-segmented grid-cols-2">
           <button
             className={cn("bc-segment", advantagesTab === "available" && "bc-segment-active")}
+            aria-pressed={advantagesTab === "available"}
             onClick={() => setAdvantagesTab("available")}
             type="button"
           >
@@ -7714,6 +7722,7 @@ export function ClientCardPage() {
           </button>
           <button
             className={cn("bc-segment", advantagesTab === "mine" && "bc-segment-active")}
+            aria-pressed={advantagesTab === "mine"}
             onClick={() => setAdvantagesTab("mine")}
             type="button"
           >
@@ -7913,7 +7922,7 @@ export function ClientCardPage() {
 
     return (
       <>
-      <section className="mx-auto max-w-3xl space-y-5">
+      <section className="client-account mx-auto max-w-3xl space-y-5">
         <div className="bc-page-hero bb-rise flex items-center justify-between">
           <div><p className="bc-kicker"><UserRound className="h-4 w-4" /> Espace personnel</p><h1 className="bb-display mt-3 text-3xl font-black text-white">Mon <span className="bb-text-gold">compte</span></h1><p className="mt-2 text-sm text-white/50">Vos informations et préférences Bryan Cars.</p></div>
           <span className="bc-icon-tile h-14 w-14 shrink-0"><UserRound className="h-7 w-7" /></span>
@@ -8057,7 +8066,7 @@ export function ClientCardPage() {
 
   function renderHistoryView() {
     return (
-      <section className="mx-auto max-w-4xl space-y-5">
+      <section className="client-history mx-auto max-w-4xl space-y-5">
         {renderRecapTeaser()}
         {/* En-tete leger (titre + onglets), sans grosse carte de verre. */}
         <div className="bc-page-hero bb-rise">

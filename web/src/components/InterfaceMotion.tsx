@@ -9,7 +9,7 @@ export function ActiveNavIndicator({ id }: { id: string }) {
 }
 
 /** Animate the step without remounting its inputs or delaying interaction. */
-export function JourneyStep({ step, children }: { step: number; children: ReactNode }) {
+export function JourneyStep({ step, children, className = "mt-5 space-y-4" }: { step: number; children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const previous = useRef(step);
   const reduced = useReducedMotion();
@@ -18,8 +18,18 @@ export function JourneyStep({ step, children }: { step: number; children: ReactN
     if (!element) return;
     const direction = step >= previous.current ? 1 : -1;
     if (step !== previous.current) {
-      element.closest('.client-quote-panel')?.scrollTo({ top: 0, behavior: 'instant' });
-      element.querySelector<HTMLElement>('h4')?.focus({ preventScroll: true });
+      const panel = element.closest('.client-quote-panel');
+      panel?.scrollTo({ top: 0, behavior: 'instant' });
+      const heading = element.querySelector<HTMLElement>('h1, h4');
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus({ preventScroll: true });
+      // Long booking steps can leave the next heading outside the viewport.
+      if (!panel && heading) {
+        const bounds = heading.getBoundingClientRect();
+        if (bounds.top < 16 || bounds.bottom > window.innerHeight - 100) {
+          heading.scrollIntoView({ block: 'start', behavior: 'instant' });
+        }
+      }
     }
     previous.current = step;
     if (reduced) return;
@@ -29,7 +39,7 @@ export function JourneyStep({ step, children }: { step: number; children: ReactN
     ));
     return () => animations.forEach(animation => animation.cancel());
   }, [step, reduced]);
-  return <div ref={ref} className="journey-step mt-5 space-y-4">{children}</div>;
+  return <div ref={ref} className={`journey-step ${className}`}>{children}</div>;
 }
 
 /** Reveal fresh view blocks; never transform containers holding fixed overlays. */
@@ -74,7 +84,7 @@ export function InterfaceMotion({ scope, identity }: { scope: string; identity: 
         targets.forEach(target => {
           if (seen.has(target)) return;
           seen.add(target);
-          if (target.matches('.grid') || target.querySelector('.fixed, dialog') || target.closest('.fixed, dialog')) return;
+          if (target.matches('.grid, .journey-step') || target.querySelector('.fixed, dialog') || target.closest('.fixed, dialog, .journey-step')) return;
           // A parent reveal is enough; avoid adding nested movement.
           if (targets.some(parent => parent !== target && parent.contains(target) && !parent.matches('.grid'))) return;
           observer?.observe(target);

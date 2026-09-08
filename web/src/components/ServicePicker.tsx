@@ -1,4 +1,5 @@
 import * as React from "react";
+import { DisclosureBody } from "./DisclosureBody";
 import { Check, ChevronDown, Crown, LockKeyhole, Sparkles, X } from "lucide-react";
 
 import type { ServiceCatalogItem, ServiceCategory } from "../lib/serviceCatalog";
@@ -33,6 +34,7 @@ export function ServicePicker({
     () => orderedCategories.find((category) => category.key === "complete")?.key || orderedCategories[0]?.key || null,
   );
   const [openSubcategory, setOpenSubcategory] = React.useState<string | null>(null);
+  const disclosureId = React.useId();
   const selected = catalog.filter((service) => selectedKeys.includes(service.key));
   const landing = tone === "landing";
 
@@ -48,7 +50,7 @@ export function ServicePicker({
     const active = selectedKeys.includes(service.key);
     return (
       <button
-        className={`flex w-full items-center gap-3 text-left transition active:scale-[0.99] ${
+        className={`service-choice flex w-full items-center gap-3 text-left transition active:scale-[0.99] ${
           featured
             ? `min-h-[76px] rounded-[18px] border p-3.5 ${
                 active
@@ -72,7 +74,7 @@ export function ServicePicker({
           </span>
         )}
         <span
-          className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
+          className={`service-check grid h-5 w-5 shrink-0 place-items-center rounded-md border transition ${
             active
               ? "border-accent bg-accent text-black"
               : "border-white/20 bg-black/20 text-transparent"
@@ -100,7 +102,7 @@ export function ServicePicker({
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">
             Prestations souhaitées
           </p>
-          <p className="mt-1.5 text-sm font-semibold text-white">
+          <p aria-live="polite" aria-atomic="true" className="mt-1.5 text-sm font-semibold text-white">
             {selected.length > 0
               ? `${selected.length} prestation${selected.length > 1 ? "s" : ""} dans votre demande`
               : "Composez librement votre demande"}
@@ -130,9 +132,9 @@ export function ServicePicker({
 
           return (
             <section
-              className={`overflow-hidden border transition ${
+              className={`service-category overflow-hidden border transition ${
                 featured
-                  ? "rounded-[14px] border-accent/35 bg-[linear-gradient(145deg,rgba(232,201,138,0.10),rgba(255,255,255,0.025))]"
+                  ? "rounded-[14px] border-accent/35 bg-[linear-gradient(145deg,rgb(var(--bb-accent-rgb)/0.10),rgba(255,255,255,0.025))]"
                   : expanded
                     ? "rounded-[14px] border-accent/25 bg-white/[0.035]"
                     : "rounded-[14px] border-white/10 bg-white/[0.02]"
@@ -141,6 +143,8 @@ export function ServicePicker({
             >
               <button
                 className={`flex w-full items-center gap-3 text-left ${featured ? "px-4 py-4" : "px-3.5 py-3.5"}`}
+                aria-expanded={expanded}
+                aria-controls={`${disclosureId}-${category.key}`}
                 onClick={() => {
                   setOpenCategory((current) => (current === category.key ? null : category.key));
                   setOpenSubcategory(null);
@@ -184,7 +188,8 @@ export function ServicePicker({
                 />
               </button>
 
-              {expanded && founderLocked ? (
+              <DisclosureBody open={expanded} id={`${disclosureId}-${category.key}`}>
+              {founderLocked ? (
                 <div className="border-t border-white/8 p-4">
                   <p className="text-xs leading-5 text-white/58">
                     Ces entretiens sont exclusivement réservés aux membres Fondateurs.
@@ -199,7 +204,7 @@ export function ServicePicker({
                     </button>
                   )}
                 </div>
-              ) : expanded ? (
+              ) : (
                 <div className="border-t border-white/8 p-2.5">
                   {subcategories.length === 1 ? (
                     <div className={featured ? "grid gap-2 sm:grid-cols-2" : "space-y-1"}>
@@ -223,6 +228,8 @@ export function ServicePicker({
                           >
                             <button
                               className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
+                              aria-expanded={subgroupExpanded}
+                              aria-controls={`${disclosureId}-${subgroupKey}`}
                               onClick={() =>
                                 setOpenSubcategory((current) =>
                                   current === subgroupKey ? null : subgroupKey,
@@ -244,18 +251,19 @@ export function ServicePicker({
                                 }`}
                               />
                             </button>
-                            {subgroupExpanded && (
+                            <DisclosureBody open={subgroupExpanded} id={`${disclosureId}-${subgroupKey}`}>
                               <div className="border-t border-white/8 p-1.5">
                                 {subgroupServices.map((service) => renderService(service))}
                               </div>
-                            )}
+                            </DisclosureBody>
                           </section>
                         );
                       })}
                     </div>
                   )}
                 </div>
-              ) : null}
+              )}
+              </DisclosureBody>
             </section>
           );
         })}
@@ -269,7 +277,7 @@ export function ServicePicker({
           <div className="flex flex-wrap gap-1.5">
             {selected.map((service) => (
               <button
-                className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.07] px-2.5 py-1.5 text-[10px] font-semibold text-accentSoft"
+                className="service-selection inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.07] px-2.5 py-1.5 text-[10px] font-semibold text-accentSoft"
                 key={service.key}
                 onClick={() => toggle(service.key)}
                 type="button"

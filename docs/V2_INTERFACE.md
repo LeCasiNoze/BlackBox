@@ -43,3 +43,15 @@ Cette recette vérifie le rendu et les interactions ciblées sous Edge/Chromium.
 Accents renforcés et dégradés à deux teintes pour BBX, Fondateur et Pro. Apparition progressive des blocs, indicateur de navigation animé, réactions lumineuses au survol et transitions directionnelles des quatre étapes du devis. Les préférences de réduction du mouvement sont respectées.
 
 Dernière vérification : compilation TypeScript/Vite et lint ciblé validés ; parcours devis contrôlé sur mobile jusqu’au récapitulatif, avec retour entre étapes et conservation du texte saisi. Aucune demande de test envoyée.
+
+## Passe de finition du 8 septembre 2026
+
+- Prestations : accordéons et sous-catégories à hauteur animée, contenu replié inerte au clavier, état annoncé aux lecteurs d’écran et sélection conservée. En-têtes resserrés sur mobile ; dégradé adapté au thème du compte.
+- Réservation après devis payé et réservation Pro : transitions directionnelles communes, focus sur le titre de chaque étape et états d’heures sélectionnées explicites.
+- Garage et avantages : états des sous-onglets explicites, nuances actives harmonisées ; compte personnel légèrement teinté.
+- Administration : survol des lignes avec actions et focus des champs harmonisés.
+- Assistance : commande utilisable au clavier ; sur mobile dans la réservation, la bulle est placée après le contenu et derrière la navigation fixe pour préserver les actions.
+
+Validation : TypeScript/Vite et ESLint ciblé. Recette locale des accordéons BBX et Fondateur, conservation d’une prestation après repli, passage à l’état du véhicule, quatre étapes de réservation Pro jusqu’au récapitulatif à 390 px, changement d’onglet des récompenses. Aucune demande ni réservation envoyée. Cette passe ne constitue pas une nouvelle recette exhaustive de tous les états métier.
+
+Finitions avant intégration : remise au point de lecture lors des étapes longues de réservation ; restitution du focus sans saut de page à la fermeture des fenêtres ; fermeture sur le fond uniquement si le geste commence sur le fond ; recommandation de photos harmonisée avec le thème du compte.
