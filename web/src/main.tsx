@@ -7,6 +7,7 @@ import { LandingPage } from "./pages/LandingPage";
 import "./index.css";
 import "./refinement.css";
 import "./motion.css";
+import "./benefits.css";
 const ClientCardPage = React.lazy(() => import("./pages/ClientCardPage").then(m => ({ default: m.ClientCardPage })));
 const CaseDemoPage = React.lazy(() => import("./pages/ClientCardPage").then(m => ({ default: m.CaseDemoPage })));
 const ClientTermsPage = React.lazy(() => import("./pages/ClientTermsPage").then(m => ({ default: m.ClientTermsPage })));

@@ -55,3 +55,13 @@ Dernière vérification : compilation TypeScript/Vite et lint ciblé validés ; 
 Validation : TypeScript/Vite et ESLint ciblé. Recette locale des accordéons BBX et Fondateur, conservation d’une prestation après repli, passage à l’état du véhicule, quatre étapes de réservation Pro jusqu’au récapitulatif à 390 px, changement d’onglet des récompenses. Aucune demande ni réservation envoyée. Cette passe ne constitue pas une nouvelle recette exhaustive de tous les états métier.
 
 Finitions avant intégration : remise au point de lecture lors des étapes longues de réservation ; restitution du focus sans saut de page à la fermeture des fenêtres ; fermeture sur le fond uniquement si le geste commence sur le fond ; recommandation de photos harmonisée avec le thème du compte.
+
+## Avantages et adhésion Fondateur — 11 septembre 2026
+
+- Correction de régression : l’entrée Fondateur se trouvait dans un ancien accueil hors navigation. Carte d’adhésion rétablie sur l’accueil BBX et dans les Avantages, avec prix et disponibilité réels, reliée au gestionnaire SumUp existant.
+- Tableau de fidélité : solde, points en attente, prochain palier, catalogue trié par coût, filtre des récompenses accessibles et état d’envoi exclusif pendant un échange.
+- Récompenses obtenues : toutes les entrées sont affichées, avec statut et date, sans l’ancienne limite de cinq éléments.
+- Carte de membre et nuances distinctes pour les Fondateurs. Apparitions et survols légers avec respect de la réduction des animations.
+- Adhésion dans une fenêtre native accessible, textes raccourcis, bouton de paiement visible sur mobile et maintenu à portée lors du défilement.
+
+Validation : compilation TypeScript/Vite, ESLint ciblé, contrôle visuel bureau et 390 px, ouverture de l’adhésion depuis accueil et Avantages, filtre sans récompense accessible, onglet vide et variante Fondateur actif. Aucun débordement horizontal constaté. Paiement et échanges réels non exécutés ; la prévisualisation locale interdit les écritures.

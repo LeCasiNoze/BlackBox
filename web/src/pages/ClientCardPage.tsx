@@ -1,3 +1,5 @@
+import { MediaDialog } from "../components/MediaDialog";
+import { BenefitsDashboard, FounderAccessCard } from "../components/BenefitsDashboard";
 import { InterfaceMotion, ActiveNavIndicator, JourneyStep } from "../components/InterfaceMotion";
 import * as React from "react";
 import { motion } from "framer-motion";
@@ -348,7 +350,6 @@ type ModalMode = "book" | "manage" | "past";
 type PortalView = "home" | "booking" | "vehicles" | "shop" | "account" | "history";
 type HistoryTab = "mine" | "community";
 type GarageTab = "vehicles" | "add";
-type AdvantagesTab = "available" | "mine";
 
 type ClientProfileDraft = {
   firstName: string;
@@ -535,22 +536,22 @@ const FOUNDER_PERKS: Array<{
 }> = [
   {
     title: "BC'Coins",
-    copy: "Cumulez des BC'Coins sur vos passages et echangez-les contre des récompenses dans la boutique fidélité.",
+    copy: "Des points à échanger contre vos récompenses.",
     icon: Gift,
   },
   {
     title: "Carte premium signature",
-    copy: "Une carte fondateur personnalisee avec votre univers visuel Bryan Cars.",
+    copy: "Votre carte Fondateur personnalisée.",
     icon: Crown,
   },
   {
     title: "Avantages tarifaires",
-    copy: "Accès a des formules et recharges réservées aux membres fondateurs.",
+    copy: "Formules et recharges réservées.",
     icon: Sparkles,
   },
   {
     title: "Annulation flexible",
-    copy: "Annulez ou deplacez un rendez-vous a tout moment, tant qu'il n'est pas effectue.",
+    copy: "Déplacez ou annulez avant la prestation.",
     icon: ShieldCheck,
   },
 ];
@@ -1436,7 +1437,6 @@ export function ClientCardPage() {
   const [openServiceSubcategory, setOpenServiceSubcategory] = React.useState<string | null>(null);
   const [bookingWizardStep, setBookingWizardStep] = React.useState(1);
   const [garageTab, setGarageTab] = React.useState<GarageTab>("vehicles");
-  const [advantagesTab, setAdvantagesTab] = React.useState<AdvantagesTab>("available");
   const [clientBookingNote, setClientBookingNote] = React.useState("");
   const [proVehicleText, setProVehicleText] = React.useState("");
   const [bookingImageDrafts, setBookingImageDrafts] = React.useState<BookingImageDraft[]>([]);
@@ -5661,6 +5661,8 @@ export function ClientCardPage() {
               : "Bienvenue dans votre espace detailing Bryan Cars."}
           </p>
         </header>
+        {clientData.clientType === "bbx" && !clientData.isFounder && <FounderAccessCard founder={false} remaining={data?.foundersRemaining} onJoin={() => setFounderModalOpen(true)} />}
+
 
         <div className="grid grid-cols-2 gap-3">
           {clientData.clientType !== "pro" && (
@@ -7696,124 +7698,10 @@ export function ClientCardPage() {
   }
 
   function renderShopView() {
-    return (
-      <section className="client-rewards space-y-4">
-        <div className="bc-page-hero bb-rise flex items-start justify-between gap-4">
-          <div>
-            <p className="bc-kicker"><Gift className="h-4 w-4" /> Programme fidélité</p>
-            <h1 className="bb-display mt-3 text-3xl font-black text-white">
-              Mes <span className="bb-text-gold">avantages</span>
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-white/58">
-              Vos passages vous font gagner des BC&apos;Coins à échanger contre des cadeaux.
-            </p>
-          </div>
-          <span className="bc-icon-tile h-14 w-14 shrink-0"><Gift className="h-7 w-7" /></span>
-        </div>
-
-        <div className="bc-segmented grid-cols-2">
-          <button
-            className={cn("bc-segment", advantagesTab === "available" && "bc-segment-active")}
-            aria-pressed={advantagesTab === "available"}
-            onClick={() => setAdvantagesTab("available")}
-            type="button"
-          >
-            Récompenses
-          </button>
-          <button
-            className={cn("bc-segment", advantagesTab === "mine" && "bc-segment-active")}
-            aria-pressed={advantagesTab === "mine"}
-            onClick={() => setAdvantagesTab("mine")}
-            type="button"
-          >
-            Mes récompenses
-          </button>
-        </div>
-
-        <article className="bc-panel bc-panel-accent p-5 md:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-accentSoft">
-                Vos BC&apos;Coins
-              </p>
-              <p className="bb-display mt-2 text-4xl font-extrabold text-white">
-                {clientData.bcPoints.toLocaleString("fr-FR")}
-              </p>
-              <p className="mt-2 text-sm text-white/50">
-                {clientData.bcPending > 0
-                  ? `+ ${clientData.bcPending} en attente de validation`
-                  : "Plus vous êtes actif, plus vous gagnez."}
-              </p>
-            </div>
-            <button className="bb-button-ghost" onClick={() => navigateView("history")} type="button">
-              Historique
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </button>
-          </div>
-        </article>
-
-        <div>
-          {advantagesTab === "available" && (
-          <article className="bc-step-card">
-            <p className="bb-eyebrow">Récompenses disponibles</p>
-            <div className="mt-4 grid gap-3">
-              {rewardCatalog.length === 0 ? (
-                <AppointmentsEmpty copy="Les prochaines récompenses apparaîtront ici." />
-              ) : (
-                rewardCatalog.map((reward, index) => {
-                  const affordable = clientData.bcPoints >= reward.pointsCost;
-                  return (
-                    <div
-                      className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
-                      key={reward.key}
-                    >
-                      <div className="grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border border-accent/25 bg-[radial-gradient(circle_at_35%_30%,rgb(var(--bb-accent-rgb)/0.24),transparent_75%)] text-accent">
-                        {index % 2 === 0 ? <Sparkles className="h-7 w-7" /> : <Gift className="h-7 w-7" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-white">{reward.label}</p>
-                        <p className="mt-1 text-xs font-semibold text-accentSoft">
-                          {reward.pointsCost} BC&apos;Coins
-                        </p>
-                      </div>
-                      <button
-                        className={cn("col-span-2 w-full justify-center px-4 py-2 sm:col-span-1 sm:w-auto", affordable ? "bb-button-brand" : "bb-button-ghost")}
-                        disabled={!affordable || redeemingRewardKey === reward.key}
-                        onClick={() => void redeemReward(reward)}
-                        type="button"
-                      >
-                        {redeemingRewardKey === reward.key ? "Envoi..." : "Échanger"}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </article>
-          )}
-
-          {advantagesTab === "mine" && (
-          <article className="bc-step-card">
-            <p className="bb-eyebrow">Mes récompenses</p>
-            <div className="mt-4 space-y-3">
-              {rewardRedemptions.length === 0 ? (
-                <AppointmentsEmpty copy="Aucune récompense échangée pour le moment." />
-              ) : (
-                rewardRedemptions.slice(0, 5).map((redemption) => (
-                  <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4" key={redemption.id}>
-                    <p className="text-sm font-bold text-white">{redemption.rewardLabel}</p>
-                    <p className="mt-1 text-xs text-white/45">
-                      {formatUnixDateTimeFR(redemption.createdAt)} · {rewardStatusLabel(redemption.status)}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </article>
-          )}
-        </div>
-      </section>
-    );
+    return <BenefitsDashboard founder={clientData.isFounder} points={clientData.bcPoints} pending={clientData.bcPending}
+      remaining={data?.foundersRemaining} rewards={rewardCatalog} redemptions={rewardRedemptions} busyKey={redeemingRewardKey}
+      onJoin={() => setFounderModalOpen(true)} onRedeem={(reward) => { void redeemReward(reward); }}
+      onHistory={() => navigateView("history")} formatDate={formatUnixDateTimeFR} statusLabel={rewardStatusLabel} />;
   }
 
   // Les anciennes vues restent hors navigation uniquement pour conserver la
@@ -9527,10 +9415,7 @@ export function ClientCardPage() {
       )}
 
       {founderModalOpen && (
-        <div
-          className="fixed inset-0 z-[56] flex items-end justify-center bg-black/80 px-3 pb-3 pt-8 backdrop-blur-md md:items-center bb-backdrop-in"
-          onClick={() => setFounderModalOpen(false)}
-        >
+        <MediaDialog className="founder-enrollment" label="Devenir Fondateur" onClose={() => setFounderModalOpen(false)}>
           <div
             className="bb-surface-strong max-h-[calc(100vh-1rem)] w-full max-w-xl overflow-y-auto p-6 overscroll-contain md:p-7 bb-modal-panel"
             onClick={(event) => event.stopPropagation()}
@@ -9539,11 +9424,10 @@ export function ClientCardPage() {
               <div>
                 <p className="bb-eyebrow">Programme fondateur</p>
                 <h3 className="bb-display mt-3 text-2xl font-semibold text-white">
-                  Devenir fondateur Bryan Cars
+                  Devenir Fondateur
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-white/65">
-                  Le statut fondateur debloque une carte premium et des avantages réservés.
-                  Accès a vie pour <span className="font-semibold text-accentSoft">49,90 €</span>.
+                  Accès à vie pour <span className="font-semibold text-accentSoft">49,90 €</span>.
                   <span className="mt-1 block text-xs uppercase tracking-[0.14em] text-accent">
                     {typeof data?.foundersRemaining === "number"
                       ? data.foundersRemaining > 0
@@ -9556,7 +9440,8 @@ export function ClientCardPage() {
                 </p>
               </div>
               <button
-                className="bb-button-ghost h-11 w-11 rounded-full px-0"
+                aria-label="Fermer"
+                className="bb-button-ghost h-11 w-11 shrink-0 rounded-full px-0"
                 onClick={() => setFounderModalOpen(false)}
                 type="button"
               >
@@ -9564,7 +9449,7 @@ export function ClientCardPage() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-3">
+            <div className="founder-enrollment-perks mt-6 grid gap-3">
               {FOUNDER_PERKS.map((perk) => {
                 const PerkIcon = perk.icon;
                 return (
@@ -9584,7 +9469,7 @@ export function ClientCardPage() {
               })}
             </div>
 
-            <div className="mt-6">
+            <div className="founder-enrollment-payment mt-6">
               <button
                 className="bb-button-brand w-full justify-center"
                 disabled={founderCheckoutBusy || data?.foundersRemaining === 0}
@@ -9601,11 +9486,11 @@ export function ClientCardPage() {
                     : "Devenir fondateur - 49,90 €"}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-white/45">
-                Paiement securise SumUp. Le statut est active des la confirmation du paiement.
+                Paiement sécurisé SumUp · Activation après confirmation.
               </p>
             </div>
           </div>
-        </div>
+        </MediaDialog>
       )}
 
       {openingCase && (
