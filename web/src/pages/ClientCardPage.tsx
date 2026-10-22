@@ -2057,6 +2057,11 @@ export function ClientCardPage() {
       showToast("Choisissez au moins une prestation pour votre devis.");
       return;
     }
+    if (quoteImageDrafts.length === 0) {
+      setQuoteWizardStep(3);
+      setQuotePhotoWarningOpen(true);
+      return;
+    }
     setQuoteBusy(true);
     try {
       const formData = new FormData();
@@ -2073,8 +2078,8 @@ export function ClientCardPage() {
       if (!response.ok || !json.ok) {
         showToast(json.error === "quote_already_exists"
           ? "Une demande de devis est deja en cours."
-          : json.error === "image_processing_failed"
-            ? "Les photos n'ont pas pu être traitées. Retirez-les ou réessayez."
+          : ["image_processing_failed", "photos_required"].includes(json.error)
+            ? "Ajoutez une photo lisible du véhicule et réessayez."
             : json.error === "vehicle_condition_required"
               ? "Indiquez l'état du véhicule de 0 à 10."
               : "Impossible d'envoyer la demande.");
@@ -2446,7 +2451,7 @@ export function ClientCardPage() {
                     : quoteWizardStep === 2
                       ? "Cette indication aide l'atelier à anticiper le niveau de travail."
                       : quoteWizardStep === 3
-                        ? "La description est libre et les photos sont recommandées, mais restent optionnelles."
+                        ? "Au moins une photo est obligatoire. Montrez les zones à traiter ; la description reste libre."
                         : "Relisez les informations avant de transmettre gratuitement votre demande."}
                 </p>
               </div>
@@ -2537,8 +2542,8 @@ export function ClientCardPage() {
                   <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-white">Photos du véhicule</p>
-                        <p className="mt-1 text-xs text-white/45">Optionnelles, mais fortement recommandées</p>
+                        <p className="text-sm font-semibold text-white">Photos du véhicule · obligatoire</p>
+                        <p className="mt-1 text-xs text-white/45">Au moins 1 photo nette · jusqu’à 8 photos</p>
                       </div>
                       <span className="bb-pill border-accent/25 bg-accent/12 text-accent">{quoteImageDrafts.length}/8</span>
                     </div>
@@ -2599,10 +2604,6 @@ export function ClientCardPage() {
             window.setTimeout(() => quoteImageInputRef.current?.click(), 0);
           }}
           onClose={() => setQuotePhotoWarningOpen(false)}
-          onContinue={() => {
-            setQuotePhotoWarningOpen(false);
-            setQuoteWizardStep(4);
-          }}
           open={quotePhotoWarningOpen}
         />
       </div>
@@ -8737,7 +8738,7 @@ export function ClientCardPage() {
                 <article className="rounded-[18px] border border-white/10 bg-white/[0.03] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-white">Photos du véhicule</p>
+                      <p className="text-sm font-semibold text-white">Photos du véhicule · obligatoire</p>
                       <p className="mt-1 text-sm text-white/55">
                         Cliquez sur une image pour l'ouvrir en grand.
                       </p>

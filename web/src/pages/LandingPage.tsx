@@ -474,6 +474,11 @@ export function LandingPage() {
   }
 
   async function requestCode() {
+    if (selectedPhotos.length === 0) {
+      setQuoteFormStep(3);
+      setQuotePhotoWarningOpen(true);
+      return;
+    }
     if (selectedQuoteServiceKeys.length === 0) {
       setError("Choisissez au moins une prestation avant d'envoyer le devis.");
       return;
@@ -545,7 +550,9 @@ export function LandingPage() {
       setPortalUrl(json.portalUrl || "");
       setStep("ready");
     } catch (requestError) {
-      setError("Code invalide ou expiré. Demandez un nouveau code si besoin.");
+      setError(requestError instanceof Error && ["photos_required", "image_processing_failed"].includes(requestError.message)
+        ? "Aucune photo exploitable. Reprenez la demande avec une photo nette du véhicule, puis demandez un nouveau code."
+        : "Code invalide ou expiré. Demandez un nouveau code si besoin.");
     } finally {
       setBusy(false);
     }
@@ -1178,7 +1185,7 @@ export function LandingPage() {
               DEMANDER UN DEVIS
             </h2>
             <p className="text-xs sm:text-sm text-white/60">
-              Choisissez vos prestations, décrivez votre véhicule et ajoutez si possible quelques photos pour recevoir un devis personnalisé.
+              Choisissez vos prestations, décrivez votre véhicule et ajoutez au moins une photo pour recevoir un devis personnalisé.
             </p>
           </div>
 
@@ -1284,7 +1291,7 @@ export function LandingPage() {
                     </div>
                     <label className="block"><span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Description de l&apos;état et de votre besoin</span><textarea className="mt-1.5 h-24 w-full resize-none border border-white/15 bg-black/50 px-3.5 py-3 text-sm text-white focus:border-[#efbf68] focus:outline-none" onChange={(e) => updateField("quoteDescription", e.target.value)} placeholder="Ex : taches sur les sièges, rayures légères, odeur persistante..." value={form.quoteDescription} /></label>
                     <div className="border border-white/15 bg-black/25 p-4">
-                      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-wider text-white/60">Photos du véhicule</p><p className="mt-1 text-[11px] text-white/40">Optionnelles, mais fortement recommandées · jusqu&apos;à 5</p></div><span className="border border-[#efbf68]/30 bg-[#efbf68]/10 px-2.5 py-1 text-[10px] font-black text-[#f4dca0]">{selectedPhotos.length}/5</span></div>
+                      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-wider text-white/60">Photos du véhicule</p><p className="mt-1 text-[11px] text-white/40">Obligatoires · au moins 1 photo, jusqu&apos;à 5</p></div><span className="border border-[#efbf68]/30 bg-[#efbf68]/10 px-2.5 py-1 text-[10px] font-black text-[#f4dca0]">{selectedPhotos.length}/5</span></div>
                       <div className="mt-3 flex flex-wrap items-center gap-3">
                         {photoPreviews.map((src, i) => <div className="relative h-16 w-16 overflow-hidden rounded border border-white/20 bg-black" key={`${src}-${i}`}><img alt="Prévisualisation du véhicule" className="h-full w-full object-cover" src={src} /><button aria-label="Retirer la photo" className="absolute right-0.5 top-0.5 rounded-full bg-black/80 p-0.5 text-white hover:text-rose-400" onClick={() => removePhoto(i)} type="button"><X className="h-3 w-3" /></button></div>)}
                         {selectedPhotos.length < 5 && <button className="flex h-16 w-16 flex-col items-center justify-center rounded border border-dashed border-[#efbf68]/50 bg-[#efbf68]/5 text-[#efbf68] transition hover:bg-[#efbf68]/10" onClick={() => landingPhotoInputRef.current?.click()} type="button"><Upload className="mb-1 h-4 w-4" /><span className="text-[9px] font-bold">AJOUTER</span></button>}
@@ -1475,10 +1482,6 @@ export function LandingPage() {
           window.setTimeout(() => landingPhotoInputRef.current?.click(), 0);
         }}
         onClose={() => setQuotePhotoWarningOpen(false)}
-        onContinue={() => {
-          setQuotePhotoWarningOpen(false);
-          setQuoteFormStep(4);
-        }}
         open={quotePhotoWarningOpen}
       />
     </div>

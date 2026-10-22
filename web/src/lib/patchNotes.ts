@@ -1,7 +1,7 @@
 // Version applicative + notes de version (changelog) affichees dans l'admin.
 // A tenir a jour a chaque livraison. La plus recente en premier.
 
-export const APP_VERSION = "1.44.0";
+export const APP_VERSION = "1.44.1";
 
 export type PatchNote = {
   version: string;
@@ -11,6 +11,7 @@ export type PatchNote = {
 };
 
 export const PATCH_NOTES: PatchNote[] = [
+  { version: "1.44.1", date: "2026-10-22", title: "Photos obligatoires pour les devis", changes: ["Au moins une photo exploitable est requise sur la landing et dans le portail client.", "La validation serveur interdit les demandes sans photo ; l’inscription seule reste inchangée."] },
   {
     version: "1.44.0",
     date: "2026-08-18",

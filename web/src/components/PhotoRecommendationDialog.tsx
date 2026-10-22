@@ -1,23 +1,21 @@
 import { MediaDialog } from "./MediaDialog";
-import { ArrowRight, Camera, X } from "lucide-react";
+import { Camera, X } from "lucide-react";
 
 type PhotoRecommendationDialogProps = {
   open: boolean;
   onClose: () => void;
   onAddPhotos: () => void;
-  onContinue: () => void;
 };
 
 export function PhotoRecommendationDialog({
   open,
   onClose,
   onAddPhotos,
-  onContinue,
 }: PhotoRecommendationDialogProps) {
   if (!open) return null;
 
   return (
-    <MediaDialog onClose={onClose} label="Photos recommandées">
+    <MediaDialog onClose={onClose} label="Photo obligatoire pour le devis">
 
       <section className="bb-surface-strong relative w-full max-w-md rounded-[18px] border border-accent/25 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.7)] sm:p-6">
         <button
@@ -32,26 +30,19 @@ export function PhotoRecommendationDialog({
           <Camera className="h-6 w-6" />
         </span>
         <p className="mt-5 text-[10px] font-black uppercase tracking-[0.18em] text-accentSoft/75">
-          Photos recommandées
+          Photo obligatoire
         </p>
         <h2 className="mt-2 text-xl font-black text-white">Vous n&apos;avez ajouté aucune photo</h2>
         <p className="mt-3 text-sm leading-6 text-white/62">
-          Elles nous sont très utiles pour évaluer précisément l&apos;état du véhicule et fixer un prix juste pour la ou les prestations choisies. Vous pouvez néanmoins continuer sans photo.
+          Ajoutez au moins une photo nette du véhicule pour envoyer votre demande. Montrez les zones à traiter : habitacle, carrosserie ou détails des salissures. Elles permettent à l&apos;atelier d&apos;établir un devis adapté.
         </p>
-        <div className="mt-6 grid gap-2 sm:grid-cols-2">
+        <div className="mt-6 grid gap-2">
           <button
             className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-xs font-black text-white"
             onClick={onAddPhotos}
             type="button"
           >
             <Camera className="h-4 w-4" /> Ajouter des photos
-          </button>
-          <button
-            className="flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-xs font-black text-black"
-            onClick={onContinue}
-            type="button"
-          >
-            Continuer sans photo <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </section>

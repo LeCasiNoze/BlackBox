@@ -10,6 +10,9 @@ l'admin → Hall → « Notes de version »).
 
 ## Fait récemment
 
+- ✅ **Photos obligatoires pour les devis (v1.44.1)** : contrôle client et serveur, au moins une photo exploitable ; inscription seule conservée.
+- 🚧 **Rework visuel global** : livraison séparée après v1.44.1, point de retour conservé.
+
 - ✅ **Archives devis + livraisons effectuées (v1.44.0)** : la page Archives
   dispose de deux sous-onglets avec consultation fiche par fiche et navigation
   précédent/suivant. Les rendez-vous marqués effectués quittent désormais la

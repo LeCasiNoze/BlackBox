@@ -23,8 +23,9 @@ const WEBP_QUALITY = 80;
  * @returns {Promise<string>} le nom du fichier a stocker (webp optimise, ou
  *   l'original si la conversion a echoue).
  */
-async function optimizeUploadedImage(uploadDir, originalFilename) {
+async function optimizeUploadedImage(uploadDir, originalFilename, { required = false } = {}) {
   if (!sharp || !originalFilename) {
+    if (required) throw new Error("image_processing_unavailable");
     return originalFilename;
   }
 
@@ -61,6 +62,7 @@ async function optimizeUploadedImage(uploadDir, originalFilename) {
     } catch (_error) {
       /* rien */
     }
+    if (required) throw error;
     return originalFilename;
   }
 }

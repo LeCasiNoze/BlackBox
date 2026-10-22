@@ -443,7 +443,7 @@ async function attachQuoteImages(quoteId, files = []) {
   let count = 0;
   for (const file of files) {
     try {
-      const finalName = await optimizeUploadedImage(QUOTES_UPLOAD_DIR, file.filename);
+      const finalName = await optimizeUploadedImage(QUOTES_UPLOAD_DIR, file.filename, { required: true });
       insertQuoteRequestPhoto(quoteId, `/uploads/quotes/${finalName}`);
       count += 1;
     } catch (error) {
@@ -938,6 +938,9 @@ router.post("/signup/request-code", handleQuoteUpload, async (req, res) => {
     requestedQuoteServiceKeys.length > 0 ||
     uploadedImages.length > 0 ||
     Boolean(String(body.quoteDescription || "").trim());
+  if (quoteIntent && uploadedImages.length === 0) {
+    return res.status(400).json({ ok: false, error: "photos_required" });
+  }
   if (
     requestedQuoteServiceKeys.length > 0 &&
     (quoteServices.length !== new Set(requestedQuoteServiceKeys).size ||
@@ -991,6 +994,19 @@ router.post("/signup/verify", async (req, res) => {
   if (!payload) {
     return res.status(400).json({ ok: false, error: "invalid_or_expired_code" });
   }
+  const needsQuote = Boolean(payload.quoteDescription || payload.quoteServiceItems?.length || payload.quoteImageFilenames?.length);
+  if (needsQuote) {
+    const validPhotos = [];
+    for (const filename of payload.quoteImageFilenames || []) {
+      try {
+        validPhotos.push(await optimizeUploadedImage(QUOTES_UPLOAD_DIR, filename, { required: true }));
+      } catch { /* Unreadable files cannot support a quote. */ }
+    }
+    if (validPhotos.length === 0) {
+      return res.status(400).json({ ok: false, error: "photos_required" });
+    }
+    payload.quoteImageFilenames = validPhotos;
+  }
 
   try {
     const client = createClient(payload);
@@ -1043,6 +1059,10 @@ router.post("/signup/verify", async (req, res) => {
             quoteId,
             payload.quoteImageFilenames.map((filename) => ({ filename }))
           );
+        }
+        if (photoCount === 0) {
+          deleteQuoteRequest(quoteId);
+          return res.status(500).json({ ok: false, error: "image_processing_failed", portalUrl: `/card/${encodeURIComponent(client.slug || client.card_code)}` });
         }
         await sendAdminQuoteRequestEmail({
           client,
@@ -1157,6 +1177,9 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
     (req.body?.description || "").toString().trim().slice(0, 600) || null;
   const uploadedImages = Array.isArray(req.files) ? req.files : [];
   const vehicleConditionScore = parseVehicleConditionScore(req.body?.vehicleConditionScore);
+  if (uploadedImages.length === 0) {
+    return res.status(400).json({ ok: false, error: "photos_required" });
+  }
   const requestedServiceKeys = parseServiceKeys(req.body?.serviceKeys);
   const services = getServicesByKeys(requestedServiceKeys);
   if (services.length === 0 || services.length !== new Set(requestedServiceKeys).size) {
@@ -1192,7 +1215,7 @@ router.post("/:idOrSlug/quote", handleQuoteUpload, async (req, res) => {
   }
 
   const photoCount = await attachQuoteImages(quoteId, uploadedImages);
-  if (uploadedImages.length > 0 && photoCount === 0) {
+  if (photoCount === 0) {
     deleteQuoteRequest(quoteId);
     return res.status(500).json({ ok: false, error: "image_processing_failed" });
   }
