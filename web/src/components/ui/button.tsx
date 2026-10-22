@@ -9,7 +9,7 @@ export interface ButtonProps
 }
 
 const base =
-  "inline-flex items-center justify-center whitespace-nowrap rounded-[10px] text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-black";
+  "bb-control inline-flex items-center justify-center whitespace-nowrap rounded-[10px] text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-black";
 
 const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   default: "bg-white text-black hover:bg-neutral-200",

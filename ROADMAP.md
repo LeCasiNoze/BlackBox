@@ -11,7 +11,7 @@ l'admin → Hall → « Notes de version »).
 ## Fait récemment
 
 - ✅ **Photos obligatoires pour les devis (v1.44.1)** : contrôle client et serveur, au moins une photo exploitable ; inscription seule conservée.
-- 🚧 **Rework visuel global** : livraison séparée après v1.44.1, point de retour conservé.
+- ✅ **Finition Atelier (v1.45.0)** : surfaces, navigation, contrôles, tableaux et écrans publics harmonisés ; thèmes BBX/Fondateur/Pro conservés. Retour visuel possible par réversion du commit v1.45.0 ; tag de référence `blackbox-before-visual-rework-2026-10-22` (photos obligatoires conservées).
 
 - ✅ **Archives devis + livraisons effectuées (v1.44.0)** : la page Archives
   dispose de deux sous-onglets avec consultation fiche par fiche et navigation

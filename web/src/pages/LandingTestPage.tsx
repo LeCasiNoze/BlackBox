@@ -525,7 +525,7 @@ export function LandingTestPage() {
   ];
 
   return (
-    <div className="bg-[#060608] text-[#e2e8f0] font-sans selection:bg-[#e8c98a] selection:text-black min-h-screen relative overflow-x-hidden">
+    <div className="atelier-experience bg-[#060608] text-[#e2e8f0] font-sans selection:bg-[#e8c98a] selection:text-black min-h-screen relative overflow-x-hidden">
       {/* ── HEADER FLOATING PROTOTYPE & BOUTON TOGGLE DIRECTOR ── */}
       <header className="fixed top-4 inset-x-0 z-50 px-4 sm:px-6 max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3 bg-[#0c0b0e]/85 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full shadow-2xl">

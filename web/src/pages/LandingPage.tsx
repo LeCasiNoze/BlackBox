@@ -712,7 +712,7 @@ export function LandingPage() {
       </header>
 
       {/* ── HERO BANNER MOBILE-FIRST ── */}
-      <section className="relative min-h-[85vh] sm:min-h-[90vh] flex items-center justify-start overflow-hidden bg-black">
+      <section className="atelier-hero relative min-h-[85vh] sm:min-h-[90vh] flex items-center justify-start overflow-hidden bg-black">
         <div className="absolute inset-0 z-0">
           <img
             alt="BC Detailing Chevrolet Corvette Polish"
@@ -725,17 +725,12 @@ export function LandingPage() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-32 w-full">
           <div className="max-w-2xl space-y-6 sm:space-y-8">
-            <div className="space-y-0.5">
-              <h1 className="text-3xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tight text-white leading-[1.05]">
-                L&apos;EXIGENCE
-              </h1>
-              <h1 className="text-3xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tight leading-[1.05] text-transparent bg-clip-text bg-gradient-to-r from-[#efbf68] via-[#f4dca0] to-[#c99a4e]">
-                JUSQUE DANS
-              </h1>
-              <h1 className="text-3xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tight text-white leading-[1.05]">
-                LES MOINDRES DÉTAILS
-              </h1>
-            </div>
+            <div className="atelier-signature">Bryan Cars Detailing · Louhans</div>
+            <h1 className="atelier-hero-title text-white uppercase">
+              <span>L&apos;EXIGENCE</span>
+              <span className="atelier-gold">JUSQUE DANS</span>
+              <span>LES MOINDRES DÉTAILS</span>
+            </h1>
 
             <p className="text-sm sm:text-lg text-white/80 font-normal max-w-lg leading-relaxed">
               Nettoyage, rénovation et protection haut de gamme pour sublimer votre véhicule.
@@ -757,6 +752,10 @@ export function LandingPage() {
                 <User className="h-4 w-4" />
                 <span>ACCÉDER À MON ESPACE</span>
               </button>
+            </div>
+            <div className="atelier-hero-meta">
+              <span><MapPin aria-hidden="true" /> Louhans</span>
+              <span><Car aria-hidden="true" /> Nettoyage · Rénovation · Protection</span>
             </div>
           </div>
         </div>
